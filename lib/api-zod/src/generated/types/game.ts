@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { GameOdds } from './gameOdds';
 import type { Team } from './team';
 
 export interface Game {
@@ -16,8 +17,20 @@ export interface Game {
   week: number;
   season?: number;
   status?: string;
+  hasStarted: boolean;
   /** @nullable */
   homeScore?: number | null;
   /** @nullable */
   awayScore?: number | null;
+  /**
+     * e.g. '8-3'
+     * @nullable
+     */
+  homeRecord?: string | null;
+  /**
+     * e.g. '5-6'
+     * @nullable
+     */
+  awayRecord?: string | null;
+  odds?: GameOdds | null;
 }

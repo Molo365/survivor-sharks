@@ -16,6 +16,7 @@ export * from './authUserRole';
 export * from './elimination';
 export * from './errorResponse';
 export * from './game';
+export * from './gameOdds';
 export * from './healthStatus';
 export * from './joinPoolInput';
 export * from './leaderboard';

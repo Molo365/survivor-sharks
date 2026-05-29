@@ -27,33 +27,71 @@ router.get("/:sport/teams", requireAuth, (req, res) => {
   })));
 });
 
+type EspnRecord = { name?: string; abbreviation?: string; summary?: string };
+type EspnOdds = { details?: string; overUnder?: number; spread?: number };
+type EspnCompetitor = {
+  homeAway: string;
+  score?: string;
+  records?: EspnRecord[];
+  team: { id: string; displayName: string; abbreviation: string; logo?: string };
+};
+type EspnStatusType = { completed?: boolean; name?: string; state?: string };
+type EspnEvent = {
+  id: string;
+  date: string;
+  competitions?: {
+    competitors?: EspnCompetitor[];
+    status?: { type?: EspnStatusType };
+    odds?: EspnOdds[];
+  }[];
+};
+
+function getRecord(competitor: EspnCompetitor | undefined): string | null {
+  if (!competitor?.records?.length) return null;
+  const overall = competitor.records.find(r => r.name === "overall" || r.abbreviation === "Total") ?? competitor.records[0];
+  return overall?.summary ?? null;
+}
+
+function getOdds(comp: EspnEvent["competitions"] extends (infer T)[] ? T : never): { details: string; overUnder: number | null; spread: number | null } | null {
+  const raw = (comp as { odds?: EspnOdds[] })?.odds;
+  if (!raw?.length) return null;
+  const o = raw[0];
+  return {
+    details: o.details ?? "",
+    overUnder: o.overUnder ?? null,
+    spread: o.spread ?? null,
+  };
+}
+
 // GET /api/sports/:sport/schedule/:week
 router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
   const sport = String(req.params.sport) as Sport;
   const week = parseInt(String(req.params.week));
 
+  const espnSport = sport === "nfl" ? "football/nfl" :
+    sport === "nba" ? "basketball/nba" :
+    sport === "mlb" ? "baseball/mlb" :
+    sport === "nhl" ? "hockey/nhl" :
+    "soccer/fifa.world";
+
+  const url = sport === "nfl"
+    ? `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard?week=${week}&seasontype=2`
+    : `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard`;
+
   try {
-    const espnSport = sport === "nfl" ? "football/nfl" :
-      sport === "nba" ? "basketball/nba" :
-      sport === "mlb" ? "baseball/mlb" :
-      sport === "nhl" ? "hockey/nhl" :
-      "soccer/fifa.worldq.concacaf";
-
-    const url = sport === "nfl"
-      ? `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard?week=${week}&seasontype=2`
-      : `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard`;
-
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
 
     if (response.ok) {
-      type EspnCompetitor = { homeAway: string; score?: string; team: { id: string; displayName: string; abbreviation: string; logo: string } };
-      type EspnEvent = { id: string; date: string; competitions?: { competitors?: EspnCompetitor[]; status?: { type?: { completed: boolean; name: string } } }[] };
       const data = await response.json() as { events?: EspnEvent[] };
       const games = (data.events ?? []).map((event: EspnEvent) => {
         const comp = event.competitions?.[0];
-        const home = comp?.competitors?.find((c: { homeAway: string }) => c.homeAway === "home");
-        const away = comp?.competitors?.find((c: { homeAway: string }) => c.homeAway === "away");
-        const statusName = comp?.status?.type?.name ?? "scheduled";
+        const home = comp?.competitors?.find(c => c.homeAway === "home");
+        const away = comp?.competitors?.find(c => c.homeAway === "away");
+        const state = comp?.status?.type?.state ?? "pre";
+        const isCompleted = comp?.status?.type?.completed ?? false;
+        const hasStarted = state === "in" || state === "post" || isCompleted;
+        const statusName = comp?.status?.type?.name ?? "STATUS_SCHEDULED";
+
         return {
           id: event.id,
           sport,
@@ -77,8 +115,12 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
           week,
           season: new Date().getFullYear(),
           status: statusName,
-          homeScore: home?.score ? parseInt(home.score) : null,
-          awayScore: away?.score ? parseInt(away.score) : null,
+          hasStarted,
+          homeScore: home?.score != null ? parseInt(home.score) : null,
+          awayScore: away?.score != null ? parseInt(away.score) : null,
+          homeRecord: getRecord(home),
+          awayRecord: getRecord(away),
+          odds: getOdds(comp as Parameters<typeof getOdds>[0]),
         };
       });
 
@@ -86,10 +128,10 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
       return;
     }
   } catch {
-    // Fall through to static fallback
+    req.log?.warn({ sport, week }, "ESPN schedule fetch failed, using fallback");
   }
 
-  // Fallback: return teams as a placeholder schedule
+  // Fallback: synthesise pairings from static team list
   const teams = ESPN_TEAMS[sport] ?? [];
   const games = [];
   for (let i = 0; i < teams.length - 1; i += 2) {
@@ -102,7 +144,7 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
         abbreviation: teams[i].abbreviation,
         sport,
         logoUrl: getTeamLogoUrl(sport, teams[i]),
-        location: teams[i].location,
+        location: teams[i].location ?? null,
         conference: teams[i].conference ?? null,
         division: teams[i].division ?? null,
         flagUrl: null,
@@ -113,7 +155,7 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
         abbreviation: teams[i + 1].abbreviation,
         sport,
         logoUrl: getTeamLogoUrl(sport, teams[i + 1]),
-        location: teams[i + 1].location,
+        location: teams[i + 1].location ?? null,
         conference: teams[i + 1].conference ?? null,
         division: teams[i + 1].division ?? null,
         flagUrl: null,
@@ -121,9 +163,13 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
       startTime: new Date().toISOString(),
       week,
       season: new Date().getFullYear(),
-      status: "scheduled",
+      status: "STATUS_SCHEDULED",
+      hasStarted: false,
       homeScore: null,
       awayScore: null,
+      homeRecord: null,
+      awayRecord: null,
+      odds: null,
     });
   }
 

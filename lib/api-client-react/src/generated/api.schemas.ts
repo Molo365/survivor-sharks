@@ -340,6 +340,15 @@ export interface Team {
   flagUrl?: string | null;
 }
 
+export interface GameOdds {
+  /** Spread line e.g. 'BUF -3.5' */
+  details?: string;
+  /** @nullable */
+  overUnder?: number | null;
+  /** @nullable */
+  spread?: number | null;
+}
+
 export interface Game {
   id: string;
   sport: string;
@@ -349,10 +358,22 @@ export interface Game {
   week: number;
   season?: number;
   status?: string;
+  hasStarted: boolean;
   /** @nullable */
   homeScore?: number | null;
   /** @nullable */
   awayScore?: number | null;
+  /**
+     * e.g. '8-3'
+     * @nullable
+     */
+  homeRecord?: string | null;
+  /**
+     * e.g. '5-6'
+     * @nullable
+     */
+  awayRecord?: string | null;
+  odds?: GameOdds | null;
 }
 
 export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];

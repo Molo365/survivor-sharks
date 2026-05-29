@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { TeamPickGrid } from "@/components/TeamPickGrid";
+import { MatchupPickGrid } from "@/components/MatchupPickGrid";
 import { SurvivorGrid } from "@/components/SurvivorGrid";
 import { Leaderboard } from "@/components/Leaderboard";
 import { KillHistory } from "@/components/KillHistory";
@@ -130,7 +130,7 @@ export default function PoolHome() {
 
               <div className="mt-8">
                 <TabsContent value="pick" className="m-0 focus-visible:outline-none">
-                  <TeamPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} />
+                  <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} />
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
                   <Leaderboard poolId={pool.id} />

@@ -479,8 +479,16 @@ export const ListSportGamesResponseItem = zod.object({
   "week": zod.number(),
   "season": zod.number().optional(),
   "status": zod.string().optional(),
+  "hasStarted": zod.boolean(),
   "homeScore": zod.number().nullish(),
-  "awayScore": zod.number().nullish()
+  "awayScore": zod.number().nullish(),
+  "homeRecord": zod.string().nullish().describe('e.g. \'8-3\''),
+  "awayRecord": zod.string().nullish().describe('e.g. \'5-6\''),
+  "odds": zod.object({
+  "details": zod.string().optional().describe('Spread line e.g. \'BUF -3.5\''),
+  "overUnder": zod.number().nullish(),
+  "spread": zod.number().nullish()
+}).nullish()
 })
 export const ListSportGamesResponse = zod.array(ListSportGamesResponseItem)
 

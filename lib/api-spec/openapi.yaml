@@ -1021,9 +1021,20 @@ components:
         flagUrl:
           type: ["string", "null"]
 
+    GameOdds:
+      type: object
+      properties:
+        details:
+          type: string
+          description: "Spread line e.g. 'BUF -3.5'"
+        overUnder:
+          type: ["number", "null"]
+        spread:
+          type: ["number", "null"]
+
     Game:
       type: object
-      required: [id, sport, homeTeam, awayTeam, startTime, week]
+      required: [id, sport, homeTeam, awayTeam, startTime, week, hasStarted]
       properties:
         id:
           type: string
@@ -1041,10 +1052,22 @@ components:
           type: integer
         status:
           type: string
+        hasStarted:
+          type: boolean
         homeScore:
           type: ["integer", "null"]
         awayScore:
           type: ["integer", "null"]
+        homeRecord:
+          type: ["string", "null"]
+          description: "e.g. '8-3'"
+        awayRecord:
+          type: ["string", "null"]
+          description: "e.g. '5-6'"
+        odds:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GameOdds"
 
     # ── Admin Schemas ─────────────────────────────────────────────────────────
     AdminUser:
