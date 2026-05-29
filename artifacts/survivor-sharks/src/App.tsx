@@ -13,6 +13,8 @@ import CreatePool from "@/pages/CreatePool";
 import JoinPool from "@/pages/JoinPool";
 import PoolHome from "@/pages/PoolHome";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminUsers from "@/pages/AdminUsers";
+import ResetPassword from "@/pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +78,10 @@ function Router() {
       <Route path="/admin">
         {() => <AdminRoute component={AdminDashboard} />}
       </Route>
+      <Route path="/admin/users">
+        {() => <AdminRoute component={AdminUsers} />}
+      </Route>
+      <Route path="/reset-password" component={ResetPassword} />
 
       <Route component={NotFound} />
     </Switch>
