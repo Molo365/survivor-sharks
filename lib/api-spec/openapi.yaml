@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Survivor Sharks API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: pools
+    description: Survivor pools
+  - name: picks
+    description: Weekly picks
+  - name: teams
+    description: Sports teams and schedules
+  - name: leaderboard
+    description: Pool standings
+  - name: results
+    description: Weekly results processing
+  - name: admin
+    description: Admin / commissioner operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +38,1003 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Username or email already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Log out current session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Pools ─────────────────────────────────────────────────────────────────
+  /pools:
+    get:
+      operationId: listPools
+      tags: [pools]
+      summary: List pools the current user belongs to
+      responses:
+        "200":
+          description: List of pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pool"
+
+    post:
+      operationId: createPool
+      tags: [pools]
+      summary: Create a new survivor pool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PoolInput"
+      responses:
+        "201":
+          description: Pool created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /pools/join:
+    post:
+      operationId: joinPool
+      tags: [pools]
+      summary: Join a pool using an invite code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinPoolInput"
+      responses:
+        "200":
+          description: Joined pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}:
+    get:
+      operationId: getPool
+      tags: [pools]
+      summary: Get pool details
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pool detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolDetail"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updatePool
+      tags: [pools]
+      summary: Update pool settings (commissioner only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PoolUpdate"
+      responses:
+        "200":
+          description: Updated pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+    delete:
+      operationId: deletePool
+      tags: [pools]
+      summary: Delete a pool (commissioner or admin only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pool deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── Picks ─────────────────────────────────────────────────────────────────
+  /pools/{poolId}/picks:
+    get:
+      operationId: getMyPicks
+      tags: [picks]
+      summary: Get current user's picks for a pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of picks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pick"
+
+    post:
+      operationId: submitPick
+      tags: [picks]
+      summary: Submit or update a pick for the current week
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickInput"
+      responses:
+        "201":
+          description: Pick submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pick"
+        "400":
+          description: Locked or team already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/grid:
+    get:
+      operationId: getSurvivorGrid
+      tags: [picks]
+      summary: Get full survivor grid (all picks by week for all members)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Survivor grid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurvivorGrid"
+
+  # ── Leaderboard ───────────────────────────────────────────────────────────
+  /pools/{poolId}/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get pool leaderboard with active and eliminated players
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
+
+  # ── Results ───────────────────────────────────────────────────────────────
+  /pools/{poolId}/results:
+    get:
+      operationId: getResults
+      tags: [results]
+      summary: Get all weekly results for a pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Results list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeekResult"
+
+    post:
+      operationId: processResults
+      tags: [results]
+      summary: Process weekly results and eliminate losers (commissioner only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessResultsInput"
+      responses:
+        "200":
+          description: Results processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessResultsResult"
+
+  # ── Eliminations / Kill History ───────────────────────────────────────────
+  /pools/{poolId}/eliminations:
+    get:
+      operationId: getEliminations
+      tags: [results]
+      summary: Get kill history — all eliminated players
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Elimination history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Elimination"
+
+  # ── Pool Stats (wow endpoint) ─────────────────────────────────────────────
+  /pools/{poolId}/stats:
+    get:
+      operationId: getPoolStats
+      tags: [pools]
+      summary: Get pool statistics summary
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pool stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolStats"
+
+  # ── Sports / Teams / Schedule ─────────────────────────────────────────────
+  /sports/{sport}/teams:
+    get:
+      operationId: getSportTeams
+      tags: [teams]
+      summary: Get all teams for a sport
+      parameters:
+        - name: sport
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [nfl, mlb, nba, nhl, fifa]
+      responses:
+        "200":
+          description: Teams list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+
+  /sports/{sport}/schedule/{week}:
+    get:
+      operationId: listSportGames
+      tags: [teams]
+      summary: Get schedule/games for a sport and week
+      parameters:
+        - name: sport
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [nfl, mlb, nba, nhl, fifa]
+        - name: week
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Schedule
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Game"
+
+  # ── Admin ─────────────────────────────────────────────────────────────────
+  /admin/pools:
+    get:
+      operationId: adminListPools
+      tags: [admin]
+      summary: Admin — list all pools
+      responses:
+        "200":
+          description: All pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pool"
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: Admin — list all users
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}:
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin]
+      summary: Admin — update user role or status
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/pools/{poolId}:
+    delete:
+      operationId: adminDeletePool
+      tags: [admin]
+      summary: Admin — force delete any pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pool deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ── Auth Schemas ──────────────────────────────────────────────────────────
+    RegisterInput:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        displayName:
+          type: string
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthUser:
+      type: object
+      required: [id, username, email, role]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [user, admin]
+        createdAt:
+          type: string
+
+    # ── Pool Schemas ──────────────────────────────────────────────────────────
+    PoolInput:
+      type: object
+      required: [name, sport]
+      properties:
+        name:
+          type: string
+        sport:
+          type: string
+          enum: [nfl, mlb, nba, nhl, fifa]
+        description:
+          type: string
+        maxEntries:
+          type: integer
+        entryFee:
+          type: number
+        prizePot:
+          type: number
+        currentWeek:
+          type: integer
+        season:
+          type: integer
+
+    PoolUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        maxEntries:
+          type: integer
+        currentWeek:
+          type: integer
+        season:
+          type: integer
+        isActive:
+          type: boolean
+
+    JoinPoolInput:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode:
+          type: string
+
+    Pool:
+      type: object
+      required: [id, name, sport, inviteCode, currentWeek, season, isActive, memberCount, commissionerId]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sport:
+          type: string
+        description:
+          type: ["string", "null"]
+        inviteCode:
+          type: string
+        currentWeek:
+          type: integer
+        season:
+          type: integer
+        isActive:
+          type: boolean
+        memberCount:
+          type: integer
+        activeCount:
+          type: integer
+        commissionerId:
+          type: integer
+        commissionerName:
+          type: string
+        maxEntries:
+          type: ["integer", "null"]
+        entryFee:
+          type: ["number", "null"]
+        prizePot:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    PoolDetail:
+      type: object
+      required: [id, name, sport, inviteCode, currentWeek, season, isActive, members, commissionerId]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sport:
+          type: string
+        description:
+          type: ["string", "null"]
+        inviteCode:
+          type: string
+        currentWeek:
+          type: integer
+        season:
+          type: integer
+        isActive:
+          type: boolean
+        commissionerId:
+          type: integer
+        commissionerName:
+          type: string
+        maxEntries:
+          type: ["integer", "null"]
+        entryFee:
+          type: ["number", "null"]
+        prizePot:
+          type: ["number", "null"]
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoolMember"
+        createdAt:
+          type: string
+
+    PoolMember:
+      type: object
+      required: [userId, username, status, joinedAt]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, eliminated]
+        eliminatedWeek:
+          type: ["integer", "null"]
+        joinedAt:
+          type: string
+
+    PoolStats:
+      type: object
+      required: [poolId, totalMembers, activeMembers, eliminatedMembers, currentWeek, weeklyPickRate, mostPickedTeam]
+      properties:
+        poolId:
+          type: integer
+        totalMembers:
+          type: integer
+        activeMembers:
+          type: integer
+        eliminatedMembers:
+          type: integer
+        currentWeek:
+          type: integer
+        weeklyPickRate:
+          type: number
+        mostPickedTeam:
+          type: ["string", "null"]
+        mostPickedTeamCount:
+          type: ["integer", "null"]
+        survivorPercentage:
+          type: number
+
+    # ── Pick Schemas ──────────────────────────────────────────────────────────
+    PickInput:
+      type: object
+      required: [teamId, week]
+      properties:
+        teamId:
+          type: string
+        week:
+          type: integer
+
+    Pick:
+      type: object
+      required: [id, poolId, userId, teamId, teamName, week, result]
+      properties:
+        id:
+          type: integer
+        poolId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        teamId:
+          type: string
+        teamName:
+          type: string
+        teamLogoUrl:
+          type: ["string", "null"]
+        week:
+          type: integer
+        result:
+          type: ["string", "null"]
+          enum: [win, loss, pending, null]
+        submittedAt:
+          type: string
+
+    SurvivorGrid:
+      type: object
+      required: [poolId, weeks, members, picks]
+      properties:
+        poolId:
+          type: integer
+        weeks:
+          type: array
+          items:
+            type: integer
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoolMember"
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Pick"
+
+    # ── Leaderboard Schemas ───────────────────────────────────────────────────
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, username, status, weeksAlive]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, eliminated]
+        weeksAlive:
+          type: integer
+        eliminatedWeek:
+          type: ["integer", "null"]
+        lastPickTeam:
+          type: ["string", "null"]
+        lastPickResult:
+          type: ["string", "null"]
+
+    Leaderboard:
+      type: object
+      required: [poolId, currentWeek, active, eliminated]
+      properties:
+        poolId:
+          type: integer
+        currentWeek:
+          type: integer
+        active:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+        eliminated:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+
+    # ── Results Schemas ───────────────────────────────────────────────────────
+    ProcessResultsInput:
+      type: object
+      required: [week, losingTeamIds]
+      properties:
+        week:
+          type: integer
+        losingTeamIds:
+          type: array
+          items:
+            type: string
+
+    ProcessResultsResult:
+      type: object
+      required: [week, eliminated, survived, processedAt]
+      properties:
+        week:
+          type: integer
+        eliminated:
+          type: array
+          items:
+            type: string
+        survived:
+          type: array
+          items:
+            type: string
+        processedAt:
+          type: string
+
+    WeekResult:
+      type: object
+      required: [id, poolId, week, losingTeamIds, processedAt]
+      properties:
+        id:
+          type: integer
+        poolId:
+          type: integer
+        week:
+          type: integer
+        losingTeamIds:
+          type: array
+          items:
+            type: string
+        processedAt:
+          type: string
+        processedBy:
+          type: integer
+
+    Elimination:
+      type: object
+      required: [userId, username, week, teamId, teamName]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        week:
+          type: integer
+        teamId:
+          type: string
+        teamName:
+          type: string
+        teamLogoUrl:
+          type: ["string", "null"]
+        eliminatedAt:
+          type: string
+
+    # ── Teams / Schedule Schemas ──────────────────────────────────────────────
+    Team:
+      type: object
+      required: [id, name, abbreviation, sport]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        abbreviation:
+          type: string
+        sport:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        conference:
+          type: ["string", "null"]
+        division:
+          type: ["string", "null"]
+        flagUrl:
+          type: ["string", "null"]
+
+    Game:
+      type: object
+      required: [id, sport, homeTeam, awayTeam, startTime, week]
+      properties:
+        id:
+          type: string
+        sport:
+          type: string
+        homeTeam:
+          $ref: "#/components/schemas/Team"
+        awayTeam:
+          $ref: "#/components/schemas/Team"
+        startTime:
+          type: string
+        week:
+          type: integer
+        season:
+          type: integer
+        status:
+          type: string
+        homeScore:
+          type: ["integer", "null"]
+        awayScore:
+          type: ["integer", "null"]
+
+    # ── Admin Schemas ─────────────────────────────────────────────────────────
+    AdminUser:
+      type: object
+      required: [id, username, email, role, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [user, admin]
+        poolCount:
+          type: integer
+        createdAt:
+          type: string
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, admin]
+        displayName:
+          type: string

@@ -1,6 +1,9 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
+import { sessionMiddleware } from "./lib/session";
+import { loadUser } from "./middlewares/auth";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -25,9 +28,16 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(sessionMiddleware);
+app.use(loadUser);
 
 app.use("/api", router);
 
