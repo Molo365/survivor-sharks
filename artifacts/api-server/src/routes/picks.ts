@@ -4,6 +4,7 @@ import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db"
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { isPickLocked } from "../lib/espn";
+import { resolveTeam } from "../lib/teams-data";
 
 const router = Router({ mergeParams: true });
 
@@ -83,7 +84,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const { teamName, teamLogoUrl } = resolveTeamInfo(teamId, pool.sport);
+  const { teamName, teamLogoUrl } = resolveTeam(pool.sport, teamId);
 
   // Upsert pick for this week
   const existingPick = previousPicks.find(p => p.week === week);
@@ -111,16 +112,5 @@ router.post("/", requireAuth, async (req, res) => {
 
   res.status(201).json(formatPick(pick, req.user!.username));
 });
-
-function resolveTeamInfo(teamId: string, sport: string): { teamName: string; teamLogoUrl: string | null } {
-  if (sport === "fifa") {
-    return { teamName: teamId, teamLogoUrl: `https://flagcdn.com/w80/${teamId.toLowerCase()}.png` };
-  }
-  const sportPath: Record<string, string> = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl" };
-  return {
-    teamName: teamId,
-    teamLogoUrl: `https://a.espncdn.com/i/teamlogos/${sportPath[sport] ?? sport}/500/${teamId}.png`,
-  };
-}
 
 export default router;

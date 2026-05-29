@@ -66,7 +66,7 @@ export function TeamPickGrid({ poolId, sport, currentWeek }: { poolId: number, s
             if (sport.toLowerCase() === 'fifa') {
               logoUrl = `https://flagcdn.com/w80/${team.id.toLowerCase()}.png`;
             } else {
-              logoUrl = `https://a.espncdn.com/i/teamlogos/${sport.toLowerCase()}/500/${team.id.toUpperCase()}.png`;
+              logoUrl = `https://a.espncdn.com/i/teamlogos/${sport.toLowerCase()}/500/${team.abbreviation.toLowerCase()}.png`;
             }
           }
 
