@@ -1,14 +1,16 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, poolMembersTable, poolsTable, usersTable } from "@workspace/db";
+import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { isPickLocked } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
 function formatPick(pick: typeof picksTable.$inferSelect, username: string) {
   return {
     id: pick.id,
+    entryId: pick.entryId,
     poolId: pick.poolId,
     userId: pick.userId,
     username,
@@ -21,7 +23,7 @@ function formatPick(pick: typeof picksTable.$inferSelect, username: string) {
   };
 }
 
-// GET /api/pools/:poolId/picks
+// GET /api/pools/:poolId/picks  — current user's picks in this pool
 router.get("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -43,27 +45,35 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
+  // Load pool
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
 
-  // Check member is active
-  const [member] = await db.select().from(poolMembersTable)
-    .where(and(eq(poolMembersTable.poolId, poolId), eq(poolMembersTable.userId, userId)))
+  // Check entry exists and is alive
+  const [entry] = await db.select().from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
 
-  if (!member) {
+  if (!entry) {
     res.status(403).json({ error: "Not a member of this pool" });
     return;
   }
-  if (member.status === "eliminated") {
+  if (entry.status === "eliminated") {
     res.status(400).json({ error: "Eliminated players cannot make picks" });
     return;
   }
 
-  // Check team not already used
+  // Check ESPN game-time lock
+  const locked = await isPickLocked(pool.sport, teamId, week);
+  if (locked) {
+    res.status(400).json({ error: "This team's game has already started — pick is locked" });
+    return;
+  }
+
+  // Check team not already used in a previous week
   const previousPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, userId)));
 
@@ -73,7 +83,6 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  // Resolve team name + logo from ESPN-style data
   const { teamName, teamLogoUrl } = resolveTeamInfo(teamId, pool.sport);
 
   // Upsert pick for this week
@@ -81,15 +90,14 @@ router.post("/", requireAuth, async (req, res) => {
   let pick: typeof picksTable.$inferSelect;
 
   if (existingPick) {
+    // Changing pick — check new team's game hasn't started either
     const [updated] = await db.update(picksTable).set({
-      teamId,
-      teamName,
-      teamLogoUrl,
-      result: "pending",
+      teamId, teamName, teamLogoUrl, result: "pending",
     }).where(eq(picksTable.id, existingPick.id)).returning();
     pick = updated;
   } else {
     const [inserted] = await db.insert(picksTable).values({
+      entryId: entry.id,
       poolId,
       userId,
       teamId,
@@ -104,68 +112,14 @@ router.post("/", requireAuth, async (req, res) => {
   res.status(201).json(formatPick(pick, req.user!.username));
 });
 
-// GET /api/pools/:poolId/grid
-router.get("/grid", requireAuth, async (req, res) => {
-  const poolId = parseInt(String(req.params.poolId));
-
-  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) {
-    res.status(404).json({ error: "Pool not found" });
-    return;
-  }
-
-  const members = await db.select({
-    userId: poolMembersTable.userId,
-    username: usersTable.username,
-    displayName: usersTable.displayName,
-    status: poolMembersTable.status,
-    eliminatedWeek: poolMembersTable.eliminatedWeek,
-    joinedAt: poolMembersTable.joinedAt,
-  }).from(poolMembersTable)
-    .innerJoin(usersTable, eq(poolMembersTable.userId, usersTable.id))
-    .where(eq(poolMembersTable.poolId, poolId));
-
-  const allPicks = await db.select().from(picksTable).where(eq(picksTable.poolId, poolId));
-
-  const weeks = [...new Set(allPicks.map(p => p.week))].sort((a, b) => a - b);
-  if (weeks.length === 0) {
-    for (let i = 1; i <= pool.currentWeek; i++) weeks.push(i);
-  }
-
-  // Build per-user pick map
-  const picksWithUsername = await db.select({
-    pick: picksTable,
-    username: usersTable.username,
-  }).from(picksTable)
-    .innerJoin(usersTable, eq(picksTable.userId, usersTable.id))
-    .where(eq(picksTable.poolId, poolId));
-
-  res.json({
-    poolId,
-    weeks,
-    members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
-    picks: picksWithUsername.map(({ pick, username }) => formatPick(pick, username)),
-  });
-});
-
 function resolveTeamInfo(teamId: string, sport: string): { teamName: string; teamLogoUrl: string | null } {
-  const sportLogoPaths: Record<string, string> = {
-    nfl: "nfl",
-    nba: "nba",
-    mlb: "mlb",
-    nhl: "nhl",
-  };
-
   if (sport === "fifa") {
-    return {
-      teamName: teamId,
-      teamLogoUrl: `https://flagcdn.com/w80/${teamId.toLowerCase()}.png`,
-    };
+    return { teamName: teamId, teamLogoUrl: `https://flagcdn.com/w80/${teamId.toLowerCase()}.png` };
   }
-
+  const sportPath: Record<string, string> = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl" };
   return {
     teamName: teamId,
-    teamLogoUrl: `https://a.espncdn.com/i/teamlogos/${sportLogoPaths[sport] ?? sport}/500/${teamId}.png`,
+    teamLogoUrl: `https://a.espncdn.com/i/teamlogos/${sportPath[sport] ?? sport}/500/${teamId}.png`,
   };
 }
 

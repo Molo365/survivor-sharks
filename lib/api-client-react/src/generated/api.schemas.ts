@@ -18,20 +18,6 @@ export interface ErrorResponse {
   error: string;
 }
 
-export interface RegisterInput {
-  /** @minLength 3 */
-  username: string;
-  email: string;
-  /** @minLength 6 */
-  password: string;
-  displayName?: string;
-}
-
-export interface LoginInput {
-  email: string;
-  password: string;
-}
-
 export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
 
 
@@ -48,6 +34,25 @@ export interface AuthUser {
   displayName?: string | null;
   role: AuthUserRole;
   createdAt?: string;
+}
+
+export interface AuthToken {
+  token: string;
+  user: AuthUser;
+}
+
+export interface RegisterInput {
+  /** @minLength 3 */
+  username: string;
+  email: string;
+  /** @minLength 6 */
+  password: string;
+  displayName?: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
 }
 
 export type PoolInputSport = typeof PoolInputSport[keyof typeof PoolInputSport];

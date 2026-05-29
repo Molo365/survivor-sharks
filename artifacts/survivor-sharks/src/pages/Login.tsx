@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -30,25 +31,25 @@ export default function Login() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     loginUser.mutate(
       { data: values },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries(); // Refresh auth state
+        onSuccess: (data: any) => {
+          if (data?.token) {
+            localStorage.setItem("auth_token", data.token);
+          }
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           setLocation("/dashboard");
         },
         onError: (error: any) => {
           toast({
             variant: "destructive",
             title: "Login Failed",
-            description: error?.message || "Invalid credentials. Please try again.",
+            description: error?.data?.error || error?.message || "Invalid credentials. Please try again.",
           });
         },
       }
@@ -59,6 +60,9 @@ export default function Login() {
     <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,rgba(30,144,255,0.1),rgba(10,14,26,1))]">
       <Card className="w-full max-w-md shark-card border-border/50">
         <CardHeader className="space-y-1 text-center pb-8">
+          <div className="flex justify-center mb-3">
+            <img src="/logo.png" alt="Survivor Sharks" className="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(30,144,255,0.5)]" />
+          </div>
           <CardTitle className="font-bebas text-4xl text-primary tracking-widest">SURVIVOR SHARKS</CardTitle>
           <CardDescription className="text-muted-foreground uppercase tracking-wider font-medium text-xs">
             Enter the waters

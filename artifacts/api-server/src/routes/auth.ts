@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { signToken } from "../lib/jwt";
 
 const router = Router();
 
@@ -53,8 +54,8 @@ router.post("/register", async (req, res) => {
     role: "user",
   }).returning();
 
-  req.session.userId = user.id;
-  res.status(201).json(formatUser(user));
+  const token = signToken({ sub: user.id, username: user.username, role: user.role });
+  res.status(201).json({ token, user: formatUser(user) });
 });
 
 // POST /api/auth/login
@@ -79,15 +80,13 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  req.session.userId = user.id;
-  res.json(formatUser(user));
+  const token = signToken({ sub: user.id, username: user.username, role: user.role });
+  res.json({ token, user: formatUser(user) });
 });
 
-// POST /api/auth/logout
-router.post("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true, message: "Logged out" });
-  });
+// POST /api/auth/logout  (client just discards token — no server state)
+router.post("/logout", (_req, res) => {
+  res.json({ success: true, message: "Logged out" });
 });
 
 // GET /api/auth/me

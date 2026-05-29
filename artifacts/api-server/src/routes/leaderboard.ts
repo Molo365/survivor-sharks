@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolMembersTable, poolsTable, picksTable, usersTable } from "@workspace/db";
+import { entriesTable, poolsTable, picksTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -17,15 +17,15 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   const members = await db.select({
-    userId: poolMembersTable.userId,
+    userId: entriesTable.userId,
     username: usersTable.username,
     displayName: usersTable.displayName,
-    status: poolMembersTable.status,
-    eliminatedWeek: poolMembersTable.eliminatedWeek,
-    joinedAt: poolMembersTable.joinedAt,
-  }).from(poolMembersTable)
-    .innerJoin(usersTable, eq(poolMembersTable.userId, usersTable.id))
-    .where(eq(poolMembersTable.poolId, poolId));
+    status: entriesTable.status,
+    eliminatedWeek: entriesTable.eliminatedWeek,
+    joinedAt: entriesTable.joinedAt,
+  }).from(entriesTable)
+    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+    .where(eq(entriesTable.poolId, poolId));
 
   const entries = await Promise.all(members.map(async (member) => {
     const userPicks = await db.select().from(picksTable)
@@ -41,7 +41,7 @@ router.get("/", requireAuth, async (req, res) => {
       userId: member.userId,
       username: member.username,
       displayName: member.displayName,
-      status: member.status,
+      status: member.status === "alive" ? "active" : "eliminated",  // map to API schema
       weeksAlive,
       eliminatedWeek: member.eliminatedWeek,
       lastPickTeam: lastPick?.teamName ?? null,
@@ -59,12 +59,7 @@ router.get("/", requireAuth, async (req, res) => {
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
     .map((e, i) => ({ rank: active.length + i + 1, ...e }));
 
-  res.json({
-    poolId,
-    currentWeek: pool.currentWeek,
-    active,
-    eliminated,
-  });
+  res.json({ poolId, currentWeek: pool.currentWeek, active, eliminated });
 });
 
 export default router;

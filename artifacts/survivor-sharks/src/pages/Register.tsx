@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRegisterUser } from "@workspace/api-client-react";
+import { useRegisterUser, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,27 +32,25 @@ export default function Register() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      username: "",
-      displayName: "",
-      email: "",
-      password: "",
-    },
+    defaultValues: { username: "", displayName: "", email: "", password: "" },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     registerUser.mutate(
       { data: values },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries(); // Refresh auth state
+        onSuccess: (data: any) => {
+          if (data?.token) {
+            localStorage.setItem("auth_token", data.token);
+          }
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           setLocation("/dashboard");
         },
         onError: (error: any) => {
           toast({
             variant: "destructive",
             title: "Registration Failed",
-            description: error?.message || "Failed to create account. Username or email might be taken.",
+            description: error?.data?.error || error?.message || "Failed to create account. Username or email might be taken.",
           });
         },
       }
@@ -63,6 +61,9 @@ export default function Register() {
     <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,rgba(30,144,255,0.1),rgba(10,14,26,1))] py-12">
       <Card className="w-full max-w-md shark-card border-border/50">
         <CardHeader className="space-y-1 text-center pb-6">
+          <div className="flex justify-center mb-3">
+            <img src="/logo.png" alt="Survivor Sharks" className="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(30,144,255,0.5)]" />
+          </div>
           <CardTitle className="font-bebas text-4xl text-primary tracking-widest">JOIN THE SHARKS</CardTitle>
           <CardDescription className="text-muted-foreground uppercase tracking-wider font-medium text-xs">
             Create your account
@@ -89,7 +90,7 @@ export default function Register() {
                 name="displayName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-bebas text-lg tracking-wide">Display Name (Optional)</FormLabel>
+                    <FormLabel className="font-bebas text-lg tracking-wide">Display Name <span className="text-muted-foreground text-sm font-normal">(Optional)</span></FormLabel>
                     <FormControl>
                       <Input placeholder="The Megalodon" {...field} data-testid="input-display-name" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
                     </FormControl>

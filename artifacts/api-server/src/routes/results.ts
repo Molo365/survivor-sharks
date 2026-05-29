@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { weekResultsTable, picksTable, poolMembersTable, poolsTable, usersTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { weekResultsTable, picksTable, entriesTable, poolsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { getCompletedGameResults } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -25,12 +26,14 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/results
+// Commissioner submits week results. Optionally can auto-fetch from ESPN
+// by passing { week, autoFetch: true } instead of providing losingTeamIds.
 router.post("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const { week, losingTeamIds } = req.body;
+  const { week, losingTeamIds, autoFetch } = req.body;
 
-  if (!week || !losingTeamIds) {
-    res.status(400).json({ error: "week and losingTeamIds are required" });
+  if (!week) {
+    res.status(400).json({ error: "week is required" });
     return;
   }
 
@@ -39,15 +42,30 @@ router.post("/", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
-
   if (pool.commissionerId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Only the commissioner can process results" });
     return;
   }
 
-  const losingSet = new Set<string>(losingTeamIds);
+  // Resolve losing teams — either from ESPN or from the request body
+  let losingSet: Set<string>;
 
-  // Update all picks for this week
+  if (autoFetch) {
+    const { losers } = await getCompletedGameResults(pool.sport, week);
+    if (losers.length === 0) {
+      res.status(400).json({ error: "No completed games found on ESPN for this week yet. Try again later or submit results manually." });
+      return;
+    }
+    losingSet = new Set(losers);
+  } else {
+    if (!losingTeamIds || !Array.isArray(losingTeamIds)) {
+      res.status(400).json({ error: "losingTeamIds array is required when not using autoFetch" });
+      return;
+    }
+    losingSet = new Set<string>(losingTeamIds);
+  }
+
+  // Grade all picks for this week
   const weekPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week)));
 
@@ -60,76 +78,37 @@ router.post("/", requireAuth, async (req, res) => {
 
     if (result === "loss") {
       eliminated.push(pick.userId.toString());
-      await db.update(poolMembersTable)
+      await db.update(entriesTable)
         .set({ status: "eliminated", eliminatedWeek: week })
-        .where(and(eq(poolMembersTable.poolId, poolId), eq(poolMembersTable.userId, pick.userId)));
+        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, pick.userId)));
     } else {
       survived.push(pick.userId.toString());
     }
   }
 
-  // Eliminate members who did NOT submit a pick this week (they forfeit)
-  const pickedUserIds = weekPicks.map(p => p.userId);
-  const activeMembers = await db.select().from(poolMembersTable)
-    .where(and(eq(poolMembersTable.poolId, poolId), eq(poolMembersTable.status, "active")));
+  // Eliminate alive members who submitted no pick this week (forfeit)
+  const pickedUserIds = new Set(weekPicks.map(p => p.userId));
+  const aliveEntries = await db.select().from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-  const noPickMembers = activeMembers.filter(m => !pickedUserIds.includes(m.userId));
-  for (const m of noPickMembers) {
-    await db.update(poolMembersTable)
-      .set({ status: "eliminated", eliminatedWeek: week })
-      .where(eq(poolMembersTable.id, m.id));
-    eliminated.push(m.userId.toString());
+  for (const entry of aliveEntries) {
+    if (!pickedUserIds.has(entry.userId)) {
+      await db.update(entriesTable)
+        .set({ status: "eliminated", eliminatedWeek: week })
+        .where(eq(entriesTable.id, entry.id));
+      eliminated.push(entry.userId.toString());
+    }
   }
 
-  // Store the week result record
+  // Record result
   await db.insert(weekResultsTable).values({
     poolId,
     week,
-    losingTeamIds,
+    losingTeamIds: [...losingSet],
     processedBy: req.user!.id,
   });
 
-  res.json({
-    week,
-    eliminated,
-    survived,
-    processedAt: new Date().toISOString(),
-  });
-});
-
-// GET /api/pools/:poolId/eliminations
-router.get("/eliminations", requireAuth, async (req, res) => {
-  const poolId = parseInt(String(req.params.poolId));
-
-  const eliminated = await db.select({
-    userId: poolMembersTable.userId,
-    username: usersTable.username,
-    displayName: usersTable.displayName,
-    eliminatedWeek: poolMembersTable.eliminatedWeek,
-    joinedAt: poolMembersTable.joinedAt,
-  }).from(poolMembersTable)
-    .innerJoin(usersTable, eq(poolMembersTable.userId, usersTable.id))
-    .where(and(eq(poolMembersTable.poolId, poolId), eq(poolMembersTable.status, "eliminated")));
-
-  const elimList = await Promise.all(eliminated.map(async (member) => {
-    const week = member.eliminatedWeek ?? 0;
-    const [pick] = await db.select().from(picksTable)
-      .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, member.userId), eq(picksTable.week, week)))
-      .limit(1);
-
-    return {
-      userId: member.userId,
-      username: member.username,
-      displayName: member.displayName,
-      week,
-      teamId: pick?.teamId ?? "",
-      teamName: pick?.teamName ?? "No pick",
-      teamLogoUrl: pick?.teamLogoUrl ?? null,
-      eliminatedAt: member.joinedAt.toISOString(),
-    };
-  }));
-
-  res.json(elimList);
+  res.json({ week, eliminated, survived, processedAt: new Date().toISOString() });
 });
 
 export default router;

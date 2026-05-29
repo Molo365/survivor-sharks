@@ -10,6 +10,7 @@ export * from './adminUser';
 export * from './adminUserRole';
 export * from './adminUserUpdate';
 export * from './adminUserUpdateRole';
+export * from './authToken';
 export * from './authUser';
 export * from './authUserRole';
 export * from './elimination';

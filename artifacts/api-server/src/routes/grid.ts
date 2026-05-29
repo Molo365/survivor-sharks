@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, poolMembersTable, poolsTable, usersTable } from "@workspace/db";
+import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -17,15 +17,15 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   const members = await db.select({
-    userId: poolMembersTable.userId,
+    userId: entriesTable.userId,
     username: usersTable.username,
     displayName: usersTable.displayName,
-    status: poolMembersTable.status,
-    eliminatedWeek: poolMembersTable.eliminatedWeek,
-    joinedAt: poolMembersTable.joinedAt,
-  }).from(poolMembersTable)
-    .innerJoin(usersTable, eq(poolMembersTable.userId, usersTable.id))
-    .where(eq(poolMembersTable.poolId, poolId));
+    status: entriesTable.status,
+    eliminatedWeek: entriesTable.eliminatedWeek,
+    joinedAt: entriesTable.joinedAt,
+  }).from(entriesTable)
+    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+    .where(eq(entriesTable.poolId, poolId));
 
   const allPicks = await db.select().from(picksTable).where(eq(picksTable.poolId, poolId));
 
@@ -47,6 +47,7 @@ router.get("/", requireAuth, async (req, res) => {
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
     picks: picksWithUsername.map(({ pick, username }) => ({
       id: pick.id,
+      entryId: pick.entryId,
       poolId: pick.poolId,
       userId: pick.userId,
       username,

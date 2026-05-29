@@ -22,6 +22,7 @@ import type {
 import type {
   AdminUser,
   AdminUserUpdate,
+  AuthToken,
   AuthUser,
   Elimination,
   ErrorResponse,
@@ -146,9 +147,9 @@ export const getRegisterUserUrl = () => {
 /**
  * @summary Register a new user
  */
-export const registerUser = async (registerInput: RegisterInput, options?: RequestInit): Promise<AuthUser> => {
+export const registerUser = async (registerInput: RegisterInput, options?: RequestInit): Promise<AuthToken> => {
 
-  return customFetch<AuthUser>(getRegisterUserUrl(),
+  return customFetch<AuthToken>(getRegisterUserUrl(),
   {
     ...options,
     method: 'POST',
@@ -217,9 +218,9 @@ export const getLoginUserUrl = () => {
 /**
  * @summary Login with email + password
  */
-export const loginUser = async (loginInput: LoginInput, options?: RequestInit): Promise<AuthUser> => {
+export const loginUser = async (loginInput: LoginInput, options?: RequestInit): Promise<AuthToken> => {
 
-  return customFetch<AuthUser>(getLoginUserUrl(),
+  return customFetch<AuthToken>(getLoginUserUrl(),
   {
     ...options,
     method: 'POST',

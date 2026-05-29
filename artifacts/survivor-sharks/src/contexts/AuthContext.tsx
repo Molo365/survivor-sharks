@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryKey: getGetMeQueryKey(),
     },
   });
-  
+
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const logoutMutation = useLogoutUser();
@@ -26,6 +26,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
+        localStorage.removeItem("auth_token");
+        queryClient.clear();
+        setLocation("/login");
+      },
+      onSettled: () => {
+        // Always clear token even if API call fails
+        localStorage.removeItem("auth_token");
         queryClient.clear();
         setLocation("/login");
       },

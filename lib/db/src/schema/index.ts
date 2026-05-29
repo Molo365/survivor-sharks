@@ -1,6 +1,5 @@
 export * from "./users";
-export * from "./sessions";
 export * from "./pools";
-export * from "./pool_members";
+export * from "./entries";
 export * from "./picks";
 export * from "./week_results";

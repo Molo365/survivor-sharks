@@ -42,12 +42,15 @@ export const LoginUserBody = zod.object({
 })
 
 export const LoginUserResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
   "id": zod.number(),
   "username": zod.string(),
   "email": zod.string(),
   "displayName": zod.string().nullish(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.string().optional()
+})
 })
 
 

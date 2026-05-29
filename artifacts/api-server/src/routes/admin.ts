@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, usersTable, poolMembersTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { poolsTable, usersTable, entriesTable } from "@workspace/db";
+import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -11,8 +11,8 @@ router.get("/pools", requireAuth, requireAdmin, async (_req, res) => {
   const pools = await db.select().from(poolsTable).orderBy(poolsTable.createdAt);
 
   const result = await Promise.all(pools.map(async (pool) => {
-    const [{ total }] = await db.select({ total: count() }).from(poolMembersTable).where(eq(poolMembersTable.poolId, pool.id));
-    const [{ active }] = await db.select({ active: count() }).from(poolMembersTable).where(eq(poolMembersTable.poolId, pool.id));
+    const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
+    const [{ active }] = await db.select({ active: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
     const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
 
     return {
@@ -50,7 +50,7 @@ router.get("/users", requireAuth, requireAdmin, async (_req, res) => {
   const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
 
   const result = await Promise.all(users.map(async (user) => {
-    const [{ poolCount }] = await db.select({ poolCount: count() }).from(poolMembersTable).where(eq(poolMembersTable.userId, user.id));
+    const [{ poolCount }] = await db.select({ poolCount: count() }).from(entriesTable).where(eq(entriesTable.userId, user.id));
     return {
       id: user.id,
       username: user.username,
@@ -80,7 +80,7 @@ router.patch("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
     return;
   }
 
-  const [{ poolCount }] = await db.select({ poolCount: count() }).from(poolMembersTable).where(eq(poolMembersTable.userId, user.id));
+  const [{ poolCount }] = await db.select({ poolCount: count() }).from(entriesTable).where(eq(entriesTable.userId, user.id));
 
   res.json({
     id: user.id,

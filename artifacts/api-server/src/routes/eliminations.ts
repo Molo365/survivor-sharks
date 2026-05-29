@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolMembersTable, picksTable, usersTable } from "@workspace/db";
+import { entriesTable, picksTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -11,14 +11,14 @@ router.get("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
 
   const eliminated = await db.select({
-    userId: poolMembersTable.userId,
+    userId: entriesTable.userId,
     username: usersTable.username,
     displayName: usersTable.displayName,
-    eliminatedWeek: poolMembersTable.eliminatedWeek,
-    joinedAt: poolMembersTable.joinedAt,
-  }).from(poolMembersTable)
-    .innerJoin(usersTable, eq(poolMembersTable.userId, usersTable.id))
-    .where(and(eq(poolMembersTable.poolId, poolId), eq(poolMembersTable.status, "eliminated")));
+    eliminatedWeek: entriesTable.eliminatedWeek,
+    joinedAt: entriesTable.joinedAt,
+  }).from(entriesTable)
+    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "eliminated")));
 
   const elimList = await Promise.all(eliminated.map(async (member) => {
     const week = member.eliminatedWeek ?? 0;
@@ -26,7 +26,7 @@ router.get("/", requireAuth, async (req, res) => {
       .where(and(
         eq(picksTable.poolId, poolId),
         eq(picksTable.userId, member.userId),
-        eq(picksTable.week, week)
+        eq(picksTable.week, week),
       ))
       .limit(1);
 
