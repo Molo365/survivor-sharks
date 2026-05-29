@@ -11,11 +11,15 @@ function generateInviteCode() {
   return nanoid(8).toUpperCase();
 }
 
-function formatPool(pool: typeof poolsTable.$inferSelect, memberCount: number, activeCount: number, commissionerName: string) {
+type PoolRow = typeof poolsTable.$inferSelect;
+
+function formatPool(pool: PoolRow, memberCount: number, activeCount: number, commissionerName: string) {
   return {
     id: pool.id,
     name: pool.name,
     sport: pool.sport,
+    poolType: pool.poolType,
+    startWeek: pool.startWeek ?? null,
     description: pool.description,
     inviteCode: pool.inviteCode,
     currentWeek: pool.currentWeek,
@@ -61,10 +65,16 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, entryFee, prizePot, currentWeek, season } = req.body;
+  const { name, sport, description, maxEntries, entryFee, prizePot, currentWeek, season, poolType, startWeek } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
+    return;
+  }
+
+  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season") ?? "season";
+  if (resolvedPoolType === "mid_season" && !startWeek) {
+    res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;
   }
 
@@ -72,9 +82,11 @@ router.post("/", requireAuth, async (req, res) => {
   const [pool] = await db.insert(poolsTable).values({
     name,
     sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa",
+    poolType: resolvedPoolType,
+    startWeek: startWeek ?? null,
     description: description ?? null,
     inviteCode,
-    currentWeek: currentWeek ?? 1,
+    currentWeek: currentWeek ?? (resolvedPoolType === "mid_season" ? (startWeek ?? 1) : 1),
     season: season ?? new Date().getFullYear(),
     isActive: true,
     commissionerId: req.user!.id,
@@ -147,6 +159,8 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     id: pool.id,
     name: pool.name,
     sport: pool.sport,
+    poolType: pool.poolType,
+    startWeek: pool.startWeek ?? null,
     description: pool.description,
     inviteCode: pool.inviteCode,
     currentWeek: pool.currentWeek,
@@ -177,7 +191,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, currentWeek, season, isActive } = req.body;
+  const { name, description, maxEntries, currentWeek, season, isActive, poolType, startWeek } = req.body;
   const [updated] = await db.update(poolsTable).set({
     ...(name !== undefined && { name }),
     ...(description !== undefined && { description }),
@@ -185,6 +199,8 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(currentWeek !== undefined && { currentWeek }),
     ...(season !== undefined && { season }),
     ...(isActive !== undefined && { isActive }),
+    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" }),
+    ...(startWeek !== undefined && { startWeek }),
   }).where(eq(poolsTable.id, poolId)).returning();
 
   const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId));

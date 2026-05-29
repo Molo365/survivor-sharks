@@ -5,11 +5,15 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolInputPoolType } from './poolInputPoolType';
 import type { PoolInputSport } from './poolInputSport';
 
 export interface PoolInput {
   name: string;
   sport: PoolInputSport;
+  poolType?: PoolInputPoolType;
+  /** Starting week for mid_season pools (required when poolType is mid_season) */
+  startWeek?: number;
   description?: string;
   maxEntries?: number;
   entryFee?: number;

@@ -83,6 +83,8 @@ export const ListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
   "currentWeek": zod.number(),
@@ -103,9 +105,13 @@ export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 /**
  * @summary Create a new survivor pool
  */
+export const createPoolBodyPoolTypeDefault = `season`;
+
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
   "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']).default(createPoolBodyPoolTypeDefault),
+  "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
   "entryFee": zod.number().optional(),
@@ -126,6 +132,8 @@ export const JoinPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
   "currentWeek": zod.number(),
@@ -153,6 +161,8 @@ export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
   "currentWeek": zod.number(),
@@ -190,13 +200,17 @@ export const UpdatePoolBody = zod.object({
   "maxEntries": zod.number().optional(),
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
-  "isActive": zod.boolean().optional()
+  "isActive": zod.boolean().optional(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']).optional(),
+  "startWeek": zod.number().optional()
 })
 
 export const UpdatePoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
   "currentWeek": zod.number(),
@@ -478,6 +492,8 @@ export const AdminListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
   "currentWeek": zod.number(),

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { TeamPickGrid } from "@/components/TeamPickGrid";
@@ -69,8 +69,23 @@ export default function PoolHome() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/50">
               <div>
                 <h1 className="font-bebas text-5xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-2">{pool.name}</h1>
-                <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground uppercase tracking-wider flex-wrap">
                   <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
+                  {pool.poolType === "season" && (
+                    <span className="flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded">
+                      <Trophy className="w-3 h-3" /> Season
+                    </span>
+                  )}
+                  {pool.poolType === "weekly" && (
+                    <span className="flex items-center gap-1 bg-accent/10 text-accent border border-accent/20 px-2 py-1 rounded">
+                      <RefreshCw className="w-3 h-3" /> Weekly
+                    </span>
+                  )}
+                  {pool.poolType === "mid_season" && (
+                    <span className="flex items-center gap-1 bg-destructive/10 text-destructive border border-destructive/20 px-2 py-1 rounded">
+                      <Zap className="w-3 h-3" /> Mid Season {pool.startWeek ? `(Wk ${pool.startWeek}+)` : ""}
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
                 </div>

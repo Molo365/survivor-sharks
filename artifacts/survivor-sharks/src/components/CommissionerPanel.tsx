@@ -161,7 +161,11 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
               <AlertTriangle className="w-5 h-5" /> Process Eliminations
             </CardTitle>
             <CardDescription className="text-muted-foreground/80">
-              Grade picks and eliminate players who chose losing teams.
+              {pool.poolType === "weekly"
+                ? "Grade picks for this week. All players automatically reset to alive afterwards — weekly pools don't carry eliminations forward."
+                : pool.poolType === "mid_season"
+                ? `Grade picks and permanently eliminate players. Mid Season pool — started at week ${pool.startWeek ?? "?"}.`
+                : "Grade picks and permanently eliminate players who chose losing teams."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">

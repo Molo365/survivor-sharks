@@ -5,11 +5,15 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolPoolType } from './poolPoolType';
 
 export interface Pool {
   id: number;
   name: string;
   sport: string;
+  poolType: PoolPoolType;
+  /** @nullable */
+  startWeek?: number | null;
   /** @nullable */
   description?: string | null;
   inviteCode: string;

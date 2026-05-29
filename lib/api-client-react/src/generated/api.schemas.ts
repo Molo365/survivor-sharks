@@ -66,9 +66,21 @@ export const PoolInputSport = {
   fifa: 'fifa',
 } as const;
 
+export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputPoolType];
+
+
+export const PoolInputPoolType = {
+  season: 'season',
+  weekly: 'weekly',
+  mid_season: 'mid_season',
+} as const;
+
 export interface PoolInput {
   name: string;
   sport: PoolInputSport;
+  poolType?: PoolInputPoolType;
+  /** Starting week for mid_season pools (required when poolType is mid_season) */
+  startWeek?: number;
   description?: string;
   maxEntries?: number;
   entryFee?: number;
@@ -77,6 +89,15 @@ export interface PoolInput {
   season?: number;
 }
 
+export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];
+
+
+export const PoolUpdatePoolType = {
+  season: 'season',
+  weekly: 'weekly',
+  mid_season: 'mid_season',
+} as const;
+
 export interface PoolUpdate {
   name?: string;
   description?: string;
@@ -84,16 +105,30 @@ export interface PoolUpdate {
   currentWeek?: number;
   season?: number;
   isActive?: boolean;
+  poolType?: PoolUpdatePoolType;
+  startWeek?: number;
 }
 
 export interface JoinPoolInput {
   inviteCode: string;
 }
 
+export type PoolPoolType = typeof PoolPoolType[keyof typeof PoolPoolType];
+
+
+export const PoolPoolType = {
+  season: 'season',
+  weekly: 'weekly',
+  mid_season: 'mid_season',
+} as const;
+
 export interface Pool {
   id: number;
   name: string;
   sport: string;
+  poolType: PoolPoolType;
+  /** @nullable */
+  startWeek?: number | null;
   /** @nullable */
   description?: string | null;
   inviteCode: string;
@@ -112,6 +147,15 @@ export interface Pool {
   prizePot?: number | null;
   createdAt?: string;
 }
+
+export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];
+
+
+export const PoolDetailPoolType = {
+  season: 'season',
+  weekly: 'weekly',
+  mid_season: 'mid_season',
+} as const;
 
 export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberStatus];
 
@@ -136,6 +180,9 @@ export interface PoolDetail {
   id: number;
   name: string;
   sport: string;
+  poolType: PoolDetailPoolType;
+  /** @nullable */
+  startWeek?: number | null;
   /** @nullable */
   description?: string | null;
   inviteCode: string;

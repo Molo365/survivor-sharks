@@ -19,16 +19,59 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const POOL_TYPES = [
+  {
+    id: "season" as const,
+    label: "Season Pool",
+    icon: Trophy,
+    tagline: "Classic Survivor",
+    description:
+      "The full season format. One pick per week, no repeats. Get it wrong and you're out. Last shark standing wins.",
+    badge: "Most Popular",
+    badgeClass: "bg-primary/20 text-primary border-primary/30",
+    cardClass: "border-primary/40 bg-[linear-gradient(145deg,rgba(30,144,255,0.05)_0%,transparent_100%)]",
+  },
+  {
+    id: "weekly" as const,
+    label: "Weekly Pool",
+    icon: RefreshCw,
+    tagline: "Fresh Start Every Week",
+    description:
+      "No carry-over. Everyone resets to alive each week. Pick the winner, collect the glory — no long-term commitment needed.",
+    badge: "Casual",
+    badgeClass: "bg-accent/20 text-accent border-accent/30",
+    cardClass: "border-accent/30",
+  },
+  {
+    id: "mid_season" as const,
+    label: "Mid Season Bum Luck",
+    icon: Zap,
+    tagline: "Second Chance",
+    description:
+      "For players knocked out of the Season Pool. Define a start week and they're back in. Same rules, fresh run from that point.",
+    badge: "Redemption Arc",
+    badgeClass: "bg-destructive/20 text-destructive border-destructive/30",
+    cardClass: "border-destructive/20",
+  },
+] as const;
 
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
+  poolType: z.enum(["season", "weekly", "mid_season"]).default("season"),
+  startWeek: z.coerce.number().min(1).max(30).optional().or(z.literal("").transform(() => undefined)),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   prizePot: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
+}).superRefine((data, ctx) => {
+  if (data.poolType === "mid_season" && !data.startWeek) {
+    ctx.addIssue({ code: "custom", path: ["startWeek"], message: "Start week is required for Mid Season pools" });
+  }
 });
 
 export default function CreatePool() {
@@ -42,29 +85,29 @@ export default function CreatePool() {
     defaultValues: {
       name: "",
       sport: PoolInputSport.nfl,
+      poolType: "season",
       description: "",
       season: new Date().getFullYear(),
     },
   });
 
+  const selectedType = form.watch("poolType");
+
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const payload: Record<string, unknown> = { ...values };
+    if (values.poolType === "mid_season" && values.startWeek) {
+      payload.currentWeek = values.startWeek;
+    }
     createPool.mutate(
-      { data: values as any },
+      { data: payload as any },
       {
         onSuccess: (pool) => {
           queryClient.invalidateQueries({ queryKey: getListPoolsQueryKey() });
-          toast({
-            title: "Pool Created!",
-            description: "Your pool is ready. Invite members to join.",
-          });
+          toast({ title: "Pool Created!", description: "Your pool is ready. Invite members to join." });
           setLocation(`/pools/${pool.id}`);
         },
         onError: (error: any) => {
-          toast({
-            variant: "destructive",
-            title: "Failed to create pool",
-            description: error?.message || "Please try again.",
-          });
+          toast({ variant: "destructive", title: "Failed to create pool", description: error?.message || "Please try again." });
         },
       }
     );
@@ -73,12 +116,12 @@ export default function CreatePool() {
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
       <NavBar />
-      
+
       <main className="flex-1 container px-4 py-8 max-w-3xl mx-auto">
         <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
           <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
         </Link>
-        
+
         <div className="mb-8">
           <h1 className="font-bebas text-4xl tracking-wide text-primary">CREATE A NEW POOL</h1>
           <p className="text-muted-foreground text-sm uppercase tracking-wider">Set the rules. Invite the sharks.</p>
@@ -86,8 +129,95 @@ export default function CreatePool() {
 
         <div className="shark-card rounded-lg p-6 md:p-8 border-border/50">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+
+              {/* Pool Type Selector */}
+              <FormField
+                control={form.control}
+                name="poolType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-bebas text-xl tracking-wide">Pool Type</FormLabel>
+                    <div className="grid grid-cols-1 gap-3 mt-2">
+                      {POOL_TYPES.map((type) => {
+                        const Icon = type.icon;
+                        const isSelected = field.value === type.id;
+                        return (
+                          <button
+                            key={type.id}
+                            type="button"
+                            onClick={() => field.onChange(type.id)}
+                            data-testid={`pool-type-${type.id}`}
+                            className={cn(
+                              "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              isSelected
+                                ? `${type.cardClass} ring-2 ring-offset-1 ring-offset-background`
+                                : "border-border/40 hover:border-border bg-card/50"
+                            )}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={cn(
+                                "mt-0.5 p-2 rounded-md",
+                                isSelected ? "bg-primary/10" : "bg-muted/50"
+                              )}>
+                                <Icon className={cn("w-5 h-5", isSelected ? "text-primary" : "text-muted-foreground")} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                                  <span className={cn("font-bebas text-xl tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                                    {type.label}
+                                  </span>
+                                  <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5", type.badgeClass)}>
+                                    {type.badge}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mb-1">{type.tagline}</p>
+                                <p className="text-sm text-muted-foreground leading-snug">{type.description}</p>
+                              </div>
+                              <div className={cn(
+                                "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
+                                isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                              )} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Start Week — only for mid_season */}
+              {selectedType === "mid_season" && (
+                <FormField
+                  control={form.control}
+                  name="startWeek"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+                      <FormLabel className="font-bebas text-lg tracking-wide text-destructive/80">Start Week</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          placeholder="e.g. 9"
+                          {...field}
+                          value={field.value ?? ""}
+                          data-testid="input-start-week"
+                          className="bg-background/50 border-destructive/20 w-1/3"
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Week this pool begins. Players who join can use any team not already used from this week forward.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Name + Sport */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -96,13 +226,12 @@ export default function CreatePool() {
                     <FormItem>
                       <FormLabel className="font-bebas text-lg tracking-wide">Pool Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Shark Week 2024" {...field} data-testid="input-pool-name" className="bg-background/50 border-primary/20" />
+                        <Input placeholder="e.g. Shark Week 2025" {...field} data-testid="input-pool-name" className="bg-background/50 border-primary/20" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="sport"
@@ -136,11 +265,11 @@ export default function CreatePool() {
                   <FormItem>
                     <FormLabel className="font-bebas text-lg tracking-wide">Description (Optional)</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Rules, trash talk, or context for the pool..." 
-                        {...field} 
-                        data-testid="input-pool-desc" 
-                        className="resize-none bg-background/50 border-primary/20 min-h-[100px]" 
+                      <Textarea
+                        placeholder="Rules, trash talk, or context for the pool..."
+                        {...field}
+                        data-testid="input-pool-desc"
+                        className="resize-none bg-background/50 border-primary/20 min-h-[100px]"
                       />
                     </FormControl>
                     <FormMessage />

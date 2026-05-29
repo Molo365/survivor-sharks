@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolUpdatePoolType } from './poolUpdatePoolType';
 
 export interface PoolUpdate {
   name?: string;
@@ -13,4 +14,6 @@ export interface PoolUpdate {
   currentWeek?: number;
   season?: number;
   isActive?: boolean;
+  poolType?: PoolUpdatePoolType;
+  startWeek?: number;
 }

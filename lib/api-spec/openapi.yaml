@@ -652,6 +652,13 @@ components:
         sport:
           type: string
           enum: [nfl, mlb, nba, nhl, fifa]
+        poolType:
+          type: string
+          enum: [season, weekly, mid_season]
+          default: season
+        startWeek:
+          type: integer
+          description: Starting week for mid_season pools (required when poolType is mid_season)
         description:
           type: string
         maxEntries:
@@ -680,6 +687,11 @@ components:
           type: integer
         isActive:
           type: boolean
+        poolType:
+          type: string
+          enum: [season, weekly, mid_season]
+        startWeek:
+          type: integer
 
     JoinPoolInput:
       type: object
@@ -690,7 +702,7 @@ components:
 
     Pool:
       type: object
-      required: [id, name, sport, inviteCode, currentWeek, season, isActive, memberCount, commissionerId]
+      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, memberCount, commissionerId]
       properties:
         id:
           type: integer
@@ -698,6 +710,11 @@ components:
           type: string
         sport:
           type: string
+        poolType:
+          type: string
+          enum: [season, weekly, mid_season]
+        startWeek:
+          type: ["integer", "null"]
         description:
           type: ["string", "null"]
         inviteCode:
@@ -727,7 +744,7 @@ components:
 
     PoolDetail:
       type: object
-      required: [id, name, sport, inviteCode, currentWeek, season, isActive, members, commissionerId, activeCount, totalMembers]
+      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, members, commissionerId, activeCount, totalMembers]
       properties:
         id:
           type: integer
@@ -735,6 +752,11 @@ components:
           type: string
         sport:
           type: string
+        poolType:
+          type: string
+          enum: [season, weekly, mid_season]
+        startWeek:
+          type: ["integer", "null"]
         description:
           type: ["string", "null"]
         inviteCode:

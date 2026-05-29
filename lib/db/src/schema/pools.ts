@@ -4,11 +4,14 @@ import { z } from "zod/v4";
 import { usersTable } from "./users";
 
 export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa"]);
+export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season"]);
 
 export const poolsTable = pgTable("pools", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   sport: sportEnum("sport").notNull().default("nfl"),
+  poolType: poolTypeEnum("pool_type_col").notNull().default("season"),
+  startWeek: integer("start_week"),
   description: text("description"),
   inviteCode: text("invite_code").notNull().unique(),
   currentWeek: integer("current_week").notNull().default(1),

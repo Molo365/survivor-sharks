@@ -74,14 +74,24 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  // Check team not already used in a previous week
+  // Load all user's picks for this pool
   const previousPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, userId)));
 
-  const alreadyUsed = previousPicks.some(p => p.teamId === teamId && p.week !== week);
-  if (alreadyUsed) {
-    res.status(400).json({ error: "You have already used this team in a previous week" });
-    return;
+  // Team re-use rules depend on pool type:
+  // - season:     can never reuse a team across any week
+  // - weekly:     no restriction — each week is independent
+  // - mid_season: same as season but only from startWeek onwards
+  if (pool.poolType !== "weekly") {
+    const relevantPicks = pool.poolType === "mid_season" && pool.startWeek
+      ? previousPicks.filter(p => p.week >= pool.startWeek!)
+      : previousPicks;
+
+    const alreadyUsed = relevantPicks.some(p => p.teamId === teamId && p.week !== week);
+    if (alreadyUsed) {
+      res.status(400).json({ error: "You have already used this team in a previous week" });
+      return;
+    }
   }
 
   const { teamName, teamLogoUrl } = resolveTeam(pool.sport, teamId);
@@ -91,7 +101,6 @@ router.post("/", requireAuth, async (req, res) => {
   let pick: typeof picksTable.$inferSelect;
 
   if (existingPick) {
-    // Changing pick — check new team's game hasn't started either
     const [updated] = await db.update(picksTable).set({
       teamId, teamName, teamLogoUrl, result: "pending",
     }).where(eq(picksTable.id, existingPick.id)).returning();

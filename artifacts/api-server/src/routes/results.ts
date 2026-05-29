@@ -80,7 +80,6 @@ router.post("/", requireAuth, async (req, res) => {
       if (abbrevToId.has(upper)) {
         resolvedIds.push(abbrevToId.get(upper)!);
       } else if (sportTeams.some(t => t.id === raw.trim())) {
-        // Already a numeric ID
         resolvedIds.push(raw.trim());
       } else {
         unrecognized.push(raw);
@@ -101,7 +100,7 @@ router.post("/", requireAuth, async (req, res) => {
   req.log.info(
     { losingTeamIds: [...losingSet].map(id => `${id}(${idToAbbrev.get(id) ?? "?"})`),
       picks: weekPicks.map(p => `userId=${p.userId} teamId=${p.teamId}(${idToAbbrev.get(p.teamId) ?? "?"}) teamName="${p.teamName}"`),
-      week, poolId },
+      week, poolId, poolType: pool.poolType },
     "Grading picks against losing set"
   );
 
@@ -123,15 +122,19 @@ router.post("/", requireAuth, async (req, res) => {
 
     if (result === "loss") {
       eliminated.push(pick.userId.toString());
-      await db.update(entriesTable)
-        .set({ status: "eliminated", eliminatedWeek: week })
-        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, pick.userId)));
+      // For weekly pools eliminations don't carry over — we'll restore below
+      if (pool.poolType !== "weekly") {
+        await db.update(entriesTable)
+          .set({ status: "eliminated", eliminatedWeek: week })
+          .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, pick.userId)));
+      }
     } else {
       survived.push(pick.userId.toString());
     }
   }
 
   // Eliminate alive members who submitted no pick this week (forfeit)
+  // Weekly pools: only mark for the current grading, won't carry forward
   const pickedUserIds = new Set(weekPicks.map(p => p.userId));
   const aliveEntries = await db.select().from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
@@ -139,12 +142,27 @@ router.post("/", requireAuth, async (req, res) => {
   const forfeits: number[] = [];
   for (const entry of aliveEntries) {
     if (!pickedUserIds.has(entry.userId)) {
-      await db.update(entriesTable)
-        .set({ status: "eliminated", eliminatedWeek: week })
-        .where(eq(entriesTable.id, entry.id));
+      if (pool.poolType !== "weekly") {
+        await db.update(entriesTable)
+          .set({ status: "eliminated", eliminatedWeek: week })
+          .where(eq(entriesTable.id, entry.id));
+      }
       eliminated.push(entry.userId.toString());
       forfeits.push(entry.userId);
     }
+  }
+
+  // For weekly pools: reset everyone back to "alive" for next week
+  // The weekly format has no carry-over — it's a fresh contest each week.
+  if (pool.poolType === "weekly") {
+    const allEntries = await db.select().from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    for (const entry of allEntries) {
+      await db.update(entriesTable)
+        .set({ status: "alive", eliminatedWeek: null })
+        .where(eq(entriesTable.id, entry.id));
+    }
+    req.log.info({ poolId, week, poolType: "weekly" }, "Weekly pool — all entries reset to alive for next week");
   }
 
   // Record result
@@ -160,6 +178,7 @@ router.post("/", requireAuth, async (req, res) => {
     eliminated,
     survived,
     processedAt: new Date().toISOString(),
+    poolType: pool.poolType,
     debug: {
       inputEntered: inputTokens,
       resolvedLosingIds: [...losingSet].map(id => ({ id, abbreviation: idToAbbrev.get(id) ?? "?" })),
