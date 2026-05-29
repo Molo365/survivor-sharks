@@ -1,9 +1,16 @@
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { Shield, Trophy, Users } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { NavBar } from "@/components/NavBar";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Landing() {
+  const { user, isLoading } = useAuth();
+
+  if (!isLoading && user) {
+    return <Redirect to="/dashboard" />;
+  }
+
   return (
     <div className="min-h-[100dvh] flex flex-col">
       <NavBar />

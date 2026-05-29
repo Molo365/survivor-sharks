@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable } from "@workspace/db";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 
@@ -47,7 +47,7 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   const pools = await db.select().from(poolsTable)
-    .where(sql`${poolsTable.id} = ANY(ARRAY[${sql.join(poolIds.map(id => sql`${id}`), sql`, `)}])`);
+    .where(inArray(poolsTable.id, poolIds));
 
   const result = await Promise.all(pools.map(async (pool) => {
     const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));

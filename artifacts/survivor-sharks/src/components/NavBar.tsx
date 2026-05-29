@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, User as UserIcon } from "lucide-react";
 
 export function NavBar() {
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -14,7 +14,9 @@ export function NavBar() {
           <span className="font-bebas text-2xl tracking-widest text-primary">SURVIVOR SHARKS</span>
         </Link>
         <div className="flex items-center gap-4">
-          {user ? (
+          {isLoading ? (
+            <div className="h-8 w-32 rounded-md bg-muted/30 animate-pulse" />
+          ) : user ? (
             <>
               <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors" data-testid="nav-dashboard">
                 Dashboard

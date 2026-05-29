@@ -2,7 +2,8 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRegisterUser, getGetMeQueryKey } from "@workspace/api-client-react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, Redirect } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -25,6 +26,7 @@ const formSchema = z.object({
 });
 
 export default function Register() {
+  const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -34,6 +36,10 @@ export default function Register() {
     resolver: zodResolver(formSchema),
     defaultValues: { username: "", displayName: "", email: "", password: "" },
   });
+
+  if (!isLoading && user) {
+    return <Redirect to="/dashboard" />;
+  }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     registerUser.mutate(
