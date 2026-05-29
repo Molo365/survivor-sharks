@@ -128,6 +128,8 @@ function TeamSide({
   );
 }
 
+type SelectedTeam = { id: string; name: string; logoUrl: string | null };
+
 function MatchupCard({
   game,
   pickedTeamIds,
@@ -138,8 +140,8 @@ function MatchupCard({
   game: Game;
   pickedTeamIds: string[];
   currentPickTeamId?: string;
-  selectedTeam: string | null;
-  onSelect: (teamId: string) => void;
+  selectedTeam: SelectedTeam | null;
+  onSelect: (team: SelectedTeam) => void;
 }) {
   const isGameLocked = game.hasStarted;
   const isHomeUsed = pickedTeamIds.includes(game.homeTeam.id) && currentPickTeamId !== game.homeTeam.id;
@@ -150,10 +152,12 @@ function MatchupCard({
       ? "In Progress"
       : null;
 
+  const selectedId = selectedTeam?.id;
+
   return (
     <div className={cn(
       "shark-card rounded-xl border overflow-hidden transition-all",
-      (game.homeTeam.id === selectedTeam || game.awayTeam.id === selectedTeam)
+      (game.homeTeam.id === selectedId || game.awayTeam.id === selectedId)
         ? "border-primary/60 shadow-[0_0_20px_rgba(30,144,255,0.15)]"
         : "border-border/50"
     )}>
@@ -163,11 +167,11 @@ function MatchupCard({
           team={game.awayTeam}
           record={game.awayRecord ?? null}
           score={game.awayScore ?? null}
-          isSelected={selectedTeam === game.awayTeam.id}
+          isSelected={selectedId === game.awayTeam.id}
           isUsed={isAwayUsed}
           isLocked={isGameLocked && !isAwayUsed}
           isCurrentPick={currentPickTeamId === game.awayTeam.id}
-          onClick={() => onSelect(game.awayTeam.id)}
+          onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
           side="away"
         />
 
@@ -208,11 +212,11 @@ function MatchupCard({
           team={game.homeTeam}
           record={game.homeRecord ?? null}
           score={game.homeScore ?? null}
-          isSelected={selectedTeam === game.homeTeam.id}
+          isSelected={selectedId === game.homeTeam.id}
           isUsed={isHomeUsed}
           isLocked={isGameLocked && !isHomeUsed}
           isCurrentPick={currentPickTeamId === game.homeTeam.id}
-          onClick={() => onSelect(game.homeTeam.id)}
+          onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
           side="home"
         />
       </div>
@@ -239,16 +243,18 @@ export function MatchupPickGrid({
   const submitPick = useSubmitPick();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  // Track not just the ID but the full team object so we can send the
+  // exact name/logo the user saw on the card, bypassing the static lookup.
+  const [selectedTeam, setSelectedTeam] = useState<{ id: string; name: string; logoUrl: string | null } | null>(null);
 
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
 
   const handleSubmit = () => {
-    const teamId = selectedTeam;
-    if (!teamId) return;
+    if (!selectedTeam) return;
+    const { id: teamId, name: teamName, logoUrl: teamLogoUrl } = selectedTeam;
     submitPick.mutate(
-      { poolId, data: { teamId, week: currentWeek } } as any,
+      { poolId, data: { teamId, week: currentWeek, teamName, teamLogoUrl } } as any,
       {
         onSuccess: () => {
           toast({ title: "Pick locked in!", description: `Week ${currentWeek} pick saved.` });
@@ -319,12 +325,8 @@ export function MatchupPickGrid({
               pickedTeamIds={pickedTeamIds}
               currentPickTeamId={currentPick?.teamId}
               selectedTeam={selectedTeam}
-              onSelect={(teamId) => {
-                if (selectedTeam === teamId) {
-                  setSelectedTeam(null);
-                } else {
-                  setSelectedTeam(teamId);
-                }
+              onSelect={(team) => {
+                setSelectedTeam(prev => prev?.id === team.id ? null : team);
               }}
             />
           ))}
@@ -335,14 +337,14 @@ export function MatchupPickGrid({
       <div className="pt-6 border-t border-border/50 flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           {selectedTeam
-            ? `Selected: ${gameList.flatMap(g => [g.homeTeam, g.awayTeam]).find(t => t.id === selectedTeam)?.name ?? selectedTeam}`
+            ? `Selected: ${selectedTeam.name}`
             : currentPick
               ? "Click a team above to change your pick"
               : "Click a team in any matchup to make your pick"}
         </p>
         <Button
           onClick={handleSubmit}
-          disabled={!selectedTeam || selectedTeam === currentPick?.teamId || submitPick.isPending}
+          disabled={!selectedTeam || selectedTeam.id === currentPick?.teamId || submitPick.isPending}
           className="font-bebas text-xl px-10 h-14 tracking-widest shrink-0"
           data-testid="button-submit-pick"
         >

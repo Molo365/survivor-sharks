@@ -131,49 +131,11 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
     req.log?.warn({ sport, week }, "ESPN schedule fetch failed, using fallback");
   }
 
-  // Fallback: synthesise pairings from static team list
-  const teams = ESPN_TEAMS[sport] ?? [];
-  const games = [];
-  for (let i = 0; i < teams.length - 1; i += 2) {
-    games.push({
-      id: `${sport}-week${week}-${i}`,
-      sport,
-      homeTeam: {
-        id: teams[i].id,
-        name: teams[i].name,
-        abbreviation: teams[i].abbreviation,
-        sport,
-        logoUrl: getTeamLogoUrl(sport, teams[i]),
-        location: teams[i].location ?? null,
-        conference: teams[i].conference ?? null,
-        division: teams[i].division ?? null,
-        flagUrl: null,
-      },
-      awayTeam: {
-        id: teams[i + 1].id,
-        name: teams[i + 1].name,
-        abbreviation: teams[i + 1].abbreviation,
-        sport,
-        logoUrl: getTeamLogoUrl(sport, teams[i + 1]),
-        location: teams[i + 1].location ?? null,
-        conference: teams[i + 1].conference ?? null,
-        division: teams[i + 1].division ?? null,
-        flagUrl: null,
-      },
-      startTime: new Date().toISOString(),
-      week,
-      season: new Date().getFullYear(),
-      status: "STATUS_SCHEDULED",
-      hasStarted: false,
-      homeScore: null,
-      awayScore: null,
-      homeRecord: null,
-      awayRecord: null,
-      odds: null,
-    });
-  }
-
-  res.json(games);
+  // ESPN fetch failed — return empty so the UI shows "no games this week"
+  // rather than synthesising fake matchups from static data (which would show
+  // teams not actually playing and cause wrong-team-name bugs on submission).
+  req.log?.warn({ sport, week }, "ESPN schedule unavailable, returning empty");
+  res.json([]);
 });
 
 export default router;

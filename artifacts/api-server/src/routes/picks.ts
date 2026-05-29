@@ -39,7 +39,7 @@ router.get("/", requireAuth, async (req, res) => {
 router.post("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
-  const { teamId, week } = req.body;
+  const { teamId, week, teamName: clientTeamName, teamLogoUrl: clientTeamLogoUrl } = req.body;
 
   if (!teamId || !week) {
     res.status(400).json({ error: "teamId and week are required" });
@@ -94,7 +94,16 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
-  const { teamName, teamLogoUrl } = resolveTeam(pool.sport, teamId);
+  // Prefer the client-supplied name/logo (sourced from the live ESPN schedule) so
+  // the stored value exactly matches what the user saw on the matchup card.
+  // Fall back to static resolveTeam only if the client didn't send them.
+  const resolved = resolveTeam(pool.sport, teamId);
+  const teamName = (typeof clientTeamName === "string" && clientTeamName.trim())
+    ? clientTeamName.trim()
+    : resolved.teamName;
+  const teamLogoUrl = (typeof clientTeamLogoUrl === "string" && clientTeamLogoUrl)
+    ? clientTeamLogoUrl
+    : resolved.teamLogoUrl;
 
   // Upsert pick for this week
   const existingPick = previousPicks.find(p => p.week === week);

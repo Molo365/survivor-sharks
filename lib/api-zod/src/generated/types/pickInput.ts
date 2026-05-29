@@ -9,4 +9,11 @@
 export interface PickInput {
   teamId: string;
   week: number;
+  /** Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name */
+  teamName?: string;
+  /**
+     * Logo URL from the schedule response
+     * @nullable
+     */
+  teamLogoUrl?: string | null;
 }

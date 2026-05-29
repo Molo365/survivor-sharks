@@ -271,7 +271,9 @@ export const SubmitPickParams = zod.object({
 
 export const SubmitPickBody = zod.object({
   "teamId": zod.string(),
-  "week": zod.number()
+  "week": zod.number(),
+  "teamName": zod.string().optional().describe('Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name'),
+  "teamLogoUrl": zod.string().nullish().describe('Logo URL from the schedule response')
 })
 
 

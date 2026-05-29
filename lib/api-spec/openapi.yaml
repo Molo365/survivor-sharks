@@ -840,6 +840,12 @@ components:
           type: string
         week:
           type: integer
+        teamName:
+          type: string
+          description: "Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name"
+        teamLogoUrl:
+          type: ["string", "null"]
+          description: "Logo URL from the schedule response"
 
     Pick:
       type: object
