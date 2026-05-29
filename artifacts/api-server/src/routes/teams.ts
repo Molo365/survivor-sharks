@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { ESPN_TEAMS, getLogoUrl, type Sport } from "../lib/teams-data";
+import { ESPN_TEAMS, getTeamLogoUrl, type Sport } from "../lib/teams-data";
 
 const router = Router();
 
@@ -19,11 +19,11 @@ router.get("/:sport/teams", requireAuth, (req, res) => {
     name: t.name,
     abbreviation: t.abbreviation,
     sport,
-    logoUrl: getLogoUrl(sport, t.abbreviation),
+    logoUrl: getTeamLogoUrl(sport, t),
     location: t.location,
     conference: t.conference ?? null,
     division: t.division ?? null,
-    flagUrl: sport === "fifa" ? getLogoUrl(sport, t.id) : null,
+    flagUrl: sport === "fifa" ? getTeamLogoUrl(sport, t) : null,
   })));
 });
 
@@ -101,7 +101,7 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
         name: teams[i].name,
         abbreviation: teams[i].abbreviation,
         sport,
-        logoUrl: getLogoUrl(sport, teams[i].abbreviation),
+        logoUrl: getTeamLogoUrl(sport, teams[i]),
         location: teams[i].location,
         conference: teams[i].conference ?? null,
         division: teams[i].division ?? null,
@@ -112,7 +112,7 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
         name: teams[i + 1].name,
         abbreviation: teams[i + 1].abbreviation,
         sport,
-        logoUrl: getLogoUrl(sport, teams[i + 1].abbreviation),
+        logoUrl: getTeamLogoUrl(sport, teams[i + 1]),
         location: teams[i + 1].location,
         conference: teams[i + 1].conference ?? null,
         division: teams[i + 1].division ?? null,

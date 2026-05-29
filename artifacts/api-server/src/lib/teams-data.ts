@@ -178,11 +178,26 @@ export const ESPN_TEAMS: Record<Sport, TeamRecord[]> = {
   ],
 };
 
-export function getLogoUrl(sport: Sport, abbreviation: string): string {
+/**
+ * Returns the logo/flag URL for a team.
+ * For FIFA, pass the ISO country code (the team's `id` field, e.g. "us", "gb-eng").
+ * For all other sports, pass the team abbreviation (e.g. "BAL", "KC").
+ */
+export function getLogoUrl(sport: Sport, teamIdentifier: string): string {
   if (sport === "fifa") {
-    return `https://flagcdn.com/w80/${abbreviation.toLowerCase()}.png`;
+    return `https://flagcdn.com/w80/${teamIdentifier.toLowerCase()}.png`;
   }
-  return `https://a.espncdn.com/i/teamlogos/${sport}/500/${abbreviation.toLowerCase()}.png`;
+  return `https://a.espncdn.com/i/teamlogos/${sport}/500/${teamIdentifier.toLowerCase()}.png`;
+}
+
+/**
+ * Convenience: resolve the correct logo URL directly from a team record,
+ * handling the FIFA ISO-code vs abbreviation distinction automatically.
+ */
+export function getTeamLogoUrl(sport: Sport, team: { id: string; abbreviation: string }): string {
+  return sport === "fifa"
+    ? `https://flagcdn.com/w80/${team.id.toLowerCase()}.png`
+    : `https://a.espncdn.com/i/teamlogos/${sport}/500/${team.abbreviation.toLowerCase()}.png`;
 }
 
 /**
@@ -201,7 +216,7 @@ export function resolveTeam(
     return {
       teamName: team.name,
       abbreviation: team.abbreviation,
-      teamLogoUrl: getLogoUrl(sportKey, team.abbreviation),
+      teamLogoUrl: getTeamLogoUrl(sportKey, team),
     };
   }
 
