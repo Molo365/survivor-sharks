@@ -67,16 +67,29 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  // Check ESPN game-time lock
-  const locked = await isPickLocked(pool.sport, teamId, week);
-  if (locked) {
-    res.status(400).json({ error: "This team's game has already started — pick is locked" });
-    return;
-  }
-
-  // Load all user's picks for this pool
+  // Load all user's picks for this pool (needed for both lock check and reuse check)
   const previousPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, userId)));
+
+  // If the player already has a pick this week and that team's game has started,
+  // the pick is locked — they cannot swap to a different team.
+  const existingPick = previousPicks.find(p => p.week === week);
+  if (existingPick) {
+    const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week);
+    if (currentlyLocked) {
+      res.status(400).json({
+        error: `Your pick (${existingPick.teamName}) is locked — that game has already started`,
+      });
+      return;
+    }
+  }
+
+  // Also block picking a new team whose game has already started
+  const newTeamLocked = await isPickLocked(pool.sport, teamId, week);
+  if (newTeamLocked) {
+    res.status(400).json({ error: "That team's game has already started — choose a team that hasn't played yet" });
+    return;
+  }
 
   // Team re-use rules depend on pool type:
   // - season:     can never reuse a team across any week
@@ -106,7 +119,6 @@ router.post("/", requireAuth, async (req, res) => {
     : resolved.teamLogoUrl;
 
   // Upsert pick for this week
-  const existingPick = previousPicks.find(p => p.week === week);
   let pick: typeof picksTable.$inferSelect;
 
   if (existingPick) {

@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Lock, Clock } from "lucide-react";
+import { Check, Lock, Clock, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
@@ -284,23 +284,58 @@ export function MatchupPickGrid({
 
   const gameList = games ?? [];
 
-  // Find teams on bye (in the static team list but not in any scheduled game)
-  const teamsInGames = new Set(gameList.flatMap(g => [g.homeTeam.id, g.awayTeam.id]));
+  // Find the game that contains the current pick's team — used to derive lock state and start time
+  const currentPickGame = currentPick
+    ? gameList.find(g => g.homeTeam.id === currentPick.teamId || g.awayTeam.id === currentPick.teamId)
+    : undefined;
+
+  // The pick is locked once the picked team's game has started
+  const pickIsLocked = !!(currentPick && currentPickGame?.hasStarted);
 
   return (
     <div className="space-y-6">
-      {/* Current pick banner */}
-      {currentPick && (
-        <div className="bg-primary/10 border border-primary/50 p-4 rounded-xl flex items-center justify-between shadow-[0_0_15px_rgba(30,144,255,0.1)]">
-          <div>
-            <h3 className="font-bebas text-2xl text-primary tracking-wide">Your Pick — Week {currentWeek}</h3>
-            <p className="text-lg font-medium text-foreground/90">{currentPick.teamName}</p>
+      {/* Current pick banner — adapts for locked / unlocked state */}
+      {currentPick ? (
+        pickIsLocked ? (
+          <div className="bg-destructive/5 border border-destructive/30 p-4 rounded-xl shadow-[0_0_12px_rgba(220,38,38,0.08)]">
+            <div className="flex items-start gap-3">
+              <div className="bg-destructive/10 p-2 rounded-full shrink-0 mt-0.5">
+                <ShieldAlert className="w-5 h-5 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bebas text-2xl text-destructive tracking-wide leading-none mb-1">
+                  Pick Locked — Game In Progress
+                </h3>
+                <p className="text-base font-medium text-foreground/90">{currentPick.teamName}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This game has started. Your pick cannot be changed.
+                </p>
+              </div>
+              <Lock className="w-5 h-5 text-destructive/60 shrink-0 mt-1" />
+            </div>
           </div>
-          <div className="bg-primary/20 p-2 rounded-full">
-            <Check className="w-8 h-8 text-primary" />
+        ) : (
+          <div className="bg-primary/10 border border-primary/50 p-4 rounded-xl shadow-[0_0_15px_rgba(30,144,255,0.1)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-bebas text-2xl text-primary tracking-wide leading-none mb-1">
+                  Your Pick — Week {currentWeek}
+                </h3>
+                <p className="text-lg font-medium text-foreground/90">{currentPick.teamName}</p>
+                {currentPickGame && !currentPickGame.hasStarted && (
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Locks {formatGameTime(currentPickGame.startTime)}
+                  </p>
+                )}
+              </div>
+              <div className="bg-primary/20 p-2 rounded-full shrink-0">
+                <Check className="w-8 h-8 text-primary" />
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      ) : null}
 
       {/* Week heading */}
       <div className="flex items-center gap-3">
@@ -313,56 +348,48 @@ export function MatchupPickGrid({
         </span>
       </div>
 
-      {/* Matchup cards */}
+      {/* Matchup cards — fully disabled once pick is locked */}
       {gameList.length === 0 ? (
         <p className="text-muted-foreground text-center py-10">No games found for this week.</p>
       ) : (
-        <div className="space-y-3">
+        <div className={cn("space-y-3", pickIsLocked && "pointer-events-none opacity-50 select-none")}>
           {gameList.map(game => (
             <MatchupCard
               key={game.id}
               game={game}
               pickedTeamIds={pickedTeamIds}
               currentPickTeamId={currentPick?.teamId}
-              selectedTeam={selectedTeam}
+              selectedTeam={pickIsLocked ? null : selectedTeam}
               onSelect={(team) => {
-                setSelectedTeam(prev => prev?.id === team.id ? null : team);
+                if (!pickIsLocked) setSelectedTeam(prev => prev?.id === team.id ? null : team);
               }}
             />
           ))}
         </div>
       )}
 
-      {/* Submit */}
-      <div className="pt-6 border-t border-border/50 flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          {selectedTeam
-            ? `Selected: ${selectedTeam.name}`
-            : currentPick
-              ? "Click a team above to change your pick"
-              : "Click a team in any matchup to make your pick"}
-        </p>
-        <Button
-          onClick={handleSubmit}
-          disabled={!selectedTeam || selectedTeam.id === currentPick?.teamId || submitPick.isPending}
-          className="font-bebas text-xl px-10 h-14 tracking-widest shrink-0"
-          data-testid="button-submit-pick"
-        >
-          {submitPick.isPending
-            ? "SUBMITTING…"
-            : currentPick
-              ? "UPDATE PICK"
-              : "LOCK IN PICK"}
-        </Button>
-      </div>
-
-      {/* Bye week notice */}
-      {teamsInGames.size > 0 && (
-        <div className="pt-2">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-semibold mb-2">Not playing this week</p>
-          <p className="text-xs text-muted-foreground/50">
-            Teams on bye are unavailable to pick. Their pick locks are automatically enforced.
+      {/* Submit row — hidden when locked */}
+      {!pickIsLocked && (
+        <div className="pt-6 border-t border-border/50 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            {selectedTeam
+              ? `Selected: ${selectedTeam.name}`
+              : currentPick
+                ? "Click a team above to change your pick"
+                : "Click a team in any matchup to make your pick"}
           </p>
+          <Button
+            onClick={handleSubmit}
+            disabled={!selectedTeam || selectedTeam.id === currentPick?.teamId || submitPick.isPending}
+            className="font-bebas text-xl px-10 h-14 tracking-widest shrink-0"
+            data-testid="button-submit-pick"
+          >
+            {submitPick.isPending
+              ? "SUBMITTING…"
+              : currentPick
+                ? "UPDATE PICK"
+                : "LOCK IN PICK"}
+          </Button>
         </div>
       )}
     </div>
