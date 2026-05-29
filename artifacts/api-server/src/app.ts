@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import { loadUser } from "./middlewares/auth";
 import router from "./routes";
+import adminHtmlRouter from "./routes/admin-html";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -27,5 +28,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(loadUser);
 
 app.use("/api", router);
+app.use("/admin", adminHtmlRouter);
 
 export default app;
