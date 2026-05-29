@@ -38,19 +38,30 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const existing = await db.select().from(usersTable)
-    .where(or(eq(usersTable.username, username), eq(usersTable.email, email)))
+  const [takenUsername] = await db.select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.username, username))
     .limit(1);
 
-  if (existing.length > 0) {
-    res.status(409).json({ error: "Username or email already taken" });
+  if (takenUsername) {
+    res.status(409).json({ error: `Username "${username}" is already taken. Please choose a different one.` });
+    return;
+  }
+
+  const [takenEmail] = await db.select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email.toLowerCase()))
+    .limit(1);
+
+  if (takenEmail) {
+    res.status(409).json({ error: "An account with that email address already exists. Try logging in instead." });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(usersTable).values({
     username,
-    email,
+    email: email.toLowerCase(),
     passwordHash,
     displayName: displayName ?? null,
     role: "user",
@@ -69,7 +80,7 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
 
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });
