@@ -727,7 +727,7 @@ components:
 
     PoolDetail:
       type: object
-      required: [id, name, sport, inviteCode, currentWeek, season, isActive, members, commissionerId]
+      required: [id, name, sport, inviteCode, currentWeek, season, isActive, members, commissionerId, activeCount, totalMembers]
       properties:
         id:
           type: integer
@@ -755,6 +755,12 @@ components:
           type: ["number", "null"]
         prizePot:
           type: ["number", "null"]
+        activeCount:
+          type: integer
+          description: Number of members still alive (not eliminated)
+        totalMembers:
+          type: integer
+          description: Total number of members in the pool
         members:
           type: array
           items:
@@ -774,7 +780,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [active, eliminated]
+          enum: [alive, eliminated]
         eliminatedWeek:
           type: ["integer", "null"]
         joinedAt:

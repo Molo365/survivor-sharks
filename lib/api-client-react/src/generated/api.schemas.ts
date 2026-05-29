@@ -117,7 +117,7 @@ export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberSt
 
 
 export const PoolMemberStatus = {
-  active: 'active',
+  alive: 'alive',
   eliminated: 'eliminated',
 } as const;
 
@@ -150,6 +150,10 @@ export interface PoolDetail {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  /** Number of members still alive (not eliminated) */
+  activeCount: number;
+  /** Total number of members in the pool */
+  totalMembers: number;
   members: PoolMember[];
   createdAt?: string;
 }

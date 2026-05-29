@@ -10,6 +10,6 @@ export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberSt
 
 
 export const PoolMemberStatus = {
-  active: 'active',
+  alive: 'alive',
   eliminated: 'eliminated',
 } as const;

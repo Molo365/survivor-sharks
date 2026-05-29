@@ -78,7 +78,7 @@ export default function PoolHome() {
               <div className="flex gap-4">
                 <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
                   <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1"><Users className="w-3 h-3" /> Alive</div>
-                  <div className="font-bebas text-3xl text-accent">{pool.members.filter(m => m.status === "active").length} <span className="text-xl text-muted-foreground/60">/ {pool.members.length}</span></div>
+                  <div className="font-bebas text-3xl text-accent">{pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span></div>
                 </div>
                 {pool.prizePot && pool.prizePot > 0 && (
                   <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg text-center shadow-[0_0_15px_rgba(30,144,255,0.05)]">

@@ -163,11 +163,13 @@ export const GetPoolResponse = zod.object({
   "maxEntries": zod.number().nullish(),
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
+  "activeCount": zod.number().describe('Number of members still alive (not eliminated)'),
+  "totalMembers": zod.number().describe('Total number of members in the pool'),
   "members": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
-  "status": zod.enum(['active', 'eliminated']),
+  "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string()
 })),
@@ -273,7 +275,7 @@ export const GetSurvivorGridResponse = zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
-  "status": zod.enum(['active', 'eliminated']),
+  "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string()
 })),
