@@ -18,10 +18,7 @@ export default function Landing() {
             <div className="text-center max-w-3xl mx-auto space-y-6">
               <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4 backdrop-blur-sm">
                 <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-                The 2024 Season is Here
-              </div>
-              <div className="flex justify-center mb-2">
-                <img src="/logo.png" alt="Survivor Sharks" className="h-40 w-40 object-contain drop-shadow-[0_0_24px_rgba(30,144,255,0.6)]" />
+                The 2026 Season is Here
               </div>
               <h1 className="font-bebas text-5xl md:text-7xl lg:text-8xl tracking-tight text-foreground drop-shadow-sm">
                 SURVIVOR SHARKS
