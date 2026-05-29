@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useGetPool, useUpdatePool, useProcessResults, getGetPoolQueryKey, getGetResultsQueryKey } from "@workspace/api-client-react";
+import { useGetPool, useGetSportTeams, useUpdatePool, useProcessResults, getGetPoolQueryKey, getGetResultsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Copy, AlertTriangle, Settings2, CheckCircle2 } from "lucide-react";
+import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
+
+interface ProcessDebug {
+  inputEntered: string[];
+  resolvedLosingIds: { id: string; abbreviation: string }[];
+  picks: { userId: number; teamId: string; teamName: string; abbreviation: string; result: string }[];
+  forfeits: number[];
+}
+
 export function CommissionerPanel({ poolId }: { poolId: number }) {
-  const { data: pool, isLoading: loadingPool } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
-  
+  const { data: pool, isLoading: loadingPool } = useGetPool(poolId, {
+    query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) },
+  });
+
+  const sport = (pool?.sport ?? "nfl") as Sport;
+  const { data: teams } = useGetSportTeams(sport, {
+    query: { enabled: !!pool, queryKey: ["teams", sport] },
+  });
+
   const updatePool = useUpdatePool();
   const processResults = useProcessResults();
   const queryClient = useQueryClient();
@@ -23,6 +39,9 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
   const [week, setWeek] = useState<number>(1);
   const [losingTeams, setLosingTeams] = useState<string>("");
   const [processingWeek, setProcessingWeek] = useState<number>(1);
+  const [showAbbrevs, setShowAbbrevs] = useState(false);
+  const [lastDebug, setLastDebug] = useState<ProcessDebug | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const initRef = useRef<number | null>(null);
 
@@ -41,32 +60,38 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
       { poolId, data: { name, description: desc, currentWeek: week } } as any,
       {
         onSuccess: () => {
-          toast({ title: "Settings Saved", description: "Pool configuration updated successfully." });
+          toast({ title: "Settings Saved", description: "Pool configuration updated." });
           queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
-        }
+        },
       }
     );
   };
 
   const handleProcess = () => {
-    const ids = losingTeams.split(',').map(s => s.trim()).filter(Boolean);
+    const ids = losingTeams.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
     if (ids.length === 0) return;
 
     processResults.mutate(
       { poolId, data: { week: processingWeek, losingTeamIds: ids } } as any,
       {
-        onSuccess: (res) => {
-          toast({ 
-            title: "Results Processed", 
-            description: `${res.eliminated.length} eliminated, ${res.survived.length} survived.` 
+        onSuccess: (res: any) => {
+          setLastDebug(res.debug ?? null);
+          setShowDebug(true);
+          toast({
+            title: "Results Processed",
+            description: `${res.eliminated.length} eliminated, ${res.survived.length} survived.`,
           });
           queryClient.invalidateQueries({ queryKey: getGetResultsQueryKey(poolId) });
           queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
           setLosingTeams("");
         },
         onError: (err: any) => {
-          toast({ variant: "destructive", title: "Failed to process", description: err?.message || "An error occurred" });
-        }
+          toast({
+            variant: "destructive",
+            title: "Failed to process",
+            description: err?.message || "An error occurred",
+          });
+        },
       }
     );
   };
@@ -82,6 +107,7 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
 
   return (
     <div className="space-y-8 max-w-4xl">
+      {/* Invite Code */}
       <Card className="bg-card border-border/50 overflow-hidden relative">
         <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />
         <CardHeader>
@@ -101,6 +127,7 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Settings */}
         <Card className="bg-card border-border/50">
           <CardHeader>
             <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
@@ -110,15 +137,15 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
           <CardContent className="space-y-5">
             <div className="grid gap-2">
               <Label className="font-bebas text-lg tracking-wide">Pool Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-background/50 border-border" />
+              <Input value={name} onChange={e => setName(e.target.value)} className="bg-background/50 border-border" />
             </div>
             <div className="grid gap-2">
               <Label className="font-bebas text-lg tracking-wide">Description</Label>
-              <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="bg-background/50 border-border min-h-[100px]" />
+              <Textarea value={desc} onChange={e => setDesc(e.target.value)} className="bg-background/50 border-border min-h-[100px]" />
             </div>
             <div className="grid gap-2">
               <Label className="font-bebas text-lg tracking-wide">Current Week</Label>
-              <Input type="number" value={week} onChange={(e) => setWeek(parseInt(e.target.value))} className="bg-background/50 border-border w-1/2" />
+              <Input type="number" value={week} onChange={e => setWeek(parseInt(e.target.value))} className="bg-background/50 border-border w-1/2" />
               <p className="text-xs text-muted-foreground">Update this when a new week begins.</p>
             </div>
             <Button onClick={handleUpdate} disabled={updatePool.isPending} className="w-full font-bebas text-xl tracking-wider h-12 mt-2">
@@ -127,33 +154,84 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
           </CardContent>
         </Card>
 
+        {/* Process Eliminations */}
         <Card className="bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)] border-destructive/30">
           <CardHeader>
             <CardTitle className="font-bebas text-2xl tracking-wide text-destructive flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" /> Process Eliminations
             </CardTitle>
-            <CardDescription className="text-muted-foreground/80">Grade picks and eliminate players who chose losing teams.</CardDescription>
+            <CardDescription className="text-muted-foreground/80">
+              Grade picks and eliminate players who chose losing teams.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-2">
               <Label className="font-bebas text-lg tracking-wide text-destructive/80">Processing Week</Label>
-              <Input type="number" value={processingWeek} onChange={(e) => setProcessingWeek(parseInt(e.target.value))} className="bg-background/50 border-destructive/20 w-1/2" />
-            </div>
-            <div className="grid gap-2">
-              <Label className="font-bebas text-lg tracking-wide text-destructive/80">Losing Team IDs</Label>
-              <Input 
-                placeholder="e.g. DAL, NYG, PHI" 
-                value={losingTeams} 
-                onChange={(e) => setLosingTeams(e.target.value)} 
-                className="bg-background/50 border-destructive/20 font-mono uppercase"
+              <Input
+                type="number"
+                value={processingWeek}
+                onChange={e => setProcessingWeek(parseInt(e.target.value))}
+                className="bg-background/50 border-destructive/20 w-1/2"
               />
-              <p className="text-xs text-muted-foreground">Comma-separated abbreviations of teams that lost.</p>
             </div>
-            <Button 
-              variant="destructive" 
-              onClick={handleProcess} 
+
+            <div className="grid gap-2">
+              <Label className="font-bebas text-lg tracking-wide text-destructive/80">Losing Teams</Label>
+              <Input
+                placeholder="e.g. BAL, ATL, NYY"
+                value={losingTeams}
+                onChange={e => setLosingTeams(e.target.value.toUpperCase())}
+                className="bg-background/50 border-destructive/20 font-mono uppercase"
+                data-testid="input-losing-teams"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated abbreviations of teams that <strong>lost</strong> this week.
+              </p>
+            </div>
+
+            {/* Team abbreviation cheat-sheet */}
+            {teams && teams.length > 0 && (
+              <div className="rounded-md border border-border/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAbbrevs(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                >
+                  <span>Valid {sport.toUpperCase()} Abbreviations</span>
+                  {showAbbrevs ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                {showAbbrevs && (
+                  <div className="px-3 pb-3 pt-1 bg-background/30 grid grid-cols-3 gap-x-2 gap-y-1 max-h-48 overflow-y-auto">
+                    {teams.map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          const existing = losingTeams.split(",").map(s => s.trim()).filter(Boolean);
+                          if (!existing.includes(t.abbreviation.toUpperCase())) {
+                            setLosingTeams(existing.length ? existing.join(", ") + ", " + t.abbreviation : t.abbreviation);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 text-left hover:bg-muted/30 rounded px-1 py-0.5 transition-colors group"
+                        title={t.name}
+                      >
+                        <span className="font-mono text-xs font-bold text-primary group-hover:text-primary/80 w-9 shrink-0">
+                          {t.abbreviation}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground truncate leading-tight">{t.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button
+              variant="destructive"
+              onClick={handleProcess}
               disabled={processResults.isPending || !losingTeams.trim()}
               className="w-full font-bebas text-xl tracking-wider h-12 mt-2"
+              data-testid="button-process-results"
             >
               <CheckCircle2 className="w-5 h-5 mr-2" />
               {processResults.isPending ? "Processing..." : "Process Week Results"}
@@ -161,6 +239,82 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug output panel — shown after a process run */}
+      {lastDebug && (
+        <Card className="border-border/30 bg-background/50">
+          <CardHeader className="pb-2">
+            <button
+              type="button"
+              onClick={() => setShowDebug(v => !v)}
+              className="flex items-center gap-2 text-left"
+            >
+              <Bug className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="font-bebas text-xl tracking-wide text-muted-foreground">
+                Process Debug — Week {processingWeek - 1}
+              </CardTitle>
+              {showDebug ? <ChevronUp className="w-4 h-4 ml-auto text-muted-foreground" /> : <ChevronDown className="w-4 h-4 ml-auto text-muted-foreground" />}
+            </button>
+          </CardHeader>
+          {showDebug && (
+            <CardContent className="space-y-4 text-sm font-mono">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">You entered</p>
+                <p className="text-foreground">{lastDebug.inputEntered.join(", ") || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Resolved to team IDs</p>
+                {lastDebug.resolvedLosingIds.length === 0 ? (
+                  <p className="text-destructive">⚠ No valid abbreviations matched — check spelling against the cheat-sheet above</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {lastDebug.resolvedLosingIds.map(t => (
+                      <span key={t.id} className="bg-destructive/20 border border-destructive/30 text-destructive px-2 py-0.5 rounded text-xs">
+                        {t.abbreviation} (id {t.id})
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Pick results</p>
+                {lastDebug.picks.length === 0 ? (
+                  <p className="text-muted-foreground">No picks found for this week</p>
+                ) : (
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/30">
+                        <th className="text-left py-1 pr-3 text-muted-foreground font-normal">User</th>
+                        <th className="text-left py-1 pr-3 text-muted-foreground font-normal">Team</th>
+                        <th className="text-left py-1 pr-3 text-muted-foreground font-normal">Abbrev</th>
+                        <th className="text-left py-1 text-muted-foreground font-normal">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lastDebug.picks.map((p, i) => (
+                        <tr key={i} className="border-b border-border/20">
+                          <td className="py-1 pr-3 text-muted-foreground">{p.userId}</td>
+                          <td className="py-1 pr-3">{p.teamName}</td>
+                          <td className="py-1 pr-3 text-primary">{p.abbreviation}</td>
+                          <td className={`py-1 font-bold ${p.result === "loss" ? "text-destructive" : "text-green-500"}`}>
+                            {p.result.toUpperCase()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {lastDebug.forfeits.length > 0 && (
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Forfeits (no pick)</p>
+                  <p className="text-destructive">User IDs: {lastDebug.forfeits.join(", ")}</p>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
