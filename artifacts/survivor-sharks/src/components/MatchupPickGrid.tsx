@@ -143,9 +143,9 @@ function TeamSide({
       data-testid={`team-pick-${team.id}`}
       style={gradientStyle}
       className={cn(
-        "relative flex-1 flex flex-col p-3 transition-all select-none",
+        "relative flex-1 flex flex-col p-2 sm:p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        variant === "live" ? "min-h-[150px]" : "min-h-[160px]",
+        variant === "live" ? "min-h-[110px] sm:min-h-[150px]" : "min-h-[115px] sm:min-h-[160px]",
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
@@ -166,7 +166,7 @@ function TeamSide({
             alt={team.name}
             className={cn(
               "object-contain drop-shadow-md",
-              variant === "live" ? "w-12 h-12" : "w-10 h-10",
+              variant === "live" ? "w-8 h-8 sm:w-12 sm:h-12" : "w-7 h-7 sm:w-10 sm:h-10",
               isUsed && "grayscale opacity-60",
               variant === "final" && !isUsed && "opacity-75"
             )}
@@ -181,9 +181,9 @@ function TeamSide({
         <div className={cn("flex-1 min-w-0", side === "home" && "text-right")}>
           <p className={cn(
             "font-bebas tracking-wide leading-tight truncate",
-            variant === "live" ? "text-lg text-foreground" :
-            variant === "final" ? "text-base text-foreground/65" :
-            isSelected ? "text-primary text-base" : "text-foreground text-base"
+            variant === "live" ? "text-sm sm:text-lg text-foreground" :
+            variant === "final" ? "text-xs sm:text-base text-foreground/65" :
+            isSelected ? "text-primary text-xs sm:text-base" : "text-foreground text-xs sm:text-base"
           )}>
             {team.name}
           </p>
@@ -203,10 +203,10 @@ function TeamSide({
         <p className={cn(
           "font-bebas tracking-wide mt-1",
           variant === "live"
-            ? "text-5xl text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+            ? "text-3xl sm:text-5xl text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
             : variant === "final"
-              ? "text-3xl text-foreground/55"
-              : "text-3xl text-foreground/80"
+              ? "text-xl sm:text-3xl text-foreground/55"
+              : "text-xl sm:text-3xl text-foreground/80"
         )}>
           {score}
         </p>
@@ -297,7 +297,7 @@ function MatchupCard({
   );
 
   const dividerClass = cn(
-    "flex flex-col items-center justify-start pt-3 pb-3 px-2 gap-1.5 min-w-[72px] text-center",
+    "flex flex-col items-center justify-start pt-2 pb-2 px-1 gap-1 min-w-[48px] sm:pt-3 sm:pb-3 sm:px-2 sm:gap-1.5 sm:min-w-[72px] text-center",
     variant === "live" ? "bg-red-950/30" :
     variant === "final" ? "bg-muted/12" :
     "bg-background/50"
