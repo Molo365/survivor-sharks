@@ -79,6 +79,9 @@ function Router() {
       <Route path="/pools/:poolId">
         {() => <ProtectedRoute component={PoolHome} />}
       </Route>
+      <Route path="/pools/:poolId/pickem">
+        {() => <ProtectedRoute component={PoolHome} />}
+      </Route>
 
       {/* Legacy admin routes (role-based) */}
       <Route path="/admin">

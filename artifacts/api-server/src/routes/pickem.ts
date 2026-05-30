@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
@@ -11,6 +11,11 @@ import {
 
 const router = Router({ mergeParams: true });
 
+/** 5-minute pregame lock — matches the daily pick deadline pattern */
+function isGameLocked(gameStartIso: string): boolean {
+  return new Date(gameStartIso).getTime() - 5 * 60 * 1000 <= Date.now();
+}
+
 // GET /api/pools/:poolId/pickem/games
 router.get("/games", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -19,6 +24,20 @@ router.get("/games", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (pool.poolType !== "pickem") {
+    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) {
+    res.status(403).json({ error: "Not a member of this pool" });
     return;
   }
 
@@ -41,15 +60,14 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const pickMap = new Map(existingPicks.map((p) => [p.gameId, p]));
 
-  const now = Date.now();
   const formattedGames = games.map((g) => {
     const existing = pickMap.get(g.id);
-    const gameStarted = new Date(g.date).getTime() <= now;
+    const locked = isGameLocked(g.date);
     return {
       id: g.id,
       startTime: g.date,
       status: g.status,
-      deadlinePassed: gameStarted,
+      deadlinePassed: locked,
       awayTeam: {
         id: g.awayTeam.id,
         name: g.awayTeam.displayName,
@@ -76,7 +94,8 @@ router.get("/games", requireAuth, async (req, res) => {
     day: "numeric",
   });
 
-  const slateDeadlinePassed = games.length > 0 && games.some((g) => new Date(g.date).getTime() <= now);
+  const slateDeadlinePassed =
+    games.length > 0 && games.some((g) => isGameLocked(g.date));
 
   res.json({
     date: todayEt,
@@ -105,6 +124,20 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
+  if (pool.poolType !== "pickem") {
+    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) {
+    res.status(403).json({ error: "Not a member of this pool" });
+    return;
+  }
 
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -112,16 +145,35 @@ router.post("/picks", requireAuth, async (req, res) => {
   const games = await fetchGamesForDate("mlb", todayEspn);
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
-  let saved = 0;
-  let skipped = 0;
+  // Reject picks that target invalid or locked games
+  const lockedGameIds: string[] = [];
+  const unknownGameIds: string[] = [];
 
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId);
-    if (!game || game.hasStarted) {
-      skipped++;
-      continue;
+    if (!game) {
+      unknownGameIds.push(pick.gameId);
+    } else if (isGameLocked(game.date)) {
+      lockedGameIds.push(pick.gameId);
     }
+  }
 
+  if (unknownGameIds.length > 0) {
+    res.status(400).json({
+      error: `Unknown games (not in today's slate): ${unknownGameIds.join(", ")}`,
+    });
+    return;
+  }
+  if (lockedGameIds.length > 0) {
+    res.status(400).json({
+      error: `Cannot pick already-locked games (deadline passed): ${lockedGameIds.join(", ")}`,
+    });
+    return;
+  }
+
+  let saved = 0;
+
+  for (const pick of picks) {
     await db
       .insert(pickemPicksTable)
       .values({
@@ -146,16 +198,31 @@ router.post("/picks", requireAuth, async (req, res) => {
     saved++;
   }
 
-  res.status(201).json({ saved, skipped });
+  res.status(201).json({ saved, skipped: 0 });
 });
 
 // GET /api/pools/:poolId/pickem/leaderboard
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (pool.poolType !== "pickem") {
+    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) {
+    res.status(403).json({ error: "Not a member of this pool" });
     return;
   }
 
@@ -190,7 +257,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json({ poolId, week: pool.currentWeek, entries });
 });
 
-// POST /api/pools/:poolId/pickem/process-results
+// POST /api/pools/:poolId/pickem/process-results  — commissioner only
 router.post("/process-results", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -198,6 +265,10 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (pool.poolType !== "pickem") {
+    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
     return;
   }
 

@@ -1,4 +1,4 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useGetPool, getGetPoolQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
@@ -21,8 +21,14 @@ export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
   const poolId = parseInt(poolIdStr || "0");
   const { user } = useAuth();
+  const [location] = useLocation();
 
   const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
+
+  // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
+  if (pool && (pool.poolType as string) === "pickem" && !location.endsWith("/pickem")) {
+    return <Redirect to={`/pools/${poolId}/pickem`} />;
+  }
 
   if (error) {
     return (
