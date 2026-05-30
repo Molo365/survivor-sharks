@@ -36,51 +36,16 @@ export default function Landing() {
             The 2026 Season is Here
           </div>
 
-          {/* Title + Logo — sports poster: logo in normal flow between words */}
-          <div className="flex flex-col items-center leading-none">
-
-            {/* SURVIVOR — fully clear above the shark, no overlap */}
-            <span
-              className="whitespace-nowrap mb-1 md:mb-2"
-              style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: 800,
-                fontStyle: "italic",
-                fontSize: "clamp(1.2rem, 5.5vw, min(5.2rem, 7vh))",
-                letterSpacing: "0.12em",
-                color: "rgba(255,255,255,0.93)",
-                textShadow: "0 0 30px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.6)",
-              }}
-            >
-              SURVIVOR
-            </span>
-
-            {/* Logo — in normal flow, head fully visible; negative bottom margin
-                pulls SHARKS up so the logo's lower body overlaps the top of SHARKS */}
-            <img
-              src="/logo.png"
-              alt="Survivor Sharks"
-              className="relative z-10 object-contain -mb-[40px] md:-mb-[55px]
-                         w-[170px] md:w-[min(230px,25vh)]
-                         drop-shadow-[0_10px_28px_rgba(0,0,0,0.85)] drop-shadow-[0_0_44px_rgba(30,144,255,0.8)]"
-            />
-
-            {/* SHARKS — pulled up behind the logo's lower body, z-0 */}
-            <span
-              className="relative z-0 whitespace-nowrap"
-              style={{
-                fontFamily: "'Black Ops One', cursive",
-                fontWeight: 400,
-                fontSize: "clamp(2rem, 9vw, min(8.5rem, 12vh))",
-                letterSpacing: "0.03em",
-                lineHeight: 0.95,
-                color: "white",
-                textShadow: "0 0 60px rgba(30,144,255,0.3), 0 3px 0 rgba(0,0,0,0.7)",
-              }}
-            >
-              SHARKS
-            </span>
-          </div>
+          {/* Hero banner image */}
+          <img
+            src="/hero-banner.png"
+            alt="Survivor Sharks"
+            className="w-full max-w-[900px] object-contain mb-1 md:mb-2"
+            style={{
+              maxHeight: "min(260px, 34vh)",
+              filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.6))",
+            }}
+          />
 
           {/* Tagline */}
           <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-3 md:mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
