@@ -129,6 +129,8 @@ function InjuryList({ injuries, side }: { injuries?: GameInjury[]; side: "away" 
   );
 }
 
+type GameVariant = "upcoming" | "live" | "final";
+
 function TeamSide({
   team,
   record,
@@ -144,6 +146,7 @@ function TeamSide({
   isCurrentPick,
   onClick,
   side,
+  variant,
 }: {
   team: Team;
   record: string | null;
@@ -159,9 +162,8 @@ function TeamSide({
   isCurrentPick: boolean;
   onClick: () => void;
   side: "away" | "home";
+  variant: GameVariant;
 }) {
-  // isUsed = already picked this team in a prior week → fully dim + grayscale
-  // isLocked = game started but team is pickable in theory → keep readable, just not clickable
   const unpickable = isUsed || isLocked;
   const isFavorite = moneyline != null && moneyline < 0;
 
@@ -170,10 +172,10 @@ function TeamSide({
       ? `https://flagcdn.com/w80/${team.id.toLowerCase()}.png`
       : `https://a.espncdn.com/i/teamlogos/${team.sport}/500/${team.abbreviation.toLowerCase()}.png`);
 
+  // Gradient strength varies by variant — live gets the full team color pop
+  const gradientAlpha = variant === "live" ? 0.18 : variant === "upcoming" && isSelected ? 0.22 : 0.08;
   const gradientStyle: React.CSSProperties = {
-    background: isSelected
-      ? `linear-gradient(135deg, ${hexToRgba(primaryColor, 0.22)} 0%, transparent 70%)`
-      : `linear-gradient(135deg, ${hexToRgba(primaryColor, 0.1)} 0%, transparent 60%)`,
+    background: `linear-gradient(135deg, ${hexToRgba(primaryColor, gradientAlpha)} 0%, transparent 65%)`,
   };
 
   return (
@@ -183,27 +185,37 @@ function TeamSide({
       data-testid={`team-pick-${team.id}`}
       style={gradientStyle}
       className={cn(
-        "relative flex-1 flex flex-col p-3 min-h-[160px] transition-all select-none",
+        "relative flex-1 flex flex-col p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
+        // Height: live games taller to emphasise scores
+        variant === "live" ? "min-h-[150px]" : "min-h-[160px]",
+        // Interactivity
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
             ? "cursor-not-allowed"
-            : "cursor-pointer hover:brightness-105 active:scale-[0.98]",
-        isSelected && !unpickable
+            : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+        // Selected ring (upcoming only — live/final can't be selected)
+        isSelected && variant === "upcoming"
           ? "ring-2 ring-inset ring-primary/70"
-          : !unpickable
+          : variant === "upcoming" && !unpickable
             ? "hover:ring-1 hover:ring-inset hover:ring-primary/30"
             : ""
       )}
     >
-      {/* Logo + name row */}
+      {/* Logo + name */}
       <div className={cn("flex items-center gap-2 w-full", side === "home" && "flex-row-reverse")}>
         <div className="relative shrink-0">
           <img
             src={logoUrl}
             alt={team.name}
-            className={cn("w-10 h-10 object-contain drop-shadow-md", isUsed && "grayscale opacity-60")}
+            className={cn(
+              "object-contain drop-shadow-md",
+              // Larger logos on live games for drama
+              variant === "live" ? "w-12 h-12" : "w-10 h-10",
+              isUsed && "grayscale opacity-60",
+              variant === "final" && !isUsed && "opacity-75"
+            )}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
           {isCurrentPick && (
@@ -213,24 +225,41 @@ function TeamSide({
           )}
         </div>
         <div className={cn("flex-1 min-w-0", side === "home" && "text-right")}>
-          <p className={cn("font-bebas tracking-wide text-base leading-tight truncate", isSelected ? "text-primary" : "text-foreground")}>
+          <p className={cn(
+            "font-bebas tracking-wide leading-tight truncate",
+            variant === "live" ? "text-lg text-foreground" :
+            variant === "final" ? "text-base text-foreground/65" :
+            isSelected ? "text-primary text-base" : "text-foreground text-base"
+          )}>
             {team.name}
           </p>
           {record && (
-            <p className="text-[10px] text-muted-foreground/70 font-mono leading-tight">{record}</p>
+            <p className={cn(
+              "text-[10px] font-mono leading-tight",
+              variant === "final" ? "text-muted-foreground/45" : "text-muted-foreground/70"
+            )}>
+              {record}
+            </p>
           )}
         </div>
       </div>
 
-      {/* Score (in-progress / final) */}
+      {/* Score — large + bright for live, muted for final */}
       {score != null && (
-        <p className={cn("mt-1 font-bebas text-3xl tracking-wide", isSelected ? "text-primary" : "text-foreground/90")}>
+        <p className={cn(
+          "font-bebas tracking-wide mt-1",
+          variant === "live"
+            ? "text-5xl text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+            : variant === "final"
+              ? "text-3xl text-foreground/55"
+              : "text-3xl text-foreground/80"
+        )}>
           {score}
         </p>
       )}
 
-      {/* Moneyline */}
-      {moneyline != null && (
+      {/* Moneyline — upcoming only (irrelevant after game starts) */}
+      {variant === "upcoming" && moneyline != null && (
         <div className={cn("mt-1.5 flex items-center gap-1", side === "home" && "self-end")}>
           <span className={cn(
             "font-mono text-xs font-bold px-1.5 py-0.5 rounded border",
@@ -243,13 +272,13 @@ function TeamSide({
         </div>
       )}
 
-      {/* Recent form */}
-      <FormDots form={form} side={side} />
+      {/* Recent form — show for upcoming and live, hide for final (results are in) */}
+      {variant !== "final" && <FormDots form={form} side={side} />}
 
-      {/* Pitcher (MLB only) */}
-      {pitcher && <PitcherCard pitcher={pitcher} side={side} />}
+      {/* Pitcher — upcoming and live only */}
+      {variant !== "final" && pitcher && <PitcherCard pitcher={pitcher} side={side} />}
 
-      {/* Injuries */}
+      {/* Injuries — all variants (still relevant context) */}
       <InjuryList injuries={injuries} side={side} />
 
       {/* Corner badges */}
@@ -259,7 +288,7 @@ function TeamSide({
         </span>
       )}
       {isLocked && !isUsed && (
-        <span className="absolute top-2 right-2 opacity-40">
+        <span className="absolute top-2 right-2 opacity-35">
           <Lock className="w-3 h-3 text-muted-foreground" />
         </span>
       )}
@@ -284,27 +313,53 @@ function MatchupCard({
   selectedTeam: SelectedTeam | null;
   onSelect: (team: SelectedTeam) => void;
 }) {
+  const isFinal = !!(game.status?.includes("FINAL") || game.status?.includes("final"));
+  const isLive = game.hasStarted && !isFinal;
+  const variant: GameVariant = isFinal ? "final" : isLive ? "live" : "upcoming";
+
   const isGameLocked = game.hasStarted;
   const isHomeUsed = pickedTeamIds.includes(game.homeTeam.id) && currentPickTeamId !== game.homeTeam.id;
   const isAwayUsed = pickedTeamIds.includes(game.awayTeam.id) && currentPickTeamId !== game.awayTeam.id;
   const selectedId = selectedTeam?.id;
-
-  const statusLabel = game.status === "STATUS_FINAL" || game.status?.includes("FINAL")
-    ? "Final"
-    : game.hasStarted ? "Live" : null;
+  const selectedInGame = game.homeTeam.id === selectedId || game.awayTeam.id === selectedId;
 
   const overUnder = game.odds?.overUnder;
   const isOutdoor = sport === "nfl" || sport === "mlb";
   const hasWeather = isOutdoor && game.weather && game.weather.displayValue && game.weather.displayValue !== "none";
 
+  // ── Card wrapper: three distinct visual states ────────────────────────────
+  const cardClass = cn(
+    "rounded-xl overflow-hidden transition-all border-l-4",
+    variant === "live" && [
+      // Dramatic red glow with left border
+      "border-l-red-500 border-t border-r border-b border-red-900/40",
+      "bg-red-950/20",
+      "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
+    ],
+    variant === "final" && [
+      // Subdued — clearly done, darker background
+      "border-l-border/40 border-t border-r border-b border-border/25",
+      "bg-muted/8 opacity-80",
+    ],
+    variant === "upcoming" && [
+      // Prominent — this is where picks happen
+      selectedInGame
+        ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
+        : "border-l-primary/60 border-t border-r border-b border-border/50 shadow-[0_0_12px_rgba(30,144,255,0.08)] hover:shadow-[0_0_18px_rgba(30,144,255,0.14)] hover:border-primary/40",
+    ]
+  );
+
+  // ── Centre divider ────────────────────────────────────────────────────────
+  const dividerClass = cn(
+    "flex flex-col items-center justify-start pt-3 pb-3 px-2 gap-1.5 min-w-[72px] text-center",
+    variant === "live" ? "bg-red-950/30" :
+    variant === "final" ? "bg-muted/12" :
+    "bg-background/50"
+  );
+
   return (
-    <div className={cn(
-      "shark-card rounded-xl border overflow-hidden transition-all",
-      (game.homeTeam.id === selectedId || game.awayTeam.id === selectedId)
-        ? "border-primary/60 shadow-[0_0_20px_rgba(30,144,255,0.15)]"
-        : "border-border/50"
-    )}>
-      <div className="flex items-stretch divide-x divide-border/30">
+    <div className={cardClass}>
+      <div className="flex items-stretch divide-x divide-border/20">
         {/* Away Team */}
         <TeamSide
           team={game.awayTeam}
@@ -321,68 +376,80 @@ function MatchupCard({
           isCurrentPick={currentPickTeamId === game.awayTeam.id}
           onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
           side="away"
+          variant={variant}
         />
 
-        {/* Centre divider */}
-        <div className="flex flex-col items-center justify-start pt-3 pb-3 px-2 gap-1.5 bg-background/50 min-w-[68px] text-center">
-          <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
-          <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
-          <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
-
-          {statusLabel ? (
-            <span className={cn(
-              "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border",
-              statusLabel === "Final"
-                ? "bg-green-500/15 text-green-400 border-green-500/40"
-                : "bg-red-500/15 text-red-400 border-red-500/40 animate-pulse"
-            )}>
-              {statusLabel}
-            </span>
-          ) : (
-            <div className="flex flex-col items-center gap-0.5">
-              <Clock className="w-3 h-3 text-muted-foreground/40" />
-              <span className="text-[9px] text-muted-foreground/50 leading-tight">
-                {formatGameTime(game.startTime)}
+        {/* Centre divider — content varies by variant */}
+        <div className={dividerClass}>
+          {variant === "live" ? (
+            <>
+              {/* LIVE: prominent badge + elapsed time hint */}
+              <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
+                ● LIVE
               </span>
-            </div>
-          )}
+              <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
+            </>
+          ) : variant === "final" ? (
+            <>
+              {/* FINAL: grey subdued badge */}
+              <span className="font-bebas text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
+                Final
+              </span>
+              <span className="font-bebas text-xl text-foreground/25 mt-1">–</span>
+            </>
+          ) : (
+            <>
+              {/* UPCOMING: orientation labels + full info */}
+              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
+              <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
+              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
 
-          {/* Odds: O/U */}
-          {overUnder != null && (
-            <div className="mt-1 flex flex-col items-center gap-0.5">
-              <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
-              <span className="text-[11px] font-mono font-bold text-muted-foreground/70">{overUnder}</span>
-            </div>
-          )}
+              {/* Start time — prominent for upcoming */}
+              <div className="mt-0.5 flex flex-col items-center gap-0.5">
+                <Clock className="w-3 h-3 text-primary/50" />
+                <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium">
+                  {formatGameTime(game.startTime)}
+                </span>
+              </div>
 
-          {/* Spread */}
-          {game.odds?.details && (
-            <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
-              {game.odds.details}
-            </span>
-          )}
-
-          {/* Weather */}
-          {hasWeather && (
-            <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
-              {game.weather!.temperature != null && (
-                <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/50">
-                  <Thermometer className="w-2.5 h-2.5 shrink-0" />
-                  <span>{game.weather!.temperature}°F</span>
+              {/* O/U */}
+              {overUnder != null && (
+                <div className="mt-1 flex flex-col items-center gap-0.5">
+                  <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
+                  <span className="text-[11px] font-mono font-bold text-foreground/60">{overUnder}</span>
                 </div>
               )}
-              {game.weather!.conditionDescription && (
-                <span className="text-[8px] text-muted-foreground/40 leading-tight text-center">
-                  {game.weather!.conditionDescription}
+
+              {/* Spread */}
+              {game.odds?.details && (
+                <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
+                  {game.odds.details}
                 </span>
               )}
-              {game.weather!.windSpeed != null && game.weather!.windSpeed > 0 && (
-                <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/50">
-                  <Wind className="w-2.5 h-2.5 shrink-0" />
-                  <span>{game.weather!.windSpeed}mph {game.weather!.windDirection ?? ""}</span>
+
+              {/* Weather */}
+              {hasWeather && (
+                <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
+                  {game.weather!.temperature != null && (
+                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
+                      <Thermometer className="w-2.5 h-2.5 shrink-0" />
+                      <span>{game.weather!.temperature}°F</span>
+                    </div>
+                  )}
+                  {game.weather!.conditionDescription && (
+                    <span className="text-[8px] text-muted-foreground/40 leading-tight text-center">
+                      {game.weather!.conditionDescription}
+                    </span>
+                  )}
+                  {game.weather!.windSpeed != null && game.weather!.windSpeed > 0 && (
+                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
+                      <Wind className="w-2.5 h-2.5 shrink-0" />
+                      <span>{game.weather!.windSpeed}mph {game.weather!.windDirection ?? ""}</span>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
@@ -402,6 +469,7 @@ function MatchupCard({
           isCurrentPick={currentPickTeamId === game.homeTeam.id}
           onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
           side="home"
+          variant={variant}
         />
       </div>
     </div>
