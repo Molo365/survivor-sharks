@@ -161,17 +161,19 @@ function TeamSide({
       {/* Logo + name */}
       <div className={cn("flex items-center gap-2 w-full", side === "home" && "flex-row-reverse")}>
         <div className="relative shrink-0">
-          <img
-            src={logoUrl}
-            alt={team.name}
-            className={cn(
-              "object-contain drop-shadow-md",
-              "w-[35px] h-[35px] sm:w-10 sm:h-10",
-              isUsed && "grayscale opacity-60",
-              variant === "final" && !isUsed && "opacity-75"
-            )}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
+          <div className="rounded-full bg-white/90 p-1 shadow-sm">
+            <img
+              src={logoUrl}
+              alt={team.name}
+              className={cn(
+                "object-contain",
+                "w-[33px] h-[33px] sm:w-9 sm:h-9",
+                isUsed && "grayscale opacity-60",
+                variant === "final" && !isUsed && "opacity-75"
+              )}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          </div>
           {isCurrentPick && (
             <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5">
               <Check className="w-2.5 h-2.5 text-white" />
@@ -373,12 +375,14 @@ function MatchupCard({
             )}
           >
             <div className="relative">
-              <img
-                src={awayLogoUrl}
-                alt={game.awayTeam.abbreviation}
-                className={cn("w-[50px] h-[50px] object-contain drop-shadow-md", isAwayUsed && "grayscale", variant === "final" && !isAwayUsed && "opacity-60")}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
+              <div className="rounded-full bg-white/90 p-1 shadow-sm">
+                <img
+                  src={awayLogoUrl}
+                  alt={game.awayTeam.abbreviation}
+                  className={cn("w-[46px] h-[46px] object-contain", isAwayUsed && "grayscale", variant === "final" && !isAwayUsed && "opacity-60")}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
               {currentPickTeamId === game.awayTeam.id && (
                 <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5 shadow-md">
                   <Check className="w-3 h-3 text-white" />
@@ -430,12 +434,14 @@ function MatchupCard({
             )}
           >
             <div className="relative">
-              <img
-                src={homeLogoUrl}
-                alt={game.homeTeam.abbreviation}
-                className={cn("w-[50px] h-[50px] object-contain drop-shadow-md", isHomeUsed && "grayscale", variant === "final" && !isHomeUsed && "opacity-60")}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
+              <div className="rounded-full bg-white/90 p-1 shadow-sm">
+                <img
+                  src={homeLogoUrl}
+                  alt={game.homeTeam.abbreviation}
+                  className={cn("w-[46px] h-[46px] object-contain", isHomeUsed && "grayscale", variant === "final" && !isHomeUsed && "opacity-60")}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
               {currentPickTeamId === game.homeTeam.id && (
                 <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5 shadow-md">
                   <Check className="w-3 h-3 text-white" />

@@ -84,7 +84,9 @@ export function TeamPickGrid({ poolId, sport, currentWeek }: { poolId: number, s
               data-testid={`team-card-${team.id}`}
             >
               {logoUrl ? (
-                <img src={logoUrl} alt={team.name} className="w-16 h-16 object-contain mb-3" />
+                <div className="rounded-full bg-white/90 p-2 shadow-sm mb-3">
+                  <img src={logoUrl} alt={team.name} className="w-16 h-16 object-contain" />
+                </div>
               ) : (
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-3 font-bebas text-xl text-muted-foreground">
                   {team.abbreviation}

@@ -86,9 +86,11 @@ function TeamButton({
       )}
     >
       {team.logoUrl ? (
-        <img src={team.logoUrl} alt={team.name} className="w-12 h-12 object-contain" />
+        <div className="rounded-full bg-white/90 p-1.5 shadow-sm shrink-0">
+          <img src={team.logoUrl} alt={team.name} className="w-12 h-12 object-contain" />
+        </div>
       ) : (
-        <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center font-bebas text-lg text-muted-foreground">
+        <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center font-bebas text-lg text-muted-foreground shrink-0">
           {team.abbreviation?.slice(0, 3) ?? "?"}
         </div>
       )}
