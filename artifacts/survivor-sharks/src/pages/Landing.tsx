@@ -31,21 +31,20 @@ export default function Landing() {
           <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent top-1/2" />
 
           {/* Season badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-primary uppercase mb-4 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-primary uppercase mb-2 md:mb-4 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
             The 2026 Season is Here
           </div>
 
           {/* Logo */}
-          <div className="relative mb-3 flex items-center justify-center">
-            <div className="absolute rounded-full bg-primary/20 blur-2xl" style={{ width: 140, height: 140 }} />
-            <div className="absolute rounded-full bg-primary/10 blur-xl" style={{ width: 100, height: 100 }} />
-            <div className="absolute rounded-full border border-primary/20" style={{ width: 118, height: 118 }} />
+          <div className="relative mb-1 md:mb-3 flex items-center justify-center">
+            <div className="absolute rounded-full bg-primary/20 blur-2xl w-[210px] h-[210px] md:w-[min(290px,32vh)] md:h-[min(290px,32vh)]" />
+            <div className="absolute rounded-full bg-primary/10 blur-xl w-[150px] h-[150px] md:w-[min(210px,23vh)] md:h-[min(210px,23vh)]" />
+            <div className="absolute rounded-full border border-primary/20 w-[170px] h-[170px] md:w-[min(230px,25vh)] md:h-[min(230px,25vh)]" />
             <img
               src="/logo.png"
               alt="Survivor Sharks"
-              className="relative z-10 object-contain drop-shadow-[0_0_30px_rgba(30,144,255,0.7)]"
-              style={{ width: 96, height: 96 }}
+              className="relative z-10 object-contain drop-shadow-[0_0_40px_rgba(30,144,255,0.75)] w-[150px] h-[150px] md:w-[min(200px,22vh)] md:h-[min(200px,22vh)]"
             />
           </div>
 
@@ -53,7 +52,7 @@ export default function Landing() {
           <h1
             className="font-bebas text-foreground leading-none tracking-wide whitespace-nowrap"
             style={{
-              fontSize: "clamp(1.85rem, 10vw, 7.5rem)",
+              fontSize: "clamp(1.85rem, 8vw, 7.5rem)",
               textShadow: "0 0 60px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.5)",
               letterSpacing: "0.04em",
             }}
@@ -62,16 +61,14 @@ export default function Landing() {
           </h1>
 
           {/* Divider */}
-          <div className="flex items-center gap-3 my-2.5 w-full max-w-xs">
+          <div className="flex items-center gap-3 my-1.5 md:my-2.5 w-full max-w-xs">
             <div className="flex-1 h-px bg-gradient-to-r from-transparent to-primary/40" />
-            <div className="h-1 w-1 rounded-full bg-primary/60" />
             <div className="h-1.5 w-1.5 rounded-full bg-primary/80" />
-            <div className="h-1 w-1 rounded-full bg-primary/60" />
             <div className="flex-1 h-px bg-gradient-to-l from-transparent to-primary/40" />
           </div>
 
           {/* Tagline */}
-          <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
+          <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-3 md:mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
             ELITE POOLS. RUTHLESS COMPETITION.
           </p>
 
@@ -100,7 +97,7 @@ export default function Landing() {
         </section>
 
         {/* ── Feature cards — compact horizontal row ─────────────────── */}
-        <section className="px-6 py-3 border-t border-white/5">
+        <section className="px-6 py-2 border-t border-white/5">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
             {[
               { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
@@ -121,12 +118,12 @@ export default function Landing() {
         </section>
 
         {/* ── Sportsbook partner banner ───────────────────────────────── */}
-        <div className="px-6 py-2">
+        <div className="px-6 py-1.5">
           <AdSlot />
         </div>
 
         {/* ── Stats strip ────────────────────────────────────────────── */}
-        <div className="flex items-center justify-center gap-10 py-3 border-t border-white/5">
+        <div className="flex items-center justify-center gap-10 py-2 border-t border-white/5">
           {[["10K+", "Members"], ["500+", "Pools Run"], ["5", "Sports"]].map(([val, label]) => (
             <div key={label} className="flex items-center gap-2">
               <span className="font-bebas text-xl text-primary tracking-wider leading-none">{val}</span>
