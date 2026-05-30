@@ -7,15 +7,24 @@ import {
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, Activity, ShieldAlert, Clock, Check, Trophy, RefreshCw, Copy } from "lucide-react";
+import { Target, Activity, ShieldAlert, Clock, Check, Trophy, RefreshCw, Copy, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function pickRefetchInterval(data: PickEmSlate | undefined): number {
+  if (!data || data.games.length === 0) return 5 * 60 * 1000;
+  const hasLive = data.games.some((g) => g.status === "in_progress");
+  if (hasLive) return 30 * 1000;
+  const allFinal = data.games.every((g) => g.status === "final");
+  if (allFinal) return 5 * 60 * 1000;
+  return 60 * 1000;
+}
 
 interface PickEmViewProps {
   poolId: number;
@@ -174,12 +183,22 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
-  const { data: slate, isLoading: gamesLoading } = useGetPickEmGames(poolId, {
-    query: { queryKey: getGetPickEmGamesQueryKey(poolId), refetchInterval: 60000 },
+  const {
+    data: slate,
+    isLoading: gamesLoading,
+    isFetching: gamesFetching,
+  } = useGetPickEmGames(poolId, {
+    query: {
+      queryKey: getGetPickEmGamesQueryKey(poolId),
+      refetchInterval: (query) => pickRefetchInterval(query.state.data),
+    },
   });
 
   const { data: leaderboard, isLoading: lbLoading } = useGetPickEmLeaderboard(poolId, {
-    query: { queryKey: getGetPickEmLeaderboardQueryKey(poolId) },
+    query: {
+      queryKey: getGetPickEmLeaderboardQueryKey(poolId),
+      refetchInterval: (query) => pickRefetchInterval(slate),
+    },
   });
 
   const submitPicks = useSubmitPickEmPicks();
@@ -318,7 +337,7 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
           ) : (
             <div className="space-y-6">
               {/* Date header */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="font-bebas text-2xl text-foreground tracking-wide">{slate.label}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -326,11 +345,29 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                     {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
                   </p>
                 </div>
-                {slate.deadlinePassed && (
-                  <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
-                    Slate Locked
-                  </span>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Live-update status badge */}
+                  {slate.games.some((g) => g.status === "in_progress") ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                      Live · updates every 30s
+                    </span>
+                  ) : !slate.games.every((g) => g.status === "final") && slate.deadlinePassed ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-primary/10 text-primary/70 border-primary/20">
+                      {gamesFetching ? (
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      ) : (
+                        <Wifi className="w-2.5 h-2.5" />
+                      )}
+                      Auto-updates every min
+                    </span>
+                  ) : null}
+                  {slate.deadlinePassed && (
+                    <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
+                      Slate Locked
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Open games */}
