@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { poolsTable, usersTable, entriesTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { processCompletedGames } from "../lib/auto-eliminator";
 
 const router = Router();
 
@@ -91,6 +92,13 @@ router.patch("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
     poolCount: Number(poolCount),
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+// POST /api/admin/process-results — manually trigger the auto-eliminator
+router.post("/process-results", requireAuth, requireAdmin, async (req, res) => {
+  req.log.info("Manual auto-elimination triggered via admin API");
+  const stats = await processCompletedGames();
+  res.json({ success: true, ...stats });
 });
 
 export default router;
