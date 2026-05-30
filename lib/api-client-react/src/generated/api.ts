@@ -44,6 +44,7 @@ import type {
   SuccessResponse,
   SurvivorGrid,
   Team,
+  TeamInjuryReport,
   WeekResult
 } from './api.schemas';
 
@@ -1457,6 +1458,83 @@ export function useGetPoolStats<TData = Awaited<ReturnType<typeof getPoolStats>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPoolStatsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListSportInjuriesUrl = (sport: 'nfl' | 'mlb' | 'nba' | 'nhl' | 'fifa',) => {
+
+
+
+
+  return `/api/sports/${sport}/injuries`
+}
+
+/**
+ * @summary Get current injury report for all teams in a sport
+ */
+export const listSportInjuries = async (sport: 'nfl' | 'mlb' | 'nba' | 'nhl' | 'fifa', options?: RequestInit): Promise<TeamInjuryReport[]> => {
+
+  return customFetch<TeamInjuryReport[]>(getListSportInjuriesUrl(sport),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSportInjuriesQueryKey = (sport: 'nfl' | 'mlb' | 'nba' | 'nhl' | 'fifa',) => {
+    return [
+    `/api/sports/${sport}/injuries`
+    ] as const;
+    }
+
+
+export const getListSportInjuriesQueryOptions = <TData = Awaited<ReturnType<typeof listSportInjuries>>, TError = ErrorType<void>>(sport: 'nfl' | 'mlb' | 'nba' | 'nhl' | 'fifa', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSportInjuries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSportInjuriesQueryKey(sport);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSportInjuries>>> = ({ signal }) => listSportInjuries(sport, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(sport), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSportInjuries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSportInjuriesQueryResult = NonNullable<Awaited<ReturnType<typeof listSportInjuries>>>
+export type ListSportInjuriesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get current injury report for all teams in a sport
+ */
+
+export function useListSportInjuries<TData = Awaited<ReturnType<typeof listSportInjuries>>, TError = ErrorType<void>>(
+ sport: 'nfl' | 'mlb' | 'nba' | 'nhl' | 'fifa', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSportInjuries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSportInjuriesQueryOptions(sport,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

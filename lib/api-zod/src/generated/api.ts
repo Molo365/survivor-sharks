@@ -424,6 +424,26 @@ export const GetPoolStatsResponse = zod.object({
 
 
 /**
+ * @summary Get current injury report for all teams in a sport
+ */
+export const ListSportInjuriesParams = zod.object({
+  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa'])
+})
+
+export const ListSportInjuriesResponseItem = zod.object({
+  "teamId": zod.string(),
+  "teamName": zod.string(),
+  "injuries": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullish(),
+  "status": zod.string(),
+  "injuryType": zod.string().nullish()
+}))
+})
+export const ListSportInjuriesResponse = zod.array(ListSportInjuriesResponseItem)
+
+
+/**
  * @summary Get all teams for a sport
  */
 export const GetSportTeamsParams = zod.object({

@@ -191,7 +191,49 @@ async function fetchTeamForm(espnSportPath: string, teamId: string): Promise<str
   } catch { return []; }
 }
 
+// Full injury report with team names (for the dedicated Injuries tab)
+async function fetchFullInjuryReport(espnSportPath: string): Promise<{ teamId: string; teamName: string; injuries: InjuryItem[] }[]> {
+  const result: { teamId: string; teamName: string; injuries: InjuryItem[] }[] = [];
+  try {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${espnSportPath}/injuries`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return result;
+    const data = await res.json() as { injuries?: EspnInjuryGroup[] };
+    const RELEVANT = new Set(["out", "questionable", "doubtful", "day-to-day", "ir", "injured reserve"]);
+    for (const group of data.injuries ?? []) {
+      const injuries: InjuryItem[] = (group.injuries ?? [])
+        .filter(i => {
+          const s = (i.status ?? i.type?.description ?? "").toLowerCase();
+          return [...RELEVANT].some(r => s.includes(r));
+        })
+        .map(i => ({
+          name: i.athlete?.displayName ?? "Unknown",
+          position: i.athlete?.position?.abbreviation ?? null,
+          status: i.status ?? i.type?.description ?? "Unknown",
+          injuryType: i.details?.type ?? null,
+        }));
+      if (injuries.length > 0) {
+        result.push({ teamId: String(group.id), teamName: group.displayName, injuries });
+      }
+    }
+  } catch { /* silent */ }
+  return result;
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────
+
+// GET /api/sports/:sport/injuries
+router.get("/:sport/injuries", requireAuth, async (req, res) => {
+  const sport = String(req.params.sport) as Sport;
+  const espnPath = sport === "nfl" ? "football/nfl"
+    : sport === "nba" ? "basketball/nba"
+    : sport === "mlb" ? "baseball/mlb"
+    : sport === "nhl" ? "hockey/nhl"
+    : "soccer/fifa.world";
+
+  const report = await fetchFullInjuryReport(espnPath);
+  res.json(report);
+});
 
 // GET /api/sports/:sport/teams
 router.get("/:sport/teams", requireAuth, (req, res) => {

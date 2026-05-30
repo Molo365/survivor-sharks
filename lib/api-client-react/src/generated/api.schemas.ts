@@ -389,6 +389,12 @@ export interface GameInjury {
   injuryType?: string | null;
 }
 
+export interface TeamInjuryReport {
+  teamId: string;
+  teamName: string;
+  injuries: GameInjury[];
+}
+
 export interface Game {
   id: string;
   sport: string;

@@ -47,4 +47,5 @@ export * from './registerInput';
 export * from './successResponse';
 export * from './survivorGrid';
 export * from './team';
+export * from './teamInjuryReport';
 export * from './weekResult';

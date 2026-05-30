@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListSportGames, useGetMyPicks, useSubmitPick, getGetMyPicksQueryKey } from "@workspace/api-client-react";
-import type { Game, Team, GameInjury, GamePitcher } from "@workspace/api-client-react";
+import type { Game, Team, GamePitcher } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -37,23 +37,6 @@ function formatMoneyline(ml: number | null | undefined): string {
   return ml > 0 ? `+${ml}` : `${ml}`;
 }
 
-function injuryStatusLabel(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes("out") || s === "ir" || s.includes("injured reserve")) return "OUT";
-  if (s.includes("doubtful")) return "DTFL";
-  if (s.includes("questionable")) return "QUES";
-  if (s.includes("day-to-day") || s.includes("day to day")) return "DTD";
-  return status.slice(0, 4).toUpperCase();
-}
-
-function injuryStatusColor(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes("out") || s === "ir") return "text-destructive";
-  if (s.includes("doubtful")) return "text-orange-500";
-  if (s.includes("questionable")) return "text-yellow-500";
-  return "text-muted-foreground";
-}
-
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function FormDots({ form, side }: { form?: string[]; side: "away" | "home" }) {
@@ -78,54 +61,17 @@ function FormDots({ form, side }: { form?: string[]; side: "away" | "home" }) {
   );
 }
 
-function PitcherCard({ pitcher, side }: { pitcher: GamePitcher; side: "away" | "home" }) {
-  const record = pitcher.wins != null && pitcher.losses != null
-    ? `${pitcher.wins}-${pitcher.losses}`
-    : null;
+function PitcherLine({ pitcher, side }: { pitcher: GamePitcher; side: "away" | "home" }) {
+  const stats = [
+    pitcher.era ? `${pitcher.era} ERA` : null,
+    pitcher.wins != null && pitcher.losses != null ? `${pitcher.wins}-${pitcher.losses}` : null,
+  ].filter(Boolean).join(" · ");
   return (
-    <div className={cn(
-      "mt-2 flex items-center gap-1.5 border border-border/30 rounded-lg px-2 py-1.5 bg-background/40",
-      side === "home" && "flex-row-reverse"
-    )}>
-      {pitcher.photoUrl ? (
-        <img
-          src={pitcher.photoUrl}
-          alt={pitcher.name}
-          className="w-7 h-7 rounded-full object-cover shrink-0 border border-border/30"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-      ) : (
-        <div className="w-7 h-7 rounded-full bg-muted/50 shrink-0 flex items-center justify-center text-[8px] text-muted-foreground font-bold">
-          P
-        </div>
-      )}
-      <div className={cn("min-w-0", side === "home" && "text-right")}>
-        <p className="text-[10px] font-semibold text-foreground/90 truncate leading-tight">{pitcher.name}</p>
-        <p className="text-[9px] text-muted-foreground/70 leading-tight font-mono">
-          {[pitcher.era ? `${pitcher.era} ERA` : null, record].filter(Boolean).join(" · ")}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function InjuryList({ injuries, side }: { injuries?: GameInjury[]; side: "away" | "home" }) {
-  if (!injuries?.length) return null;
-  return (
-    <div className={cn("mt-2 space-y-0.5", side === "home" && "text-right")}>
-      {injuries.slice(0, 3).map((inj, i) => (
-        <div key={i} className={cn("flex items-center gap-1 text-[10px]", side === "home" && "justify-end")}>
-          <span className={cn("font-bold uppercase tracking-wider text-[9px] shrink-0", injuryStatusColor(inj.status))}>
-            {injuryStatusLabel(inj.status)}
-          </span>
-          <span className="text-muted-foreground/70 truncate">
-            {inj.name}
-            {inj.position ? ` (${inj.position})` : ""}
-            {inj.injuryType ? ` — ${inj.injuryType}` : ""}
-          </span>
-        </div>
-      ))}
-    </div>
+    <p className={cn("mt-1.5 text-[11px] leading-tight truncate", side === "home" && "text-right")}>
+      <span className="text-muted-foreground/45 font-medium">SP: </span>
+      <span className="text-foreground/85 font-semibold">{pitcher.name}</span>
+      {stats && <span className="text-muted-foreground/55 font-mono"> {stats}</span>}
+    </p>
   );
 }
 
@@ -138,7 +84,6 @@ function TeamSide({
   moneyline,
   form,
   pitcher,
-  injuries,
   primaryColor,
   isSelected,
   isUsed,
@@ -154,7 +99,6 @@ function TeamSide({
   moneyline: number | null;
   form?: string[];
   pitcher?: GamePitcher | null;
-  injuries?: GameInjury[];
   primaryColor: string | null | undefined;
   isSelected: boolean;
   isUsed: boolean;
@@ -275,11 +219,8 @@ function TeamSide({
       {/* Recent form — show for upcoming and live, hide for final (results are in) */}
       {variant !== "final" && <FormDots form={form} side={side} />}
 
-      {/* Pitcher — upcoming and live only */}
-      {variant !== "final" && pitcher && <PitcherCard pitcher={pitcher} side={side} />}
-
-      {/* Injuries — all variants (still relevant context) */}
-      <InjuryList injuries={injuries} side={side} />
+      {/* Starting pitcher — always show for MLB when available */}
+      {pitcher && <PitcherLine pitcher={pitcher} side={side} />}
 
       {/* Corner badges */}
       {isUsed && (
@@ -368,7 +309,6 @@ function MatchupCard({
           moneyline={game.awayMoneyline ?? null}
           form={game.awayForm}
           pitcher={game.awayPitcher}
-          injuries={game.awayInjuries}
           primaryColor={game.awayPrimaryColor}
           isSelected={selectedId === game.awayTeam.id}
           isUsed={isAwayUsed}
@@ -461,7 +401,6 @@ function MatchupCard({
           moneyline={game.homeMoneyline ?? null}
           form={game.homeForm}
           pitcher={game.homePitcher}
-          injuries={game.homeInjuries}
           primaryColor={game.homePrimaryColor}
           isSelected={selectedId === game.homeTeam.id}
           isUsed={isHomeUsed}

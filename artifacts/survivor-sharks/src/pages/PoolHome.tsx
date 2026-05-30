@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -13,6 +13,7 @@ import { Leaderboard } from "@/components/Leaderboard";
 import { KillHistory } from "@/components/KillHistory";
 import { PoolStats } from "@/components/PoolStats";
 import { CommissionerPanel } from "@/components/CommissionerPanel";
+import { InjuriesTab } from "@/components/InjuriesTab";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -121,6 +122,9 @@ export default function PoolHome() {
                 <TabsTrigger value="stats" className="font-bebas text-xl tracking-wider px-5 py-2.5 flex gap-2">
                   Stats
                 </TabsTrigger>
+                <TabsTrigger value="injuries" className="font-bebas text-xl tracking-wider px-5 py-2.5 flex gap-2">
+                  <Bandage className="w-5 h-5" /> Injuries
+                </TabsTrigger>
                 {isCommissioner && (
                   <TabsTrigger value="commissioner" className="font-bebas text-xl tracking-wider px-5 py-2.5 text-muted-foreground hover:text-foreground ml-auto flex gap-2">
                     <ShieldAlert className="w-5 h-5" /> Commissioner
@@ -143,6 +147,9 @@ export default function PoolHome() {
                 </TabsContent>
                 <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                   <PoolStats poolId={pool.id} />
+                </TabsContent>
+                <TabsContent value="injuries" className="m-0 focus-visible:outline-none">
+                  <InjuriesTab sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} />
                 </TabsContent>
                 {isCommissioner && (
                   <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
