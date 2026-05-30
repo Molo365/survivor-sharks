@@ -78,20 +78,13 @@ export default function Landing() {
             </span>
           </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-1.5 md:my-2.5 w-full max-w-xs">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-primary/40" />
-            <div className="h-1.5 w-1.5 rounded-full bg-primary/80" />
-            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-primary/40" />
-          </div>
-
           {/* Tagline */}
           <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-3 md:mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
             ELITE POOLS. RUTHLESS COMPETITION.
           </p>
 
           {/* CTAs */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pb-4 md:pb-6">
             <Link
               href="/register"
               className="inline-flex items-center justify-center rounded-md px-8 py-2.5 text-sm font-bold tracking-widest text-white uppercase transition-all hover:scale-[1.03] focus-visible:outline-none"
