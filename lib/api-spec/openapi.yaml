@@ -1565,6 +1565,20 @@ components:
         liveDetail:
           type: ["string", "null"]
           description: Live game clock/inning label from ESPN (e.g. "Top 7th", "Bot 4th", "3rd Quarter"), null when not in progress
+        liveOuts:
+          type: ["integer", "null"]
+          description: Current number of outs (0–3) for in-progress MLB games, null otherwise
+        liveBaseRunners:
+          type: ["object", "null"]
+          description: Base runner state for in-progress MLB games, null otherwise
+          properties:
+            onFirst:
+              type: boolean
+            onSecond:
+              type: boolean
+            onThird:
+              type: boolean
+          required: [onFirst, onSecond, onThird]
 
     PickEmSlate:
       type: object

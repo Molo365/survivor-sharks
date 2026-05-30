@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PickEmGameLiveBaseRunners } from './pickEmGameLiveBaseRunners';
 import type { PickEmGameStatus } from './pickEmGameStatus';
 import type { PickEmGameUserPickResult } from './pickEmGameUserPickResult';
 import type { PickEmTeam } from './pickEmTeam';
@@ -32,4 +33,14 @@ export interface PickEmGame {
      * @nullable
      */
   liveDetail?: string | null;
+  /**
+     * Current number of outs (0–3) for in-progress MLB games, null otherwise
+     * @nullable
+     */
+  liveOuts?: number | null;
+  /**
+     * Base runner state for in-progress MLB games, null otherwise
+     * @nullable
+     */
+  liveBaseRunners?: PickEmGameLiveBaseRunners;
 }

@@ -31,6 +31,7 @@ export * from './leaderboardEntryStatus';
 export * from './loginInput';
 export * from './pick';
 export * from './pickEmGame';
+export * from './pickEmGameLiveBaseRunners';
 export * from './pickEmGameStatus';
 export * from './pickEmGameUserPickResult';
 export * from './pickEmLeaderboard';

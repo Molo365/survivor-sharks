@@ -85,6 +85,14 @@ router.get("/games", requireAuth, async (req, res) => {
       userPickTeamId: existing?.pickedTeamId ?? null,
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
+      liveOuts: g.liveState?.outs ?? null,
+      liveBaseRunners: g.liveState
+        ? {
+            onFirst: g.liveState.onFirst,
+            onSecond: g.liveState.onSecond,
+            onThird: g.liveState.onThird,
+          }
+        : null,
     };
   });
 

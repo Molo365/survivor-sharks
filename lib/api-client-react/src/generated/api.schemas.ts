@@ -640,6 +640,16 @@ export const PickEmGameUserPickResult = {
   incorrect: 'incorrect',
 } as const;
 
+/**
+ * Base runner state for in-progress MLB games, null otherwise
+ * @nullable
+ */
+export type PickEmGameLiveBaseRunners = {
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+} | null;
+
 export interface PickEmGame {
   id: string;
   startTime: string;
@@ -663,6 +673,16 @@ export interface PickEmGame {
      * @nullable
      */
   liveDetail?: string | null;
+  /**
+     * Current number of outs (0–3) for in-progress MLB games, null otherwise
+     * @nullable
+     */
+  liveOuts?: number | null;
+  /**
+     * Base runner state for in-progress MLB games, null otherwise
+     * @nullable
+     */
+  liveBaseRunners?: PickEmGameLiveBaseRunners;
 }
 
 export interface PickEmSlate {

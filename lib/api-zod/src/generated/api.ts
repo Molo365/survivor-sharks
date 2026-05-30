@@ -846,7 +846,13 @@ export const GetPickEmGamesResponse = zod.object({
   "homeScore": zod.number().nullish(),
   "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
   "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal(null)]).nullish(),
-  "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress')
+  "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress'),
+  "liveOuts": zod.number().nullish().describe('Current number of outs (0–3) for in-progress MLB games, null otherwise'),
+  "liveBaseRunners": zod.object({
+  "onFirst": zod.boolean(),
+  "onSecond": zod.boolean(),
+  "onThird": zod.boolean()
+}).nullish().describe('Base runner state for in-progress MLB games, null otherwise')
 }))
 })
 
