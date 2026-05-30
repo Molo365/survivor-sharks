@@ -10,6 +10,8 @@ import eliminationsRouter from "./eliminations";
 import leaderboardRouter from "./leaderboard";
 import teamsRouter from "./teams";
 import adminRouter from "./admin";
+import adminAuthRouter from "./adminAuth";
+import adminPanelRouter from "./adminPanel";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use("/pools/:poolId/eliminations", eliminationsRouter);
 router.use("/pools/:poolId/leaderboard", leaderboardRouter);
 router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);
+router.use("/admin-auth", adminAuthRouter);
+router.use("/admin-panel", adminPanelRouter);
 
 export default router;

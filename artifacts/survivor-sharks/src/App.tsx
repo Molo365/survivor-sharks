@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuthContext";
 import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
@@ -14,14 +15,14 @@ import JoinPool from "@/pages/JoinPool";
 import PoolHome from "@/pages/PoolHome";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUsers from "@/pages/AdminUsers";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminPanel from "@/pages/AdminPanel";
 import ResetPassword from "@/pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
-// Protected Route Component
 const ProtectedRoute = ({ component: Component }: { component: any }) => {
   const { user, isLoading } = useAuth();
-  
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -29,18 +30,12 @@ const ProtectedRoute = ({ component: Component }: { component: any }) => {
       </div>
     );
   }
-  
-  if (!user) {
-    return <Redirect to="/" />;
-  }
-  
+  if (!user) return <Redirect to="/" />;
   return <Component />;
 };
 
-// Admin Route Component
 const AdminRoute = ({ component: Component }: { component: any }) => {
   const { user, isLoading } = useAuth();
-  
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -48,11 +43,20 @@ const AdminRoute = ({ component: Component }: { component: any }) => {
       </div>
     );
   }
-  
-  if (!user || user.role !== 'admin') {
-    return <Redirect to="/dashboard" />;
+  if (!user || user.role !== "admin") return <Redirect to="/dashboard" />;
+  return <Component />;
+};
+
+const AdminPanelRoute = ({ component: Component }: { component: any }) => {
+  const { isAuthenticated, isLoading } = useAdminAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-destructive"></div>
+      </div>
+    );
   }
-  
+  if (!isAuthenticated) return <Redirect to="/admin/login" />;
   return <Component />;
 };
 
@@ -62,7 +66,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      
+
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
@@ -75,14 +79,22 @@ function Router() {
       <Route path="/pools/:poolId">
         {() => <ProtectedRoute component={PoolHome} />}
       </Route>
+
+      {/* Legacy admin routes (role-based) */}
       <Route path="/admin">
         {() => <AdminRoute component={AdminDashboard} />}
       </Route>
       <Route path="/admin/users">
         {() => <AdminRoute component={AdminUsers} />}
       </Route>
-      <Route path="/reset-password" component={ResetPassword} />
 
+      {/* New standalone admin panel routes */}
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard">
+        {() => <AdminPanelRoute component={AdminPanel} />}
+      </Route>
+
+      <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -92,11 +104,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <Router />
-          </AuthProvider>
-        </WouterRouter>
+        <AdminAuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AuthProvider>
+              <Router />
+            </AuthProvider>
+          </WouterRouter>
+        </AdminAuthProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
