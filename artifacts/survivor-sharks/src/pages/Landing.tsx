@@ -36,13 +36,12 @@ export default function Landing() {
             The 2026 Season is Here
           </div>
 
-          {/* Title + Logo — sports poster composite */}
-          {/* Extra py gives the absolute logo room to extend above/below the text bounds */}
-          <div className="relative flex flex-col items-center leading-none py-[38px] md:py-[44px]">
+          {/* Title + Logo — sports poster: logo in normal flow between words */}
+          <div className="flex flex-col items-center leading-none">
 
-            {/* SURVIVOR — z-20: sits visually in front of the logo */}
+            {/* SURVIVOR — fully clear above the shark, no overlap */}
             <span
-              className="relative z-20 whitespace-nowrap"
+              className="whitespace-nowrap mb-1 md:mb-2"
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
                 fontWeight: 800,
@@ -56,7 +55,17 @@ export default function Landing() {
               SURVIVOR
             </span>
 
-            {/* SHARKS — z-0: logo sits in front of this word */}
+            {/* Logo — in normal flow, head fully visible; negative bottom margin
+                pulls SHARKS up so the logo's lower body overlaps the top of SHARKS */}
+            <img
+              src="/logo.png"
+              alt="Survivor Sharks"
+              className="relative z-10 object-contain -mb-[40px] md:-mb-[55px]
+                         w-[170px] md:w-[min(230px,25vh)]
+                         drop-shadow-[0_10px_28px_rgba(0,0,0,0.85)] drop-shadow-[0_0_44px_rgba(30,144,255,0.8)]"
+            />
+
+            {/* SHARKS — pulled up behind the logo's lower body, z-0 */}
             <span
               className="relative z-0 whitespace-nowrap"
               style={{
@@ -71,15 +80,6 @@ export default function Landing() {
             >
               SHARKS
             </span>
-
-            {/* Logo — z-10: bursting through the title */}
-            <img
-              src="/logo.png"
-              alt="Survivor Sharks"
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 object-contain pointer-events-none
-                         w-[160px] md:w-[min(270px,30vh)]
-                         drop-shadow-[0_8px_24px_rgba(0,0,0,0.8)] drop-shadow-[0_0_40px_rgba(30,144,255,0.75)]"
-            />
           </div>
 
           {/* Tagline */}
