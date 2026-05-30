@@ -46,30 +46,32 @@ export default function AdminLogin() {
           <p className="text-muted-foreground text-sm mt-1">Survivor Sharks Control Panel</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           <div className="rounded-xl border border-border/50 bg-card p-6 space-y-4 shadow-lg">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-xs uppercase tracking-wider text-muted-foreground">Username</Label>
+              <Label htmlFor="admin-username" className="text-xs uppercase tracking-wider text-muted-foreground">Username</Label>
               <Input
-                id="username"
+                id="admin-username"
+                name="admin-username"
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="admin"
-                autoComplete="username"
+                placeholder="Enter username"
+                autoComplete="off"
                 required
                 className="bg-background/50 border-border focus-visible:ring-primary/50"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs uppercase tracking-wider text-muted-foreground">Password</Label>
+              <Label htmlFor="admin-password" className="text-xs uppercase tracking-wider text-muted-foreground">Password</Label>
               <Input
-                id="password"
+                id="admin-password"
+                name="admin-password"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
+                placeholder="Enter password"
+                autoComplete="new-password"
                 required
                 className="bg-background/50 border-border focus-visible:ring-primary/50"
               />
