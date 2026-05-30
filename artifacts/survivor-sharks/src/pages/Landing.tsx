@@ -36,46 +36,50 @@ export default function Landing() {
             The 2026 Season is Here
           </div>
 
-          {/* Logo */}
-          <div className="relative mb-1 md:mb-3 flex items-center justify-center">
-            <div className="absolute rounded-full bg-primary/20 blur-2xl w-[210px] h-[210px] md:w-[min(290px,32vh)] md:h-[min(290px,32vh)]" />
-            <div className="absolute rounded-full bg-primary/10 blur-xl w-[150px] h-[150px] md:w-[min(210px,23vh)] md:h-[min(210px,23vh)]" />
-            <div className="absolute rounded-full border border-primary/20 w-[170px] h-[170px] md:w-[min(230px,25vh)] md:h-[min(230px,25vh)]" />
-            <img
-              src="/logo.png"
-              alt="Survivor Sharks"
-              className="relative z-10 object-contain drop-shadow-[0_0_40px_rgba(30,144,255,0.75)] w-[150px] h-[150px] md:w-[min(200px,22vh)] md:h-[min(200px,22vh)]"
-            />
-          </div>
+          {/* Title + Logo — sports poster composite */}
+          {/* Extra py gives the absolute logo room to extend above/below the text bounds */}
+          <div className="relative flex flex-col items-center leading-none py-[38px] md:py-[44px]">
 
-          {/* Title */}
-          <div className="flex flex-col items-center leading-none">
+            {/* SURVIVOR — z-20: sits visually in front of the logo */}
             <span
-              className="text-foreground/90 whitespace-nowrap block"
+              className="relative z-20 whitespace-nowrap"
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
                 fontWeight: 800,
                 fontStyle: "italic",
                 fontSize: "clamp(1.2rem, 5.5vw, min(5.2rem, 7vh))",
                 letterSpacing: "0.12em",
-                textShadow: "0 0 40px rgba(30,144,255,0.18), 0 2px 0 rgba(0,0,0,0.5)",
+                color: "rgba(255,255,255,0.93)",
+                textShadow: "0 0 30px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.6)",
               }}
             >
               SURVIVOR
             </span>
+
+            {/* SHARKS — z-0: logo sits in front of this word */}
             <span
-              className="text-foreground whitespace-nowrap block"
+              className="relative z-0 whitespace-nowrap"
               style={{
                 fontFamily: "'Black Ops One', cursive",
                 fontWeight: 400,
                 fontSize: "clamp(2rem, 9vw, min(8.5rem, 12vh))",
                 letterSpacing: "0.03em",
-                textShadow: "0 0 80px rgba(30,144,255,0.32), 0 3px 0 rgba(0,0,0,0.6)",
                 lineHeight: 0.95,
+                color: "white",
+                textShadow: "0 0 60px rgba(30,144,255,0.3), 0 3px 0 rgba(0,0,0,0.7)",
               }}
             >
               SHARKS
             </span>
+
+            {/* Logo — z-10: bursting through the title */}
+            <img
+              src="/logo.png"
+              alt="Survivor Sharks"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 object-contain pointer-events-none
+                         w-[160px] md:w-[min(270px,30vh)]
+                         drop-shadow-[0_8px_24px_rgba(0,0,0,0.8)] drop-shadow-[0_0_40px_rgba(30,144,255,0.75)]"
+            />
           </div>
 
           {/* Tagline */}
