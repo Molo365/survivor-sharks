@@ -145,7 +145,7 @@ function TeamSide({
       className={cn(
         "relative flex-1 flex flex-col py-2 px-2 sm:p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        variant === "live" ? "min-h-[80px] sm:min-h-[150px]" : "min-h-[80px] sm:min-h-[160px]",
+        "min-h-[80px] sm:min-h-[140px]",
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
@@ -166,7 +166,7 @@ function TeamSide({
             alt={team.name}
             className={cn(
               "object-contain drop-shadow-md",
-              variant === "live" ? "w-[35px] h-[35px] sm:w-12 sm:h-12" : "w-[35px] h-[35px] sm:w-10 sm:h-10",
+              "w-[35px] h-[35px] sm:w-10 sm:h-10",
               isUsed && "grayscale opacity-60",
               variant === "final" && !isUsed && "opacity-75"
             )}
@@ -180,10 +180,9 @@ function TeamSide({
         </div>
         <div className={cn("flex-1 min-w-0", side === "home" && "text-right")}>
           <p className={cn(
-            "font-bebas tracking-wide leading-tight truncate",
-            variant === "live" ? "text-sm sm:text-lg text-foreground" :
-            variant === "final" ? "text-xs sm:text-base text-foreground/65" :
-            isSelected ? "text-primary text-xs sm:text-base" : "text-foreground text-xs sm:text-base"
+            "font-bebas tracking-wide leading-tight truncate text-xs sm:text-base",
+            variant === "final" ? "text-foreground/65" :
+            isSelected ? "text-primary" : "text-foreground"
           )}>
             <span className="sm:hidden">{team.abbreviation}</span>
             <span className="hidden sm:inline">{team.name}</span>
@@ -199,16 +198,9 @@ function TeamSide({
         </div>
       </div>
 
-      {/* Score — only show for live/final games, not scheduled */}
-      {score != null && variant !== "upcoming" && (
-        <p className={cn(
-          "font-bebas tracking-wide mt-1",
-          variant === "live"
-            ? "text-3xl sm:text-5xl text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
-            : variant === "final"
-              ? "text-xl sm:text-3xl text-foreground/55"
-              : "text-xl sm:text-3xl text-foreground/80"
-        )}>
+      {/* Score — only show for final games; live scores are shown in centre divider */}
+      {score != null && variant === "final" && (
+        <p className="font-bebas tracking-wide mt-1 text-xl sm:text-3xl text-foreground/55">
           {score}
         </p>
       )}
@@ -412,20 +404,6 @@ function MatchupCard({
                 {game.awayScore != null && game.homeScore != null && (
                   <span className="font-bebas text-base text-white leading-none">{game.awayScore}–{game.homeScore}</span>
                 )}
-                {game.liveState && (
-                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                    <span className="text-[8px] text-red-300/60 leading-none tabular-nums">
-                      {game.liveState.shortDetail ?? `${game.liveState.isTopInning ? "Top" : "Bot"} ${game.liveState.inning}`}
-                      {" · "}{game.liveState.outs}{game.liveState.outs === 1 ? "O" : "O"}
-                    </span>
-                    <BaseDiamond
-                      onFirst={game.liveState.onFirst}
-                      onSecond={game.liveState.onSecond}
-                      onThird={game.liveState.onThird}
-                      size={22}
-                    />
-                  </div>
-                )}
               </>
             ) : variant === "final" ? (
               <>
@@ -520,35 +498,12 @@ function MatchupCard({
                 <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
                   ● LIVE
                 </span>
-                {game.liveState ? (
-                  <div className="flex flex-col items-center gap-1 mt-0.5 w-full">
-                    <span className="text-[9px] text-red-300/60 leading-none font-medium tabular-nums">
-                      {game.liveState.shortDetail ?? `${game.liveState.isTopInning ? "Top" : "Bot"} ${game.liveState.inning}`}
-                    </span>
-                    <span className="text-[8px] text-muted-foreground/45 leading-none">
-                      {game.liveState.outs} {game.liveState.outs === 1 ? "Out" : "Outs"}
-                    </span>
-                    <BaseDiamond
-                      onFirst={game.liveState.onFirst}
-                      onSecond={game.liveState.onSecond}
-                      onThird={game.liveState.onThird}
-                      size={34}
-                    />
-                    {game.liveState.currentBatter && (
-                      <div className="flex flex-col items-center gap-0.5 border-t border-red-900/30 pt-1 w-full">
-                        <span className="text-[7px] text-muted-foreground/35 uppercase tracking-wider leading-none">AB</span>
-                        <span className="text-[8px] text-foreground/55 leading-none">{game.liveState.currentBatter}</span>
-                      </div>
-                    )}
-                    {game.liveState.currentPitcher && (
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[7px] text-muted-foreground/35 uppercase tracking-wider leading-none">P</span>
-                        <span className="text-[8px] text-foreground/55 leading-none">{game.liveState.currentPitcher}</span>
-                      </div>
-                    )}
+                {game.awayScore != null && game.homeScore != null && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="font-bebas text-2xl text-white leading-none">{game.awayScore}</span>
+                    <span className="font-bebas text-base text-foreground/40 leading-none">–</span>
+                    <span className="font-bebas text-2xl text-white leading-none">{game.homeScore}</span>
                   </div>
-                ) : (
-                  <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
                 )}
               </>
             ) : variant === "final" ? (
