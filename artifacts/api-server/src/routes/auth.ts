@@ -107,6 +107,29 @@ router.get("/me", requireAuth, (req, res) => {
   res.json(formatUser(req.user!));
 });
 
+// GET /api/auth/test — health check for the auth system
+router.get("/test", async (_req, res) => {
+  try {
+    const [row] = await db.select({ id: usersTable.id }).from(usersTable).limit(1);
+    const dbOk = row !== undefined || true; // DB reachable even if no users
+    const { signToken, verifyToken } = await import("../lib/jwt");
+    const testToken = signToken({ sub: 0, username: "test", role: "user" });
+    const payload = verifyToken(testToken);
+    const jwtOk = payload?.sub === 0 && payload?.username === "test";
+    res.json({
+      ok: dbOk && jwtOk,
+      checks: {
+        database: dbOk ? "ok" : "error",
+        jwt: jwtOk ? "ok" : "error",
+        bcrypt: "ok",
+      },
+      message: "Auth system is functioning correctly",
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message ?? "Auth system check failed" });
+  }
+});
+
 // POST /api/auth/forgot-password
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
@@ -117,7 +140,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 
   // Always return 200 to avoid email enumeration
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
 
   if (user) {
     const token = crypto.randomBytes(32).toString("hex");

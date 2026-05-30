@@ -67,7 +67,9 @@ export default function Login() {
           if (data?.token) {
             localStorage.setItem("auth_token", data.token);
           }
-          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          if (data?.user) {
+            queryClient.setQueryData(getGetMeQueryKey(), data.user);
+          }
           setLocation("/dashboard");
         },
         onError: (error: any) => {
