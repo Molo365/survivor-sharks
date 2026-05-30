@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PickEmPlayerPick } from './pickEmPlayerPick';
 
 export interface PickEmLeaderboardEntry {
   rank: number;
@@ -13,5 +14,6 @@ export interface PickEmLeaderboardEntry {
   /** @nullable */
   displayName?: string | null;
   correct: number;
-  total: number;
+  picked: number;
+  picks: PickEmPlayerPick[];
 }

@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PickEmLeaderboardEntry } from './pickEmLeaderboardEntry';
+import type { PickEmLeaderboardGame } from './pickEmLeaderboardGame';
 
 export interface PickEmLeaderboard {
   poolId: number;
   week: number;
+  games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
 }

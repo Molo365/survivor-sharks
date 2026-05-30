@@ -1610,9 +1610,49 @@ components:
         skipped:
           type: integer
 
+    PickEmLeaderboardTeam:
+      type: object
+      required: [id, abbreviation]
+      properties:
+        id:
+          type: string
+        abbreviation:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+
+    PickEmLeaderboardGame:
+      type: object
+      required: [id, startTime, status, awayTeam, homeTeam]
+      properties:
+        id:
+          type: string
+        startTime:
+          type: string
+        status:
+          type: string
+        awayTeam:
+          $ref: "#/components/schemas/PickEmLeaderboardTeam"
+        homeTeam:
+          $ref: "#/components/schemas/PickEmLeaderboardTeam"
+
+    PickEmPlayerPick:
+      type: object
+      required: [gameId, pickedTeamId, pickedTeamName, result]
+      properties:
+        gameId:
+          type: string
+        pickedTeamId:
+          type: string
+        pickedTeamName:
+          type: string
+        result:
+          type: string
+          enum: [pending, correct, incorrect]
+
     PickEmLeaderboardEntry:
       type: object
-      required: [rank, userId, username, correct, total]
+      required: [rank, userId, username, correct, picked, picks]
       properties:
         rank:
           type: integer
@@ -1624,17 +1664,25 @@ components:
           type: ["string", "null"]
         correct:
           type: integer
-        total:
+        picked:
           type: integer
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmPlayerPick"
 
     PickEmLeaderboard:
       type: object
-      required: [poolId, week, entries]
+      required: [poolId, week, games, entries]
       properties:
         poolId:
           type: integer
         week:
           type: integer
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmLeaderboardGame"
         entries:
           type: array
           items:

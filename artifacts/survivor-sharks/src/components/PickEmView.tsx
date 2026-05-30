@@ -7,14 +7,14 @@ import {
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, Activity, ShieldAlert, Clock, Check, Trophy, RefreshCw, Copy, Wifi } from "lucide-react";
+import { Target, Activity, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function pickRefetchInterval(data: PickEmSlate | undefined): number {
@@ -175,6 +175,198 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
 
         {teamBtn(game.homeTeam, "home", game.homeScore)}
       </div>
+    </div>
+  );
+}
+
+// ── Picks Grid (leaderboard with per-player per-game picks) ──────────────────
+
+interface PicksGridProps {
+  games: PickEmLeaderboardGame[];
+  entries: PickEmLeaderboardEntry[];
+  currentUserId: number | null;
+  week: number;
+}
+
+function gameStatusLabel(status: string): string {
+  if (status === "in_progress") return "LIVE";
+  if (status === "final") return "Final";
+  return "";
+}
+
+function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bebas text-2xl tracking-wide text-foreground">
+          Week {week} Standings
+        </h3>
+        <span className="text-xs text-muted-foreground">
+          {entries.length} player{entries.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Scrollable picks grid */}
+      <div className="rounded-xl border border-border/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * 72)}px` }}>
+            <thead>
+              <tr className="border-b border-border/40 bg-muted/20">
+                {/* Sticky player column header */}
+                <th className="sticky left-0 z-10 bg-muted/20 text-left px-3 py-2.5 font-bebas text-base tracking-wide text-muted-foreground min-w-[160px] border-r border-border/30">
+                  Player
+                </th>
+                {/* Game column headers */}
+                {games.map((game) => {
+                  const statusLabel = gameStatusLabel(game.status);
+                  return (
+                    <th key={game.id} className="px-1 py-2 text-center font-normal w-[68px]">
+                      <div className="flex flex-col items-center gap-0.5">
+                        {/* Away */}
+                        <div className="flex items-center gap-1">
+                          {game.awayTeam.logoUrl && (
+                            <img src={game.awayTeam.logoUrl} alt={game.awayTeam.abbreviation} className="w-4 h-4 object-contain" />
+                          )}
+                          <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
+                            {game.awayTeam.abbreviation}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-muted-foreground/40 leading-none">@</span>
+                        {/* Home */}
+                        <div className="flex items-center gap-1">
+                          {game.homeTeam.logoUrl && (
+                            <img src={game.homeTeam.logoUrl} alt={game.homeTeam.abbreviation} className="w-4 h-4 object-contain" />
+                          )}
+                          <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
+                            {game.homeTeam.abbreviation}
+                          </span>
+                        </div>
+                        {/* Status badge */}
+                        {statusLabel && (
+                          <span className={cn(
+                            "text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded leading-none mt-0.5",
+                            game.status === "in_progress"
+                              ? "bg-red-500/20 text-red-400 animate-pulse"
+                              : "bg-muted/30 text-muted-foreground/50",
+                          )}>
+                            {statusLabel}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
+                {/* Score header */}
+                <th className="px-3 py-2.5 text-right font-bebas text-base tracking-wide text-muted-foreground min-w-[72px]">
+                  Score
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, idx) => {
+                const isMe = entry.userId === currentUserId;
+                const pickMap = new Map(entry.picks.map((p) => [p.gameId, p]));
+                const pct = entry.picked > 0
+                  ? Math.round((entry.correct / entry.picked) * 100)
+                  : null;
+
+                return (
+                  <tr
+                    key={entry.userId}
+                    className={cn(
+                      "border-b border-border/20 last:border-0",
+                      isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                    )}
+                  >
+                    {/* Sticky player info */}
+                    <td className={cn(
+                      "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30",
+                      isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-card" : "bg-card",
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "font-bebas text-base w-5 shrink-0",
+                          entry.rank === 1 ? "text-yellow-400"
+                          : entry.rank === 2 ? "text-zinc-300"
+                          : entry.rank === 3 ? "text-amber-600"
+                          : "text-muted-foreground/40",
+                        )}>
+                          {entry.rank}
+                        </span>
+                        <span className={cn("font-medium text-sm truncate max-w-[110px]", isMe ? "text-primary" : "text-foreground")}>
+                          {entry.displayName ?? entry.username}
+                          {isMe && (
+                            <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Per-game pick cells */}
+                    {games.map((game) => {
+                      const pick = pickMap.get(game.id);
+                      if (!pick) {
+                        return (
+                          <td key={game.id} className="px-1 py-2 text-center">
+                            <span className="text-muted-foreground/20 text-xs">—</span>
+                          </td>
+                        );
+                      }
+
+                      const isAway = pick.pickedTeamId === game.awayTeam.id;
+                      const team = isAway ? game.awayTeam : game.homeTeam;
+
+                      return (
+                        <td key={game.id} className="px-1 py-2 text-center">
+                          <div className={cn(
+                            "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[52px]",
+                            pick.result === "correct"
+                              ? "border-green-500/40 bg-green-500/10"
+                              : pick.result === "incorrect"
+                              ? "border-red-500/40 bg-red-500/10"
+                              : "border-border/30 bg-muted/10",
+                          )}>
+                            {team.logoUrl && (
+                              <img src={team.logoUrl} alt={team.abbreviation} className="w-5 h-5 object-contain" />
+                            )}
+                            <span className={cn(
+                              "font-bebas text-[11px] tracking-wide leading-none",
+                              pick.result === "correct" ? "text-green-400"
+                              : pick.result === "incorrect" ? "text-red-400"
+                              : "text-muted-foreground/70",
+                            )}>
+                              {team.abbreviation}
+                            </span>
+                            {pick.result === "correct" && (
+                              <Check className="w-2.5 h-2.5 text-green-400" />
+                            )}
+                            {pick.result === "incorrect" && (
+                              <X className="w-2.5 h-2.5 text-red-400" />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+
+                    {/* Score summary */}
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <span className="font-bebas text-lg text-green-400">{entry.correct}</span>
+                      <span className="font-bebas text-lg text-muted-foreground/40">/{entry.picked}</span>
+                      {pct !== null && (
+                        <span className="ml-1.5 font-mono text-[10px] text-primary/50">{pct}%</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground/40 text-center">
+        Scroll right to see all games · Results update automatically
+      </p>
     </div>
   );
 }
@@ -449,107 +641,16 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Activity className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">No picks yet this week</p>
+              <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bebas text-2xl tracking-wide text-foreground">
-                  Week {leaderboard.week} Standings
-                </h3>
-                <span className="text-xs text-muted-foreground">
-                  {leaderboard.entries.length} player{leaderboard.entries.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-
-              <div className="rounded-xl border border-border/40 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/40 bg-muted/20">
-                      <th className="text-left px-4 py-3 font-bebas text-base tracking-wide text-muted-foreground w-12">
-                        #
-                      </th>
-                      <th className="text-left px-4 py-3 font-bebas text-base tracking-wide text-muted-foreground">
-                        Player
-                      </th>
-                      <th className="text-right px-4 py-3 font-bebas text-base tracking-wide text-green-400/80">
-                        Correct
-                      </th>
-                      <th className="text-right px-4 py-3 font-bebas text-base tracking-wide text-muted-foreground">
-                        Picked
-                      </th>
-                      <th className="text-right px-4 py-3 font-bebas text-base tracking-wide text-primary/70 hidden sm:table-cell">
-                        %
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.entries.map((entry, idx) => {
-                      const pct =
-                        entry.total > 0
-                          ? Math.round((entry.correct / entry.total) * 100)
-                          : null;
-                      const isMe = entry.userId === user?.id;
-                      return (
-                        <tr
-                          key={entry.userId}
-                          className={cn(
-                            "border-b border-border/20 last:border-0 transition-colors",
-                            isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/5",
-                          )}
-                        >
-                          <td className="px-4 py-3">
-                            <span
-                              className={cn(
-                                "font-bebas text-lg",
-                                entry.rank === 1
-                                  ? "text-yellow-400"
-                                  : entry.rank === 2
-                                    ? "text-zinc-300"
-                                    : entry.rank === 3
-                                      ? "text-amber-600"
-                                      : "text-muted-foreground/50",
-                              )}
-                            >
-                              {entry.rank}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={cn(
-                                "font-medium",
-                                isMe ? "text-primary" : "text-foreground",
-                              )}
-                            >
-                              {entry.displayName ?? entry.username}
-                              {isMe && (
-                                <span className="ml-1.5 text-[10px] font-bold uppercase tracking-widest text-primary/60">
-                                  you
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="font-bebas text-xl text-green-400">{entry.correct}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="font-bebas text-xl text-muted-foreground/70">
-                              {entry.total}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right hidden sm:table-cell">
-                            <span className="font-mono text-sm text-primary/60">
-                              {pct != null ? `${pct}%` : "—"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <PicksGrid
+              games={leaderboard.games}
+              entries={leaderboard.entries}
+              currentUserId={user?.id ?? null}
+              week={leaderboard.week}
+            />
           )}
         </TabsContent>
 

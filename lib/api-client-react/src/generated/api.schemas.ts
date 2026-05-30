@@ -687,6 +687,37 @@ export interface PickEmPicksResult {
   skipped: number;
 }
 
+export interface PickEmLeaderboardTeam {
+  id: string;
+  abbreviation: string;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface PickEmLeaderboardGame {
+  id: string;
+  startTime: string;
+  status: string;
+  awayTeam: PickEmLeaderboardTeam;
+  homeTeam: PickEmLeaderboardTeam;
+}
+
+export type PickEmPlayerPickResult = typeof PickEmPlayerPickResult[keyof typeof PickEmPlayerPickResult];
+
+
+export const PickEmPlayerPickResult = {
+  pending: 'pending',
+  correct: 'correct',
+  incorrect: 'incorrect',
+} as const;
+
+export interface PickEmPlayerPick {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  result: PickEmPlayerPickResult;
+}
+
 export interface PickEmLeaderboardEntry {
   rank: number;
   userId: number;
@@ -694,12 +725,14 @@ export interface PickEmLeaderboardEntry {
   /** @nullable */
   displayName?: string | null;
   correct: number;
-  total: number;
+  picked: number;
+  picks: PickEmPlayerPick[];
 }
 
 export interface PickEmLeaderboard {
   poolId: number;
   week: number;
+  games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
 }
 

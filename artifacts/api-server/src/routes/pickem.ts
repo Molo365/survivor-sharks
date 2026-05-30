@@ -227,35 +227,80 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     return;
   }
 
-  const rows = await db
-    .select({
-      userId: pickemPicksTable.userId,
-      username: usersTable.username,
-      displayName: usersTable.displayName,
-      correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
-      total: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} != 'pending')`,
-    })
-    .from(pickemPicksTable)
-    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-    .where(
-      and(
-        eq(pickemPicksTable.poolId, poolId),
-        eq(pickemPicksTable.week, pool.currentWeek),
-      ),
-    )
-    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-    .orderBy(sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`);
+  const todayEspn = formatDateEt(new Date());
+  const todayEt = getTodayEtDate();
 
-  const entries = rows.map((row, i) => ({
-    rank: i + 1,
-    userId: row.userId,
-    username: row.username,
-    displayName: row.displayName ?? null,
-    correct: Number(row.correct),
-    total: Number(row.total),
+  // Fetch today's schedule and all picks for this pool/week in parallel
+  const [games, allPicks, aggregates] = await Promise.all([
+    fetchGamesForDate("mlb", todayEspn),
+    db
+      .select()
+      .from(pickemPicksTable)
+      .where(
+        and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.gameDate, todayEt),
+        ),
+      ),
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        picked: sql<string>`COUNT(*)`,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.gameDate, todayEt),
+        ),
+      )
+      .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+      .orderBy(
+        sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+        sql`COUNT(*) DESC`,
+      ),
+  ]);
+
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Build per-user pick map: userId → { gameId → pick }
+  const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
+  for (const pick of allPicks) {
+    if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
+    picksByUser.get(pick.userId)!.set(pick.gameId, pick);
+  }
+
+  const entries = aggregates.map((row, i) => {
+    const userPicks = picksByUser.get(row.userId) ?? new Map();
+    return {
+      rank: i + 1,
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName ?? null,
+      correct: Number(row.correct),
+      picked: Number(row.picked),
+      picks: Array.from(userPicks.values()).map((p) => ({
+        gameId: p.gameId,
+        pickedTeamId: p.pickedTeamId,
+        pickedTeamName: p.pickedTeamName,
+        result: p.result,
+      })),
+    };
+  });
+
+  const formattedGames = games.map((g) => ({
+    id: g.id,
+    startTime: g.date,
+    status: g.status,
+    awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
+    homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
   }));
 
-  res.json({ poolId, week: pool.currentWeek, entries });
+  res.json({ poolId, week: pool.currentWeek, games: formattedGames, entries });
 });
 
 // POST /api/pools/:poolId/pickem/process-results  — commissioner only

@@ -877,13 +877,34 @@ export const GetPickEmLeaderboardParams = zod.object({
 export const GetPickEmLeaderboardResponse = zod.object({
   "poolId": zod.number(),
   "week": zod.number(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.string(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+})
+})),
   "entries": zod.array(zod.object({
   "rank": zod.number(),
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
   "correct": zod.number(),
-  "total": zod.number()
+  "picked": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "result": zod.enum(['pending', 'correct', 'incorrect'])
+}))
 }))
 })
 
