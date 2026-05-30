@@ -3,8 +3,8 @@ import { signAdminToken, verifyAdminToken, requireAdminAuth } from "../middlewar
 
 const router = Router();
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "sharks2026";
+const ADMIN_USERNAME = process.env.ADMIN_PANEL_USER ?? process.env.ADMIN_USERNAME ?? "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PANEL_PASS ?? process.env.ADMIN_PASSWORD ?? "sharks2026";
 
 // POST /api/admin-auth/login
 router.post("/login", (req, res) => {

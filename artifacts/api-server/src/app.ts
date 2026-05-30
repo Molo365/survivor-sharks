@@ -28,6 +28,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(loadUser);
 
 app.use("/api", router);
-app.use("/admin", adminHtmlRouter);
+app.use("/api/admin-html", adminHtmlRouter);
 
 export default app;

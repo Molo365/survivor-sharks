@@ -45,3 +45,9 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+ADMIN_PANEL_USER = "admin"
+ADMIN_PANEL_PASS = "sharks2026"
