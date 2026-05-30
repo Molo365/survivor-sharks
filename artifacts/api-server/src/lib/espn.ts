@@ -220,9 +220,35 @@ export function getMlbProcessingTrigger(poolCreatedAt: Date, weekNumber: number)
 }
 
 /**
+ * Return today's date as YYYY-MM-DD in ET (America/New_York using fixed EDT offset).
+ */
+export function getTodayEtDate(): string {
+  return formatDateEtDash(new Date());
+}
+
+/**
+ * Given today's game list, return the deadline timestamp (5 min before first game).
+ * Returns null if there are no games.
+ */
+export function getDailyPickDeadline(games: EspnGame[]): Date | null {
+  if (games.length === 0) return null;
+  const firstMs = Math.min(...games.map(g => new Date(g.date).getTime()));
+  return new Date(firstMs - 5 * 60 * 1000);
+}
+
+/**
+ * Returns true if the daily pick deadline has passed for a given game list.
+ */
+export function isDailyPickDeadlinePassed(games: EspnGame[]): boolean {
+  const deadline = getDailyPickDeadline(games);
+  if (!deadline) return false;
+  return Date.now() >= deadline.getTime();
+}
+
+/**
  * Fetch all MLB games for a specific ET date string (YYYYMMDD).
  */
-async function fetchGamesForDate(sport: string, dateStr: string): Promise<EspnGame[]> {
+export async function fetchGamesForDate(sport: string, dateStr: string): Promise<EspnGame[]> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return [];
 

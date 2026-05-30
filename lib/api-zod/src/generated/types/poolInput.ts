@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolInputPickFrequency } from './poolInputPickFrequency';
 import type { PoolInputPoolType } from './poolInputPoolType';
 import type { PoolInputSport } from './poolInputSport';
 
@@ -22,4 +23,6 @@ export interface PoolInput {
   season?: number;
   /** MLB only: first loss gives a mulligan strike; second loss eliminates permanently */
   doubleElimination?: boolean;
+  /** MLB only: weekly = one pick per week; daily = one pick per day from that day's slate */
+  pickFrequency?: PoolInputPickFrequency;
 }

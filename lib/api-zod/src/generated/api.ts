@@ -98,6 +98,7 @@ export const ListPoolsResponseItem = zod.object({
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "createdAt": zod.string().optional()
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
@@ -108,6 +109,7 @@ export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
  */
 export const createPoolBodyPoolTypeDefault = `season`;
 export const createPoolBodyDoubleEliminationDefault = false;
+export const createPoolBodyPickFrequencyDefault = `weekly`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
@@ -120,7 +122,8 @@ export const CreatePoolBody = zod.object({
   "prizePot": zod.number().optional(),
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
-  "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently')
+  "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently'),
+  "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate')
 })
 
 
@@ -150,6 +153,7 @@ export const JoinPoolResponse = zod.object({
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "createdAt": zod.string().optional()
 })
 
@@ -178,6 +182,7 @@ export const GetPoolResponse = zod.object({
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "activeCount": zod.number().describe('Number of members still alive (not eliminated)'),
   "totalMembers": zod.number().describe('Total number of members in the pool'),
   "members": zod.array(zod.object({
@@ -208,7 +213,8 @@ export const UpdatePoolBody = zod.object({
   "isActive": zod.boolean().optional(),
   "poolType": zod.enum(['season', 'weekly', 'mid_season']).optional(),
   "startWeek": zod.number().optional(),
-  "doubleElimination": zod.boolean().optional()
+  "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional()
 })
 
 export const UpdatePoolResponse = zod.object({
@@ -230,6 +236,7 @@ export const UpdatePoolResponse = zod.object({
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "createdAt": zod.string().optional()
 })
 
@@ -263,6 +270,7 @@ export const GetMyPicksResponseItem = zod.object({
   "teamName": zod.string(),
   "teamLogoUrl": zod.string().nullish(),
   "week": zod.number(),
+  "pickDate": zod.string().nullish().describe('YYYY-MM-DD in ET — only set for daily MLB pools'),
   "result": zod.union([zod.literal('win'),zod.literal('loss'),zod.literal('pending'),zod.literal(null)]).nullable(),
   "submittedAt": zod.string().optional()
 })
@@ -278,7 +286,8 @@ export const SubmitPickParams = zod.object({
 
 export const SubmitPickBody = zod.object({
   "teamId": zod.string(),
-  "week": zod.number(),
+  "week": zod.number().optional().describe('Required for weekly pools. Omit for daily pools — server derives from pool day counter.'),
+  "pickDate": zod.string().optional().describe('YYYY-MM-DD in ET. Used for daily MLB pools. Omit for weekly pools.'),
   "teamName": zod.string().optional().describe('Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name'),
   "teamLogoUrl": zod.string().nullish().describe('Logo URL from the schedule response')
 })
@@ -387,6 +396,104 @@ export const GetPoolScheduleResponse = zod.object({
 
 
 /**
+ * @summary Get today's MLB game slate for a daily pick pool
+ */
+export const GetDailyScheduleParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetDailyScheduleResponse = zod.object({
+  "date": zod.string().describe('ET date as YYYY-MM-DD'),
+  "label": zod.string().describe('Day label e.g. \'Saturday, May 31\''),
+  "deadline": zod.string().nullish().describe('ISO timestamp — 5 minutes before first game of the day. Null if no games today.'),
+  "deadlinePassed": zod.boolean().describe('True if the pick deadline for today has already passed'),
+  "firstGameTime": zod.string().nullish().describe('ISO timestamp of the earliest game today'),
+  "currentDay": zod.number().describe('Pool\'s current day counter (same as pool.currentWeek for daily pools)'),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "sport": zod.string(),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "sport": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "flagUrl": zod.string().nullish()
+}),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "sport": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "flagUrl": zod.string().nullish()
+}),
+  "startTime": zod.string(),
+  "week": zod.number(),
+  "season": zod.number().optional(),
+  "status": zod.string().optional(),
+  "hasStarted": zod.boolean(),
+  "homeScore": zod.number().nullish(),
+  "awayScore": zod.number().nullish(),
+  "homeRecord": zod.string().nullish().describe('e.g. \'8-3\''),
+  "awayRecord": zod.string().nullish().describe('e.g. \'5-6\''),
+  "odds": zod.object({
+  "details": zod.string().optional().describe('Spread line e.g. \'BUF -3.5\''),
+  "overUnder": zod.number().nullish(),
+  "spread": zod.number().nullish()
+}).nullish(),
+  "awayMoneyline": zod.number().nullish(),
+  "homeMoneyline": zod.number().nullish(),
+  "awayPrimaryColor": zod.string().nullish().describe('Hex without \'#\', e.g. \'003594\''),
+  "homePrimaryColor": zod.string().nullish(),
+  "awayAlternateColor": zod.string().nullish(),
+  "homeAlternateColor": zod.string().nullish(),
+  "weather": zod.object({
+  "displayValue": zod.string().optional(),
+  "temperature": zod.number().nullish(),
+  "conditionDescription": zod.string().nullish(),
+  "windSpeed": zod.number().nullish(),
+  "windDirection": zod.string().nullish()
+}).nullish(),
+  "awayPitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "homePitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "awayInjuries": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullish(),
+  "status": zod.string(),
+  "injuryType": zod.string().nullish()
+})).optional(),
+  "homeInjuries": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullish(),
+  "status": zod.string(),
+  "injuryType": zod.string().nullish()
+})).optional(),
+  "awayForm": zod.array(zod.string()).optional(),
+  "homeForm": zod.array(zod.string()).optional()
+}))
+})
+
+
+/**
  * @summary Get full survivor grid (all picks by week for all members)
  */
 export const GetSurvivorGridParams = zod.object({
@@ -413,6 +520,7 @@ export const GetSurvivorGridResponse = zod.object({
   "teamName": zod.string(),
   "teamLogoUrl": zod.string().nullish(),
   "week": zod.number(),
+  "pickDate": zod.string().nullish().describe('YYYY-MM-DD in ET — only set for daily MLB pools'),
   "result": zod.union([zod.literal('win'),zod.literal('loss'),zod.literal('pending'),zod.literal(null)]).nullable(),
   "submittedAt": zod.string().optional()
 }))
@@ -695,6 +803,7 @@ export const AdminListPoolsResponseItem = zod.object({
   "entryFee": zod.number().nullish(),
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "createdAt": zod.string().optional()
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)

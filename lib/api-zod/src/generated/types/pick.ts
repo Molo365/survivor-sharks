@@ -17,6 +17,11 @@ export interface Pick {
   /** @nullable */
   teamLogoUrl?: string | null;
   week: number;
+  /**
+     * YYYY-MM-DD in ET — only set for daily MLB pools
+     * @nullable
+     */
+  pickDate?: string | null;
   /** @nullable */
   result: PickResult;
   submittedAt?: string;

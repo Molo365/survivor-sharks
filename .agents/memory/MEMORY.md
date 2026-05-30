@@ -1,0 +1,1 @@
+- [Daily pick frequency for MLB](daily-pick-frequency.md) — daily pools use `pool.pickFrequency === "daily"`: server derives week/pickDate; Game type uses `startTime` (not `date`) and `status === "final"` (not `isCompleted`).

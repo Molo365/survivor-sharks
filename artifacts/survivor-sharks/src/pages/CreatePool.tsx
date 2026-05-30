@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Zap, ShieldCheck } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Zap, ShieldCheck, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const POOL_TYPES = [
@@ -63,6 +63,7 @@ const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
   poolType: z.enum(["season", "weekly", "mid_season"]).default("season"),
+  pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   startWeek: z.coerce.number().min(1).max(30).optional().or(z.literal("").transform(() => undefined)),
   description: z.string().max(500).optional(),
@@ -88,6 +89,7 @@ export default function CreatePool() {
       name: "",
       sport: PoolInputSport.nfl,
       poolType: "season",
+      pickFrequency: "weekly",
       description: "",
       season: new Date().getFullYear(),
     },
@@ -214,6 +216,75 @@ export default function CreatePool() {
                       <FormDescription className="text-xs">
                         Week this pool begins. Players who join can use any team not already used from this week forward.
                       </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Pick Format — MLB only */}
+              {selectedSport === PoolInputSport.mlb && (
+                <FormField
+                  control={form.control}
+                  name="pickFrequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bebas text-xl tracking-wide">Pick Format</FormLabel>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        {([
+                          {
+                            id: "weekly" as const,
+                            label: "Weekly",
+                            icon: Clock,
+                            desc: "One pick per week — locked on Monday 10 PM ET. Classic survivor format.",
+                          },
+                          {
+                            id: "daily" as const,
+                            label: "Daily",
+                            icon: Calendar,
+                            desc: "One pick per day from that day's slate — locks 5 minutes before first pitch.",
+                            badge: "New",
+                          },
+                        ] as const).map(opt => {
+                          const Icon = opt.icon;
+                          const isSelected = field.value === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => field.onChange(opt.id)}
+                              data-testid={`pick-freq-${opt.id}`}
+                              className={cn(
+                                "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                isSelected
+                                  ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
+                                  : "border-border/40 hover:border-border bg-card/50"
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <Icon className={cn("w-5 h-5 mt-0.5 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={cn("font-bebas text-lg tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                                      {opt.label}
+                                    </span>
+                                    {"badge" in opt && (
+                                      <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">
+                                        {opt.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground leading-snug">{opt.desc}</p>
+                                </div>
+                                <div className={cn(
+                                  "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
+                                  isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                                )} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

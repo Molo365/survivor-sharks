@@ -8,7 +8,10 @@
 
 export interface PickInput {
   teamId: string;
-  week: number;
+  /** Required for weekly pools. Omit for daily pools — server derives from pool day counter. */
+  week?: number;
+  /** YYYY-MM-DD in ET. Used for daily MLB pools. Omit for weekly pools. */
+  pickDate?: string;
   /** Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name */
   teamName?: string;
   /**

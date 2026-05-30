@@ -22,6 +22,9 @@ import { picksTable, entriesTable, poolsTable, weekResultsTable } from "@workspa
 import { eq, and, ne, inArray, count } from "drizzle-orm";
 import {
   fetchGames,
+  fetchGamesForDate,
+  getTodayEtDate,
+  formatDateEt,
   type EspnGame,
   getMlbWeekBounds,
   getMlbProcessingTrigger,
@@ -306,10 +309,10 @@ export async function processMlbWeeklyResults(): Promise<{
   let playersEliminated = 0;
   let playersRevived = 0;
 
-  // Find all active MLB pools
+  // Find all active MLB weekly pools (daily pools handled separately)
   const mlbPools = await db.select()
     .from(poolsTable)
-    .where(and(eq(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true)));
+    .where(and(eq(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true), eq(poolsTable.pickFrequency, "weekly")));
 
   for (const pool of mlbPools) {
     // Check if processing is due: now >= trigger time for this week
@@ -474,6 +477,183 @@ export async function processMlbWeeklyResults(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// MLB daily pick processing (one run per pool per day when all games final)
+// ---------------------------------------------------------------------------
+
+export async function processMlbDailyResults(): Promise<{
+  daysProcessed: number;
+  picksGraded: number;
+  playersEliminated: number;
+  playersRevived: number;
+}> {
+  let daysProcessed = 0;
+  let picksGraded = 0;
+  let playersEliminated = 0;
+  let playersRevived = 0;
+
+  const dailyPools = await db.select()
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.sport, "mlb"),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.pickFrequency, "daily"),
+    ));
+
+  for (const pool of dailyPools) {
+    const todayEt = getTodayEtDate();
+    const todayEspn = formatDateEt(new Date());
+
+    // Skip if this day is already processed
+    const [existing] = await db.select({ id: weekResultsTable.id })
+      .from(weekResultsTable)
+      .where(and(eq(weekResultsTable.poolId, pool.id), eq(weekResultsTable.week, pool.currentWeek)))
+      .limit(1);
+    if (existing) continue;
+
+    // Fetch today's games
+    const games = await fetchGamesForDate("mlb", todayEspn);
+    if (games.length === 0) continue;
+
+    // Build completed game lookup by teamId
+    const completedByTeam = new Map<string, EspnGame>();
+    for (const g of games) {
+      if (g.isCompleted && g.homeScore != null && g.awayScore != null) {
+        completedByTeam.set(g.homeTeam.id, g);
+        completedByTeam.set(g.awayTeam.id, g);
+      }
+    }
+
+    // Get pending picks for today
+    const pendingPicks = await db.select({
+      id: picksTable.id,
+      userId: picksTable.userId,
+      teamId: picksTable.teamId,
+      teamName: picksTable.teamName,
+    }).from(picksTable)
+      .where(and(
+        eq(picksTable.poolId, pool.id),
+        eq(picksTable.pickDate, todayEt),
+        eq(picksTable.result, "pending"),
+      ));
+
+    // Get alive entries for streak tracking
+    const aliveEntries = await db.select({
+      id: entriesTable.id,
+      userId: entriesTable.userId,
+      streak: entriesTable.streak,
+    }).from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+    const entryByUserId = new Map(aliveEntries.map(e => [e.userId, e]));
+
+    // Grade each pending pick whose game is complete
+    for (const pick of pendingPicks) {
+      const game = completedByTeam.get(pick.teamId);
+      if (!game || game.homeScore == null || game.awayScore == null) continue;
+      if (game.homeScore === game.awayScore) continue; // tie — skip
+
+      const isHome = game.homeTeam.id === pick.teamId;
+      const myScore = isHome ? game.homeScore : game.awayScore;
+      const oppScore = isHome ? game.awayScore : game.homeScore;
+      const result: "win" | "loss" = myScore > oppScore ? "win" : "loss";
+
+      await db.update(picksTable).set({ result }).where(eq(picksTable.id, pick.id));
+      picksGraded++;
+
+      if (result === "loss") {
+        const updated = await db.update(entriesTable)
+          .set({ status: "eliminated", eliminatedWeek: pool.currentWeek, streak: 0 })
+          .where(and(
+            eq(entriesTable.poolId, pool.id),
+            eq(entriesTable.userId, pick.userId),
+            eq(entriesTable.status, "alive"),
+          ))
+          .returning({ id: entriesTable.id });
+        if (updated.length > 0) playersEliminated++;
+        logger.info({ poolId: pool.id, userId: pick.userId, day: pool.currentWeek, teamId: pick.teamId }, "MLB Daily: player eliminated");
+      } else {
+        // Win: increment streak
+        const entry = entryByUserId.get(pick.userId);
+        if (entry) {
+          await db.update(entriesTable)
+            .set({ streak: entry.streak + 1 })
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, pick.userId)));
+        }
+        logger.info({ poolId: pool.id, userId: pick.userId, day: pool.currentWeek, teamId: pick.teamId }, "MLB Daily: player survived");
+      }
+    }
+
+    // Only close the day when ALL today's games are final and no picks remain pending
+    const allGamesFinal = games.every(g => g.isCompleted);
+    if (!allGamesFinal) continue;
+
+    const [stillPending] = await db.select({ id: picksTable.id })
+      .from(picksTable)
+      .where(and(
+        eq(picksTable.poolId, pool.id),
+        eq(picksTable.pickDate, todayEt),
+        eq(picksTable.result, "pending"),
+      ))
+      .limit(1);
+    if (stillPending) continue;
+
+    // Revival rule: if ALL survivors were eliminated today, revive them all
+    const eliminatedToday = await db.select({ userId: entriesTable.userId })
+      .from(entriesTable)
+      .where(and(
+        eq(entriesTable.poolId, pool.id),
+        eq(entriesTable.status, "eliminated"),
+        eq(entriesTable.eliminatedWeek, pool.currentWeek),
+      ));
+
+    if (eliminatedToday.length > 0) {
+      const [{ remaining }] = await db.select({ remaining: count() })
+        .from(entriesTable)
+        .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+
+      if (Number(remaining) === 0) {
+        await db.update(entriesTable)
+          .set({ status: "alive", eliminatedWeek: null, streak: 0 })
+          .where(and(
+            eq(entriesTable.poolId, pool.id),
+            inArray(entriesTable.userId, eliminatedToday.map(e => e.userId)),
+          ));
+        playersRevived += eliminatedToday.length;
+        playersEliminated -= eliminatedToday.length;
+        logger.info(
+          { poolId: pool.id, day: pool.currentWeek, revived: eliminatedToday.length },
+          "MLB Daily: revival rule triggered — all survivors eliminated, everyone revived",
+        );
+      }
+    }
+
+    // Record day results and advance counter
+    const todayPicksAll = await db.select({ teamId: picksTable.teamId, result: picksTable.result })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, pool.id), eq(picksTable.pickDate, todayEt)));
+
+    const losingTeamIds = [
+      ...new Set(todayPicksAll.filter(p => p.result === "loss").map(p => p.teamId)),
+    ];
+
+    await db.insert(weekResultsTable).values({
+      poolId: pool.id,
+      week: pool.currentWeek,
+      losingTeamIds,
+      processedBy: null,
+    });
+
+    await db.update(poolsTable)
+      .set({ currentWeek: pool.currentWeek + 1 })
+      .where(eq(poolsTable.id, pool.id));
+
+    daysProcessed++;
+    logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: day closed, advancing day counter");
+  }
+
+  return { daysProcessed, picksGraded, playersEliminated, playersRevived };
+}
+
+// ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
 
@@ -485,11 +665,18 @@ export function startAutoEliminator(): void {
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
-    const [nonMlb, mlb] = await Promise.all([
+    const [nonMlb, mlbWeekly, mlbDaily] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
+      processMlbDailyResults(),
     ]);
-    return { ...nonMlb, mlbWeeksProcessed: mlb.weeksProcessed, mlbPlayersEliminated: mlb.playersEliminated, mlbPlayersRevived: mlb.playersRevived };
+    return {
+      ...nonMlb,
+      mlbWeeksProcessed: mlbWeekly.weeksProcessed,
+      mlbPlayersEliminated: mlbWeekly.playersEliminated + mlbDaily.playersEliminated,
+      mlbPlayersRevived: mlbWeekly.playersRevived + mlbDaily.playersRevived,
+      mlbDaysProcessed: mlbDaily.daysProcessed,
+    };
   }
 
   runAll()
@@ -499,7 +686,12 @@ export function startAutoEliminator(): void {
   _timer = setInterval(() => {
     runAll()
       .then(stats => {
-        if (stats.picksGraded > 0 || stats.playersEliminated > 0 || stats.mlbWeeksProcessed > 0) {
+        if (
+          stats.picksGraded > 0 ||
+          stats.playersEliminated > 0 ||
+          stats.mlbWeeksProcessed > 0 ||
+          stats.mlbDaysProcessed > 0
+        ) {
           logger.info(stats, "Auto-eliminator poll complete");
         }
       })

@@ -3,7 +3,16 @@ import { db } from "@workspace/db";
 import { poolsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getMlbWeekBounds, fetchMlbWeekGames, type EspnGame } from "../lib/espn";
+import {
+  getMlbWeekBounds,
+  fetchMlbWeekGames,
+  fetchGamesForDate,
+  getTodayEtDate,
+  formatDateEt,
+  getDailyPickDeadline,
+  isDailyPickDeadlinePassed,
+  type EspnGame,
+} from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -128,6 +137,45 @@ router.get("/", requireAuth, async (req, res) => {
     deadlinePassed: bounds.deadlinePassed,
     currentWeek: pool.currentWeek,
     days,
+  });
+});
+
+// GET /api/pools/:poolId/schedule/daily — today's MLB slate for daily pick pools
+router.get("/daily", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+
+  const todayEt = getTodayEtDate();
+  const todayEspn = formatDateEt(new Date());
+
+  const games = await fetchGamesForDate("mlb", todayEspn);
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const deadline = getDailyPickDeadline(games);
+  const deadlinePassed = isDailyPickDeadlinePassed(games);
+  const firstGameTime = games.length > 0 ? games[0].date : null;
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const label = fmt.format(new Date());
+
+  res.json({
+    date: todayEt,
+    label,
+    deadline: deadline?.toISOString() ?? null,
+    deadlinePassed,
+    firstGameTime,
+    currentDay: pool.currentWeek,
+    games: games.map(g => formatGame(g, pool.sport, pool.currentWeek, pool.season)),
   });
 });
 

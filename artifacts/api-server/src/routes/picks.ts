@@ -3,7 +3,14 @@ import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { isPickLocked, isMlbPickDeadlinePassed } from "../lib/espn";
+import {
+  isPickLocked,
+  isMlbPickDeadlinePassed,
+  getTodayEtDate,
+  formatDateEt,
+  isDailyPickDeadlinePassed,
+  fetchGamesForDate,
+} from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 
 const router = Router({ mergeParams: true });
@@ -19,6 +26,7 @@ function formatPick(pick: typeof picksTable.$inferSelect, username: string) {
     teamName: pick.teamName,
     teamLogoUrl: pick.teamLogoUrl,
     week: pick.week,
+    pickDate: pick.pickDate ?? null,
     result: pick.result,
     submittedAt: pick.submittedAt.toISOString(),
   };
@@ -41,12 +49,12 @@ router.post("/", requireAuth, async (req, res) => {
   const userId = req.user!.id;
   const { teamId, week, teamName: clientTeamName, teamLogoUrl: clientTeamLogoUrl } = req.body;
 
-  if (!teamId || !week) {
-    res.status(400).json({ error: "teamId and week are required" });
+  if (!teamId) {
+    res.status(400).json({ error: "teamId is required" });
     return;
   }
 
-  // Load pool
+  // Load pool first (needed to determine pick flow)
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
@@ -67,15 +75,106 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  // Load all user's picks for this pool (needed for both lock check and reuse check)
+  // Load all user's picks for this pool
   const previousPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, userId)));
 
+  // Resolve team metadata (prefer client-supplied values for accuracy)
+  const resolved = resolveTeam(pool.sport, teamId);
+  const teamName = (typeof clientTeamName === "string" && clientTeamName.trim())
+    ? clientTeamName.trim()
+    : resolved.teamName;
+  const teamLogoUrl = (typeof clientTeamLogoUrl === "string" && clientTeamLogoUrl)
+    ? clientTeamLogoUrl
+    : resolved.teamLogoUrl;
+
+  // ── DAILY MLB PICK FLOW ──────────────────────────────────────────────────
+  if (pool.pickFrequency === "daily") {
+    const todayEt = getTodayEtDate();
+    const todayEspn = formatDateEt(new Date());
+    const todayGames = await fetchGamesForDate("mlb", todayEspn);
+
+    // Deadline: 5 minutes before first game of the day
+    if (isDailyPickDeadlinePassed(todayGames)) {
+      res.status(400).json({
+        error: "Daily pick deadline has passed — picks are locked for today.",
+      });
+      return;
+    }
+
+    // New team's game must not have started
+    const newTeamGame = todayGames.find(g =>
+      g.homeTeam.id === teamId || g.awayTeam.id === teamId
+    );
+    if (newTeamGame?.hasStarted) {
+      res.status(400).json({
+        error: "That team's game has already started — choose a different team.",
+      });
+      return;
+    }
+
+    // If player already has a pick today, check whether it's locked
+    const existingDailyPick = previousPicks.find(p => p.pickDate === todayEt);
+    if (existingDailyPick) {
+      const existingGame = todayGames.find(g =>
+        g.homeTeam.id === existingDailyPick.teamId || g.awayTeam.id === existingDailyPick.teamId
+      );
+      if (existingGame?.hasStarted) {
+        res.status(400).json({
+          error: `Your pick (${existingDailyPick.teamName}) is locked — that game has already started.`,
+        });
+        return;
+      }
+    }
+
+    // Team re-use: cannot pick the same team on any other day
+    const usedOnAnotherDay = previousPicks.some(
+      p => p.teamId === teamId && p.pickDate !== todayEt
+    );
+    if (usedOnAnotherDay) {
+      res.status(400).json({ error: "You have already used this team on a previous day." });
+      return;
+    }
+
+    // Upsert the daily pick (week = pool's current day counter)
+    const dayNum = pool.currentWeek;
+    let pick: typeof picksTable.$inferSelect;
+
+    if (existingDailyPick) {
+      const [updated] = await db.update(picksTable).set({
+        teamId, teamName, teamLogoUrl, result: "pending",
+      }).where(eq(picksTable.id, existingDailyPick.id)).returning();
+      pick = updated;
+    } else {
+      const [inserted] = await db.insert(picksTable).values({
+        entryId: entry.id,
+        poolId,
+        userId,
+        teamId,
+        teamName,
+        teamLogoUrl,
+        week: dayNum,
+        pickDate: todayEt,
+        result: "pending",
+      }).returning();
+      pick = inserted;
+    }
+
+    res.status(201).json(formatPick(pick, req.user!.username));
+    return;
+  }
+
+  // ── WEEKLY / SEASON PICK FLOW ────────────────────────────────────────────
+  if (!week) {
+    res.status(400).json({ error: "teamId and week are required" });
+    return;
+  }
+
   const existingPick = previousPicks.find(p => p.week === week);
 
-  // ── Lock checks ─────────────────────────────────────────────────────────────
+  // ── Lock checks ─────────────────────────────────────────────────────────
   if (pool.sport === "mlb") {
-    // MLB: entire week locks on Monday 10 PM ET
+    // MLB weekly: entire week locks on Monday 10 PM ET
     if (isMlbPickDeadlinePassed(pool.createdAt, pool.currentWeek)) {
       res.status(400).json({
         error: "MLB pick deadline has passed (Monday 10 PM ET). Picks are locked for this week.",
@@ -95,15 +194,14 @@ router.post("/", requireAuth, async (req, res) => {
     }
     const newTeamLocked = await isPickLocked(pool.sport, teamId, week);
     if (newTeamLocked) {
-      res.status(400).json({ error: "That team's game has already started — choose a team that hasn't played yet" });
+      res.status(400).json({
+        error: "That team's game has already started — choose a team that hasn't played yet",
+      });
       return;
     }
   }
 
-  // Team re-use rules depend on pool type:
-  // - season:     can never reuse a team across any week
-  // - weekly:     no restriction — each week is independent
-  // - mid_season: same as season but only from startWeek onwards
+  // Team re-use rules depend on pool type
   if (pool.poolType !== "weekly") {
     const relevantPicks = pool.poolType === "mid_season" && pool.startWeek
       ? previousPicks.filter(p => p.week >= pool.startWeek!)
@@ -115,17 +213,6 @@ router.post("/", requireAuth, async (req, res) => {
       return;
     }
   }
-
-  // Prefer the client-supplied name/logo (sourced from the live ESPN schedule) so
-  // the stored value exactly matches what the user saw on the matchup card.
-  // Fall back to static resolveTeam only if the client didn't send them.
-  const resolved = resolveTeam(pool.sport, teamId);
-  const teamName = (typeof clientTeamName === "string" && clientTeamName.trim())
-    ? clientTeamName.trim()
-    : resolved.teamName;
-  const teamLogoUrl = (typeof clientTeamLogoUrl === "string" && clientTeamLogoUrl)
-    ? clientTeamLogoUrl
-    : resolved.teamLogoUrl;
 
   // Upsert pick for this week
   let pick: typeof picksTable.$inferSelect;

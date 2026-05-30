@@ -81,6 +81,7 @@ router.get("/", requireAuth, async (req, res) => {
     poolId,
     currentWeek: pool.currentWeek,
     doubleElimination: pool.doubleElimination,
+    pickFrequency: pool.pickFrequency,
     deadlinePassed,
     active,
     eliminated,

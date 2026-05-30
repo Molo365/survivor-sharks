@@ -16,6 +16,7 @@ export const picksTable = pgTable("picks", {
   teamName: text("team_name").notNull(),
   teamLogoUrl: text("team_logo_url"),
   week: integer("week").notNull(),
+  pickDate: text("pick_date"),
   result: pickResultEnum("result").notNull().default("pending"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 });

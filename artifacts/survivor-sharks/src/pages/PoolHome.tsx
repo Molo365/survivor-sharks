@@ -8,6 +8,7 @@ import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, Refre
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
+import { DailyPickGrid } from "@/components/DailyPickGrid";
 import { SurvivorGrid } from "@/components/SurvivorGrid";
 import { Leaderboard } from "@/components/Leaderboard";
 import { KillHistory } from "@/components/KillHistory";
@@ -134,10 +135,14 @@ export default function PoolHome() {
 
               <div className="mt-8">
                 <TabsContent value="pick" className="m-0 focus-visible:outline-none">
-                  <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} />
+                  {(pool as any).pickFrequency === "daily" ? (
+                    <DailyPickGrid poolId={pool.id} />
+                  ) : (
+                    <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} />
+                  )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                  <Leaderboard poolId={pool.id} />
+                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} />
                 </TabsContent>
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                   <SurvivorGrid poolId={pool.id} />

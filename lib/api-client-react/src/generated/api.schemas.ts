@@ -75,6 +75,17 @@ export const PoolInputPoolType = {
   mid_season: 'mid_season',
 } as const;
 
+/**
+ * MLB only: weekly = one pick per week; daily = one pick per day from that day's slate
+ */
+export type PoolInputPickFrequency = typeof PoolInputPickFrequency[keyof typeof PoolInputPickFrequency];
+
+
+export const PoolInputPickFrequency = {
+  weekly: 'weekly',
+  daily: 'daily',
+} as const;
+
 export interface PoolInput {
   name: string;
   sport: PoolInputSport;
@@ -89,6 +100,8 @@ export interface PoolInput {
   season?: number;
   /** MLB only: first loss gives a mulligan strike; second loss eliminates permanently */
   doubleElimination?: boolean;
+  /** MLB only: weekly = one pick per week; daily = one pick per day from that day's slate */
+  pickFrequency?: PoolInputPickFrequency;
 }
 
 export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];
@@ -98,6 +111,14 @@ export const PoolUpdatePoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+} as const;
+
+export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
+
+
+export const PoolUpdatePickFrequency = {
+  weekly: 'weekly',
+  daily: 'daily',
 } as const;
 
 export interface PoolUpdate {
@@ -110,6 +131,7 @@ export interface PoolUpdate {
   poolType?: PoolUpdatePoolType;
   startWeek?: number;
   doubleElimination?: boolean;
+  pickFrequency?: PoolUpdatePickFrequency;
 }
 
 export interface JoinPoolInput {
@@ -123,6 +145,17 @@ export const PoolPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+} as const;
+
+/**
+ * MLB only: pick frequency for this pool
+ */
+export type PoolPickFrequency = typeof PoolPickFrequency[keyof typeof PoolPickFrequency];
+
+
+export const PoolPickFrequency = {
+  weekly: 'weekly',
+  daily: 'daily',
 } as const;
 
 export interface Pool {
@@ -149,6 +182,8 @@ export interface Pool {
   /** @nullable */
   prizePot?: number | null;
   doubleElimination?: boolean;
+  /** MLB only: pick frequency for this pool */
+  pickFrequency?: PoolPickFrequency;
   createdAt?: string;
 }
 
@@ -159,6 +194,17 @@ export const PoolDetailPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+} as const;
+
+/**
+ * MLB only: pick frequency for this pool
+ */
+export type PoolDetailPickFrequency = typeof PoolDetailPickFrequency[keyof typeof PoolDetailPickFrequency];
+
+
+export const PoolDetailPickFrequency = {
+  weekly: 'weekly',
+  daily: 'daily',
 } as const;
 
 export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberStatus];
@@ -202,6 +248,8 @@ export interface PoolDetail {
   /** @nullable */
   prizePot?: number | null;
   doubleElimination?: boolean;
+  /** MLB only: pick frequency for this pool */
+  pickFrequency?: PoolDetailPickFrequency;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */
@@ -226,7 +274,10 @@ export interface PoolStats {
 
 export interface PickInput {
   teamId: string;
-  week: number;
+  /** Required for weekly pools. Omit for daily pools — server derives from pool day counter. */
+  week?: number;
+  /** YYYY-MM-DD in ET. Used for daily MLB pools. Omit for weekly pools. */
+  pickDate?: string;
   /** Display name of the team as returned by the schedule — sent by client so server uses the exact ESPN name */
   teamName?: string;
   /**
@@ -258,6 +309,11 @@ export interface Pick {
   /** @nullable */
   teamLogoUrl?: string | null;
   week: number;
+  /**
+     * YYYY-MM-DD in ET — only set for daily MLB pools
+     * @nullable
+     */
+  pickDate?: string | null;
   /** @nullable */
   result: PickResult;
   submittedAt?: string;
@@ -511,5 +567,27 @@ export interface PoolSchedule {
   deadlinePassed: boolean;
   currentWeek: number;
   days: DaySchedule[];
+}
+
+export interface DailySchedule {
+  /** ET date as YYYY-MM-DD */
+  date: string;
+  /** Day label e.g. 'Saturday, May 31' */
+  label: string;
+  /**
+     * ISO timestamp — 5 minutes before first game of the day. Null if no games today.
+     * @nullable
+     */
+  deadline?: string | null;
+  /** True if the pick deadline for today has already passed */
+  deadlinePassed: boolean;
+  /**
+     * ISO timestamp of the earliest game today
+     * @nullable
+     */
+  firstGameTime?: string | null;
+  /** Pool's current day counter (same as pool.currentWeek for daily pools) */
+  currentDay: number;
+  games: Game[];
 }
 

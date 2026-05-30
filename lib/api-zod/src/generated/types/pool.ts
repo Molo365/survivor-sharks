@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolPickFrequency } from './poolPickFrequency';
 import type { PoolPoolType } from './poolPoolType';
 
 export interface Pool {
@@ -31,5 +32,7 @@ export interface Pool {
   /** @nullable */
   prizePot?: number | null;
   doubleElimination?: boolean;
+  /** MLB only: pick frequency for this pool */
+  pickFrequency?: PoolPickFrequency;
   createdAt?: string;
 }

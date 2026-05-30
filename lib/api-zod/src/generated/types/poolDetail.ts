@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolDetailPickFrequency } from './poolDetailPickFrequency';
 import type { PoolDetailPoolType } from './poolDetailPoolType';
 import type { PoolMember } from './poolMember';
 
@@ -30,6 +31,8 @@ export interface PoolDetail {
   /** @nullable */
   prizePot?: number | null;
   doubleElimination?: boolean;
+  /** MLB only: pick frequency for this pool */
+  pickFrequency?: PoolDetailPickFrequency;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */

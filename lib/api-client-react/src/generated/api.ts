@@ -24,6 +24,7 @@ import type {
   AdminUserUpdate,
   AuthToken,
   AuthUser,
+  DailySchedule,
   Elimination,
   ErrorResponse,
   Game,
@@ -1079,6 +1080,83 @@ export function useGetPoolSchedule<TData = Awaited<ReturnType<typeof getPoolSche
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPoolScheduleQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetDailyScheduleUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/schedule/daily`
+}
+
+/**
+ * @summary Get today's MLB game slate for a daily pick pool
+ */
+export const getDailySchedule = async (poolId: number, options?: RequestInit): Promise<DailySchedule> => {
+
+  return customFetch<DailySchedule>(getGetDailyScheduleUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDailyScheduleQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/schedule/daily`
+    ] as const;
+    }
+
+
+export const getGetDailyScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getDailySchedule>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDailyScheduleQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailySchedule>>> = ({ signal }) => getDailySchedule(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDailyScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getDailySchedule>>>
+export type GetDailyScheduleQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get today's MLB game slate for a daily pick pool
+ */
+
+export function useGetDailySchedule<TData = Awaited<ReturnType<typeof getDailySchedule>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDailyScheduleQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

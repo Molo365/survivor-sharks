@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { PoolUpdatePickFrequency } from './poolUpdatePickFrequency';
 import type { PoolUpdatePoolType } from './poolUpdatePoolType';
 
 export interface PoolUpdate {
@@ -17,4 +18,5 @@ export interface PoolUpdate {
   poolType?: PoolUpdatePoolType;
   startWeek?: number;
   doubleElimination?: boolean;
+  pickFrequency?: PoolUpdatePickFrequency;
 }

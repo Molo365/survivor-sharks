@@ -4,7 +4,7 @@ import { Skull, Activity, Check, Zap, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export function Leaderboard({ poolId }: { poolId: number }) {
+export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFrequency?: string }) {
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
     query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
   });
@@ -14,6 +14,8 @@ export function Leaderboard({ poolId }: { poolId: number }) {
 
   const isDoubleElim = leaderboard.doubleElimination ?? false;
   const isDeadlinePassed = leaderboard.deadlinePassed ?? false;
+  const isDaily = pickFrequency === "daily" || (leaderboard as any).pickFrequency === "daily";
+  const unitLabel = isDaily ? "day" : "week";
 
   return (
     <div className="space-y-10">
@@ -54,7 +56,7 @@ export function Leaderboard({ poolId }: { poolId: number }) {
                     </div>
                     {streak >= 2 && (
                       <span className="text-[11px] font-semibold text-orange-400 flex items-center gap-1 mt-0.5">
-                        🔥 {streak}-week streak
+                        🔥 {streak}-{unitLabel} streak
                       </span>
                     )}
                   </div>
@@ -114,7 +116,7 @@ export function Leaderboard({ poolId }: { poolId: number }) {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-center gap-2 text-destructive font-bebas text-lg tracking-wider">
-                    ELIMINATED WK {entry.eliminatedWeek}
+                    ELIMINATED {isDaily ? "DAY" : "WK"} {entry.eliminatedWeek}
                   </div>
                   {entry.lastPickTeam && (
                     <div className="text-xs text-muted-foreground">

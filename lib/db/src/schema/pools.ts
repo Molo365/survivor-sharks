@@ -5,6 +5,7 @@ import { usersTable } from "./users";
 
 export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa"]);
 export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season"]);
+export const pickFrequencyEnum = pgEnum("pick_frequency", ["weekly", "daily"]);
 
 export const poolsTable = pgTable("pools", {
   id: serial("id").primaryKey(),
@@ -22,6 +23,7 @@ export const poolsTable = pgTable("pools", {
   entryFee: real("entry_fee"),
   prizePot: real("prize_pot"),
   doubleElimination: boolean("double_elimination").notNull().default(false),
+  pickFrequency: pickFrequencyEnum("pick_frequency").notNull().default("weekly"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
