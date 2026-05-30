@@ -312,113 +312,242 @@ function MatchupCard({
     "bg-background/50"
   );
 
+  const awayLogoUrl = game.awayTeam.logoUrl
+    ?? (game.awayTeam.sport === "fifa"
+      ? `https://flagcdn.com/w80/${game.awayTeam.id.toLowerCase()}.png`
+      : `https://a.espncdn.com/i/teamlogos/${game.awayTeam.sport}/500/${game.awayTeam.abbreviation.toLowerCase()}.png`);
+  const homeLogoUrl = game.homeTeam.logoUrl
+    ?? (game.homeTeam.sport === "fifa"
+      ? `https://flagcdn.com/w80/${game.homeTeam.id.toLowerCase()}.png`
+      : `https://a.espncdn.com/i/teamlogos/${game.homeTeam.sport}/500/${game.homeTeam.abbreviation.toLowerCase()}.png`);
+
+  const mobileBorderClass = cn(
+    "sm:hidden rounded-xl overflow-hidden border-l-4 transition-all",
+    variant === "live"
+      ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/20 shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]"
+      : variant === "final"
+        ? "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8 opacity-80"
+        : selectedInGame
+          ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
+          : "border-l-primary/60 border-t border-r border-b border-border/50"
+  );
+
   return (
-    <div className={cardClass}>
-      <div className="flex items-stretch divide-x divide-border/20">
-        {/* Away Team */}
-        <TeamSide
-          team={game.awayTeam}
-          record={game.awayRecord ?? null}
-          score={game.awayScore ?? null}
-          moneyline={game.awayMoneyline ?? null}
-          form={game.awayForm}
-          pitcher={game.awayPitcher}
-          primaryColor={game.awayPrimaryColor}
-          isSelected={selectedId === game.awayTeam.id}
-          isUsed={isAwayUsed}
-          isLocked={isGameLocked && !isAwayUsed}
-          isCurrentPick={currentPickTeamId === game.awayTeam.id}
-          onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
-          side="away"
-          variant={variant}
-        />
-
-        {/* Centre divider */}
-        <div className={dividerClass}>
-          {variant === "live" ? (
-            <>
-              <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
-                ● LIVE
-              </span>
-              <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
-            </>
-          ) : variant === "final" ? (
-            <>
-              <span className="font-bebas text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
-                Final
-              </span>
-              <span className="font-bebas text-xl text-foreground/25 mt-1">–</span>
-            </>
-          ) : (
-            <>
-              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
-              <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
-              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
-
-              <div className="mt-0.5 flex flex-col items-center gap-0.5">
-                <Clock className="w-2.5 h-2.5 text-primary/40 sm:w-3 sm:h-3 sm:text-primary/50" />
-                <span className="text-[8px] sm:text-[9px] text-muted-foreground/45 sm:text-muted-foreground/60 leading-tight font-medium">
-                  {formatGameTime(game.startTime)}
-                </span>
-              </div>
-
-              {overUnder != null && (
-                <div className="mt-1 flex flex-col items-center gap-0.5">
-                  <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
-                  <span className="text-[11px] font-mono font-bold text-foreground/60">{overUnder}</span>
+    <>
+      {/* ── Mobile compact card (hidden on sm+) ─────────────────────────── */}
+      <div className={mobileBorderClass}>
+        <div className="flex items-center">
+          {/* Away */}
+          <button
+            type="button"
+            onClick={(isAwayUsed || (isGameLocked && !isAwayUsed)) ? undefined : () => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
+            className={cn(
+              "flex-1 flex flex-col items-center py-2.5 px-2 gap-0.5 transition-all",
+              isAwayUsed ? "opacity-35 cursor-not-allowed" :
+              (isGameLocked && !isAwayUsed) ? "cursor-not-allowed" :
+              "cursor-pointer active:scale-95",
+              selectedId === game.awayTeam.id && variant === "upcoming" ? "ring-2 ring-inset ring-primary/70 rounded-lg" : ""
+            )}
+          >
+            <div className="relative">
+              <img
+                src={awayLogoUrl}
+                alt={game.awayTeam.abbreviation}
+                className={cn("w-[50px] h-[50px] object-contain drop-shadow-md", isAwayUsed && "grayscale", variant === "final" && !isAwayUsed && "opacity-60")}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+              {currentPickTeamId === game.awayTeam.id && (
+                <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5 shadow-md">
+                  <Check className="w-3 h-3 text-white" />
                 </div>
               )}
+            </div>
+            <span className={cn(
+              "font-bebas text-sm tracking-wide leading-none mt-0.5",
+              variant === "final" ? "text-foreground/55" : selectedId === game.awayTeam.id ? "text-primary" : "text-foreground/85"
+            )}>{game.awayTeam.abbreviation}</span>
+            {variant === "upcoming" && game.awayMoneyline != null && (
+              <span className={cn("font-mono text-[9px] font-bold leading-none", game.awayMoneyline < 0 ? "text-green-400" : "text-muted-foreground/55")}>
+                {formatMoneyline(game.awayMoneyline)}
+              </span>
+            )}
+          </button>
 
-              {game.odds?.details && (
-                <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
-                  {game.odds.details}
-                </span>
-              )}
+          {/* Center */}
+          <div className="flex flex-col items-center gap-0.5 min-w-[44px]">
+            {variant === "live" ? (
+              <>
+                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none">LIVE</span>
+                {game.awayScore != null && game.homeScore != null && (
+                  <span className="font-bebas text-base text-white leading-none">{game.awayScore}–{game.homeScore}</span>
+                )}
+              </>
+            ) : variant === "final" ? (
+              <>
+                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">Final</span>
+                {game.awayScore != null && game.homeScore != null && (
+                  <span className="font-bebas text-sm text-foreground/55 leading-none">{game.awayScore}–{game.homeScore}</span>
+                )}
+              </>
+            ) : (
+              <span className="font-bebas text-sm text-muted-foreground/30 leading-none">vs</span>
+            )}
+          </div>
 
-              {hasWeather && (
-                <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
-                  {game.weather!.temperature != null && (
-                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
-                      <Thermometer className="w-2.5 h-2.5 shrink-0" />
-                      <span>{game.weather!.temperature}°F</span>
-                    </div>
-                  )}
-                  {game.weather!.conditionDescription && (
-                    <span className="text-[8px] text-muted-foreground/40 leading-tight text-center">
-                      {game.weather!.conditionDescription}
-                    </span>
-                  )}
-                  {game.weather!.windSpeed != null && game.weather!.windSpeed > 0 && (
-                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
-                      <Wind className="w-2.5 h-2.5 shrink-0" />
-                      <span>{game.weather!.windSpeed}mph {game.weather!.windDirection ?? ""}</span>
-                    </div>
-                  )}
+          {/* Home */}
+          <button
+            type="button"
+            onClick={(isHomeUsed || (isGameLocked && !isHomeUsed)) ? undefined : () => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
+            className={cn(
+              "flex-1 flex flex-col items-center py-2.5 px-2 gap-0.5 transition-all",
+              isHomeUsed ? "opacity-35 cursor-not-allowed" :
+              (isGameLocked && !isHomeUsed) ? "cursor-not-allowed" :
+              "cursor-pointer active:scale-95",
+              selectedId === game.homeTeam.id && variant === "upcoming" ? "ring-2 ring-inset ring-primary/70 rounded-lg" : ""
+            )}
+          >
+            <div className="relative">
+              <img
+                src={homeLogoUrl}
+                alt={game.homeTeam.abbreviation}
+                className={cn("w-[50px] h-[50px] object-contain drop-shadow-md", isHomeUsed && "grayscale", variant === "final" && !isHomeUsed && "opacity-60")}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+              {currentPickTeamId === game.homeTeam.id && (
+                <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5 shadow-md">
+                  <Check className="w-3 h-3 text-white" />
                 </div>
               )}
-            </>
-          )}
+            </div>
+            <span className={cn(
+              "font-bebas text-sm tracking-wide leading-none mt-0.5",
+              variant === "final" ? "text-foreground/55" : selectedId === game.homeTeam.id ? "text-primary" : "text-foreground/85"
+            )}>{game.homeTeam.abbreviation}</span>
+            {variant === "upcoming" && game.homeMoneyline != null && (
+              <span className={cn("font-mono text-[9px] font-bold leading-none", game.homeMoneyline < 0 ? "text-green-400" : "text-muted-foreground/55")}>
+                {formatMoneyline(game.homeMoneyline)}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Home Team */}
-        <TeamSide
-          team={game.homeTeam}
-          record={game.homeRecord ?? null}
-          score={game.homeScore ?? null}
-          moneyline={game.homeMoneyline ?? null}
-          form={game.homeForm}
-          pitcher={game.homePitcher}
-          primaryColor={game.homePrimaryColor}
-          isSelected={selectedId === game.homeTeam.id}
-          isUsed={isHomeUsed}
-          isLocked={isGameLocked && !isHomeUsed}
-          isCurrentPick={currentPickTeamId === game.homeTeam.id}
-          onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
-          side="home"
-          variant={variant}
-        />
+        {/* Game time line */}
+        {variant === "upcoming" && (
+          <p className="text-center pb-1.5 text-[9px] text-muted-foreground/40 leading-none">
+            {formatGameTime(game.startTime)}
+            {game.odds?.overUnder != null && ` · O/U ${game.odds.overUnder}`}
+          </p>
+        )}
       </div>
-    </div>
+
+      {/* ── Desktop full card (hidden on mobile) ──────────────────────────── */}
+      <div className={cn("hidden sm:block", cardClass)}>
+        <div className="flex items-stretch divide-x divide-border/20">
+          {/* Away Team */}
+          <TeamSide
+            team={game.awayTeam}
+            record={game.awayRecord ?? null}
+            score={game.awayScore ?? null}
+            moneyline={game.awayMoneyline ?? null}
+            form={game.awayForm}
+            pitcher={game.awayPitcher}
+            primaryColor={game.awayPrimaryColor}
+            isSelected={selectedId === game.awayTeam.id}
+            isUsed={isAwayUsed}
+            isLocked={isGameLocked && !isAwayUsed}
+            isCurrentPick={currentPickTeamId === game.awayTeam.id}
+            onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
+            side="away"
+            variant={variant}
+          />
+
+          {/* Centre divider */}
+          <div className={dividerClass}>
+            {variant === "live" ? (
+              <>
+                <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
+                  ● LIVE
+                </span>
+                <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
+              </>
+            ) : variant === "final" ? (
+              <>
+                <span className="font-bebas text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
+                  Final
+                </span>
+                <span className="font-bebas text-xl text-foreground/25 mt-1">–</span>
+              </>
+            ) : (
+              <>
+                <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
+                <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
+                <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
+
+                <div className="mt-0.5 flex flex-col items-center gap-0.5">
+                  <Clock className="w-3 h-3 text-primary/50" />
+                  <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium">
+                    {formatGameTime(game.startTime)}
+                  </span>
+                </div>
+
+                {overUnder != null && (
+                  <div className="mt-1 flex flex-col items-center gap-0.5">
+                    <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
+                    <span className="text-[11px] font-mono font-bold text-foreground/60">{overUnder}</span>
+                  </div>
+                )}
+
+                {game.odds?.details && (
+                  <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
+                    {game.odds.details}
+                  </span>
+                )}
+
+                {hasWeather && (
+                  <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
+                    {game.weather!.temperature != null && (
+                      <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
+                        <Thermometer className="w-2.5 h-2.5 shrink-0" />
+                        <span>{game.weather!.temperature}°F</span>
+                      </div>
+                    )}
+                    {game.weather!.conditionDescription && (
+                      <span className="text-[8px] text-muted-foreground/40 leading-tight text-center">
+                        {game.weather!.conditionDescription}
+                      </span>
+                    )}
+                    {game.weather!.windSpeed != null && game.weather!.windSpeed > 0 && (
+                      <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
+                        <Wind className="w-2.5 h-2.5 shrink-0" />
+                        <span>{game.weather!.windSpeed}mph {game.weather!.windDirection ?? ""}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Home Team */}
+          <TeamSide
+            team={game.homeTeam}
+            record={game.homeRecord ?? null}
+            score={game.homeScore ?? null}
+            moneyline={game.homeMoneyline ?? null}
+            form={game.homeForm}
+            pitcher={game.homePitcher}
+            primaryColor={game.homePrimaryColor}
+            isSelected={selectedId === game.homeTeam.id}
+            isUsed={isHomeUsed}
+            isLocked={isGameLocked && !isHomeUsed}
+            isCurrentPick={currentPickTeamId === game.homeTeam.id}
+            onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
+            side="home"
+            variant={variant}
+          />
+        </div>
+      </div>
+    </>
   );
 }
 
