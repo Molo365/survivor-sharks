@@ -28,13 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       onSuccess: () => {
         localStorage.removeItem("auth_token");
         queryClient.clear();
-        setLocation("/login");
+        setLocation("/");
       },
       onSettled: () => {
-        // Always clear token even if API call fails
         localStorage.removeItem("auth_token");
         queryClient.clear();
-        setLocation("/login");
+        setLocation("/");
       },
     });
   };
