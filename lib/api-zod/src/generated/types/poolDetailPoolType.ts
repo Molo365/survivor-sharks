@@ -13,4 +13,5 @@ export const PoolDetailPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+  pickem: 'pickem',
 } as const;

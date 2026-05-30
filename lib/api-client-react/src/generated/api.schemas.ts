@@ -73,6 +73,7 @@ export const PoolInputPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+  pickem: 'pickem',
 } as const;
 
 /**
@@ -111,6 +112,7 @@ export const PoolUpdatePoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+  pickem: 'pickem',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -145,6 +147,7 @@ export const PoolPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+  pickem: 'pickem',
 } as const;
 
 /**
@@ -194,6 +197,7 @@ export const PoolDetailPoolType = {
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
+  pickem: 'pickem',
 } as const;
 
 /**
@@ -605,5 +609,97 @@ export interface DailySchedule {
   /** Pool's current day counter (same as pool.currentWeek for daily pools) */
   currentDay: number;
   games: Game[];
+}
+
+export interface PickEmTeam {
+  id: string;
+  name: string;
+  abbreviation: string;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export type PickEmGameStatus = typeof PickEmGameStatus[keyof typeof PickEmGameStatus];
+
+
+export const PickEmGameStatus = {
+  scheduled: 'scheduled',
+  in_progress: 'in_progress',
+  final: 'final',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PickEmGameUserPickResult = typeof PickEmGameUserPickResult[keyof typeof PickEmGameUserPickResult] | null;
+
+
+export const PickEmGameUserPickResult = {
+  pending: 'pending',
+  correct: 'correct',
+  incorrect: 'incorrect',
+} as const;
+
+export interface PickEmGame {
+  id: string;
+  startTime: string;
+  status: PickEmGameStatus;
+  deadlinePassed: boolean;
+  awayTeam: PickEmTeam;
+  homeTeam: PickEmTeam;
+  /** @nullable */
+  awayScore?: number | null;
+  /** @nullable */
+  homeScore?: number | null;
+  /**
+     * Team ID the current user picked, null if no pick yet
+     * @nullable
+     */
+  userPickTeamId?: string | null;
+  /** @nullable */
+  userPickResult?: PickEmGameUserPickResult;
+}
+
+export interface PickEmSlate {
+  date: string;
+  label: string;
+  deadlinePassed: boolean;
+  games: PickEmGame[];
+}
+
+export interface PickEmPickItem {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+}
+
+export interface PickEmPickInput {
+  picks: PickEmPickItem[];
+}
+
+export interface PickEmPicksResult {
+  saved: number;
+  skipped: number;
+}
+
+export interface PickEmLeaderboardEntry {
+  rank: number;
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  correct: number;
+  total: number;
+}
+
+export interface PickEmLeaderboard {
+  poolId: number;
+  week: number;
+  entries: PickEmLeaderboardEntry[];
+}
+
+export interface PickEmProcessResult {
+  processed: number;
+  date: string;
 }
 

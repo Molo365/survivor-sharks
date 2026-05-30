@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Zap, ShieldCheck, Calendar, Clock } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Zap, ShieldCheck, Calendar, Clock, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const POOL_TYPES = [
@@ -57,12 +57,23 @@ const POOL_TYPES = [
     badgeClass: "bg-destructive/20 text-destructive border-destructive/30",
     cardClass: "border-destructive/20",
   },
+  {
+    id: "pickem" as const,
+    label: "Pick-Ems",
+    icon: Target,
+    tagline: "Pick Every Game, Every Day",
+    description:
+      "MLB Pick-Ems. Pick the winner of every game each day. Whoever has the most correct picks at the end of the week wins.",
+    badge: "New",
+    badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
+    cardClass: "border-green-500/30 bg-[linear-gradient(145deg,rgba(34,197,94,0.05)_0%,transparent_100%)]",
+  },
 ] as const;
 
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "mid_season"]).default("season"),
+  poolType: z.enum(["season", "weekly", "mid_season", "pickem"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   startWeek: z.coerce.number().min(1).max(30).optional().or(z.literal("").transform(() => undefined)),
@@ -222,8 +233,8 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* Pick Format — MLB only */}
-              {selectedSport === PoolInputSport.mlb && (
+              {/* Pick Format — MLB only, not for pick-ems */}
+              {selectedSport === PoolInputSport.mlb && selectedType !== "pickem" && (
                 <FormField
                   control={form.control}
                   name="pickFrequency"
@@ -291,8 +302,8 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* Double Elimination toggle — MLB only, not for weekly */}
-              {selectedSport === PoolInputSport.mlb && selectedType !== "weekly" && (
+              {/* Double Elimination toggle — MLB only, not for weekly/pickem */}
+              {selectedSport === PoolInputSport.mlb && selectedType !== "weekly" && selectedType !== "pickem" && (
                 <FormField
                   control={form.control}
                   name="doubleElimination"

@@ -33,6 +33,11 @@ import type {
   Leaderboard,
   LoginInput,
   Pick,
+  PickEmLeaderboard,
+  PickEmPickInput,
+  PickEmPicksResult,
+  PickEmProcessResult,
+  PickEmSlate,
   PickInput,
   Pool,
   PoolDetail,
@@ -1861,6 +1866,302 @@ export function useListSportGames<TData = Awaited<ReturnType<typeof listSportGam
 
 
 
+
+export const getGetPickEmGamesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/games`
+}
+
+/**
+ * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ */
+export const getPickEmGames = async (poolId: number, options?: RequestInit): Promise<PickEmSlate> => {
+
+  return customFetch<PickEmSlate>(getGetPickEmGamesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmGamesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem/games`
+    ] as const;
+    }
+
+
+export const getGetPickEmGamesQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmGames>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmGamesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmGames>>> = ({ signal }) => getPickEmGames(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmGamesQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmGames>>>
+export type GetPickEmGamesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ */
+
+export function useGetPickEmGames<TData = Awaited<ReturnType<typeof getPickEmGames>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmGamesQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitPickEmPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/picks`
+}
+
+/**
+ * @summary Submit pick-em picks for today's slate
+ */
+export const submitPickEmPicks = async (poolId: number,
+    pickEmPickInput: PickEmPickInput, options?: RequestInit): Promise<PickEmPicksResult> => {
+
+  return customFetch<PickEmPicksResult>(getSubmitPickEmPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pickEmPickInput,)
+  }
+);}
+
+
+
+
+export const getSubmitPickEmPicksMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPickEmPicks>>, TError,{poolId: number;data: BodyType<PickEmPickInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitPickEmPicks>>, TError,{poolId: number;data: BodyType<PickEmPickInput>}, TContext> => {
+
+const mutationKey = ['submitPickEmPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitPickEmPicks>>, {poolId: number;data: BodyType<PickEmPickInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitPickEmPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitPickEmPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitPickEmPicks>>>
+    export type SubmitPickEmPicksMutationBody = BodyType<PickEmPickInput>
+    export type SubmitPickEmPicksMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit pick-em picks for today's slate
+ */
+export const useSubmitPickEmPicks = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPickEmPicks>>, TError,{poolId: number;data: BodyType<PickEmPickInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitPickEmPicks>>,
+        TError,
+        {poolId: number;data: BodyType<PickEmPickInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitPickEmPicksMutationOptions(options));
+    }
+
+export const getGetPickEmLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/leaderboard`
+}
+
+/**
+ * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ */
+export const getPickEmLeaderboard = async (poolId: number, options?: RequestInit): Promise<PickEmLeaderboard> => {
+
+  return customFetch<PickEmLeaderboard>(getGetPickEmLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetPickEmLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmLeaderboard>>> = ({ signal }) => getPickEmLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmLeaderboard>>>
+export type GetPickEmLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ */
+
+export function useGetPickEmLeaderboard<TData = Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getProcessPickEmResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/process-results`
+}
+
+/**
+ * @summary Grade completed games for today (commissioner only)
+ */
+export const processPickEmResults = async (poolId: number, options?: RequestInit): Promise<PickEmProcessResult> => {
+
+  return customFetch<PickEmProcessResult>(getProcessPickEmResultsUrl(poolId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getProcessPickEmResultsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processPickEmResults>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof processPickEmResults>>, TError,{poolId: number}, TContext> => {
+
+const mutationKey = ['processPickEmResults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof processPickEmResults>>, {poolId: number}> = (props) => {
+          const {poolId} = props ?? {};
+
+          return  processPickEmResults(poolId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProcessPickEmResultsMutationResult = NonNullable<Awaited<ReturnType<typeof processPickEmResults>>>
+
+    export type ProcessPickEmResultsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Grade completed games for today (commissioner only)
+ */
+export const useProcessPickEmResults = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processPickEmResults>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof processPickEmResults>>,
+        TError,
+        {poolId: number},
+        TContext
+      > => {
+      return useMutation(getProcessPickEmResultsMutationOptions(options));
+    }
 
 export const getAdminListPoolsUrl = () => {
 

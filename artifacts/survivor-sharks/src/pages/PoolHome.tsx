@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -15,6 +15,7 @@ import { KillHistory } from "@/components/KillHistory";
 import { PoolStats } from "@/components/PoolStats";
 import { CommissionerPanel } from "@/components/CommissionerPanel";
 import { InjuriesTab } from "@/components/InjuriesTab";
+import { PickEmView } from "@/components/PickEmView";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -88,6 +89,11 @@ export default function PoolHome() {
                       <Zap className="w-3 h-3" /> Mid Season {pool.startWeek ? `(Wk ${pool.startWeek}+)` : ""}
                     </span>
                   )}
+                  {(pool.poolType as string) === "pickem" && (
+                    <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
+                      <Crosshair className="w-3 h-3" /> Pick-Ems
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
                 </div>
@@ -106,6 +112,9 @@ export default function PoolHome() {
               </div>
             </div>
 
+            {(pool.poolType as string) === "pickem" ? (
+              <PickEmView poolId={pool.id} commissionerId={pool.commissionerId} />
+            ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
                 <TabsTrigger value="pick" className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
@@ -163,6 +172,7 @@ export default function PoolHome() {
                 )}
               </div>
             </Tabs>
+            )}
           </div>
         )}
 

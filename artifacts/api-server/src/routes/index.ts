@@ -12,6 +12,7 @@ import teamsRouter from "./teams";
 import adminRouter from "./admin";
 import adminAuthRouter from "./adminAuth";
 import adminPanelRouter from "./adminPanel";
+import pickemRouter from "./pickem";
 
 const router: IRouter = Router();
 
@@ -24,6 +25,7 @@ router.use("/pools/:poolId/grid", gridRouter);
 router.use("/pools/:poolId/results", resultsRouter);
 router.use("/pools/:poolId/eliminations", eliminationsRouter);
 router.use("/pools/:poolId/leaderboard", leaderboardRouter);
+router.use("/pools/:poolId/pickem", pickemRouter);
 router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);
 router.use("/admin-auth", adminAuthRouter);

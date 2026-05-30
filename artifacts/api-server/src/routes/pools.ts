@@ -74,7 +74,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season") ?? "season";
+  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season" | "pickem") ?? "season";
   if (resolvedPoolType === "mid_season" && !startWeek) {
     res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;

@@ -16,6 +16,8 @@ tags:
     description: Survivor pools
   - name: picks
     description: Weekly picks
+  - name: pickem
+    description: Pick-em pools
   - name: teams
     description: Sports teams and schedules
   - name: leaderboard
@@ -563,6 +565,107 @@ paths:
                 items:
                   $ref: "#/components/schemas/Game"
 
+  # ── Pick-Ems ───────────────────────────────────────────────────────────────
+  /pools/{poolId}/pickem/games:
+    get:
+      operationId: getPickEmGames
+      tags: [pickem]
+      summary: Get today's MLB games for a pick-em pool with user picks overlaid
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Today's pick-em game slate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmSlate"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/pickem/picks:
+    post:
+      operationId: submitPickEmPicks
+      tags: [pickem]
+      summary: Submit pick-em picks for today's slate
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickEmPickInput"
+      responses:
+        "201":
+          description: Picks saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmPicksResult"
+        "400":
+          description: Invalid picks (game already started)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/pickem/leaderboard:
+    get:
+      operationId: getPickEmLeaderboard
+      tags: [pickem]
+      summary: Get pick-em weekly leaderboard (correct pick totals ranked)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pick-em leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmLeaderboard"
+
+  /pools/{poolId}/pickem/process-results:
+    post:
+      operationId: processPickEmResults
+      tags: [pickem]
+      summary: Grade completed games for today (commissioner only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Results processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmProcessResult"
+        "403":
+          description: Commissioner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -728,7 +831,7 @@ components:
           enum: [nfl, mlb, nba, nhl, fifa]
         poolType:
           type: string
-          enum: [season, weekly, mid_season]
+          enum: [season, weekly, mid_season, pickem]
           default: season
         startWeek:
           type: integer
@@ -772,7 +875,7 @@ components:
           type: boolean
         poolType:
           type: string
-          enum: [season, weekly, mid_season]
+          enum: [season, weekly, mid_season, pickem]
         startWeek:
           type: integer
         doubleElimination:
@@ -800,7 +903,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season]
+          enum: [season, weekly, mid_season, pickem]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -848,7 +951,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season]
+          enum: [season, weekly, mid_season, pickem]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -1417,3 +1520,128 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Game"
+
+    # ── Pick-Em Schemas ───────────────────────────────────────────────────────
+    PickEmTeam:
+      type: object
+      required: [id, name, abbreviation]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        abbreviation:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+
+    PickEmGame:
+      type: object
+      required: [id, startTime, status, deadlinePassed, awayTeam, homeTeam]
+      properties:
+        id:
+          type: string
+        startTime:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, in_progress, final]
+        deadlinePassed:
+          type: boolean
+        awayTeam:
+          $ref: "#/components/schemas/PickEmTeam"
+        homeTeam:
+          $ref: "#/components/schemas/PickEmTeam"
+        awayScore:
+          type: ["integer", "null"]
+        homeScore:
+          type: ["integer", "null"]
+        userPickTeamId:
+          type: ["string", "null"]
+          description: Team ID the current user picked, null if no pick yet
+        userPickResult:
+          type: ["string", "null"]
+          enum: [pending, correct, incorrect, null]
+
+    PickEmSlate:
+      type: object
+      required: [date, label, deadlinePassed, games]
+      properties:
+        date:
+          type: string
+        label:
+          type: string
+        deadlinePassed:
+          type: boolean
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmGame"
+
+    PickEmPickItem:
+      type: object
+      required: [gameId, pickedTeamId, pickedTeamName]
+      properties:
+        gameId:
+          type: string
+        pickedTeamId:
+          type: string
+        pickedTeamName:
+          type: string
+
+    PickEmPickInput:
+      type: object
+      required: [picks]
+      properties:
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmPickItem"
+
+    PickEmPicksResult:
+      type: object
+      required: [saved, skipped]
+      properties:
+        saved:
+          type: integer
+        skipped:
+          type: integer
+
+    PickEmLeaderboardEntry:
+      type: object
+      required: [rank, userId, username, correct, total]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        correct:
+          type: integer
+        total:
+          type: integer
+
+    PickEmLeaderboard:
+      type: object
+      required: [poolId, week, entries]
+      properties:
+        poolId:
+          type: integer
+        week:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmLeaderboardEntry"
+
+    PickEmProcessResult:
+      type: object
+      required: [processed, date]
+      properties:
+        processed:
+          type: integer
+        date:
+          type: string

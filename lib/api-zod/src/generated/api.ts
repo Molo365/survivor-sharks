@@ -83,7 +83,7 @@ export const ListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -114,7 +114,7 @@ export const createPoolBodyPickFrequencyDefault = `weekly`;
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
   "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa']),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']).default(createPoolBodyPoolTypeDefault),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
@@ -138,7 +138,7 @@ export const JoinPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -169,7 +169,7 @@ export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -211,7 +211,7 @@ export const UpdatePoolBody = zod.object({
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "isActive": zod.boolean().optional(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']).optional(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']).optional(),
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional()
@@ -221,7 +221,7 @@ export const UpdatePoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -815,13 +815,99 @@ export const ListSportGamesResponse = zod.array(ListSportGamesResponseItem)
 
 
 /**
+ * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ */
+export const GetPickEmGamesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmGamesResponse = zod.object({
+  "date": zod.string(),
+  "label": zod.string(),
+  "deadlinePassed": zod.boolean(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.enum(['scheduled', 'in_progress', 'final']),
+  "deadlinePassed": zod.boolean(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal(null)]).nullish()
+}))
+})
+
+
+/**
+ * @summary Submit pick-em picks for today's slate
+ */
+export const SubmitPickEmPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitPickEmPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string()
+}))
+})
+
+
+/**
+ * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ */
+export const GetPickEmLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmLeaderboardResponse = zod.object({
+  "poolId": zod.number(),
+  "week": zod.number(),
+  "entries": zod.array(zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Grade completed games for today (commissioner only)
+ */
+export const ProcessPickEmResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const ProcessPickEmResultsResponse = zod.object({
+  "processed": zod.number(),
+  "date": zod.string()
+})
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
