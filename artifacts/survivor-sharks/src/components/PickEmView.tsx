@@ -173,7 +173,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
-  const [initialized, setInitialized] = useState(false);
 
   const { data: slate, isLoading: gamesLoading } = useGetPickEmGames(poolId, {
     query: { queryKey: getGetPickEmGamesQueryKey(poolId), refetchInterval: 60000 },
@@ -187,17 +186,17 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
   const processResults = useProcessPickEmResults();
 
   useEffect(() => {
-    if (slate?.games && !initialized) {
-      const initial = new Map<string, string>();
+    if (!slate?.games) return;
+    setLocalPicks((prev) => {
+      const next = new Map(prev);
       for (const game of slate.games) {
-        if (game.userPickTeamId) {
-          initial.set(game.id, game.userPickTeamId);
+        if (game.userPickTeamId && !next.has(game.id)) {
+          next.set(game.id, game.userPickTeamId);
         }
       }
-      setLocalPicks(initial);
-      setInitialized(true);
-    }
-  }, [slate, initialized]);
+      return next;
+    });
+  }, [slate]);
 
   function togglePick(gameId: string, teamId: string) {
     setLocalPicks((prev) => {
@@ -239,7 +238,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
             title: "Picks saved!",
             description: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved.`,
           });
-          setInitialized(false);
           queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId) });
         },
         onError: () => {
@@ -263,7 +261,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
             title: "Results processed",
             description: `${result.processed} pick${result.processed !== 1 ? "s" : ""} graded.`,
           });
-          setInitialized(false);
           queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId) });
           queryClient.invalidateQueries({ queryKey: getGetPickEmLeaderboardQueryKey(poolId) });
         },
