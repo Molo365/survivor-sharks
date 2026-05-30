@@ -84,6 +84,7 @@ router.get("/games", requireAuth, async (req, res) => {
       homeScore: g.homeScore ?? null,
       userPickTeamId: existing?.pickedTeamId ?? null,
       userPickResult: existing?.result ?? null,
+      liveDetail: g.liveState?.shortDetail ?? null,
     };
   });
 

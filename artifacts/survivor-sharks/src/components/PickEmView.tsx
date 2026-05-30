@@ -101,22 +101,21 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           <span className="sm:hidden">{team.abbreviation}</span>
           <span className="hidden sm:inline">{team.name}</span>
         </span>
-        {isFinal && score != null && (
+        {(isFinal || isLive) && score != null && (
           <span
             className={cn(
               "font-bebas text-2xl leading-none",
-              isPicked && isCorrect
-                ? "text-green-400"
-                : isPicked && isWrong
-                  ? "text-destructive/70"
-                  : "text-foreground/60",
+              isLive
+                ? "text-white"
+                : isPicked && isCorrect
+                  ? "text-green-400"
+                  : isPicked && isWrong
+                    ? "text-destructive/70"
+                    : "text-foreground/60",
             )}
           >
             {score}
           </span>
-        )}
-        {isLive && score != null && (
-          <span className="font-bebas text-xl text-white leading-none">{score}</span>
         )}
         {isPicked && (
           <div className="flex items-center gap-1 mt-0.5">
@@ -149,6 +148,11 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
                 ● LIVE
               </span>
+              {game.liveDetail && (
+                <span className="font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
+                  {game.liveDetail}
+                </span>
+              )}
             </>
           ) : isFinal ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">

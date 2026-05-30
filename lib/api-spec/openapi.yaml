@@ -1562,6 +1562,9 @@ components:
         userPickResult:
           type: ["string", "null"]
           enum: [pending, correct, incorrect, null]
+        liveDetail:
+          type: ["string", "null"]
+          description: Live game clock/inning label from ESPN (e.g. "Top 7th", "Bot 4th", "3rd Quarter"), null when not in progress
 
     PickEmSlate:
       type: object

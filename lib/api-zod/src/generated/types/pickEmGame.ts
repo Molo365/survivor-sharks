@@ -27,4 +27,9 @@ export interface PickEmGame {
   userPickTeamId?: string | null;
   /** @nullable */
   userPickResult?: PickEmGameUserPickResult;
+  /**
+     * Live game clock/inning label from ESPN (e.g. "Top 7th", "Bot 4th", "3rd Quarter"), null when not in progress
+     * @nullable
+     */
+  liveDetail?: string | null;
 }
