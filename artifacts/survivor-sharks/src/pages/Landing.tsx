@@ -39,7 +39,7 @@ export default function Landing() {
           {/* Hero banner image with edge fades */}
           <div className="relative w-full max-w-[900px] mb-1 md:mb-2">
             <img
-              src="/hero-banner.png"
+              src="/hero-banner-clean.jpg"
               alt="Survivor Sharks"
               className="w-full object-contain block"
               style={{ maxHeight: "min(260px, 34vh)" }}
