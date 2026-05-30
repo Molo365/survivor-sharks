@@ -11,7 +11,7 @@ export function NavBar() {
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2" data-testid="nav-logo">
           <img src="/logo.png" alt="Survivor Sharks" className="h-10 w-10 object-contain drop-shadow-[0_0_6px_rgba(30,144,255,0.5)]" />
-          <span className="font-bebas text-2xl tracking-widest text-primary">SURVIVOR SHARKS</span>
+          <span className="font-bebas text-2xl tracking-widest text-primary hidden sm:inline">SURVIVOR SHARKS</span>
         </Link>
         <div className="flex items-center gap-4">
           {isLoading ? (

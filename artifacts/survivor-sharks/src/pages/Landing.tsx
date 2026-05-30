@@ -12,7 +12,7 @@ export default function Landing() {
   }
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden">
+    <div className="min-h-[100dvh] md:h-[100dvh] flex flex-col md:overflow-hidden">
       {/* Background layers — fixed behind everything */}
       <div className="fixed inset-0 bg-[#060810] -z-10" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_38%,rgba(20,80,200,0.20),transparent)] -z-10" />
@@ -51,9 +51,9 @@ export default function Landing() {
 
           {/* Title */}
           <h1
-            className="font-bebas text-foreground leading-none tracking-wide"
+            className="font-bebas text-foreground leading-none tracking-wide whitespace-nowrap"
             style={{
-              fontSize: "clamp(3.2rem, 11vw, 7.5rem)",
+              fontSize: "clamp(1.85rem, 10vw, 7.5rem)",
               textShadow: "0 0 60px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.5)",
               letterSpacing: "0.04em",
             }}
@@ -101,7 +101,7 @@ export default function Landing() {
 
         {/* ── Feature cards — compact horizontal row ─────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
-          <div className="max-w-4xl mx-auto grid grid-cols-3 gap-3">
+          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
             {[
               { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
               { icon: Trophy, color: "accent",   title: "Multi-Sport",       desc: "NFL, NBA, MLB, NHL, and soccer in one place." },
