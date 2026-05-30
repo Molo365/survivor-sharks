@@ -36,16 +36,24 @@ export default function Landing() {
             The 2026 Season is Here
           </div>
 
-          {/* Hero banner image */}
-          <img
-            src="/hero-banner.png"
-            alt="Survivor Sharks"
-            className="w-full max-w-[900px] object-contain mb-1 md:mb-2"
-            style={{
-              maxHeight: "min(260px, 34vh)",
-              filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.6))",
-            }}
-          />
+          {/* Hero banner image with edge fades */}
+          <div className="relative w-full max-w-[900px] mb-1 md:mb-2">
+            <img
+              src="/hero-banner.png"
+              alt="Survivor Sharks"
+              className="w-full object-contain block"
+              style={{ maxHeight: "min(260px, 34vh)" }}
+            />
+            {/* Left fade */}
+            <div className="absolute inset-y-0 left-0 w-[12%] pointer-events-none"
+              style={{ background: "linear-gradient(to right, hsl(222,47%,8%), transparent)" }} />
+            {/* Right fade */}
+            <div className="absolute inset-y-0 right-0 w-[12%] pointer-events-none"
+              style={{ background: "linear-gradient(to left, hsl(222,47%,8%), transparent)" }} />
+            {/* Bottom fade */}
+            <div className="absolute inset-x-0 bottom-0 h-[18%] pointer-events-none"
+              style={{ background: "linear-gradient(to top, hsl(222,47%,8%), transparent)" }} />
+          </div>
 
           {/* Tagline */}
           <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-3 md:mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
