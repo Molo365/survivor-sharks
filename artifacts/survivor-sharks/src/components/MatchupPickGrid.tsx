@@ -198,8 +198,8 @@ function TeamSide({
         </div>
       </div>
 
-      {/* Score */}
-      {score != null && (
+      {/* Score — only show for live/final games, not scheduled */}
+      {score != null && variant !== "upcoming" && (
         <p className={cn(
           "font-bebas tracking-wide mt-1",
           variant === "live"
