@@ -18,7 +18,7 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count } from "drizzle-orm";
 import {
   fetchGames,
@@ -654,6 +654,96 @@ export async function processMlbDailyResults(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// Pick-Em auto-grading (all active pickem pools, runs every poll cycle)
+// ---------------------------------------------------------------------------
+
+export async function processPickEmResults(): Promise<{
+  picksGraded: number;
+}> {
+  let picksGraded = 0;
+
+  // Find all active pick-em pools
+  const pickemPools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(eq(poolsTable.poolType, "pickem"), eq(poolsTable.isActive, true)));
+
+  if (pickemPools.length === 0) return { picksGraded };
+
+  const todayEspn = formatDateEt(new Date());
+  const todayEt = getTodayEtDate();
+
+  // Fetch today's MLB games once, shared across all pools
+  const games = await fetchGamesForDate("mlb", todayEspn);
+  const finalGames = games.filter(
+    (g) =>
+      g.isCompleted &&
+      g.homeScore != null &&
+      g.awayScore != null &&
+      g.homeScore !== g.awayScore,
+  );
+
+  if (finalGames.length === 0) return { picksGraded };
+
+  // Build gameId → winning teamId map
+  const winnerByGameId = new Map<string, string>();
+  for (const game of finalGames) {
+    const winningTeamId =
+      game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
+    winnerByGameId.set(game.id, winningTeamId);
+    logger.info(
+      {
+        gameId: game.id,
+        winner: winningTeamId,
+        score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
+      },
+      "Pick-Em: completed game found",
+    );
+  }
+
+  for (const pool of pickemPools) {
+    for (const [gameId, winningTeamId] of winnerByGameId) {
+      const gamePicks = await db
+        .select()
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, gameId),
+            eq(pickemPicksTable.gameDate, todayEt),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        );
+
+      for (const pick of gamePicks) {
+        const result: "correct" | "incorrect" =
+          pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+
+        await db
+          .update(pickemPicksTable)
+          .set({ result, updatedAt: new Date() })
+          .where(eq(pickemPicksTable.id, pick.id));
+
+        picksGraded++;
+        logger.info(
+          {
+            poolId: pool.id,
+            userId: pick.userId,
+            gameId,
+            pickedTeamId: pick.pickedTeamId,
+            winningTeamId,
+            result,
+          },
+          "Auto-graded pickem pick",
+        );
+      }
+    }
+  }
+
+  return { picksGraded };
+}
+
+// ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
 
@@ -665,10 +755,11 @@ export function startAutoEliminator(): void {
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
-    const [nonMlb, mlbWeekly, mlbDaily] = await Promise.all([
+    const [nonMlb, mlbWeekly, mlbDaily, pickEm] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
       processMlbDailyResults(),
+      processPickEmResults(),
     ]);
     return {
       ...nonMlb,
@@ -676,6 +767,7 @@ export function startAutoEliminator(): void {
       mlbPlayersEliminated: mlbWeekly.playersEliminated + mlbDaily.playersEliminated,
       mlbPlayersRevived: mlbWeekly.playersRevived + mlbDaily.playersRevived,
       mlbDaysProcessed: mlbDaily.daysProcessed,
+      pickEmPicksGraded: pickEm.picksGraded,
     };
   }
 
@@ -690,7 +782,8 @@ export function startAutoEliminator(): void {
           stats.picksGraded > 0 ||
           stats.playersEliminated > 0 ||
           stats.mlbWeeksProcessed > 0 ||
-          stats.mlbDaysProcessed > 0
+          stats.mlbDaysProcessed > 0 ||
+          stats.pickEmPicksGraded > 0
         ) {
           logger.info(stats, "Auto-eliminator poll complete");
         }
