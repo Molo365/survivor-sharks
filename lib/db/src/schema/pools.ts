@@ -21,6 +21,7 @@ export const poolsTable = pgTable("pools", {
   maxEntries: integer("max_entries"),
   entryFee: real("entry_fee"),
   prizePot: real("prize_pot"),
+  doubleElimination: boolean("double_elimination").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

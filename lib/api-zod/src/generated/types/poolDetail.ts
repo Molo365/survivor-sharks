@@ -29,6 +29,7 @@ export interface PoolDetail {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  doubleElimination?: boolean;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */

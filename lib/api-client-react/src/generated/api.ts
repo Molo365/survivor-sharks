@@ -36,6 +36,7 @@ import type {
   Pool,
   PoolDetail,
   PoolInput,
+  PoolSchedule,
   PoolStats,
   PoolUpdate,
   ProcessResultsInput,
@@ -1012,6 +1013,83 @@ export const useSubmitPick = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getSubmitPickMutationOptions(options));
     }
+
+export const getGetPoolScheduleUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/schedule`
+}
+
+/**
+ * @summary Get weekly game schedule grouped by day (MLB survivor pools)
+ */
+export const getPoolSchedule = async (poolId: number, options?: RequestInit): Promise<PoolSchedule> => {
+
+  return customFetch<PoolSchedule>(getGetPoolScheduleUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPoolScheduleQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/schedule`
+    ] as const;
+    }
+
+
+export const getGetPoolScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getPoolSchedule>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPoolScheduleQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPoolSchedule>>> = ({ signal }) => getPoolSchedule(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPoolSchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPoolScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getPoolSchedule>>>
+export type GetPoolScheduleQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get weekly game schedule grouped by day (MLB survivor pools)
+ */
+
+export function useGetPoolSchedule<TData = Awaited<ReturnType<typeof getPoolSchedule>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPoolScheduleQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetSurvivorGridUrl = (poolId: number,) => {
 

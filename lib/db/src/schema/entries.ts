@@ -12,6 +12,8 @@ export const entriesTable = pgTable("entries", {
   userId: integer("user_id").notNull().references(() => usersTable.id),
   status: entryStatusEnum("status").notNull().default("alive"),
   eliminatedWeek: integer("eliminated_week"),
+  strikeCount: integer("strike_count").notNull().default(0),
+  streak: integer("streak").notNull().default(0),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

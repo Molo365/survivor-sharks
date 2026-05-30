@@ -16,4 +16,5 @@ export interface PoolUpdate {
   isActive?: boolean;
   poolType?: PoolUpdatePoolType;
   startWeek?: number;
+  doubleElimination?: boolean;
 }

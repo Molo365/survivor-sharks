@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { entriesTable, poolsTable, picksTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { getMlbWeekBounds } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -22,10 +23,19 @@ router.get("/", requireAuth, async (req, res) => {
     displayName: usersTable.displayName,
     status: entriesTable.status,
     eliminatedWeek: entriesTable.eliminatedWeek,
+    strikeCount: entriesTable.strikeCount,
+    streak: entriesTable.streak,
     joinedAt: entriesTable.joinedAt,
   }).from(entriesTable)
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
     .where(eq(entriesTable.poolId, poolId));
+
+  // MLB: compute deadline info for this week
+  let deadlinePassed = false;
+  if (pool.sport === "mlb") {
+    const bounds = getMlbWeekBounds(pool.createdAt, pool.currentWeek);
+    deadlinePassed = bounds.deadlinePassed;
+  }
 
   const entries = await Promise.all(members.map(async (member) => {
     const userPicks = await db.select().from(picksTable)
@@ -35,17 +45,25 @@ router.get("/", requireAuth, async (req, res) => {
       ? (member.eliminatedWeek ?? 0)
       : pool.currentWeek;
 
-    const lastPick = userPicks.sort((a, b) => b.week - a.week)[0];
+    const sortedPicks = userPicks.sort((a, b) => b.week - a.week);
+    const lastPick = sortedPicks[0];
+
+    // hasWonThisWeek: current week pick result is "win"
+    const currentWeekPick = userPicks.find(p => p.week === pool.currentWeek);
+    const hasWonThisWeek = currentWeekPick?.result === "win";
 
     return {
       userId: member.userId,
       username: member.username,
       displayName: member.displayName,
-      status: member.status === "alive" ? "active" : "eliminated",  // map to API schema
+      status: member.status === "alive" ? "active" : "eliminated",
       weeksAlive,
       eliminatedWeek: member.eliminatedWeek,
       lastPickTeam: lastPick?.teamName ?? null,
       lastPickResult: lastPick?.result ?? null,
+      streak: member.streak,
+      strikeCount: member.strikeCount,
+      hasWonThisWeek,
     };
   }));
 
@@ -59,7 +77,14 @@ router.get("/", requireAuth, async (req, res) => {
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
     .map((e, i) => ({ rank: active.length + i + 1, ...e }));
 
-  res.json({ poolId, currentWeek: pool.currentWeek, active, eliminated });
+  res.json({
+    poolId,
+    currentWeek: pool.currentWeek,
+    doubleElimination: pool.doubleElimination,
+    deadlinePassed,
+    active,
+    eliminated,
+  });
 });
 
 export default router;

@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { useListSportGames, useGetMyPicks, useSubmitPick, getGetMyPicksQueryKey } from "@workspace/api-client-react";
+import {
+  useListSportGames,
+  useGetMyPicks,
+  useSubmitPick,
+  getGetMyPicksQueryKey,
+  useGetPoolSchedule,
+} from "@workspace/api-client-react";
 import type { Game, Team, GamePitcher } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer } from "lucide-react";
+import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
@@ -18,6 +24,15 @@ function formatGameTime(iso: string): string {
     return d.toLocaleString("en-US", {
       weekday: "short", month: "short", day: "numeric",
       hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
+  } catch { return iso; }
+}
+
+function formatDeadline(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("en-US", {
+      weekday: "long", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short",
     });
   } catch { return iso; }
 }
@@ -116,7 +131,6 @@ function TeamSide({
       ? `https://flagcdn.com/w80/${team.id.toLowerCase()}.png`
       : `https://a.espncdn.com/i/teamlogos/${team.sport}/500/${team.abbreviation.toLowerCase()}.png`);
 
-  // Gradient strength varies by variant — live gets the full team color pop
   const gradientAlpha = variant === "live" ? 0.18 : variant === "upcoming" && isSelected ? 0.22 : 0.08;
   const gradientStyle: React.CSSProperties = {
     background: `linear-gradient(135deg, ${hexToRgba(primaryColor, gradientAlpha)} 0%, transparent 65%)`,
@@ -131,15 +145,12 @@ function TeamSide({
       className={cn(
         "relative flex-1 flex flex-col p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        // Height: live games taller to emphasise scores
         variant === "live" ? "min-h-[150px]" : "min-h-[160px]",
-        // Interactivity
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
             ? "cursor-not-allowed"
             : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-        // Selected ring (upcoming only — live/final can't be selected)
         isSelected && variant === "upcoming"
           ? "ring-2 ring-inset ring-primary/70"
           : variant === "upcoming" && !unpickable
@@ -155,7 +166,6 @@ function TeamSide({
             alt={team.name}
             className={cn(
               "object-contain drop-shadow-md",
-              // Larger logos on live games for drama
               variant === "live" ? "w-12 h-12" : "w-10 h-10",
               isUsed && "grayscale opacity-60",
               variant === "final" && !isUsed && "opacity-75"
@@ -188,7 +198,7 @@ function TeamSide({
         </div>
       </div>
 
-      {/* Score — large + bright for live, muted for final */}
+      {/* Score */}
       {score != null && (
         <p className={cn(
           "font-bebas tracking-wide mt-1",
@@ -202,7 +212,7 @@ function TeamSide({
         </p>
       )}
 
-      {/* Moneyline — upcoming only (irrelevant after game starts) */}
+      {/* Moneyline */}
       {variant === "upcoming" && moneyline != null && (
         <div className={cn("mt-1.5 flex items-center gap-1", side === "home" && "self-end")}>
           <span className={cn(
@@ -216,10 +226,7 @@ function TeamSide({
         </div>
       )}
 
-      {/* Recent form — show for upcoming and live, hide for final (results are in) */}
       {variant !== "final" && <FormDots form={form} side={side} />}
-
-      {/* Starting pitcher — always show for MLB when available */}
       {pitcher && <PitcherLine pitcher={pitcher} side={side} />}
 
       {/* Corner badges */}
@@ -246,6 +253,7 @@ function MatchupCard({
   currentPickTeamId,
   selectedTeam,
   onSelect,
+  deadlineLock = false,
 }: {
   game: Game;
   sport: Sport;
@@ -253,12 +261,14 @@ function MatchupCard({
   currentPickTeamId?: string;
   selectedTeam: SelectedTeam | null;
   onSelect: (team: SelectedTeam) => void;
+  deadlineLock?: boolean;
 }) {
   const isFinal = !!(game.status?.includes("FINAL") || game.status?.includes("final"));
   const isLive = game.hasStarted && !isFinal;
   const variant: GameVariant = isFinal ? "final" : isLive ? "live" : "upcoming";
 
-  const isGameLocked = game.hasStarted;
+  // For MLB: lock state is deadline-based. For others: game-start-based.
+  const isGameLocked = deadlineLock ? deadlineLock : game.hasStarted;
   const isHomeUsed = pickedTeamIds.includes(game.homeTeam.id) && currentPickTeamId !== game.homeTeam.id;
   const isAwayUsed = pickedTeamIds.includes(game.awayTeam.id) && currentPickTeamId !== game.awayTeam.id;
   const selectedId = selectedTeam?.id;
@@ -268,29 +278,24 @@ function MatchupCard({
   const isOutdoor = sport === "nfl" || sport === "mlb";
   const hasWeather = isOutdoor && game.weather && game.weather.displayValue && game.weather.displayValue !== "none";
 
-  // ── Card wrapper: three distinct visual states ────────────────────────────
   const cardClass = cn(
     "rounded-xl overflow-hidden transition-all border-l-4",
     variant === "live" && [
-      // Dramatic red glow with left border
       "border-l-red-500 border-t border-r border-b border-red-900/40",
       "bg-red-950/20",
       "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
     ],
     variant === "final" && [
-      // Subdued — clearly done, darker background
       "border-l-border/40 border-t border-r border-b border-border/25",
       "bg-muted/8 opacity-80",
     ],
     variant === "upcoming" && [
-      // Prominent — this is where picks happen
       selectedInGame
         ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
         : "border-l-primary/60 border-t border-r border-b border-border/50 shadow-[0_0_12px_rgba(30,144,255,0.08)] hover:shadow-[0_0_18px_rgba(30,144,255,0.14)] hover:border-primary/40",
     ]
   );
 
-  // ── Centre divider ────────────────────────────────────────────────────────
   const dividerClass = cn(
     "flex flex-col items-center justify-start pt-3 pb-3 px-2 gap-1.5 min-w-[72px] text-center",
     variant === "live" ? "bg-red-950/30" :
@@ -319,11 +324,10 @@ function MatchupCard({
           variant={variant}
         />
 
-        {/* Centre divider — content varies by variant */}
+        {/* Centre divider */}
         <div className={dividerClass}>
           {variant === "live" ? (
             <>
-              {/* LIVE: prominent badge + elapsed time hint */}
               <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
                 ● LIVE
               </span>
@@ -331,7 +335,6 @@ function MatchupCard({
             </>
           ) : variant === "final" ? (
             <>
-              {/* FINAL: grey subdued badge */}
               <span className="font-bebas text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
                 Final
               </span>
@@ -339,12 +342,10 @@ function MatchupCard({
             </>
           ) : (
             <>
-              {/* UPCOMING: orientation labels + full info */}
               <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
               <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
               <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
 
-              {/* Start time — prominent for upcoming */}
               <div className="mt-0.5 flex flex-col items-center gap-0.5">
                 <Clock className="w-3 h-3 text-primary/50" />
                 <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium">
@@ -352,7 +353,6 @@ function MatchupCard({
                 </span>
               </div>
 
-              {/* O/U */}
               {overUnder != null && (
                 <div className="mt-1 flex flex-col items-center gap-0.5">
                   <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
@@ -360,14 +360,12 @@ function MatchupCard({
                 </div>
               )}
 
-              {/* Spread */}
               {game.odds?.details && (
                 <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
                   {game.odds.details}
                 </span>
               )}
 
-              {/* Weather */}
               {hasWeather && (
                 <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
                   {game.weather!.temperature != null && (
@@ -426,9 +424,16 @@ export function MatchupPickGrid({
   sport: Sport;
   currentWeek: number;
 }) {
-  const { data: games, isLoading: loadingGames } = useListSportGames(sport, currentWeek, {
-    query: { enabled: !!sport && !!currentWeek, queryKey: ["schedule", sport, currentWeek] },
+  // MLB: weekly schedule from pool-scoped endpoint
+  const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
+    query: { enabled: sport === "mlb", queryKey: ["pool-schedule", poolId] },
   });
+
+  // Non-MLB: flat game list from ESPN schedule
+  const { data: games, isLoading: loadingGames } = useListSportGames(sport, currentWeek, {
+    query: { enabled: !!sport && !!currentWeek && sport !== "mlb", queryKey: ["schedule", sport, currentWeek] },
+  });
+
   const { data: picks, isLoading: loadingPicks } = useGetMyPicks(poolId, {
     query: { enabled: !!poolId, queryKey: getGetMyPicksQueryKey(poolId) },
   });
@@ -436,7 +441,7 @@ export function MatchupPickGrid({
   const submitPick = useSubmitPick();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedTeam, setSelectedTeam] = useState<{ id: string; name: string; logoUrl: string | null } | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<SelectedTeam | null>(null);
 
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
@@ -463,7 +468,9 @@ export function MatchupPickGrid({
     );
   };
 
-  if (loadingGames || loadingPicks) {
+  // ── Loading states ─────────────────────────────────────────────────────────
+
+  if ((sport === "mlb" ? loadingSchedule : loadingGames) || loadingPicks) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
@@ -472,6 +479,171 @@ export function MatchupPickGrid({
       </div>
     );
   }
+
+  // ── MLB: weekly grouped view ───────────────────────────────────────────────
+
+  if (sport === "mlb") {
+    const deadlinePassed = schedule?.deadlinePassed ?? false;
+    const mlbPickIsLocked = deadlinePassed;
+    const weekLabel = schedule?.weekLabel ?? `Week ${currentWeek}`;
+
+    const allMlbGames = schedule?.days.flatMap(d => d.games) ?? [];
+    const totalGames = allMlbGames.length;
+
+    return (
+      <div className="space-y-6">
+        {/* MLB pick / deadline banner */}
+        {currentPick ? (
+          mlbPickIsLocked ? (
+            <div className="bg-destructive/5 border border-destructive/30 p-4 rounded-xl shadow-[0_0_12px_rgba(220,38,38,0.08)]">
+              <div className="flex items-start gap-3">
+                <div className="bg-destructive/10 p-2 rounded-full shrink-0 mt-0.5">
+                  <ShieldAlert className="w-5 h-5 text-destructive" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bebas text-2xl text-destructive tracking-wide leading-none mb-1">
+                    Pick Locked — Deadline Passed
+                  </h3>
+                  <p className="text-base font-medium text-foreground/90">{currentPick.teamName}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Results will be processed at the end of the week.
+                  </p>
+                </div>
+                <Lock className="w-5 h-5 text-destructive/60 shrink-0 mt-1" />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-primary/10 border border-primary/50 p-4 rounded-xl shadow-[0_0_15px_rgba(30,144,255,0.1)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-bebas text-2xl text-primary tracking-wide leading-none mb-1">
+                    Your Pick — {weekLabel}
+                  </h3>
+                  <p className="text-lg font-medium text-foreground/90">{currentPick.teamName}</p>
+                  {schedule?.deadline && (
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Locks {formatDeadline(schedule.deadline)}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-primary/20 p-2 rounded-full shrink-0">
+                  <Check className="w-8 h-8 text-primary" />
+                </div>
+              </div>
+            </div>
+          )
+        ) : mlbPickIsLocked ? (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="bg-amber-500/10 p-2 rounded-full shrink-0 mt-0.5">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-bebas text-2xl text-amber-400 tracking-wide leading-none mb-1">
+                  No Pick Submitted — Deadline Passed
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  The Monday 10 PM ET deadline has passed. Your entry is at risk.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <p className="font-bebas text-xl text-amber-400 tracking-wide leading-none">
+                  {weekLabel} · No pick yet
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pick any team that wins ≥1 game this week.
+                  {schedule?.deadline && ` Locks ${formatDeadline(schedule.deadline)}.`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Week heading */}
+        <div className="flex items-center gap-3">
+          <Calendar className="w-5 h-5 text-muted-foreground/60" />
+          <h2 className="font-bebas text-2xl tracking-wide text-muted-foreground/70 uppercase">
+            {weekLabel}
+          </h2>
+          <div className="flex-1 h-px bg-border/40" />
+          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+            {totalGames} game{totalGames !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Day-grouped game cards */}
+        {!schedule || schedule.days.every(d => d.games.length === 0) ? (
+          <p className="text-muted-foreground text-center py-10">No games found for this week.</p>
+        ) : (
+          <div className={cn("space-y-6", mlbPickIsLocked && "pointer-events-none select-none")}>
+            {schedule.days.map(day => {
+              if (day.games.length === 0) return null;
+              return (
+                <div key={day.date} className="space-y-3">
+                  {/* Day header */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-muted-foreground/80 uppercase tracking-wide">
+                      {day.label}
+                    </span>
+                    <div className="flex-1 h-px bg-border/30" />
+                    <span className="text-xs text-muted-foreground/50">
+                      {day.games.length} game{day.games.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {day.games.map(game => (
+                    <MatchupCard
+                      key={game.id}
+                      game={game}
+                      sport={sport}
+                      pickedTeamIds={pickedTeamIds}
+                      currentPickTeamId={currentPick?.teamId}
+                      selectedTeam={mlbPickIsLocked ? null : selectedTeam}
+                      onSelect={(team) => {
+                        if (!mlbPickIsLocked) {
+                          setSelectedTeam(prev => prev?.id === team.id ? null : team);
+                        }
+                      }}
+                      deadlineLock={mlbPickIsLocked}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Submit */}
+        {!mlbPickIsLocked && (
+          <div className="pt-6 border-t border-border/50 flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              {selectedTeam
+                ? `Selected: ${selectedTeam.name}`
+                : currentPick
+                  ? "Click a team above to change your pick"
+                  : "Pick any team — they just need to win ≥1 game this week"}
+            </p>
+            <Button
+              onClick={handleSubmit}
+              disabled={!selectedTeam || selectedTeam.id === currentPick?.teamId || submitPick.isPending}
+              className="font-bebas text-xl px-10 h-14 tracking-widest shrink-0"
+              data-testid="button-submit-pick"
+            >
+              {submitPick.isPending ? "SUBMITTING…" : currentPick ? "UPDATE PICK" : "LOCK IN PICK"}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Non-MLB: flat game list ────────────────────────────────────────────────
 
   const gameList = games ?? [];
 

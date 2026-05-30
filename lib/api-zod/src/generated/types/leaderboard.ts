@@ -10,6 +10,10 @@ import type { LeaderboardEntry } from './leaderboardEntry';
 export interface Leaderboard {
   poolId: number;
   currentWeek: number;
+  /** Whether this pool uses double elimination mode */
+  doubleElimination?: boolean;
+  /** MLB: true if the pick deadline for the current week has passed */
+  deadlinePassed?: boolean;
   active: LeaderboardEntry[];
   eliminated: LeaderboardEntry[];
 }

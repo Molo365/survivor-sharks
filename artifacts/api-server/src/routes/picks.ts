@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { isPickLocked } from "../lib/espn";
+import { isPickLocked, isMlbPickDeadlinePassed } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 
 const router = Router({ mergeParams: true });
@@ -71,24 +71,33 @@ router.post("/", requireAuth, async (req, res) => {
   const previousPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, userId)));
 
-  // If the player already has a pick this week and that team's game has started,
-  // the pick is locked — they cannot swap to a different team.
   const existingPick = previousPicks.find(p => p.week === week);
-  if (existingPick) {
-    const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week);
-    if (currentlyLocked) {
+
+  // ── Lock checks ─────────────────────────────────────────────────────────────
+  if (pool.sport === "mlb") {
+    // MLB: entire week locks on Monday 10 PM ET
+    if (isMlbPickDeadlinePassed(pool.createdAt, pool.currentWeek)) {
       res.status(400).json({
-        error: `Your pick (${existingPick.teamName}) is locked — that game has already started`,
+        error: "MLB pick deadline has passed (Monday 10 PM ET). Picks are locked for this week.",
       });
       return;
     }
-  }
-
-  // Also block picking a new team whose game has already started
-  const newTeamLocked = await isPickLocked(pool.sport, teamId, week);
-  if (newTeamLocked) {
-    res.status(400).json({ error: "That team's game has already started — choose a team that hasn't played yet" });
-    return;
+  } else {
+    // All other sports: lock once the picked team's game has started
+    if (existingPick) {
+      const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week);
+      if (currentlyLocked) {
+        res.status(400).json({
+          error: `Your pick (${existingPick.teamName}) is locked — that game has already started`,
+        });
+        return;
+      }
+    }
+    const newTeamLocked = await isPickLocked(pool.sport, teamId, week);
+    if (newTeamLocked) {
+      res.status(400).json({ error: "That team's game has already started — choose a team that hasn't played yet" });
+      return;
+    }
   }
 
   // Team re-use rules depend on pool type:

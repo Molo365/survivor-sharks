@@ -32,6 +32,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     maxEntries: pool.maxEntries,
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
+    doubleElimination: pool.doubleElimination,
     createdAt: pool.createdAt.toISOString(),
   };
 }
@@ -65,7 +66,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, entryFee, prizePot, currentWeek, season, poolType, startWeek } = req.body;
+  const { name, sport, description, maxEntries, entryFee, prizePot, currentWeek, season, poolType, startWeek, doubleElimination } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -93,6 +94,7 @@ router.post("/", requireAuth, async (req, res) => {
     maxEntries: maxEntries ?? null,
     entryFee: entryFee ?? null,
     prizePot: prizePot ?? null,
+    doubleElimination: doubleElimination === true,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
@@ -171,6 +173,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     maxEntries: pool.maxEntries,
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
+    doubleElimination: pool.doubleElimination,
     totalMembers: members.length,
     activeCount: members.filter(m => m.status === "alive").length,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
@@ -191,7 +194,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, currentWeek, season, isActive, poolType, startWeek } = req.body;
+  const { name, description, maxEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination } = req.body;
   const [updated] = await db.update(poolsTable).set({
     ...(name !== undefined && { name }),
     ...(description !== undefined && { description }),
@@ -201,6 +204,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(isActive !== undefined && { isActive }),
     ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" }),
     ...(startWeek !== undefined && { startWeek }),
+    ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
   }).where(eq(poolsTable.id, poolId)).returning();
 
   const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId));

@@ -16,10 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Zap } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Zap, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const POOL_TYPES = [
@@ -62,6 +63,7 @@ const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
   poolType: z.enum(["season", "weekly", "mid_season"]).default("season"),
+  doubleElimination: z.boolean().default(false),
   startWeek: z.coerce.number().min(1).max(30).optional().or(z.literal("").transform(() => undefined)),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
@@ -92,6 +94,7 @@ export default function CreatePool() {
   });
 
   const selectedType = form.watch("poolType");
+  const selectedSport = form.watch("sport");
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: Record<string, unknown> = { ...values };
@@ -212,6 +215,38 @@ export default function CreatePool() {
                         Week this pool begins. Players who join can use any team not already used from this week forward.
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Double Elimination toggle — MLB only, not for weekly */}
+              {selectedSport === PoolInputSport.mlb && selectedType !== "weekly" && (
+                <FormField
+                  control={form.control}
+                  name="doubleElimination"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <ShieldCheck className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                          <div>
+                            <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer">
+                              Double Elimination
+                            </FormLabel>
+                            <FormDescription className="text-xs mt-0.5">
+                              Players get one warning strike on their first loss. The second loss eliminates them permanently.
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="toggle-double-elimination"
+                          />
+                        </FormControl>
+                      </div>
                     </FormItem>
                   )}
                 />

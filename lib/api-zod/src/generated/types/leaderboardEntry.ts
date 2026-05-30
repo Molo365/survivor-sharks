@@ -21,4 +21,10 @@ export interface LeaderboardEntry {
   lastPickTeam?: string | null;
   /** @nullable */
   lastPickResult?: string | null;
+  /** Consecutive weeks survived */
+  streak?: number;
+  /** MLB double-elim: number of mulligan strikes used (0 or 1) */
+  strikeCount?: number;
+  /** MLB: true if team already won at least one game this week */
+  hasWonThisWeek?: boolean;
 }

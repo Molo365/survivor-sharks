@@ -87,6 +87,8 @@ export interface PoolInput {
   prizePot?: number;
   currentWeek?: number;
   season?: number;
+  /** MLB only: first loss gives a mulligan strike; second loss eliminates permanently */
+  doubleElimination?: boolean;
 }
 
 export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];
@@ -107,6 +109,7 @@ export interface PoolUpdate {
   isActive?: boolean;
   poolType?: PoolUpdatePoolType;
   startWeek?: number;
+  doubleElimination?: boolean;
 }
 
 export interface JoinPoolInput {
@@ -145,6 +148,7 @@ export interface Pool {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  doubleElimination?: boolean;
   createdAt?: string;
 }
 
@@ -197,6 +201,7 @@ export interface PoolDetail {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  doubleElimination?: boolean;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */
@@ -287,11 +292,21 @@ export interface LeaderboardEntry {
   lastPickTeam?: string | null;
   /** @nullable */
   lastPickResult?: string | null;
+  /** Consecutive weeks survived */
+  streak?: number;
+  /** MLB double-elim: number of mulligan strikes used (0 or 1) */
+  strikeCount?: number;
+  /** MLB: true if team already won at least one game this week */
+  hasWonThisWeek?: boolean;
 }
 
 export interface Leaderboard {
   poolId: number;
   currentWeek: number;
+  /** Whether this pool uses double elimination mode */
+  doubleElimination?: boolean;
+  /** MLB: true if the pick deadline for the current week has passed */
+  deadlinePassed?: boolean;
   active: LeaderboardEntry[];
   eliminated: LeaderboardEntry[];
 }
@@ -474,5 +489,27 @@ export const AdminUserUpdateRole = {
 export interface AdminUserUpdate {
   role?: AdminUserUpdateRole;
   displayName?: string;
+}
+
+export interface DaySchedule {
+  /** ET date as YYYY-MM-DD */
+  date: string;
+  /** Day label e.g. 'Monday, May 26' */
+  label: string;
+  games: Game[];
+}
+
+export interface PoolSchedule {
+  /** Human-readable e.g. 'May 26 – Jun 1' */
+  weekLabel: string;
+  /** ISO timestamp of week start (Monday midnight ET) */
+  weekStart: string;
+  /** ISO timestamp of week end (Sunday 23:59 ET) */
+  weekEnd: string;
+  /** ISO timestamp of pick deadline (Monday 10 PM ET) */
+  deadline: string;
+  deadlinePassed: boolean;
+  currentWeek: number;
+  days: DaySchedule[];
 }
 

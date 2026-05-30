@@ -312,6 +312,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/schedule:
+    get:
+      operationId: getPoolSchedule
+      tags: [picks]
+      summary: Get weekly game schedule grouped by day (MLB survivor pools)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Weekly schedule with deadline info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolSchedule"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/grid:
     get:
       operationId: getSurvivorGrid
@@ -695,6 +720,10 @@ components:
           type: integer
         season:
           type: integer
+        doubleElimination:
+          type: boolean
+          default: false
+          description: "MLB only: first loss gives a mulligan strike; second loss eliminates permanently"
 
     PoolUpdate:
       type: object
@@ -716,6 +745,8 @@ components:
           enum: [season, weekly, mid_season]
         startWeek:
           type: integer
+        doubleElimination:
+          type: boolean
 
     JoinPoolInput:
       type: object
@@ -763,6 +794,8 @@ components:
           type: ["number", "null"]
         prizePot:
           type: ["number", "null"]
+        doubleElimination:
+          type: boolean
         createdAt:
           type: string
 
@@ -801,6 +834,8 @@ components:
           type: ["number", "null"]
         prizePot:
           type: ["number", "null"]
+        doubleElimination:
+          type: boolean
         activeCount:
           type: integer
           description: Number of members still alive (not eliminated)
@@ -940,6 +975,15 @@ components:
           type: ["string", "null"]
         lastPickResult:
           type: ["string", "null"]
+        streak:
+          type: integer
+          description: Consecutive weeks survived
+        strikeCount:
+          type: integer
+          description: "MLB double-elim: number of mulligan strikes used (0 or 1)"
+        hasWonThisWeek:
+          type: boolean
+          description: "MLB: true if team already won at least one game this week"
 
     Leaderboard:
       type: object
@@ -949,6 +993,12 @@ components:
           type: integer
         currentWeek:
           type: integer
+        doubleElimination:
+          type: boolean
+          description: Whether this pool uses double elimination mode
+        deadlinePassed:
+          type: boolean
+          description: "MLB: true if the pick deadline for the current week has passed"
         active:
           type: array
           items:
@@ -1224,3 +1274,44 @@ components:
           enum: [user, admin]
         displayName:
           type: string
+
+    # ── Schedule Schemas ──────────────────────────────────────────────────────
+    DaySchedule:
+      type: object
+      required: [date, label, games]
+      properties:
+        date:
+          type: string
+          description: "ET date as YYYY-MM-DD"
+        label:
+          type: string
+          description: "Day label e.g. 'Monday, May 26'"
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/Game"
+
+    PoolSchedule:
+      type: object
+      required: [weekLabel, weekStart, weekEnd, deadline, deadlinePassed, currentWeek, days]
+      properties:
+        weekLabel:
+          type: string
+          description: "Human-readable e.g. 'May 26 – Jun 1'"
+        weekStart:
+          type: string
+          description: "ISO timestamp of week start (Monday midnight ET)"
+        weekEnd:
+          type: string
+          description: "ISO timestamp of week end (Sunday 23:59 ET)"
+        deadline:
+          type: string
+          description: "ISO timestamp of pick deadline (Monday 10 PM ET)"
+        deadlinePassed:
+          type: boolean
+        currentWeek:
+          type: integer
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DaySchedule"

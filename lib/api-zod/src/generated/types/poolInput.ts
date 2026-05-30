@@ -20,4 +20,6 @@ export interface PoolInput {
   prizePot?: number;
   currentWeek?: number;
   season?: number;
+  /** MLB only: first loss gives a mulligan strike; second loss eliminates permanently */
+  doubleElimination?: boolean;
 }

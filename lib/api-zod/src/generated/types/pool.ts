@@ -30,5 +30,6 @@ export interface Pool {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  doubleElimination?: boolean;
   createdAt?: string;
 }
