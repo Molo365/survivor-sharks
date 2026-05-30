@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, User as UserIcon, ShieldAlert } from "lucide-react";
+import { LogOut, ShieldAlert } from "lucide-react";
 
 export function NavBar() {
   const { user, isLoading, logout } = useAuth();
@@ -42,8 +42,7 @@ export function NavBar() {
                 </Link>
               )}
               <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                <UserIcon className="h-4 w-4 text-muted-foreground sm:hidden" />
-                <span className="text-sm text-muted-foreground hidden sm:inline-block">
+                <span className="text-sm text-muted-foreground truncate max-w-[90px]">
                   {user.displayName || user.username}
                 </span>
                 <Button variant="ghost" size="icon" onClick={logout} data-testid="button-logout" title="Log out">

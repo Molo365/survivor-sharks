@@ -143,9 +143,9 @@ function TeamSide({
       data-testid={`team-pick-${team.id}`}
       style={gradientStyle}
       className={cn(
-        "relative flex-1 flex flex-col p-2 sm:p-3 transition-all select-none",
+        "relative flex-1 flex flex-col py-2 px-2 sm:p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        variant === "live" ? "min-h-[110px] sm:min-h-[150px]" : "min-h-[115px] sm:min-h-[160px]",
+        variant === "live" ? "min-h-[80px] sm:min-h-[150px]" : "min-h-[80px] sm:min-h-[160px]",
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
@@ -166,7 +166,7 @@ function TeamSide({
             alt={team.name}
             className={cn(
               "object-contain drop-shadow-md",
-              variant === "live" ? "w-8 h-8 sm:w-12 sm:h-12" : "w-7 h-7 sm:w-10 sm:h-10",
+              variant === "live" ? "w-[35px] h-[35px] sm:w-12 sm:h-12" : "w-[35px] h-[35px] sm:w-10 sm:h-10",
               isUsed && "grayscale opacity-60",
               variant === "final" && !isUsed && "opacity-75"
             )}
@@ -185,11 +185,12 @@ function TeamSide({
             variant === "final" ? "text-xs sm:text-base text-foreground/65" :
             isSelected ? "text-primary text-xs sm:text-base" : "text-foreground text-xs sm:text-base"
           )}>
-            {team.name}
+            <span className="sm:hidden">{team.abbreviation}</span>
+            <span className="hidden sm:inline">{team.name}</span>
           </p>
           {record && (
             <p className={cn(
-              "text-[10px] font-mono leading-tight",
+              "text-[10px] font-mono leading-tight hidden sm:block",
               variant === "final" ? "text-muted-foreground/45" : "text-muted-foreground/70"
             )}>
               {record}
@@ -226,8 +227,16 @@ function TeamSide({
         </div>
       )}
 
-      {variant !== "final" && <FormDots form={form} side={side} />}
-      {pitcher && <PitcherLine pitcher={pitcher} side={side} />}
+      {variant !== "final" && (
+        <div className="hidden sm:block">
+          <FormDots form={form} side={side} />
+        </div>
+      )}
+      {pitcher && (
+        <div className="hidden sm:block">
+          <PitcherLine pitcher={pitcher} side={side} />
+        </div>
+      )}
 
       {/* Corner badges */}
       {isUsed && (
@@ -347,8 +356,8 @@ function MatchupCard({
               <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
 
               <div className="mt-0.5 flex flex-col items-center gap-0.5">
-                <Clock className="w-3 h-3 text-primary/50" />
-                <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium">
+                <Clock className="w-2.5 h-2.5 text-primary/40 sm:w-3 sm:h-3 sm:text-primary/50" />
+                <span className="text-[8px] sm:text-[9px] text-muted-foreground/45 sm:text-muted-foreground/60 leading-tight font-medium">
                   {formatGameTime(game.startTime)}
                 </span>
               </div>
