@@ -5,7 +5,10 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { GameInjury } from './gameInjury';
 import type { GameOdds } from './gameOdds';
+import type { GamePitcher } from './gamePitcher';
+import type { GameWeather } from './gameWeather';
 import type { Team } from './team';
 
 export interface Game {
@@ -33,4 +36,26 @@ export interface Game {
      */
   awayRecord?: string | null;
   odds?: GameOdds | null;
+  /** @nullable */
+  awayMoneyline?: number | null;
+  /** @nullable */
+  homeMoneyline?: number | null;
+  /**
+     * Hex without '#', e.g. '003594'
+     * @nullable
+     */
+  awayPrimaryColor?: string | null;
+  /** @nullable */
+  homePrimaryColor?: string | null;
+  /** @nullable */
+  awayAlternateColor?: string | null;
+  /** @nullable */
+  homeAlternateColor?: string | null;
+  weather?: GameWeather | null;
+  awayPitcher?: GamePitcher | null;
+  homePitcher?: GamePitcher | null;
+  awayInjuries?: GameInjury[];
+  homeInjuries?: GameInjury[];
+  awayForm?: string[];
+  homeForm?: string[];
 }

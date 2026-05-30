@@ -356,6 +356,39 @@ export interface GameOdds {
   spread?: number | null;
 }
 
+export interface GameWeather {
+  displayValue?: string;
+  /** @nullable */
+  temperature?: number | null;
+  /** @nullable */
+  conditionDescription?: string | null;
+  /** @nullable */
+  windSpeed?: number | null;
+  /** @nullable */
+  windDirection?: string | null;
+}
+
+export interface GamePitcher {
+  name: string;
+  /** @nullable */
+  photoUrl?: string | null;
+  /** @nullable */
+  era?: string | null;
+  /** @nullable */
+  wins?: number | null;
+  /** @nullable */
+  losses?: number | null;
+}
+
+export interface GameInjury {
+  name: string;
+  /** @nullable */
+  position?: string | null;
+  status: string;
+  /** @nullable */
+  injuryType?: string | null;
+}
+
 export interface Game {
   id: string;
   sport: string;
@@ -381,6 +414,28 @@ export interface Game {
      */
   awayRecord?: string | null;
   odds?: GameOdds | null;
+  /** @nullable */
+  awayMoneyline?: number | null;
+  /** @nullable */
+  homeMoneyline?: number | null;
+  /**
+     * Hex without '#', e.g. '003594'
+     * @nullable
+     */
+  awayPrimaryColor?: string | null;
+  /** @nullable */
+  homePrimaryColor?: string | null;
+  /** @nullable */
+  awayAlternateColor?: string | null;
+  /** @nullable */
+  homeAlternateColor?: string | null;
+  weather?: GameWeather | null;
+  awayPitcher?: GamePitcher | null;
+  homePitcher?: GamePitcher | null;
+  awayInjuries?: GameInjury[];
+  homeInjuries?: GameInjury[];
+  awayForm?: string[];
+  homeForm?: string[];
 }
 
 export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];

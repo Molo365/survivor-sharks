@@ -490,7 +490,48 @@ export const ListSportGamesResponseItem = zod.object({
   "details": zod.string().optional().describe('Spread line e.g. \'BUF -3.5\''),
   "overUnder": zod.number().nullish(),
   "spread": zod.number().nullish()
-}).nullish()
+}).nullish(),
+  "awayMoneyline": zod.number().nullish(),
+  "homeMoneyline": zod.number().nullish(),
+  "awayPrimaryColor": zod.string().nullish().describe('Hex without \'#\', e.g. \'003594\''),
+  "homePrimaryColor": zod.string().nullish(),
+  "awayAlternateColor": zod.string().nullish(),
+  "homeAlternateColor": zod.string().nullish(),
+  "weather": zod.object({
+  "displayValue": zod.string().optional(),
+  "temperature": zod.number().nullish(),
+  "conditionDescription": zod.string().nullish(),
+  "windSpeed": zod.number().nullish(),
+  "windDirection": zod.string().nullish()
+}).nullish(),
+  "awayPitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "homePitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "awayInjuries": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullish(),
+  "status": zod.string(),
+  "injuryType": zod.string().nullish()
+})).optional(),
+  "homeInjuries": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullish(),
+  "status": zod.string(),
+  "injuryType": zod.string().nullish()
+})).optional(),
+  "awayForm": zod.array(zod.string()).optional(),
+  "homeForm": zod.array(zod.string()).optional()
 })
 export const ListSportGamesResponse = zod.array(ListSportGamesResponseItem)
 

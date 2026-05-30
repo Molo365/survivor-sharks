@@ -1038,6 +1038,48 @@ components:
         spread:
           type: ["number", "null"]
 
+    GameWeather:
+      type: object
+      properties:
+        displayValue:
+          type: string
+        temperature:
+          type: ["integer", "null"]
+        conditionDescription:
+          type: ["string", "null"]
+        windSpeed:
+          type: ["integer", "null"]
+        windDirection:
+          type: ["string", "null"]
+
+    GamePitcher:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        era:
+          type: ["string", "null"]
+        wins:
+          type: ["integer", "null"]
+        losses:
+          type: ["integer", "null"]
+
+    GameInjury:
+      type: object
+      required: [name, status]
+      properties:
+        name:
+          type: string
+        position:
+          type: ["string", "null"]
+        status:
+          type: string
+        injuryType:
+          type: ["string", "null"]
+
     Game:
       type: object
       required: [id, sport, homeTeam, awayTeam, startTime, week, hasStarted]
@@ -1074,6 +1116,47 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/GameOdds"
+        awayMoneyline:
+          type: ["integer", "null"]
+        homeMoneyline:
+          type: ["integer", "null"]
+        awayPrimaryColor:
+          type: ["string", "null"]
+          description: "Hex without '#', e.g. '003594'"
+        homePrimaryColor:
+          type: ["string", "null"]
+        awayAlternateColor:
+          type: ["string", "null"]
+        homeAlternateColor:
+          type: ["string", "null"]
+        weather:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GameWeather"
+        awayPitcher:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GamePitcher"
+        homePitcher:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GamePitcher"
+        awayInjuries:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameInjury"
+        homeInjuries:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameInjury"
+        awayForm:
+          type: array
+          items:
+            type: string
+        homeForm:
+          type: array
+          items:
+            type: string
 
     # ── Admin Schemas ─────────────────────────────────────────────────────────
     AdminUser:
