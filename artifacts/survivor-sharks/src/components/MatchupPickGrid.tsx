@@ -160,7 +160,9 @@ function TeamSide({
   onClick: () => void;
   side: "away" | "home";
 }) {
-  const disabled = isUsed || isLocked;
+  // isUsed = already picked this team in a prior week → fully dim + grayscale
+  // isLocked = game started but team is pickable in theory → keep readable, just not clickable
+  const unpickable = isUsed || isLocked;
   const isFavorite = moneyline != null && moneyline < 0;
 
   const logoUrl = team.logoUrl
@@ -177,18 +179,20 @@ function TeamSide({
   return (
     <button
       type="button"
-      onClick={disabled ? undefined : onClick}
+      onClick={unpickable ? undefined : onClick}
       data-testid={`team-pick-${team.id}`}
       style={gradientStyle}
       className={cn(
         "relative flex-1 flex flex-col p-3 min-h-[160px] transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        disabled
+        isUsed
           ? "opacity-40 cursor-not-allowed"
-          : "cursor-pointer hover:brightness-105 active:scale-[0.98]",
-        isSelected && !disabled
+          : isLocked
+            ? "cursor-not-allowed"
+            : "cursor-pointer hover:brightness-105 active:scale-[0.98]",
+        isSelected && !unpickable
           ? "ring-2 ring-inset ring-primary/70"
-          : !disabled
+          : !unpickable
             ? "hover:ring-1 hover:ring-inset hover:ring-primary/30"
             : ""
       )}
@@ -199,7 +203,7 @@ function TeamSide({
           <img
             src={logoUrl}
             alt={team.name}
-            className={cn("w-10 h-10 object-contain drop-shadow-md", isUsed && "grayscale")}
+            className={cn("w-10 h-10 object-contain drop-shadow-md", isUsed && "grayscale opacity-60")}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
           {isCurrentPick && (
@@ -255,8 +259,8 @@ function TeamSide({
         </span>
       )}
       {isLocked && !isUsed && (
-        <span className="absolute top-2 right-2">
-          <Lock className="w-3 h-3 text-muted-foreground/50" />
+        <span className="absolute top-2 right-2 opacity-40">
+          <Lock className="w-3 h-3 text-muted-foreground" />
         </span>
       )}
     </button>
@@ -329,8 +333,8 @@ function MatchupCard({
             <span className={cn(
               "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border",
               statusLabel === "Final"
-                ? "bg-muted/30 text-muted-foreground border-border/50"
-                : "bg-green-500/10 text-green-400 border-green-400/30 animate-pulse"
+                ? "bg-green-500/15 text-green-400 border-green-500/40"
+                : "bg-red-500/15 text-red-400 border-red-500/40 animate-pulse"
             )}>
               {statusLabel}
             </span>
@@ -527,7 +531,7 @@ export function MatchupPickGrid({
       {gameList.length === 0 ? (
         <p className="text-muted-foreground text-center py-10">No games found for this week.</p>
       ) : (
-        <div className={cn("space-y-3", pickIsLocked && "pointer-events-none opacity-50 select-none")}>
+        <div className={cn("space-y-3", pickIsLocked && "pointer-events-none select-none")}>
           {gameList.map(game => (
             <MatchupCard
               key={game.id}
