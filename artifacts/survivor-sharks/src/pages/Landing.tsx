@@ -12,164 +12,130 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
+      {/* Background layers — fixed behind everything */}
+      <div className="fixed inset-0 bg-[#060810] -z-10" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_38%,rgba(20,80,200,0.20),transparent)] -z-10" />
+      <div className="fixed inset-0 -z-10 opacity-[0.035]" style={{
+        backgroundImage: `linear-gradient(rgba(30,144,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(30,144,255,0.8) 1px, transparent 1px)`,
+        backgroundSize: "60px 60px",
+      }} />
+
       <NavBar />
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative flex items-center justify-center overflow-hidden border-b border-white/5" style={{ minHeight: "calc(100vh - 64px)" }}>
+      <main className="flex-1 flex flex-col min-h-0">
 
-          {/* Deep background layers */}
-          <div className="absolute inset-0 bg-[#060810]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,rgba(20,80,200,0.18),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_50%_42%,rgba(30,144,255,0.10),transparent)]" />
+        {/* ── Hero ───────────────────────────────────────────────────── */}
+        <section className="flex-1 flex flex-col items-center justify-center text-center px-4 min-h-0 relative">
+          {/* Scan line */}
+          <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent top-1/2" />
 
-          {/* Subtle grid texture */}
-          <div
-            className="absolute inset-0 opacity-[0.04]"
+          {/* Season badge */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-primary uppercase mb-4 backdrop-blur-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+            The 2026 Season is Here
+          </div>
+
+          {/* Logo */}
+          <div className="relative mb-3 flex items-center justify-center">
+            <div className="absolute rounded-full bg-primary/20 blur-2xl" style={{ width: 140, height: 140 }} />
+            <div className="absolute rounded-full bg-primary/10 blur-xl" style={{ width: 100, height: 100 }} />
+            <div className="absolute rounded-full border border-primary/20" style={{ width: 118, height: 118 }} />
+            <img
+              src="/logo.png"
+              alt="Survivor Sharks"
+              className="relative z-10 object-contain drop-shadow-[0_0_30px_rgba(30,144,255,0.7)]"
+              style={{ width: 96, height: 96 }}
+            />
+          </div>
+
+          {/* Title */}
+          <h1
+            className="font-bebas text-foreground leading-none tracking-wide"
             style={{
-              backgroundImage: `linear-gradient(rgba(30,144,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(30,144,255,0.8) 1px, transparent 1px)`,
-              backgroundSize: "60px 60px",
+              fontSize: "clamp(3.2rem, 11vw, 7.5rem)",
+              textShadow: "0 0 60px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.5)",
+              letterSpacing: "0.04em",
             }}
-          />
+          >
+            SURVIVOR SHARKS
+          </h1>
 
-          {/* Horizontal scan line */}
-          <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" style={{ top: "42%" }} />
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-2.5 w-full max-w-xs">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-primary/40" />
+            <div className="h-1 w-1 rounded-full bg-primary/60" />
+            <div className="h-1.5 w-1.5 rounded-full bg-primary/80" />
+            <div className="h-1 w-1 rounded-full bg-primary/60" />
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-primary/40" />
+          </div>
 
-          <div className="relative z-10 flex flex-col items-center text-center px-4 py-24 max-w-4xl mx-auto">
+          {/* Tagline */}
+          <p className="text-xs font-semibold tracking-[0.32em] uppercase mb-5" style={{ color: "rgba(148,168,210,0.85)" }}>
+            ELITE POOLS. RUTHLESS COMPETITION.
+          </p>
 
-            {/* Season badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs font-semibold tracking-[0.2em] text-primary uppercase mb-10 backdrop-blur-sm shadow-[0_0_20px_rgba(30,144,255,0.15)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              The 2026 Season is Here
-            </div>
-
-            {/* Logo with glow orb */}
-            <div className="relative mb-8 flex items-center justify-center">
-              <div className="absolute rounded-full bg-primary/20 blur-3xl" style={{ width: 260, height: 260 }} />
-              <div className="absolute rounded-full bg-primary/10 blur-2xl" style={{ width: 200, height: 200 }} />
-              <div className="absolute rounded-full border border-primary/20" style={{ width: 220, height: 220 }} />
-              <img
-                src="/logo.png"
-                alt="Survivor Sharks"
-                className="relative z-10 object-contain drop-shadow-[0_0_40px_rgba(30,144,255,0.7)]"
-                style={{ width: 200, height: 200 }}
-              />
-            </div>
-
-            {/* Title */}
-            <h1
-              className="font-bebas text-foreground leading-none tracking-wide"
+          {/* CTAs */}
+          <div className="flex items-center gap-3">
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center rounded-md px-8 py-2.5 text-sm font-bold tracking-widest text-white uppercase transition-all hover:scale-[1.03] focus-visible:outline-none"
               style={{
-                fontSize: "clamp(4rem, 14vw, 9rem)",
-                textShadow: "0 0 80px rgba(30,144,255,0.25), 0 2px 0 rgba(0,0,0,0.5)",
-                letterSpacing: "0.04em",
+                background: "linear-gradient(135deg, hsl(211,100%,48%), hsl(211,100%,38%))",
+                boxShadow: "0 0 20px rgba(30,144,255,0.45), 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
               }}
+              data-testid="link-get-started-hero"
             >
-              SURVIVOR SHARKS
-            </h1>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-5 w-full max-w-sm">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-primary/40" />
-              <div className="h-1 w-1 rounded-full bg-primary/60" />
-              <div className="h-1.5 w-1.5 rounded-full bg-primary/80" />
-              <div className="h-1 w-1 rounded-full bg-primary/60" />
-              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-primary/40" />
-            </div>
-
-            {/* Tagline */}
-            <p
-              className="text-sm md:text-base font-semibold tracking-[0.35em] uppercase mb-10"
-              style={{ color: "rgba(148,168,210,0.85)" }}
+              Get Started
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center rounded-md border px-8 py-2.5 text-sm font-bold tracking-widest uppercase transition-all hover:border-primary/60 hover:text-primary hover:bg-primary/5 focus-visible:outline-none"
+              style={{ borderColor: "rgba(30,144,255,0.3)", color: "rgba(180,200,230,0.9)" }}
+              data-testid="link-sign-in-hero"
             >
-              ELITE POOLS. RUTHLESS COMPETITION.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <Link
-                href="/register"
-                className="relative inline-flex h-13 items-center justify-center rounded-md px-10 text-sm font-bold tracking-widest text-white uppercase overflow-hidden transition-all duration-200 hover:scale-[1.03] focus-visible:outline-none"
-                style={{
-                  background: "linear-gradient(135deg, hsl(211,100%,48%), hsl(211,100%,38%))",
-                  boxShadow: "0 0 24px rgba(30,144,255,0.5), 0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
-                  paddingTop: "0.85rem",
-                  paddingBottom: "0.85rem",
-                }}
-                data-testid="link-get-started-hero"
-              >
-                Get Started
-              </Link>
-              <Link
-                href="/login"
-                className="inline-flex h-13 items-center justify-center rounded-md border px-10 text-sm font-bold tracking-widest uppercase transition-all duration-200 hover:border-primary/60 hover:text-primary hover:bg-primary/5 focus-visible:outline-none"
-                style={{
-                  borderColor: "rgba(30,144,255,0.3)",
-                  color: "rgba(180,200,230,0.9)",
-                  paddingTop: "0.85rem",
-                  paddingBottom: "0.85rem",
-                }}
-                data-testid="link-sign-in-hero"
-              >
-                Sign In
-              </Link>
-            </div>
-
-            {/* Stats strip */}
-            <div className="mt-16 flex items-center gap-8 text-center">
-              {[["10K+", "MEMBERS"], ["500+", "POOLS RUN"], ["5", "SPORTS"]].map(([val, label]) => (
-                <div key={label} className="flex flex-col items-center">
-                  <span className="font-bebas text-2xl text-primary tracking-wider">{val}</span>
-                  <span className="text-[10px] tracking-[0.2em] text-muted-foreground/70 uppercase">{label}</span>
-                </div>
-              ))}
-            </div>
+              Sign In
+            </Link>
           </div>
         </section>
 
-        {/* Ad slot */}
-        <div className="container px-4 py-8">
+        {/* ── Feature cards — compact horizontal row ─────────────────── */}
+        <section className="px-6 py-3 border-t border-white/5">
+          <div className="max-w-4xl mx-auto grid grid-cols-3 gap-3">
+            {[
+              { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
+              { icon: Trophy, color: "accent",   title: "Multi-Sport",       desc: "NFL, NBA, MLB, NHL, and soccer in one place." },
+              { icon: Users,  color: "primary",  title: "Private & Secure",  desc: "Invite-only pools with full commissioner tools." },
+            ].map(({ icon: Icon, color, title, desc }) => (
+              <div key={title} className="flex items-center gap-3 p-3 rounded-lg bg-card/30 border border-white/[0.06] backdrop-blur-sm">
+                <div className={`w-8 h-8 rounded-full bg-${color}/15 border border-${color}/20 flex items-center justify-center shrink-0`}>
+                  <Icon className={`w-4 h-4 text-${color}`} />
+                </div>
+                <div className="text-left min-w-0">
+                  <h3 className="font-bebas text-base tracking-wide text-foreground/90 leading-tight">{title}</h3>
+                  <p className="text-[11px] text-muted-foreground/65 leading-tight mt-0.5">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Sportsbook partner banner ───────────────────────────────── */}
+        <div className="px-6 py-2">
           <AdSlot />
         </div>
 
-        {/* Features */}
-        <section className="py-20 bg-card/20">
-          <div className="container px-4 md:px-6">
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              <div className="flex flex-col items-center text-center p-6 shark-card rounded-lg">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4">
-                  <Shield className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="font-bebas text-2xl mb-2">Automated Results</h3>
-                <p className="text-muted-foreground">Games are graded automatically. No manual tracking or spreadsheets required.</p>
-              </div>
-
-              <div className="flex flex-col items-center text-center p-6 shark-card rounded-lg">
-                <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center mb-4">
-                  <Trophy className="w-6 h-6 text-accent" />
-                </div>
-                <h3 className="font-bebas text-2xl mb-2">Multi-Sport</h3>
-                <p className="text-muted-foreground">Run pools for NFL, NBA, MLB, NHL, and soccer. One platform for all your leagues.</p>
-              </div>
-
-              <div className="flex flex-col items-center text-center p-6 shark-card rounded-lg">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4">
-                  <Users className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="font-bebas text-2xl mb-2">Private & Secure</h3>
-                <p className="text-muted-foreground">Invite-only private pools with powerful commissioner tools to manage your members.</p>
-              </div>
+        {/* ── Stats strip ────────────────────────────────────────────── */}
+        <div className="flex items-center justify-center gap-10 py-3 border-t border-white/5">
+          {[["10K+", "Members"], ["500+", "Pools Run"], ["5", "Sports"]].map(([val, label]) => (
+            <div key={label} className="flex items-center gap-2">
+              <span className="font-bebas text-xl text-primary tracking-wider leading-none">{val}</span>
+              <span className="text-[10px] tracking-[0.18em] text-muted-foreground/55 uppercase leading-none">{label}</span>
             </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="border-t border-border py-8 bg-background">
-        <div className="container text-center text-muted-foreground text-sm">
-          <p>© {new Date().getFullYear()} Survivor Sharks. All rights reserved.</p>
+          ))}
         </div>
-      </footer>
+
+      </main>
     </div>
   );
 }
