@@ -49,16 +49,34 @@ export default function Landing() {
           </div>
 
           {/* Title */}
-          <h1
-            className="font-bebas text-foreground leading-none tracking-wide whitespace-nowrap"
-            style={{
-              fontSize: "clamp(1.85rem, 8vw, 7.5rem)",
-              textShadow: "0 0 60px rgba(30,144,255,0.22), 0 2px 0 rgba(0,0,0,0.5)",
-              letterSpacing: "0.04em",
-            }}
-          >
-            SURVIVOR SHARKS
-          </h1>
+          <div className="flex flex-col items-center leading-none">
+            <span
+              className="text-foreground/90 whitespace-nowrap block"
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 800,
+                fontStyle: "italic",
+                fontSize: "clamp(1.2rem, 5.5vw, min(5.2rem, 7vh))",
+                letterSpacing: "0.12em",
+                textShadow: "0 0 40px rgba(30,144,255,0.18), 0 2px 0 rgba(0,0,0,0.5)",
+              }}
+            >
+              SURVIVOR
+            </span>
+            <span
+              className="text-foreground whitespace-nowrap block"
+              style={{
+                fontFamily: "'Black Ops One', cursive",
+                fontWeight: 400,
+                fontSize: "clamp(2rem, 9vw, min(8.5rem, 12vh))",
+                letterSpacing: "0.03em",
+                textShadow: "0 0 80px rgba(30,144,255,0.32), 0 3px 0 rgba(0,0,0,0.6)",
+                lineHeight: 0.95,
+              }}
+            >
+              SHARKS
+            </span>
+          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-1.5 md:my-2.5 w-full max-w-xs">
