@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GameInjury } from './gameInjury';
+import type { GameLiveState } from './gameLiveState';
 import type { GameOdds } from './gameOdds';
 import type { GamePitcher } from './gamePitcher';
 import type { GameWeather } from './gameWeather';
@@ -52,6 +53,7 @@ export interface Game {
   /** @nullable */
   homeAlternateColor?: string | null;
   weather?: GameWeather | null;
+  liveState?: GameLiveState | null;
   awayPitcher?: GamePitcher | null;
   homePitcher?: GamePitcher | null;
   awayInjuries?: GameInjury[];

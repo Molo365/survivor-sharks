@@ -439,6 +439,21 @@ export interface GameWeather {
   windDirection?: string | null;
 }
 
+export interface GameLiveState {
+  inning: number;
+  isTopInning: boolean;
+  outs: number;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+  /** @nullable */
+  currentBatter?: string | null;
+  /** @nullable */
+  currentPitcher?: string | null;
+  /** @nullable */
+  shortDetail?: string | null;
+}
+
 export interface GamePitcher {
   name: string;
   /** @nullable */
@@ -507,6 +522,7 @@ export interface Game {
   /** @nullable */
   homeAlternateColor?: string | null;
   weather?: GameWeather | null;
+  liveState?: GameLiveState | null;
   awayPitcher?: GamePitcher | null;
   homePitcher?: GamePitcher | null;
   awayInjuries?: GameInjury[];

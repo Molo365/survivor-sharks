@@ -19,6 +19,7 @@ export * from './elimination';
 export * from './errorResponse';
 export * from './game';
 export * from './gameInjury';
+export * from './gameLiveState';
 export * from './gameOdds';
 export * from './gamePitcher';
 export * from './gameWeather';

@@ -253,6 +253,37 @@ function TeamSide({
   );
 }
 
+function BaseDiamond({
+  onFirst, onSecond, onThird, size = 28,
+}: { onFirst: boolean; onSecond: boolean; onThird: boolean; size?: number }) {
+  const c = size / 2;
+  const d = size * 0.38;
+  const r = size * 0.12;
+  // Diamond corners: 2nd=top, 1st=right, home=bottom, 3rd=left
+  const top = { x: c, y: c - d };
+  const right = { x: c + d, y: c };
+  const bottom = { x: c, y: c + d };
+  const left = { x: c - d, y: c };
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <polygon
+        points={`${top.x},${top.y} ${right.x},${right.y} ${bottom.x},${bottom.y} ${left.x},${left.y}`}
+        fill="none"
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth="0.8"
+      />
+      {/* Home plate (bottom) — always empty */}
+      <circle cx={bottom.x} cy={bottom.y} r={r * 0.65} fill="rgba(255,255,255,0.12)" />
+      {/* 3rd base (left) */}
+      <circle cx={left.x} cy={left.y} r={r} fill={onThird ? "rgb(251,191,36)" : "rgba(255,255,255,0.1)"} stroke={onThird ? "rgb(217,119,6)" : "rgba(255,255,255,0.22)"} strokeWidth="0.6" />
+      {/* 2nd base (top) */}
+      <circle cx={top.x} cy={top.y} r={r} fill={onSecond ? "rgb(251,191,36)" : "rgba(255,255,255,0.1)"} stroke={onSecond ? "rgb(217,119,6)" : "rgba(255,255,255,0.22)"} strokeWidth="0.6" />
+      {/* 1st base (right) */}
+      <circle cx={right.x} cy={right.y} r={r} fill={onFirst ? "rgb(251,191,36)" : "rgba(255,255,255,0.1)"} stroke={onFirst ? "rgb(217,119,6)" : "rgba(255,255,255,0.22)"} strokeWidth="0.6" />
+    </svg>
+  );
+}
+
 type SelectedTeam = { id: string; name: string; logoUrl: string | null };
 
 function MatchupCard({
@@ -381,6 +412,20 @@ function MatchupCard({
                 {game.awayScore != null && game.homeScore != null && (
                   <span className="font-bebas text-base text-white leading-none">{game.awayScore}–{game.homeScore}</span>
                 )}
+                {game.liveState && (
+                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                    <span className="text-[8px] text-red-300/60 leading-none tabular-nums">
+                      {game.liveState.shortDetail ?? `${game.liveState.isTopInning ? "Top" : "Bot"} ${game.liveState.inning}`}
+                      {" · "}{game.liveState.outs}{game.liveState.outs === 1 ? "O" : "O"}
+                    </span>
+                    <BaseDiamond
+                      onFirst={game.liveState.onFirst}
+                      onSecond={game.liveState.onSecond}
+                      onThird={game.liveState.onThird}
+                      size={22}
+                    />
+                  </div>
+                )}
               </>
             ) : variant === "final" ? (
               <>
@@ -431,12 +476,19 @@ function MatchupCard({
           </button>
         </div>
 
-        {/* Game time line */}
+        {/* Game time + pitcher matchup */}
         {variant === "upcoming" && (
-          <p className="text-center pb-1.5 text-[9px] text-muted-foreground/40 leading-none">
-            {formatGameTime(game.startTime)}
-            {game.odds?.overUnder != null && ` · O/U ${game.odds.overUnder}`}
-          </p>
+          <div className="flex flex-col items-center pb-1.5 gap-0.5">
+            <p className="text-[9px] text-muted-foreground/40 leading-none">
+              {formatGameTime(game.startTime)}
+              {game.odds?.overUnder != null && ` · O/U ${game.odds.overUnder}`}
+            </p>
+            {(game.awayPitcher || game.homePitcher) && (
+              <p className="text-[8px] text-muted-foreground/30 leading-none">
+                {game.awayPitcher?.name ?? "TBD"} vs {game.homePitcher?.name ?? "TBD"}
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -468,7 +520,36 @@ function MatchupCard({
                 <span className="font-bebas text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">
                   ● LIVE
                 </span>
-                <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
+                {game.liveState ? (
+                  <div className="flex flex-col items-center gap-1 mt-0.5 w-full">
+                    <span className="text-[9px] text-red-300/60 leading-none font-medium tabular-nums">
+                      {game.liveState.shortDetail ?? `${game.liveState.isTopInning ? "Top" : "Bot"} ${game.liveState.inning}`}
+                    </span>
+                    <span className="text-[8px] text-muted-foreground/45 leading-none">
+                      {game.liveState.outs} {game.liveState.outs === 1 ? "Out" : "Outs"}
+                    </span>
+                    <BaseDiamond
+                      onFirst={game.liveState.onFirst}
+                      onSecond={game.liveState.onSecond}
+                      onThird={game.liveState.onThird}
+                      size={34}
+                    />
+                    {game.liveState.currentBatter && (
+                      <div className="flex flex-col items-center gap-0.5 border-t border-red-900/30 pt-1 w-full">
+                        <span className="text-[7px] text-muted-foreground/35 uppercase tracking-wider leading-none">AB</span>
+                        <span className="text-[8px] text-foreground/55 leading-none">{game.liveState.currentBatter}</span>
+                      </div>
+                    )}
+                    {game.liveState.currentPitcher && (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[7px] text-muted-foreground/35 uppercase tracking-wider leading-none">P</span>
+                        <span className="text-[8px] text-foreground/55 leading-none">{game.liveState.currentPitcher}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="font-bebas text-xl text-foreground/40 mt-1">–</span>
+                )}
               </>
             ) : variant === "final" ? (
               <>

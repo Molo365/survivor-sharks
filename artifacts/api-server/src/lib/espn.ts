@@ -13,6 +13,25 @@ export interface EspnTeam {
   logo?: string;
 }
 
+export interface EspnLiveState {
+  inning: number;
+  isTopInning: boolean;
+  outs: number;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+  currentBatter: string | null;
+  currentPitcher: string | null;
+  shortDetail: string | null;
+}
+
+export interface EspnStartingPitcher {
+  name: string;
+  era: string | null;
+  wins: number | null;
+  losses: number | null;
+}
+
 export interface EspnGame {
   id: string;
   date: string;          // ISO timestamp — game start time
@@ -23,18 +42,73 @@ export interface EspnGame {
   awayScore: number | null;
   isCompleted: boolean;
   hasStarted: boolean;
+  liveState: EspnLiveState | null;
+  homeStartingPitcher: EspnStartingPitcher | null;
+  awayStartingPitcher: EspnStartingPitcher | null;
 }
+
+type EspnProbable = {
+  athlete?: {
+    fullName?: string;
+    shortName?: string;
+    statistics?: { name: string; displayValue: string }[];
+  };
+};
+
+type EspnSituation = {
+  balls?: number;
+  strikes?: number;
+  outs?: number;
+  onFirst?: boolean;
+  onSecond?: boolean;
+  onThird?: boolean;
+  batter?: { athlete?: { fullName?: string; shortName?: string } };
+  pitcher?: { athlete?: { fullName?: string; shortName?: string } };
+};
 
 type EspnCompetitor = {
   homeAway: string;
   score?: string;
   team: { id: string; abbreviation: string; displayName: string; logo?: string };
+  probables?: EspnProbable[];
 };
+
 type EspnEvent = {
   id: string;
   date: string;
-  competitions?: { competitors?: EspnCompetitor[]; status?: { type?: { completed?: boolean; name?: string; state?: string } } }[];
+  competitions?: {
+    competitors?: EspnCompetitor[];
+    status?: {
+      period?: number;
+      type?: { completed?: boolean; name?: string; state?: string; shortDetail?: string };
+    };
+    situation?: EspnSituation;
+  }[];
 };
+
+function extractStartingPitcher(probable: EspnProbable | undefined): EspnStartingPitcher | null {
+  if (!probable?.athlete?.fullName) return null;
+  const stats = probable.athlete.statistics ?? [];
+  const era = stats.find(s => s.name === "ERA" || s.name === "era")?.displayValue ?? null;
+  const record = stats.find(s => s.name === "record" || s.name === "Record")?.displayValue ?? null;
+  let wins: number | null = null;
+  let losses: number | null = null;
+  if (record) {
+    const parts = record.split("-").map(Number);
+    wins = isNaN(parts[0]) ? null : parts[0];
+    losses = isNaN(parts[1]) ? null : parts[1];
+  }
+  const wStat = stats.find(s => s.name === "wins")?.displayValue;
+  const lStat = stats.find(s => s.name === "losses")?.displayValue;
+  if (wStat) wins = parseInt(wStat, 10) || null;
+  if (lStat) losses = parseInt(lStat, 10) || null;
+  return {
+    name: probable.athlete.fullName,
+    era,
+    wins,
+    losses,
+  };
+}
 
 function parseGame(event: EspnEvent): EspnGame {
   const comp = event.competitions?.[0];
@@ -43,6 +117,26 @@ function parseGame(event: EspnEvent): EspnGame {
   const state = comp?.status?.type?.state ?? "pre";
   const isCompleted = comp?.status?.type?.completed ?? false;
   const hasStarted = state === "in" || state === "post" || isCompleted;
+
+  // Live game state (only present when game is in progress)
+  let liveState: EspnLiveState | null = null;
+  if (state === "in" && !isCompleted) {
+    const sit = comp?.situation;
+    const period = comp?.status?.period ?? 1;
+    const shortDetail = comp?.status?.type?.shortDetail ?? null;
+    const isTopInning = shortDetail != null ? shortDetail.startsWith("Top") : true;
+    liveState = {
+      inning: period,
+      isTopInning,
+      outs: sit?.outs ?? 0,
+      onFirst: sit?.onFirst ?? false,
+      onSecond: sit?.onSecond ?? false,
+      onThird: sit?.onThird ?? false,
+      currentBatter: sit?.batter?.athlete?.shortName ?? sit?.batter?.athlete?.fullName ?? null,
+      currentPitcher: sit?.pitcher?.athlete?.shortName ?? sit?.pitcher?.athlete?.fullName ?? null,
+      shortDetail,
+    };
+  }
 
   return {
     id: event.id,
@@ -64,6 +158,9 @@ function parseGame(event: EspnEvent): EspnGame {
     awayScore: away?.score != null ? parseInt(away.score) : null,
     isCompleted,
     hasStarted,
+    liveState,
+    homeStartingPitcher: extractStartingPitcher(home?.probables?.[0]),
+    awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
   };
 }
 

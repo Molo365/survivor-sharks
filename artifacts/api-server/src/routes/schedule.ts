@@ -30,6 +30,11 @@ function formatTeam(t: EspnGame["homeTeam"], sport: string) {
   };
 }
 
+function formatPitcher(sp: EspnGame["homeStartingPitcher"]) {
+  if (!sp) return null;
+  return { name: sp.name, photoUrl: null, era: sp.era, wins: sp.wins, losses: sp.losses };
+}
+
 function formatGame(g: EspnGame, sport: string, week: number, season: number) {
   return {
     id: g.id,
@@ -53,8 +58,9 @@ function formatGame(g: EspnGame, sport: string, week: number, season: number) {
     awayAlternateColor: null,
     homeAlternateColor: null,
     weather: null,
-    awayPitcher: null,
-    homePitcher: null,
+    liveState: g.liveState ?? null,
+    awayPitcher: formatPitcher(g.awayStartingPitcher),
+    homePitcher: formatPitcher(g.homeStartingPitcher),
     awayInjuries: [],
     homeInjuries: [],
     awayForm: [],

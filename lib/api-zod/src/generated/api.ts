@@ -362,6 +362,17 @@ export const GetPoolScheduleResponse = zod.object({
   "windSpeed": zod.number().nullish(),
   "windDirection": zod.string().nullish()
 }).nullish(),
+  "liveState": zod.object({
+  "inning": zod.number(),
+  "isTopInning": zod.boolean(),
+  "outs": zod.number(),
+  "onFirst": zod.boolean(),
+  "onSecond": zod.boolean(),
+  "onThird": zod.boolean(),
+  "currentBatter": zod.string().nullish(),
+  "currentPitcher": zod.string().nullish(),
+  "shortDetail": zod.string().nullish()
+}).nullish(),
   "awayPitcher": zod.object({
   "name": zod.string(),
   "photoUrl": zod.string().nullish(),
@@ -460,6 +471,17 @@ export const GetDailyScheduleResponse = zod.object({
   "conditionDescription": zod.string().nullish(),
   "windSpeed": zod.number().nullish(),
   "windDirection": zod.string().nullish()
+}).nullish(),
+  "liveState": zod.object({
+  "inning": zod.number(),
+  "isTopInning": zod.boolean(),
+  "outs": zod.number(),
+  "onFirst": zod.boolean(),
+  "onSecond": zod.boolean(),
+  "onThird": zod.boolean(),
+  "currentBatter": zod.string().nullish(),
+  "currentPitcher": zod.string().nullish(),
+  "shortDetail": zod.string().nullish()
 }).nullish(),
   "awayPitcher": zod.object({
   "name": zod.string(),
@@ -748,6 +770,17 @@ export const ListSportGamesResponseItem = zod.object({
   "conditionDescription": zod.string().nullish(),
   "windSpeed": zod.number().nullish(),
   "windDirection": zod.string().nullish()
+}).nullish(),
+  "liveState": zod.object({
+  "inning": zod.number(),
+  "isTopInning": zod.boolean(),
+  "outs": zod.number(),
+  "onFirst": zod.boolean(),
+  "onSecond": zod.boolean(),
+  "onThird": zod.boolean(),
+  "currentBatter": zod.string().nullish(),
+  "currentPitcher": zod.string().nullish(),
+  "shortDetail": zod.string().nullish()
 }).nullish(),
   "awayPitcher": zod.object({
   "name": zod.string(),

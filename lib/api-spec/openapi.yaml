@@ -1174,6 +1174,29 @@ components:
         windDirection:
           type: ["string", "null"]
 
+    GameLiveState:
+      type: object
+      required: [inning, isTopInning, outs, onFirst, onSecond, onThird]
+      properties:
+        inning:
+          type: integer
+        isTopInning:
+          type: boolean
+        outs:
+          type: integer
+        onFirst:
+          type: boolean
+        onSecond:
+          type: boolean
+        onThird:
+          type: boolean
+        currentBatter:
+          type: ["string", "null"]
+        currentPitcher:
+          type: ["string", "null"]
+        shortDetail:
+          type: ["string", "null"]
+
     GamePitcher:
       type: object
       required: [name]
@@ -1268,6 +1291,10 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/GameWeather"
+        liveState:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GameLiveState"
         awayPitcher:
           nullable: true
           allOf:
