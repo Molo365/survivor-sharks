@@ -81,17 +81,19 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           side === "home" ? "items-end" : "items-start",
         )}
       >
-        <img
-          src={
-            team.logoUrl ??
-            `https://a.espncdn.com/i/teamlogos/mlb/500/${team.abbreviation.toLowerCase()}.png`
-          }
-          alt={team.name}
-          className="w-10 h-10 sm:w-12 sm:h-12 object-contain drop-shadow-md"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+        <div className="rounded-full bg-white/90 p-1.5 shadow-sm">
+          <img
+            src={
+              team.logoUrl ??
+              `https://a.espncdn.com/i/teamlogos/mlb/500/${team.abbreviation.toLowerCase()}.png`
+            }
+            alt={team.name}
+            className="w-9 h-9 sm:w-10 sm:h-10 object-contain"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
         <span
           className={cn(
             "font-bebas tracking-wide text-sm sm:text-base leading-tight text-center",
@@ -225,7 +227,9 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
                         {/* Away */}
                         <div className="flex items-center gap-1">
                           {game.awayTeam.logoUrl && (
-                            <img src={game.awayTeam.logoUrl} alt={game.awayTeam.abbreviation} className="w-4 h-4 object-contain" />
+                            <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                              <img src={game.awayTeam.logoUrl} alt={game.awayTeam.abbreviation} className="w-3.5 h-3.5 object-contain" />
+                            </div>
                           )}
                           <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
                             {game.awayTeam.abbreviation}
@@ -235,7 +239,9 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
                         {/* Home */}
                         <div className="flex items-center gap-1">
                           {game.homeTeam.logoUrl && (
-                            <img src={game.homeTeam.logoUrl} alt={game.homeTeam.abbreviation} className="w-4 h-4 object-contain" />
+                            <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                              <img src={game.homeTeam.logoUrl} alt={game.homeTeam.abbreviation} className="w-3.5 h-3.5 object-contain" />
+                            </div>
                           )}
                           <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
                             {game.homeTeam.abbreviation}
@@ -327,7 +333,9 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
                               : "border-border/30 bg-muted/10",
                           )}>
                             {team.logoUrl && (
-                              <img src={team.logoUrl} alt={team.abbreviation} className="w-5 h-5 object-contain" />
+                              <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                                <img src={team.logoUrl} alt={team.abbreviation} className="w-4 h-4 object-contain" />
+                              </div>
                             )}
                             <span className={cn(
                               "font-bebas text-[11px] tracking-wide leading-none",
