@@ -119,7 +119,7 @@ export default function PoolHome() {
             </div>
 
             {(pool.poolType as string) === "pickem" ? (
-              <PickEmView poolId={pool.id} commissionerId={pool.commissionerId} />
+              <PickEmView poolId={pool.id} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
