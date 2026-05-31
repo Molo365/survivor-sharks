@@ -93,6 +93,14 @@ router.get("/games", requireAuth, async (req, res) => {
             onThird: g.liveState.onThird,
           }
         : null,
+      homeRecord: g.homeRecord ?? null,
+      awayRecord: g.awayRecord ?? null,
+      homePitcher: g.homeStartingPitcher
+        ? { name: g.homeStartingPitcher.name, photoUrl: null, era: g.homeStartingPitcher.era, wins: g.homeStartingPitcher.wins, losses: g.homeStartingPitcher.losses }
+        : null,
+      awayPitcher: g.awayStartingPitcher
+        ? { name: g.awayStartingPitcher.name, photoUrl: null, era: g.awayStartingPitcher.era, wins: g.awayStartingPitcher.wins, losses: g.awayStartingPitcher.losses }
+        : null,
     };
   });
 

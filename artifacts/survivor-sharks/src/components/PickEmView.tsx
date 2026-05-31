@@ -123,6 +123,8 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
     team: PickEmGame["awayTeam"],
     side: "away" | "home",
     score: number | null | undefined,
+    record: string | null | undefined,
+    pitcher: PickEmGame["awayPitcher"],
   ) {
     const isPicked = pickedTeamId === team.id;
     const result = isPicked ? game.userPickResult : null;
@@ -170,6 +172,23 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           <span className="sm:hidden">{team.abbreviation}</span>
           <span className="hidden sm:inline">{team.name}</span>
         </span>
+        {record && (
+          <span className="text-[10px] text-muted-foreground/60 leading-none font-medium tabular-nums">
+            {record}
+          </span>
+        )}
+        {pitcher?.name && !isFinal && !isLive && (
+          <div className={cn("flex flex-col items-center gap-0", side === "home" ? "items-end" : "items-start")}>
+            <span className="text-[9px] text-muted-foreground/50 leading-tight truncate max-w-[80px] sm:max-w-[100px] text-center">
+              {pitcher.name}
+            </span>
+            {pitcher.era != null && (
+              <span className="text-[9px] text-muted-foreground/40 leading-none">
+                ERA {pitcher.era}
+              </span>
+            )}
+          </div>
+        )}
         {(isFinal || isLive) && score != null && (
           <span
             className={cn(
@@ -208,7 +227,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
   return (
     <div className="shark-card rounded-xl border border-border/40 overflow-hidden">
       <div className="flex items-stretch gap-0">
-        {teamBtn(game.awayTeam, "away", game.awayScore)}
+        {teamBtn(game.awayTeam, "away", game.awayScore, game.awayRecord, game.awayPitcher)}
 
         {/* Center divider */}
         <div className="flex flex-col items-center justify-center gap-1 px-3 min-w-[64px]">
@@ -252,7 +271,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           )}
         </div>
 
-        {teamBtn(game.homeTeam, "home", game.homeScore)}
+        {teamBtn(game.homeTeam, "home", game.homeScore, game.homeRecord, game.homePitcher)}
       </div>
     </div>
   );

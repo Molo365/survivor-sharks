@@ -852,7 +852,23 @@ export const GetPickEmGamesResponse = zod.object({
   "onFirst": zod.boolean(),
   "onSecond": zod.boolean(),
   "onThird": zod.boolean()
-}).nullish().describe('Base runner state for in-progress MLB games, null otherwise')
+}).nullish().describe('Base runner state for in-progress MLB games, null otherwise'),
+  "homeRecord": zod.string().nullish().describe('Team\'s overall record e.g. \'28-22\''),
+  "awayRecord": zod.string().nullish().describe('Team\'s overall record e.g. \'28-22\''),
+  "homePitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "awayPitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish()
 }))
 })
 

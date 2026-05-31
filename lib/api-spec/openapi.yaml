@@ -1579,6 +1579,20 @@ components:
             onThird:
               type: boolean
           required: [onFirst, onSecond, onThird]
+        homeRecord:
+          type: ["string", "null"]
+          description: "Team's overall record e.g. '28-22'"
+        awayRecord:
+          type: ["string", "null"]
+          description: "Team's overall record e.g. '28-22'"
+        homePitcher:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GamePitcher"
+        awayPitcher:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GamePitcher"
 
     PickEmSlate:
       type: object

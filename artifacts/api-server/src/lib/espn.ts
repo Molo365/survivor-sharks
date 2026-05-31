@@ -40,6 +40,8 @@ export interface EspnGame {
   awayTeam: EspnTeam;
   homeScore: number | null;
   awayScore: number | null;
+  homeRecord: string | null;
+  awayRecord: string | null;
   isCompleted: boolean;
   hasStarted: boolean;
   liveState: EspnLiveState | null;
@@ -71,6 +73,7 @@ type EspnCompetitor = {
   score?: string;
   team: { id: string; abbreviation: string; displayName: string; logo?: string };
   probables?: EspnProbable[];
+  records?: { name: string; type: string; summary: string }[];
 };
 
 type EspnEvent = {
@@ -159,6 +162,8 @@ function parseGame(event: EspnEvent): EspnGame {
     isCompleted,
     hasStarted,
     liveState,
+    homeRecord: home?.records?.find(r => r.name === "overall" || r.type === "total")?.summary ?? null,
+    awayRecord: away?.records?.find(r => r.name === "overall" || r.type === "total")?.summary ?? null,
     homeStartingPitcher: extractStartingPitcher(home?.probables?.[0]),
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
   };

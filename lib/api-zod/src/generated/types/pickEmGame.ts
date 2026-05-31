@@ -5,6 +5,7 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+import type { GamePitcher } from './gamePitcher';
 import type { PickEmGameLiveBaseRunners } from './pickEmGameLiveBaseRunners';
 import type { PickEmGameStatus } from './pickEmGameStatus';
 import type { PickEmGameUserPickResult } from './pickEmGameUserPickResult';
@@ -43,4 +44,16 @@ export interface PickEmGame {
      * @nullable
      */
   liveBaseRunners?: PickEmGameLiveBaseRunners;
+  /**
+     * Team's overall record e.g. '28-22'
+     * @nullable
+     */
+  homeRecord?: string | null;
+  /**
+     * Team's overall record e.g. '28-22'
+     * @nullable
+     */
+  awayRecord?: string | null;
+  homePitcher?: GamePitcher | null;
+  awayPitcher?: GamePitcher | null;
 }

@@ -683,6 +683,18 @@ export interface PickEmGame {
      * @nullable
      */
   liveBaseRunners?: PickEmGameLiveBaseRunners;
+  /**
+     * Team's overall record e.g. '28-22'
+     * @nullable
+     */
+  homeRecord?: string | null;
+  /**
+     * Team's overall record e.g. '28-22'
+     * @nullable
+     */
+  awayRecord?: string | null;
+  homePitcher?: GamePitcher | null;
+  awayPitcher?: GamePitcher | null;
 }
 
 export interface PickEmSlate {
