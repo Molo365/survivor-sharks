@@ -53,8 +53,8 @@ type EspnProbable = {
   athlete?: {
     fullName?: string;
     shortName?: string;
-    statistics?: { name: string; displayValue: string }[];
   };
+  statistics?: { name: string; displayValue: string }[];
 };
 
 type EspnSituation = {
@@ -91,7 +91,7 @@ type EspnEvent = {
 
 function extractStartingPitcher(probable: EspnProbable | undefined): EspnStartingPitcher | null {
   if (!probable?.athlete?.fullName) return null;
-  const stats = probable.athlete.statistics ?? [];
+  const stats = probable.statistics ?? [];
   const era = stats.find(s => s.name === "ERA" || s.name === "era")?.displayValue ?? null;
   const record = stats.find(s => s.name === "record" || s.name === "Record")?.displayValue ?? null;
   let wins: number | null = null;
