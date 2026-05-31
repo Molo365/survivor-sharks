@@ -440,8 +440,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const phase = isWc ? wcPhase : null;
   const totalGames = isWc ? formattedGames.length : null;
+  const completedGames = isWc && wcSchedule
+    ? wcSchedule
+        .filter((day) => wcRange && day.dateStr >= wcRange.start && day.dateStr <= wcRange.end)
+        .flatMap((day) => day.games)
+        .filter((g) => g.isCompleted)
+        .length
+    : null;
 
-  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries, totalGames });
+  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries, totalGames, completedGames });
 });
 
 // POST /api/pools/:poolId/pickem/process-results  — commissioner only

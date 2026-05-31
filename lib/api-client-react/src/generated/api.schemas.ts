@@ -868,6 +868,11 @@ export interface PickEmLeaderboard {
      * @nullable
      */
   totalGames?: number | null;
+  /**
+     * Games with a final result in the active phase (WC only); use as pick-accuracy denominator; null for non-WC
+     * @nullable
+     */
+  completedGames?: number | null;
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
 }

@@ -1145,9 +1145,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               <div className="rounded-xl border border-border/40 overflow-hidden">
                 {leaderboard.entries.map((entry, idx) => {
                   const isMe = entry.userId === user?.id;
+                  const denominator = isWc ? (leaderboard.completedGames ?? 0) : entry.picked;
                   const pct =
-                    entry.picked > 0
-                      ? Math.round((entry.correct / entry.picked) * 100)
+                    denominator > 0
+                      ? Math.round((entry.correct / denominator) * 100)
                       : null;
                   return (
                     <div
@@ -1193,30 +1194,14 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        {isWc ? (
-                          <>
-                            <span className="font-bebas text-2xl text-primary">{entry.picked}</span>
-                            <span className="font-bebas text-xl text-muted-foreground/40">
-                              /{leaderboard.totalGames ?? 72}
-                            </span>
-                            {entry.correct > 0 && (
-                              <span className="ml-2 text-xs font-mono text-green-400/70">
-                                {entry.correct} correct
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
-                            <span className="font-bebas text-xl text-muted-foreground/40">
-                              /{entry.picked}
-                            </span>
-                            {pct !== null && (
-                              <span className="ml-2 text-xs font-mono text-muted-foreground/60">
-                                {pct}%
-                              </span>
-                            )}
-                          </>
+                        <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                        <span className="font-bebas text-xl text-muted-foreground/40">
+                          /{denominator}
+                        </span>
+                        {pct !== null && (
+                          <span className="ml-2 text-xs font-mono text-muted-foreground/60">
+                            {pct}%
+                          </span>
                         )}
                       </div>
                     </div>

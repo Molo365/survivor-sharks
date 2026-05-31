@@ -1831,6 +1831,9 @@ components:
         totalGames:
           type: ["integer", "null"]
           description: Total schedulable games for the active phase (WC only); null for non-WC
+        completedGames:
+          type: ["integer", "null"]
+          description: Games with a final result in the active phase (WC only); use as pick-accuracy denominator; null for non-WC
         games:
           type: array
           items:
