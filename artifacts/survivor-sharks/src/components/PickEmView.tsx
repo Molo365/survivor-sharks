@@ -779,7 +779,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
           value="grid"
           className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
         >
-          <LayoutGrid className="w-5 h-5" /> Weekly Grid
+          <LayoutGrid className="w-5 h-5" /> Daily Grid
         </TabsTrigger>
         <TabsTrigger
           value="stats"
