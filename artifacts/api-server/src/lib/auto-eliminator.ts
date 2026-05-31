@@ -30,8 +30,13 @@ import {
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
   getTeamsWithWin,
-  getCurrentWcPhase,
 } from "./espn";
+import {
+  getCurrentWcPhase,
+  fetchTodayWcGames,
+  wcOutcome as wcOutcomeFromWc,
+  type WcGame,
+} from "./wc";
 import { logger } from "./logger";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -658,13 +663,6 @@ export async function processMlbDailyResults(): Promise<{
 // Pick-Em auto-grading (all active pickem pools, runs every poll cycle)
 // ---------------------------------------------------------------------------
 
-/** Derive a 3-way outcome for a completed soccer/WC game */
-function wcOutcome(game: EspnGame): "home_win" | "draw" | "away_win" | null {
-  if (!game.isCompleted || game.homeScore == null || game.awayScore == null) return null;
-  if (game.homeScore > game.awayScore) return "home_win";
-  if (game.awayScore > game.homeScore) return "away_win";
-  return "draw";
-}
 
 export async function processPickEmResults(): Promise<{
   picksGraded: number;
@@ -753,13 +751,13 @@ export async function processPickEmResults(): Promise<{
     const wcPhase = getCurrentWcPhase();
     // Only grade during active WC phases; skip if no phase active
     if (wcPhase) {
-      const wcGames = await fetchGamesForDate("worldcup", todayEspn);
+      const wcGames = await fetchTodayWcGames();
       const completedWcGames = wcGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
 
       // Build gameId → 3-way outcome map
       const outcomeByGameId = new Map<string, "home_win" | "draw" | "away_win">();
       for (const game of completedWcGames) {
-        const outcome = wcOutcome(game);
+        const outcome = wcOutcomeFromWc(game);
         if (outcome) {
           outcomeByGameId.set(game.id, outcome);
           logger.info(

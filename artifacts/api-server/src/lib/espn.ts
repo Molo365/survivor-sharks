@@ -7,26 +7,6 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
 };
 
-// ---------------------------------------------------------------------------
-// World Cup 2026 phase helpers
-// ---------------------------------------------------------------------------
-export const WC_PHASES = {
-  group_stage: { start: "2026-06-11", end: "2026-06-30" },
-  knockout_stage: { start: "2026-07-03", end: "2026-07-19" },
-} as const;
-export type WcPhase = keyof typeof WC_PHASES;
-
-/** Determine which WC phase a YYYY-MM-DD date falls in. */
-export function getWcPhase(dateStr: string): WcPhase | null {
-  if (dateStr >= WC_PHASES.group_stage.start && dateStr <= WC_PHASES.group_stage.end) return "group_stage";
-  if (dateStr >= WC_PHASES.knockout_stage.start && dateStr <= WC_PHASES.knockout_stage.end) return "knockout_stage";
-  return null;
-}
-
-/** Get the current WC phase based on today's ET date. */
-export function getCurrentWcPhase(): WcPhase | null {
-  return getWcPhase(getTodayEtDate());
-}
 
 export interface EspnTeam {
   id: string;
@@ -479,53 +459,3 @@ export async function getCompletedGameResults(sport: string, week?: number): Pro
  * Fetch this week's schedule — used by commissioner panel and pick grid.
  */
 export { fetchGames };
-
-// ---------------------------------------------------------------------------
-// WC 2026 Group Stage full schedule (with 5-minute TTL cache)
-// ---------------------------------------------------------------------------
-
-export interface WcScheduleDay {
-  dateStr: string; // YYYY-MM-DD
-  label: string;   // "Thursday, June 11"
-  games: EspnGame[];
-}
-
-let _wcScheduleCache: { data: WcScheduleDay[]; fetchedAt: number } | null = null;
-const WC_SCHEDULE_TTL_MS = 5 * 60 * 1000;
-
-/** Fetch & cache the full WC group stage schedule (June 11–30 2026). */
-export async function fetchWcGroupStageSchedule(): Promise<WcScheduleDay[]> {
-  const now = Date.now();
-  if (_wcScheduleCache && now - _wcScheduleCache.fetchedAt < WC_SCHEDULE_TTL_MS) {
-    return _wcScheduleCache.data;
-  }
-
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-
-  // June 11–30 = 20 dates
-  const dates: { dateStr: string; espnDate: string }[] = [];
-  for (let d = 11; d <= 30; d++) {
-    const dateStr = `2026-06-${String(d).padStart(2, "0")}`;
-    const espnDate = `202606${String(d).padStart(2, "0")}`;
-    dates.push({ dateStr, espnDate });
-  }
-
-  const results = await Promise.all(
-    dates.map(async ({ dateStr, espnDate }) => {
-      const games = await fetchGamesForDate("worldcup", espnDate);
-      // noon UTC = 8 AM ET — safely within the correct calendar day
-      const dateUtc = new Date(`${dateStr}T16:00:00Z`);
-      const label = fmt.format(dateUtc);
-      return { dateStr, label, games };
-    }),
-  );
-
-  const data = results.filter((r) => r.games.length > 0);
-  _wcScheduleCache = { data, fetchedAt: now };
-  return data;
-}

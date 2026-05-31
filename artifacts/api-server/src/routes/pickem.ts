@@ -5,12 +5,14 @@ import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
-  fetchWcGroupStageSchedule,
   getTodayEtDate,
   formatDateEt,
+} from "../lib/espn";
+import {
+  fetchWcSchedule,
   WC_PHASES,
   type WcPhase,
-} from "../lib/espn";
+} from "../lib/wc";
 
 const router = Router({ mergeParams: true });
 
@@ -167,7 +169,7 @@ router.get("/wc-schedule", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const schedule = await fetchWcGroupStageSchedule();
+  const schedule = await fetchWcSchedule();
 
   // Fetch all user picks across the full group stage date range
   const allPicks = await db
@@ -212,7 +214,7 @@ router.get("/wc-schedule", requireAuth, async (req, res) => {
         homeScore: g.homeScore ?? null,
         userPickOption: existing?.pickedTeamId ?? null,
         userPickResult: existing?.result ?? null,
-        liveDetail: g.liveState?.shortDetail ?? null,
+        liveDetail: g.liveDetail ?? null,
       };
     }),
   }));
@@ -255,7 +257,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   if (isWc) {
     // For WC: use cached full schedule for validation (avoids re-fetching today only)
-    const schedule = await fetchWcGroupStageSchedule();
+    const schedule = await fetchWcSchedule();
     for (const day of schedule) {
       for (const g of day.games) gameMap.set(g.id, { date: g.date });
     }
