@@ -2,9 +2,9 @@
  * World Cup 2026 data module.
  *
  * Schedule source : openfootball worldcup.json (no key required, 1-h cache)
- * Live scores     : API-Football free tier       (API_FOOTBALL_KEY env var, 2-min cache)
+ * Live scores     : ESPN public soccer API       (no key required, 60-sec cache)
  *
- * Live scores are optional — if the env var is absent the schedule still
+ * Live scores are optional — if ESPN is unreachable the schedule still
  * works; games simply stay "scheduled" until openfootball publishes results.
  */
 import { logger } from "./logger";
@@ -289,27 +289,12 @@ async function fetchOpenfootballSchedule(): Promise<WcScheduleDay[]> {
 }
 
 // ---------------------------------------------------------------------------
-// API-Football live scores — optional (graceful degradation if key absent)
-// https://v3.football.api-sports.io  / league 1 = FIFA World Cup
+// ESPN live scores — public API, no key required
+// https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard
+// Used only to overlay live/final scores on top of the openfootball schedule.
 // ---------------------------------------------------------------------------
-const AF_BASE = "https://v3.football.api-sports.io";
-const AF_WC_LEAGUE = 1;
-const AF_WC_SEASON = 2026;
-const LIVE_TTL_MS = 2 * 60 * 1000; // 2 minutes — conserves free-tier quota
-
-interface AfFixture {
-  fixture: {
-    id: number;
-    date: string;
-    status: { short: string; elapsed: number | null };
-  };
-  league: { id: number };
-  teams: {
-    home: { name: string };
-    away: { name: string };
-  };
-  goals: { home: number | null; away: number | null };
-}
+const ESPN_WC_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
+const LIVE_TTL_MS = 60 * 1000; // 60 seconds during matches
 
 interface LiveScore {
   homeScore: number | null;
@@ -318,16 +303,10 @@ interface LiveScore {
   liveDetail: string | null;
 }
 
-// Keyed by normalised "{homeName}|{awayName}" on a given date
+// Keyed by normalised "{homeName}|{awayName}"
 type LiveScoreMap = Map<string, LiveScore>;
 
 let _liveCache: { map: LiveScoreMap; date: string; fetchedAt: number } | null = null;
-
-function afStatusToGameStatus(short: string): "in_progress" | "final" | null {
-  if (["1H", "HT", "2H", "ET", "BT", "P", "INT"].includes(short)) return "in_progress";
-  if (["FT", "AET", "PEN"].includes(short)) return "final";
-  return null;
-}
 
 function normalizeForMatch(name: string): string {
   return resolveTeamName(name).toLowerCase().replace(/[^a-z]/g, "");
@@ -337,51 +316,65 @@ function liveKey(home: string, away: string): string {
   return `${normalizeForMatch(home)}|${normalizeForMatch(away)}`;
 }
 
-async function fetchLiveScores(todayEt: string): Promise<LiveScoreMap> {
-  const key = process.env["API_FOOTBALL_KEY"];
-  if (!key) return new Map();
+interface EspnScoreboardEvent {
+  id: string;
+  date: string;
+  competitions?: {
+    competitors?: { homeAway: string; score?: string; team: { displayName: string } }[];
+    status?: { type?: { completed?: boolean; state?: string; shortDetail?: string } };
+  }[];
+}
 
+async function fetchEspnLiveScores(todayEt: string): Promise<LiveScoreMap> {
   const now = Date.now();
   if (_liveCache && _liveCache.date === todayEt && now - _liveCache.fetchedAt < LIVE_TTL_MS) {
     return _liveCache.map;
   }
 
-  try {
-    // Fetch today's fixtures (live + finished today)
-    const url = `${AF_BASE}/fixtures?league=${AF_WC_LEAGUE}&season=${AF_WC_SEASON}&date=${todayEt}`;
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(8_000),
-      headers: { "x-apisports-key": key },
-    });
-    if (!res.ok) {
-      logger.warn({ status: res.status }, "wc: API-Football HTTP error");
-      return _liveCache?.map ?? new Map();
-    }
-    const data = await res.json() as { errors?: unknown; response?: AfFixture[] };
-    if (data.errors && Object.keys(data.errors as object).length > 0) {
-      logger.warn({ errors: data.errors }, "wc: API-Football returned errors");
-      return _liveCache?.map ?? new Map();
-    }
+  // Convert YYYY-MM-DD → YYYYMMDD for ESPN
+  const espnDate = todayEt.replace(/-/g, "");
+  const url = `${ESPN_WC_BASE}/scoreboard?dates=${espnDate}&limit=100`;
 
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, "wc: ESPN scoreboard HTTP error");
+      return _liveCache?.map ?? new Map();
+    }
+    const data = await res.json() as { events?: EspnScoreboardEvent[] };
     const map: LiveScoreMap = new Map();
-    for (const fix of data.response ?? []) {
-      const gameStatus = afStatusToGameStatus(fix.fixture.status.short);
-      if (!gameStatus) continue;
-      const elapsed = fix.fixture.status.elapsed;
-      const liveDetail = gameStatus === "in_progress" && elapsed != null ? `${elapsed}'` : null;
-      const k = liveKey(fix.teams.home.name, fix.teams.away.name);
-      map.set(k, {
-        homeScore: fix.goals.home,
-        awayScore: fix.goals.away,
-        status: gameStatus,
-        liveDetail,
-      });
+
+    for (const event of data.events ?? []) {
+      const comp = event.competitions?.[0];
+      if (!comp) continue;
+      const statusType = comp.status?.type;
+      const state = statusType?.state ?? "pre";
+      const completed = statusType?.completed ?? false;
+
+      // Only overlay in-progress or completed games — skip pre-game
+      if (state === "pre" && !completed) continue;
+
+      const gameStatus: "in_progress" | "final" = completed || state === "post"
+        ? "final"
+        : "in_progress";
+
+      const home = comp.competitors?.find((c) => c.homeAway === "home");
+      const away = comp.competitors?.find((c) => c.homeAway === "away");
+      if (!home || !away) continue;
+
+      const homeScore = home.score != null ? parseInt(home.score, 10) : null;
+      const awayScore = away.score != null ? parseInt(away.score, 10) : null;
+      const shortDetail = statusType?.shortDetail ?? null;
+      const liveDetail = gameStatus === "in_progress" ? shortDetail : null;
+
+      const k = liveKey(home.team.displayName, away.team.displayName);
+      map.set(k, { homeScore, awayScore, status: gameStatus, liveDetail });
     }
 
     _liveCache = { map, date: todayEt, fetchedAt: now };
     return map;
   } catch (err) {
-    logger.warn({ err }, "wc: failed to fetch API-Football live scores");
+    logger.warn({ err }, "wc: failed to fetch ESPN live scores");
     return _liveCache?.map ?? new Map();
   }
 }
@@ -403,7 +396,7 @@ export async function fetchWcSchedule(): Promise<WcScheduleDay[]> {
   const todayEt = getTodayEtDate();
   const [days, liveScores] = await Promise.all([
     fetchOpenfootballSchedule(),
-    fetchLiveScores(todayEt),
+    fetchEspnLiveScores(todayEt),
   ]);
 
   if (liveScores.size === 0) return days;
