@@ -819,6 +819,11 @@ export interface PickEmLeaderboardGame {
   id: string;
   startTime: string;
   status: string;
+  /**
+     * WC group label (e.g. "Group A"); null for knockout or non-WC sports
+     * @nullable
+     */
+  group?: string | null;
   awayTeam: PickEmLeaderboardTeam;
   homeTeam: PickEmLeaderboardTeam;
 }
@@ -854,10 +859,15 @@ export interface PickEmLeaderboard {
   poolId: number;
   week: number;
   /**
-     * WC phase returned (group_stage, knockout_stage); null for MLB
+     * WC phase returned (group_stage, knockout_stage); null for non-WC sports
      * @nullable
      */
   phase?: string | null;
+  /**
+     * Total schedulable games for the active phase (WC only); null for non-WC
+     * @nullable
+     */
+  totalGames?: number | null;
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
 }

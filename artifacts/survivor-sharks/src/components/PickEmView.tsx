@@ -451,14 +451,20 @@ interface PicksGridProps {
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
   week: number;
+  isWc?: boolean;
+  phase?: string | null;
 }
 
-function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
+function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGridProps) {
+  const title = isWc
+    ? phase === "knockout_stage" ? "Knockout Stage Grid" : "Group Stage Grid"
+    : `Week ${week} Standings`;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-bebas text-2xl tracking-wide text-foreground">
-          Week {week} Standings
+          {title}
         </h3>
         <span className="text-xs text-muted-foreground">
           {entries.length} player{entries.length !== 1 ? "s" : ""}
@@ -612,9 +618,10 @@ interface StatsViewProps {
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
+  isWc?: boolean;
 }
 
-function StatsView({ games, entries, currentUserId }: StatsViewProps) {
+function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
   const playerStats = [...entries]
     .map((entry) => ({
       ...entry,
@@ -668,7 +675,7 @@ function StatsView({ games, entries, currentUserId }: StatsViewProps) {
         </div>
         <div className="bg-card border border-border/40 rounded-xl p-4 text-center">
           <div className="font-bebas text-3xl text-primary">{games.length}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Games Today</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">{isWc ? "Matches" : "Games Today"}</div>
         </div>
       </div>
 
@@ -963,7 +970,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           value="grid"
           className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
         >
-          <LayoutGrid className="w-5 h-5" /> Daily Grid
+          <LayoutGrid className="w-5 h-5" /> {isWc ? "Pick Grid" : "Daily Grid"}
         </TabsTrigger>
         <TabsTrigger
           value="stats"
@@ -1120,7 +1127,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
+              <p className="font-bebas text-2xl tracking-wide">{isWc ? "No picks yet" : "No picks yet today"}</p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
           ) : (
@@ -1186,14 +1193,30 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
-                        <span className="font-bebas text-xl text-muted-foreground/40">
-                          /{entry.picked}
-                        </span>
-                        {pct !== null && (
-                          <span className="ml-2 text-xs font-mono text-muted-foreground/60">
-                            {pct}%
-                          </span>
+                        {isWc ? (
+                          <>
+                            <span className="font-bebas text-2xl text-primary">{entry.picked}</span>
+                            <span className="font-bebas text-xl text-muted-foreground/40">
+                              /{leaderboard.totalGames ?? 72}
+                            </span>
+                            {entry.correct > 0 && (
+                              <span className="ml-2 text-xs font-mono text-green-400/70">
+                                {entry.correct} correct
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                            <span className="font-bebas text-xl text-muted-foreground/40">
+                              /{entry.picked}
+                            </span>
+                            {pct !== null && (
+                              <span className="ml-2 text-xs font-mono text-muted-foreground/60">
+                                {pct}%
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1215,7 +1238,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
+              <p className="font-bebas text-2xl tracking-wide">{isWc ? "No picks yet" : "No picks yet today"}</p>
               <p className="text-sm mt-1">Submit picks to see the grid.</p>
             </div>
           ) : (
@@ -1224,6 +1247,8 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               entries={leaderboard.entries}
               currentUserId={user?.id ?? null}
               week={leaderboard.week}
+              isWc={isWc}
+              phase={leaderboard.phase}
             />
           )}
         </TabsContent>
@@ -1246,6 +1271,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               games={leaderboard?.games ?? []}
               entries={leaderboard?.entries ?? []}
               currentUserId={user?.id ?? null}
+              isWc={isWc}
             />
           )}
         </TabsContent>

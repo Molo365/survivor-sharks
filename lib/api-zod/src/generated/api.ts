@@ -950,11 +950,13 @@ export const GetPickEmLeaderboardQueryParams = zod.object({
 export const GetPickEmLeaderboardResponse = zod.object({
   "poolId": zod.number(),
   "week": zod.number(),
-  "phase": zod.string().nullish().describe('WC phase returned (group_stage, knockout_stage); null for MLB'),
+  "phase": zod.string().nullish().describe('WC phase returned (group_stage, knockout_stage); null for non-WC sports'),
+  "totalGames": zod.number().nullish().describe('Total schedulable games for the active phase (WC only); null for non-WC'),
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
   "status": zod.string(),
+  "group": zod.string().nullish().describe('WC group label (e.g. \"Group A\"); null for knockout or non-WC sports'),
   "awayTeam": zod.object({
   "id": zod.string(),
   "abbreviation": zod.string(),

@@ -1774,6 +1774,9 @@ components:
           type: string
         status:
           type: string
+        group:
+          type: ["string", "null"]
+          description: WC group label (e.g. "Group A"); null for knockout or non-WC sports
         awayTeam:
           $ref: "#/components/schemas/PickEmLeaderboardTeam"
         homeTeam:
@@ -1824,7 +1827,10 @@ components:
           type: integer
         phase:
           type: ["string", "null"]
-          description: WC phase returned (group_stage, knockout_stage); null for MLB
+          description: WC phase returned (group_stage, knockout_stage); null for non-WC sports
+        totalGames:
+          type: ["integer", "null"]
+          description: Total schedulable games for the active phase (WC only); null for non-WC
         games:
           type: array
           items:

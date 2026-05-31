@@ -348,25 +348,24 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  // Determine date filter for picks (phase-aware for WC)
+  // For WC: resolve which phase to show — default to group_stage
   const phaseParam = req.query.phase as string | undefined;
-  let dateFilter: ReturnType<typeof eq>;
-  let phaseRangeFilter: ReturnType<typeof and> | undefined;
+  const wcPhase: WcPhase = (isWc && phaseParam && WC_PHASES[phaseParam as WcPhase])
+    ? (phaseParam as WcPhase)
+    : "group_stage";
 
-  if (isWc && phaseParam && WC_PHASES[phaseParam as WcPhase]) {
-    const range = WC_PHASES[phaseParam as WcPhase];
-    phaseRangeFilter = and(
-      gte(pickemPicksTable.gameDate, range.start),
-      lte(pickemPicksTable.gameDate, range.end),
-    );
-  }
-
-  const picksWhereClause = phaseRangeFilter
-    ? and(eq(pickemPicksTable.poolId, poolId), phaseRangeFilter)
+  // Build picks WHERE clause — WC uses full phase range, others use today only
+  const picksWhereClause = isWc
+    ? and(
+        eq(pickemPicksTable.poolId, poolId),
+        gte(pickemPicksTable.gameDate, WC_PHASES[wcPhase].start),
+        lte(pickemPicksTable.gameDate, WC_PHASES[wcPhase].end),
+      )
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
 
-  const [games, allPicks, aggregates] = await Promise.all([
-    fetchGamesForDate(sport, todayEspn),
+  const [wcSchedule, espnGames, allPicks, aggregates] = await Promise.all([
+    isWc ? fetchWcSchedule() : Promise.resolve(null as null),
+    isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>) : fetchGamesForDate(sport, todayEspn),
     db.select().from(pickemPicksTable).where(picksWhereClause),
     db
       .select({
@@ -386,7 +385,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       ),
   ]);
 
-  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  if (!isWc) {
+    espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
 
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
@@ -413,17 +414,34 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
-  const formattedGames = games.map((g) => ({
-    id: g.id,
-    startTime: g.date,
-    status: g.status,
-    awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
-    homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
-  }));
+  // Build game list — WC uses full schedule for the active phase; others use today's ESPN games
+  const wcRange = isWc ? WC_PHASES[wcPhase] : null;
+  const formattedGames = isWc && wcSchedule
+    ? wcSchedule
+        .filter((day) => wcRange && day.dateStr >= wcRange.start && day.dateStr <= wcRange.end)
+        .flatMap((day) =>
+          day.games.map((g) => ({
+            id: g.id,
+            startTime: g.date,
+            status: g.status,
+            group: g.groupLabel ?? null,
+            awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
+            homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
+          }))
+        )
+    : espnGames.map((g) => ({
+        id: g.id,
+        startTime: g.date,
+        status: g.status,
+        group: null as string | null,
+        awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
+        homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
+      }));
 
-  const phase = isWc ? (phaseParam ?? null) : null;
+  const phase = isWc ? wcPhase : null;
+  const totalGames = isWc ? formattedGames.length : null;
 
-  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries });
+  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries, totalGames });
 });
 
 // POST /api/pools/:poolId/pickem/process-results  — commissioner only
