@@ -173,17 +173,17 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           <span className="hidden sm:inline">{team.name}</span>
         </span>
         {record && (
-          <span className="text-[10px] text-muted-foreground/60 leading-none font-medium tabular-nums">
+          <span className="text-[11px] text-white leading-none font-semibold tabular-nums">
             {record}
           </span>
         )}
         {pitcher?.name && !isFinal && !isLive && (
           <div className={cn("flex flex-col items-center gap-0", side === "home" ? "items-end" : "items-start")}>
-            <span className="text-[9px] text-muted-foreground/50 leading-tight truncate max-w-[80px] sm:max-w-[100px] text-center">
+            <span className="text-[10px] leading-tight truncate max-w-[80px] sm:max-w-[100px] text-center" style={{ color: "#cccccc" }}>
               {pitcher.name}
             </span>
             {pitcher.era != null && (
-              <span className="text-[9px] text-muted-foreground/40 leading-none">
+              <span className="text-[10px] leading-none" style={{ color: "#cccccc" }}>
                 ERA {pitcher.era}
               </span>
             )}
