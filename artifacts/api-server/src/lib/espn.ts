@@ -103,8 +103,8 @@ function extractStartingPitcher(probable: EspnProbable | undefined): EspnStartin
   }
   const wStat = stats.find(s => s.name === "wins")?.displayValue;
   const lStat = stats.find(s => s.name === "losses")?.displayValue;
-  if (wStat) wins = parseInt(wStat, 10) || null;
-  if (lStat) losses = parseInt(lStat, 10) || null;
+  if (wStat !== undefined) { const n = parseInt(wStat, 10); if (!isNaN(n)) wins = n; }
+  if (lStat !== undefined) { const n = parseInt(lStat, 10); if (!isNaN(n)) losses = n; }
   return {
     name: probable.athlete.fullName,
     era,
