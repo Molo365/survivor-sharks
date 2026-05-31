@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation, Redirect } from "wouter";
-import { useGetPool, getGetPoolQueryKey } from "@workspace/api-client-react";
+import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
@@ -48,6 +48,14 @@ export default function PoolHome() {
   }
 
   const isCommissioner = pool?.commissionerId === user?.id || user?.role === 'admin';
+  const isPickEm = (pool?.poolType as string) === "pickem";
+
+  const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, {
+    query: {
+      enabled: isPickEm && !!poolId,
+      queryKey: getGetPickEmLeaderboardQueryKey(poolId),
+    },
+  });
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -105,10 +113,26 @@ export default function PoolHome() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
-                  <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1"><Users className="w-3 h-3" /> Alive</div>
-                  <div className="font-bebas text-3xl text-accent">{pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span></div>
-                </div>
+                {isPickEm ? (
+                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
+                      <Target className="w-3 h-3" /> Picked
+                    </div>
+                    <div className="font-bebas text-3xl text-green-400">
+                      {pickemLeaderboard?.entries.length ?? 0}
+                      <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
+                      <Users className="w-3 h-3" /> Alive
+                    </div>
+                    <div className="font-bebas text-3xl text-accent">
+                      {pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
+                    </div>
+                  </div>
+                )}
                 {pool.prizePot && pool.prizePot > 0 && (
                   <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg text-center shadow-[0_0_15px_rgba(30,144,255,0.05)]">
                     <div className="text-xs text-primary/80 uppercase font-bold tracking-wider mb-1">Prize Pot</div>

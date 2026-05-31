@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, Activity, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function BaseDiamond({
@@ -456,6 +456,209 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
   );
 }
 
+// ── Stats View ────────────────────────────────────────────────────────────────
+
+interface StatsViewProps {
+  games: PickEmLeaderboardGame[];
+  entries: PickEmLeaderboardEntry[];
+  currentUserId: number | null;
+}
+
+function StatsView({ games, entries, currentUserId }: StatsViewProps) {
+  const playerStats = [...entries]
+    .map((entry) => ({
+      ...entry,
+      pct: entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null,
+    }))
+    .sort((a, b) => {
+      const pa = a.pct ?? -1;
+      const pb = b.pct ?? -1;
+      return pb - pa || b.correct - a.correct;
+    });
+
+  const withPicks = playerStats.filter((p) => p.picked > 0);
+  const avgPct =
+    withPicks.length > 0
+      ? Math.round(withPicks.reduce((s, p) => s + (p.pct ?? 0), 0) / withPicks.length)
+      : null;
+
+  const gamePickStats = games
+    .map((game) => {
+      const awayCount = entries.filter((e) =>
+        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId === game.awayTeam.id),
+      ).length;
+      const homeCount = entries.filter((e) =>
+        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId === game.homeTeam.id),
+      ).length;
+      const total = awayCount + homeCount;
+      return {
+        game,
+        awayCount,
+        homeCount,
+        total,
+        awayPct: total > 0 ? Math.round((awayCount / total) * 100) : 50,
+        homePct: total > 0 ? Math.round((homeCount / total) * 100) : 50,
+      };
+    })
+    .filter((g) => g.total > 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-card border border-border/40 rounded-xl p-4 text-center">
+          <div className="font-bebas text-3xl text-accent">{entries.length}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1 flex items-center justify-center gap-1">
+            <Users className="w-3 h-3" /> Players
+          </div>
+        </div>
+        <div className="bg-card border border-border/40 rounded-xl p-4 text-center">
+          <div className="font-bebas text-3xl text-green-400">{avgPct != null ? `${avgPct}%` : "—"}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Avg Accuracy</div>
+        </div>
+        <div className="bg-card border border-border/40 rounded-xl p-4 text-center">
+          <div className="font-bebas text-3xl text-primary">{games.length}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Games Today</div>
+        </div>
+      </div>
+
+      {/* Player accuracy */}
+      {playerStats.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-bebas text-xl tracking-wide text-muted-foreground uppercase">
+            Player Accuracy
+          </h3>
+          <div className="rounded-xl border border-border/40 overflow-hidden">
+            {playerStats.map((entry, idx) => {
+              const isMe = entry.userId === currentUserId;
+              const pct = entry.pct ?? 0;
+              return (
+                <div
+                  key={entry.userId}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
+                    isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "font-bebas text-lg w-5 shrink-0 text-center",
+                      idx === 0
+                        ? "text-yellow-400"
+                        : idx === 1
+                          ? "text-zinc-300"
+                          : idx === 2
+                            ? "text-amber-600"
+                            : "text-muted-foreground/40",
+                    )}
+                  >
+                    {idx + 1}
+                  </span>
+                  <span className={cn("flex-1 font-medium text-sm truncate", isMe && "text-primary")}>
+                    {entry.displayName ?? entry.username}
+                    {isMe && (
+                      <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                        you
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="w-20 h-1.5 bg-muted/30 rounded-full overflow-hidden hidden sm:block">
+                      <div
+                        className="h-full bg-green-500/60 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="font-bebas text-lg text-green-400 w-5 text-right">{entry.correct}</span>
+                    <span className="font-bebas text-lg text-muted-foreground/40 w-8">/{entry.picked}</span>
+                    <span className="font-mono text-xs text-muted-foreground/70 w-10 text-right">
+                      {entry.pct != null ? `${entry.pct}%` : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Pick distribution */}
+      {gamePickStats.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-bebas text-xl tracking-wide text-muted-foreground uppercase">
+            Pick Distribution
+          </h3>
+          <div className="space-y-2">
+            {gamePickStats.map(({ game, awayCount, homeCount, awayPct, homePct }) => (
+              <div key={game.id} className="rounded-xl border border-border/40 bg-card/60 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    {game.awayTeam.logoUrl && (
+                      <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                        <img
+                          src={game.awayTeam.logoUrl}
+                          alt={game.awayTeam.abbreviation}
+                          className="w-4 h-4 object-contain"
+                        />
+                      </div>
+                    )}
+                    <span className="font-bebas tracking-wide">{game.awayTeam.abbreviation}</span>
+                    <span className="text-muted-foreground ml-auto">
+                      {awayCount} {awayCount === 1 ? "pick" : "picks"}
+                    </span>
+                  </div>
+                  <span className="text-muted-foreground/40 shrink-0">@</span>
+                  <div className="flex items-center gap-1.5 flex-1 flex-row-reverse">
+                    {game.homeTeam.logoUrl && (
+                      <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                        <img
+                          src={game.homeTeam.logoUrl}
+                          alt={game.homeTeam.abbreviation}
+                          className="w-4 h-4 object-contain"
+                        />
+                      </div>
+                    )}
+                    <span className="font-bebas tracking-wide">{game.homeTeam.abbreviation}</span>
+                    <span className="text-muted-foreground mr-auto">
+                      {homeCount} {homeCount === 1 ? "pick" : "picks"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex rounded-full overflow-hidden h-3">
+                  <div
+                    className="bg-blue-500/50 h-full transition-all flex items-center justify-end pr-1"
+                    style={{ width: `${awayPct}%` }}
+                  >
+                    {awayPct >= 25 && (
+                      <span className="text-[8px] font-bold text-white">{awayPct}%</span>
+                    )}
+                  </div>
+                  <div
+                    className="bg-green-500/50 h-full transition-all flex items-center justify-start pl-1"
+                    style={{ width: `${homePct}%` }}
+                  >
+                    {homePct >= 25 && (
+                      <span className="text-[8px] font-bold text-white">{homePct}%</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {entries.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <BarChart2 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+          <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
+          <p className="text-sm mt-1">Stats appear once players submit picks.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -588,7 +791,19 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
           value="leaderboard"
           className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
         >
-          <Activity className="w-5 h-5" /> Leaderboard
+          <Trophy className="w-5 h-5" /> Leaderboard
+        </TabsTrigger>
+        <TabsTrigger
+          value="grid"
+          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+        >
+          <LayoutGrid className="w-5 h-5" /> Weekly Grid
+        </TabsTrigger>
+        <TabsTrigger
+          value="stats"
+          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
+        >
+          <BarChart2 className="w-5 h-5" /> Stats
         </TabsTrigger>
         {isCommissioner && (
           <TabsTrigger
@@ -627,7 +842,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Live-update status badge */}
                   {slate.games.some((g) => g.status === "in_progress") ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
@@ -651,7 +865,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                 </div>
               </div>
 
-              {/* Open games */}
               {openGames.length > 0 && (
                 <div className="space-y-3">
                   {openGames.map((game) => (
@@ -665,7 +878,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                 </div>
               )}
 
-              {/* Locked / in-progress / final games */}
               {lockedGames.length > 0 && (
                 <div className="space-y-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 border-t border-border/30 pt-4">
@@ -682,7 +894,6 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                 </div>
               )}
 
-              {/* Submit button */}
               {openGames.length > 0 && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                   <p className="text-sm text-muted-foreground">
@@ -715,7 +926,7 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
           )}
         </TabsContent>
 
-        {/* ── Leaderboard ── */}
+        {/* ── Leaderboard (simple standings) ── */}
         <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
           {lbLoading ? (
             <div className="space-y-2">
@@ -725,9 +936,102 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
             </div>
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
-              <Activity className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bebas text-2xl tracking-wide text-foreground">
+                  Today's Standings
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  {leaderboard.entries.length} player{leaderboard.entries.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="rounded-xl border border-border/40 overflow-hidden">
+                {leaderboard.entries.map((entry, idx) => {
+                  const isMe = entry.userId === user?.id;
+                  const pct =
+                    entry.picked > 0
+                      ? Math.round((entry.correct / entry.picked) * 100)
+                      : null;
+                  return (
+                    <div
+                      key={entry.userId}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3.5 border-b border-border/20 last:border-0",
+                        isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "font-bebas text-xl w-7 shrink-0 text-center",
+                          entry.rank === 1
+                            ? "text-yellow-400"
+                            : entry.rank === 2
+                              ? "text-zinc-300"
+                              : entry.rank === 3
+                                ? "text-amber-600"
+                                : "text-muted-foreground/40",
+                        )}
+                      >
+                        {entry.rank}
+                      </span>
+                      <span
+                        className={cn(
+                          "flex-1 font-medium truncate",
+                          isMe ? "text-primary" : "text-foreground",
+                        )}
+                      >
+                        {entry.displayName ?? entry.username}
+                        {isMe && (
+                          <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                            you
+                          </span>
+                        )}
+                      </span>
+                      <div className="hidden sm:flex items-center gap-2 shrink-0">
+                        <div className="w-28 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500/60 rounded-full transition-all"
+                            style={{ width: `${pct ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                        <span className="font-bebas text-xl text-muted-foreground/40">
+                          /{entry.picked}
+                        </span>
+                        {pct !== null && (
+                          <span className="ml-2 text-xs font-mono text-muted-foreground/60">
+                            {pct}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Weekly Grid ── */}
+        <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+          {lbLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : !leaderboard || leaderboard.entries.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-bebas text-2xl tracking-wide">No picks yet today</p>
+              <p className="text-sm mt-1">Submit picks to see the grid.</p>
             </div>
           ) : (
             <PicksGrid
@@ -735,6 +1039,28 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
               entries={leaderboard.entries}
               currentUserId={user?.id ?? null}
               week={leaderboard.week}
+            />
+          )}
+        </TabsContent>
+
+        {/* ── Stats ── */}
+        <TabsContent value="stats" className="m-0 focus-visible:outline-none">
+          {lbLoading ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-20 w-full rounded-xl" />
+                ))}
+              </div>
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <StatsView
+              games={leaderboard?.games ?? []}
+              entries={leaderboard?.entries ?? []}
+              currentUserId={user?.id ?? null}
             />
           )}
         </TabsContent>
@@ -755,18 +1081,18 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
                 <div className="absolute right-0 top-0 bottom-0 w-24 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.08),transparent)] pointer-events-none" />
                 <div className="p-6 space-y-4">
                   <div>
-                    <h4 className="font-bebas text-2xl tracking-wide text-primary mb-0.5">Invite Code</h4>
-                    <p className="text-sm text-muted-foreground">Share this code to let players join the pool.</p>
+                    <h4 className="font-bebas text-2xl tracking-wide text-primary mb-0.5">
+                      Invite Code
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Share this code to let players join the pool.
+                    </p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
                       {inviteCode}
                     </div>
-                    <Button
-                      size="lg"
-                      onClick={copyInvite}
-                      className="font-bebas text-xl tracking-wider"
-                    >
+                    <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
                       <Copy className="w-5 h-5 mr-2" /> Copy Code
                     </Button>
                   </div>
