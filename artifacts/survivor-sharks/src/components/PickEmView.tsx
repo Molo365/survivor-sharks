@@ -132,15 +132,11 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
     const isWrong = result === "incorrect";
     const isHome = side === "home";
 
-    // Build pitcher line e.g. "S. Miles 4-2 | 3.45 ERA"
+    // Build pitcher line e.g. "Spencer Miles (5-4) 3.45 ERA"
+    const pitcherRecord = pitcher?.wins != null && pitcher?.losses != null ? `(${pitcher.wins}-${pitcher.losses})` : null;
+    const pitcherEra = pitcher?.era != null ? `${pitcher.era} ERA` : null;
     const pitcherLine = pitcher?.name
-      ? [
-          pitcher.name,
-          pitcher.wins != null && pitcher.losses != null ? `${pitcher.wins}-${pitcher.losses}` : null,
-          pitcher.era != null ? `${pitcher.era} ERA` : null,
-        ]
-          .filter(Boolean)
-          .join("  |  ")
+      ? [pitcher.name, pitcherRecord, pitcherEra].filter(Boolean).join(" ")
       : null;
 
     const logo = (
