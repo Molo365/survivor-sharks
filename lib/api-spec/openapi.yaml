@@ -591,6 +591,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/pickem/wc-schedule:
+    get:
+      operationId: getWcSchedule
+      tags: [pickem]
+      summary: Get the full WC group stage schedule with user picks overlaid
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Full WC group stage schedule grouped by date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WcSchedule"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/pickem/picks:
     post:
       operationId: submitPickEmPicks
@@ -1640,9 +1665,75 @@ components:
           type: string
         pickedTeamName:
           type: string
+        gameDate:
+          type: string
+          description: YYYY-MM-DD date of the game in ET. Required for WC multi-date picks.
         pickOption:
           type: string
           description: For World Cup pools — the pick outcome (home_win, draw, away_win)
+
+    WcScheduleGame:
+      type: object
+      required: [id, startTime, status, deadlinePassed, isPickable, awayTeam, homeTeam]
+      properties:
+        id:
+          type: string
+        startTime:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, in_progress, final]
+        deadlinePassed:
+          type: boolean
+        isPickable:
+          type: boolean
+          description: True when the game is within the 24-hour pick window and has not yet started
+        group:
+          type: ["string", "null"]
+          description: "Group label e.g. 'Group A'"
+        awayTeam:
+          $ref: "#/components/schemas/PickEmTeam"
+        homeTeam:
+          $ref: "#/components/schemas/PickEmTeam"
+        awayScore:
+          type: ["integer", "null"]
+        homeScore:
+          type: ["integer", "null"]
+        userPickOption:
+          type: ["string", "null"]
+          description: User's 3-way pick (home_win, draw, away_win), null if not picked
+        userPickResult:
+          type: ["string", "null"]
+          enum: [pending, correct, incorrect, null]
+        liveDetail:
+          type: ["string", "null"]
+
+    WcScheduleDateGroup:
+      type: object
+      required: [date, label, games]
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD date in ET"
+        label:
+          type: string
+          description: "e.g. 'Thursday, June 11'"
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcScheduleGame"
+
+    WcSchedule:
+      type: object
+      required: [phase, dateGroups]
+      properties:
+        phase:
+          type: ["string", "null"]
+          description: Current WC phase (group_stage, knockout_stage) or null if outside tournament
+        dateGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcScheduleDateGroup"
 
     PickEmPickInput:
       type: object

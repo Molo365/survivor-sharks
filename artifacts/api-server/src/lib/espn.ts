@@ -69,6 +69,7 @@ export interface EspnGame {
   liveState: EspnLiveState | null;
   homeStartingPitcher: EspnStartingPitcher | null;
   awayStartingPitcher: EspnStartingPitcher | null;
+  groupLabel: string | null; // WC group (e.g. "Group A"), null for other sports
 }
 
 type EspnProbable = {
@@ -108,6 +109,7 @@ type EspnEvent = {
       type?: { completed?: boolean; name?: string; state?: string; shortDetail?: string };
     };
     situation?: EspnSituation;
+    notes?: { type?: string; headline?: string }[];
   }[];
 };
 
@@ -163,6 +165,11 @@ function parseGame(event: EspnEvent): EspnGame {
     };
   }
 
+  // Extract WC group label from competition notes (e.g. "Group A - Matchday 1" → "Group A")
+  const noteHeadline = comp?.notes?.[0]?.headline ?? null;
+  const groupMatch = noteHeadline?.match(/Group\s+[A-L]/i);
+  const groupLabel = groupMatch ? groupMatch[0].replace(/\s+/g, " ") : null;
+
   return {
     id: event.id,
     date: event.date,
@@ -188,6 +195,7 @@ function parseGame(event: EspnEvent): EspnGame {
     awayRecord: away?.records?.find(r => r.name === "overall" || r.type === "total")?.summary ?? null,
     homeStartingPitcher: extractStartingPitcher(home?.probables?.[0]),
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
+    groupLabel,
   };
 }
 
@@ -471,3 +479,53 @@ export async function getCompletedGameResults(sport: string, week?: number): Pro
  * Fetch this week's schedule — used by commissioner panel and pick grid.
  */
 export { fetchGames };
+
+// ---------------------------------------------------------------------------
+// WC 2026 Group Stage full schedule (with 5-minute TTL cache)
+// ---------------------------------------------------------------------------
+
+export interface WcScheduleDay {
+  dateStr: string; // YYYY-MM-DD
+  label: string;   // "Thursday, June 11"
+  games: EspnGame[];
+}
+
+let _wcScheduleCache: { data: WcScheduleDay[]; fetchedAt: number } | null = null;
+const WC_SCHEDULE_TTL_MS = 5 * 60 * 1000;
+
+/** Fetch & cache the full WC group stage schedule (June 11–30 2026). */
+export async function fetchWcGroupStageSchedule(): Promise<WcScheduleDay[]> {
+  const now = Date.now();
+  if (_wcScheduleCache && now - _wcScheduleCache.fetchedAt < WC_SCHEDULE_TTL_MS) {
+    return _wcScheduleCache.data;
+  }
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  // June 11–30 = 20 dates
+  const dates: { dateStr: string; espnDate: string }[] = [];
+  for (let d = 11; d <= 30; d++) {
+    const dateStr = `2026-06-${String(d).padStart(2, "0")}`;
+    const espnDate = `202606${String(d).padStart(2, "0")}`;
+    dates.push({ dateStr, espnDate });
+  }
+
+  const results = await Promise.all(
+    dates.map(async ({ dateStr, espnDate }) => {
+      const games = await fetchGamesForDate("worldcup", espnDate);
+      // noon UTC = 8 AM ET — safely within the correct calendar day
+      const dateUtc = new Date(`${dateStr}T16:00:00Z`);
+      const label = fmt.format(dateUtc);
+      return { dateStr, label, games };
+    }),
+  );
+
+  const data = results.filter((r) => r.games.length > 0);
+  _wcScheduleCache = { data, fetchedAt: now };
+  return data;
+}

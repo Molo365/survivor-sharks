@@ -878,6 +878,47 @@ export const GetPickEmGamesResponse = zod.object({
 
 
 /**
+ * @summary Get the full WC group stage schedule with user picks overlaid
+ */
+export const GetWcScheduleParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetWcScheduleResponse = zod.object({
+  "phase": zod.string().nullable().describe('Current WC phase (group_stage, knockout_stage) or null if outside tournament'),
+  "dateGroups": zod.array(zod.object({
+  "date": zod.string().describe('YYYY-MM-DD date in ET'),
+  "label": zod.string().describe('e.g. \'Thursday, June 11\''),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.enum(['scheduled', 'in_progress', 'final']),
+  "deadlinePassed": zod.boolean(),
+  "isPickable": zod.boolean().describe('True when the game is within the 24-hour pick window and has not yet started'),
+  "group": zod.string().nullish().describe('Group label e.g. \'Group A\''),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick (home_win, draw, away_win), null if not picked'),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal(null)]).nullish(),
+  "liveDetail": zod.string().nullish()
+}))
+}))
+})
+
+
+/**
  * @summary Submit pick-em picks for today's slate
  */
 export const SubmitPickEmPicksParams = zod.object({
@@ -889,6 +930,7 @@ export const SubmitPickEmPicksBody = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
+  "gameDate": zod.string().optional().describe('YYYY-MM-DD date of the game in ET. Required for WC multi-date picks.'),
   "pickOption": zod.string().optional().describe('For World Cup pools — the pick outcome (home_win, draw, away_win)')
 }))
 })

@@ -53,6 +53,7 @@ import type {
   SurvivorGrid,
   Team,
   TeamInjuryReport,
+  WcSchedule,
   WeekResult
 } from './api.schemas';
 
@@ -1933,6 +1934,83 @@ export function useGetPickEmGames<TData = Awaited<ReturnType<typeof getPickEmGam
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPickEmGamesQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetWcScheduleUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/wc-schedule`
+}
+
+/**
+ * @summary Get the full WC group stage schedule with user picks overlaid
+ */
+export const getWcSchedule = async (poolId: number, options?: RequestInit): Promise<WcSchedule> => {
+
+  return customFetch<WcSchedule>(getGetWcScheduleUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcScheduleQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem/wc-schedule`
+    ] as const;
+    }
+
+
+export const getGetWcScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getWcSchedule>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcScheduleQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcSchedule>>> = ({ signal }) => getWcSchedule(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcSchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getWcSchedule>>>
+export type GetWcScheduleQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the full WC group stage schedule with user picks overlaid
+ */
+
+export function useGetWcSchedule<TData = Awaited<ReturnType<typeof getWcSchedule>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcScheduleQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

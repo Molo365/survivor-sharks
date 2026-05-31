@@ -5,6 +5,7 @@ import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
+  fetchWcGroupStageSchedule,
   getTodayEtDate,
   formatDateEt,
   WC_PHASES,
@@ -149,13 +150,83 @@ router.get("/games", requireAuth, async (req, res) => {
   });
 });
 
+// GET /api/pools/:poolId/pickem/wc-schedule
+router.get("/wc-schedule", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem" || pool.sport !== "worldcup") {
+    res.status(400).json({ error: "Not a World Cup pick-em pool" }); return;
+  }
+
+  const [entry] = await db
+    .select().from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const schedule = await fetchWcGroupStageSchedule();
+
+  // Fetch all user picks across the full group stage date range
+  const allPicks = await db
+    .select().from(pickemPicksTable)
+    .where(and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.userId, userId),
+      gte(pickemPicksTable.gameDate, WC_PHASES.group_stage.start),
+      lte(pickemPicksTable.gameDate, WC_PHASES.group_stage.end),
+    ));
+
+  const pickMap = new Map(allPicks.map((p) => [p.gameId, p]));
+  const nowMs = Date.now();
+  const TWENTY_FOUR_H_MS = 24 * 60 * 60 * 1000;
+
+  const todayEt = getTodayEtDate();
+  const phase = todayEt >= WC_PHASES.group_stage.start && todayEt <= WC_PHASES.group_stage.end
+    ? "group_stage"
+    : todayEt >= WC_PHASES.knockout_stage.start && todayEt <= WC_PHASES.knockout_stage.end
+      ? "knockout_stage"
+      : null;
+
+  const dateGroups = schedule.map(({ dateStr, label, games }) => ({
+    date: dateStr,
+    label,
+    games: games.map((g) => {
+      const existing = pickMap.get(g.id);
+      const msUntil = new Date(g.date).getTime() - nowMs;
+      const locked = isGameLocked(g.date);
+      const isPickable = !locked && msUntil <= TWENTY_FOUR_H_MS;
+
+      return {
+        id: g.id,
+        startTime: g.date,
+        status: g.status,
+        deadlinePassed: locked,
+        isPickable,
+        group: g.groupLabel ?? null,
+        awayTeam: { id: g.awayTeam.id, name: g.awayTeam.displayName, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
+        homeTeam: { id: g.homeTeam.id, name: g.homeTeam.displayName, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
+        awayScore: g.awayScore ?? null,
+        homeScore: g.homeScore ?? null,
+        userPickOption: existing?.pickedTeamId ?? null,
+        userPickResult: existing?.result ?? null,
+        liveDetail: g.liveState?.shortDetail ?? null,
+      };
+    }),
+  }));
+
+  res.json({ phase, dateGroups });
+});
+
 // POST /api/pools/:poolId/pickem/picks
 router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
   const { picks } = req.body as {
-    picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
+    picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -179,8 +250,19 @@ router.post("/picks", requireAuth, async (req, res) => {
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate(sport, todayEspn);
-  const gameMap = new Map(games.map((g) => [g.id, g]));
+  // Build a map of all known games for validation
+  const gameMap = new Map<string, { date: string }>();
+
+  if (isWc) {
+    // For WC: use cached full schedule for validation (avoids re-fetching today only)
+    const schedule = await fetchWcGroupStageSchedule();
+    for (const day of schedule) {
+      for (const g of day.games) gameMap.set(g.id, { date: g.date });
+    }
+  } else {
+    const games = await fetchGamesForDate(sport, todayEspn);
+    for (const g of games) gameMap.set(g.id, { date: g.date });
+  }
 
   const lockedGameIds: string[] = [];
   const unknownGameIds: string[] = [];
@@ -217,13 +299,16 @@ router.post("/picks", requireAuth, async (req, res) => {
       ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
       : pick.pickedTeamName;
 
+    // For WC: use the game-specific date; for other sports: use today
+    const gameDate = isWc && pick.gameDate ? pick.gameDate : todayEt;
+
     await db
       .insert(pickemPicksTable)
       .values({
         poolId,
         userId,
         gameId: pick.gameId,
-        gameDate: todayEt,
+        gameDate,
         week: pool.currentWeek,
         pickedTeamId: pick.pickedTeamId,
         pickedTeamName,

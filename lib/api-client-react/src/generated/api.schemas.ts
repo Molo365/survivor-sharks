@@ -726,8 +726,77 @@ export interface PickEmPickItem {
   gameId: string;
   pickedTeamId: string;
   pickedTeamName: string;
+  /** YYYY-MM-DD date of the game in ET. Required for WC multi-date picks. */
+  gameDate?: string;
   /** For World Cup pools — the pick outcome (home_win, draw, away_win) */
   pickOption?: string;
+}
+
+export type WcScheduleGameStatus = typeof WcScheduleGameStatus[keyof typeof WcScheduleGameStatus];
+
+
+export const WcScheduleGameStatus = {
+  scheduled: 'scheduled',
+  in_progress: 'in_progress',
+  final: 'final',
+} as const;
+
+/**
+ * @nullable
+ */
+export type WcScheduleGameUserPickResult = typeof WcScheduleGameUserPickResult[keyof typeof WcScheduleGameUserPickResult] | null;
+
+
+export const WcScheduleGameUserPickResult = {
+  pending: 'pending',
+  correct: 'correct',
+  incorrect: 'incorrect',
+} as const;
+
+export interface WcScheduleGame {
+  id: string;
+  startTime: string;
+  status: WcScheduleGameStatus;
+  deadlinePassed: boolean;
+  /** True when the game is within the 24-hour pick window and has not yet started */
+  isPickable: boolean;
+  /**
+     * Group label e.g. 'Group A'
+     * @nullable
+     */
+  group?: string | null;
+  awayTeam: PickEmTeam;
+  homeTeam: PickEmTeam;
+  /** @nullable */
+  awayScore?: number | null;
+  /** @nullable */
+  homeScore?: number | null;
+  /**
+     * User's 3-way pick (home_win, draw, away_win), null if not picked
+     * @nullable
+     */
+  userPickOption?: string | null;
+  /** @nullable */
+  userPickResult?: WcScheduleGameUserPickResult;
+  /** @nullable */
+  liveDetail?: string | null;
+}
+
+export interface WcScheduleDateGroup {
+  /** YYYY-MM-DD date in ET */
+  date: string;
+  /** e.g. 'Thursday, June 11' */
+  label: string;
+  games: WcScheduleGame[];
+}
+
+export interface WcSchedule {
+  /**
+     * Current WC phase (group_stage, knockout_stage) or null if outside tournament
+     * @nullable
+     */
+  phase: string | null;
+  dateGroups: WcScheduleDateGroup[];
 }
 
 export interface PickEmPickInput {

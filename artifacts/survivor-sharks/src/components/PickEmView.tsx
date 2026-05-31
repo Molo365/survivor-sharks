@@ -11,6 +11,7 @@ import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardE
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -983,7 +984,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       <div className="mt-8">
         {/* ── Today's Picks ── */}
         <TabsContent value="picks" className="m-0 focus-visible:outline-none">
-          {gamesLoading ? (
+          {isWc ? (
+            <WcScheduleView poolId={poolId} commissionerId={commissionerId} />
+          ) : gamesLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-xl" />
