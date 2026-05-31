@@ -824,7 +824,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
                       Welcome to {poolName}!
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-                      Pick the winner of each game below. The player with the most correct picks at the end of the week wins. Good luck!
+                      Pick the winner of each game below. The player with the most correct picks at the end of the day wins. Good luck!
                     </p>
                   </div>
                   <button
