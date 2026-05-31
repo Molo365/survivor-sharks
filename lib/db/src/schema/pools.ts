@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 
-export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa"]);
+export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa", "worldcup"]);
 export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season", "pickem"]);
 export const pickFrequencyEnum = pgEnum("pick_frequency", ["weekly", "daily"]);
 

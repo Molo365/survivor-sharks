@@ -30,6 +30,7 @@ import {
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
   getTeamsWithWin,
+  getCurrentWcPhase,
 } from "./espn";
 import { logger } from "./logger";
 
@@ -657,6 +658,14 @@ export async function processMlbDailyResults(): Promise<{
 // Pick-Em auto-grading (all active pickem pools, runs every poll cycle)
 // ---------------------------------------------------------------------------
 
+/** Derive a 3-way outcome for a completed soccer/WC game */
+function wcOutcome(game: EspnGame): "home_win" | "draw" | "away_win" | null {
+  if (!game.isCompleted || game.homeScore == null || game.awayScore == null) return null;
+  if (game.homeScore > game.awayScore) return "home_win";
+  if (game.awayScore > game.homeScore) return "away_win";
+  return "draw";
+}
+
 export async function processPickEmResults(): Promise<{
   picksGraded: number;
 }> {
@@ -673,69 +682,127 @@ export async function processPickEmResults(): Promise<{
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  // Fetch today's MLB games once, shared across all pools
-  const games = await fetchGamesForDate("mlb", todayEspn);
-  const finalGames = games.filter(
-    (g) =>
-      g.isCompleted &&
-      g.homeScore != null &&
-      g.awayScore != null &&
-      g.homeScore !== g.awayScore,
-  );
+  // Separate pools by sport
+  const mlbPools = pickemPools.filter((p) => p.sport === "mlb");
+  const wcPools = pickemPools.filter((p) => p.sport === "worldcup");
 
-  if (finalGames.length === 0) return { picksGraded };
+  // ── MLB grading ───────────────────────────────────────────────────────────
 
-  // Build gameId → winning teamId map
-  const winnerByGameId = new Map<string, string>();
-  for (const game of finalGames) {
-    const winningTeamId =
-      game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
-    winnerByGameId.set(game.id, winningTeamId);
-    logger.info(
-      {
-        gameId: game.id,
-        winner: winningTeamId,
-        score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
-      },
-      "Pick-Em: completed game found",
+  if (mlbPools.length > 0) {
+    const games = await fetchGamesForDate("mlb", todayEspn);
+    const finalGames = games.filter(
+      (g) =>
+        g.isCompleted &&
+        g.homeScore != null &&
+        g.awayScore != null &&
+        g.homeScore !== g.awayScore,
     );
+
+    // Build gameId → winning teamId map
+    const winnerByGameId = new Map<string, string>();
+    for (const game of finalGames) {
+      const winningTeamId =
+        game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
+      winnerByGameId.set(game.id, winningTeamId);
+      logger.info(
+        {
+          gameId: game.id,
+          winner: winningTeamId,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
+        },
+        "Pick-Em: completed game found",
+      );
+    }
+
+    for (const pool of mlbPools) {
+      for (const [gameId, winningTeamId] of winnerByGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.gameDate, todayEt),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          );
+
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" =
+            pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+
+          await db
+            .update(pickemPicksTable)
+            .set({ result, updatedAt: new Date() })
+            .where(eq(pickemPicksTable.id, pick.id));
+
+          picksGraded++;
+          logger.info(
+            { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result },
+            "Auto-graded pickem pick",
+          );
+        }
+      }
+    }
   }
 
-  for (const pool of pickemPools) {
-    for (const [gameId, winningTeamId] of winnerByGameId) {
-      const gamePicks = await db
-        .select()
-        .from(pickemPicksTable)
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, gameId),
-            eq(pickemPicksTable.gameDate, todayEt),
-            eq(pickemPicksTable.result, "pending"),
-          ),
-        );
+  // ── World Cup grading (3-way: home_win / draw / away_win) ─────────────────
 
-      for (const pick of gamePicks) {
-        const result: "correct" | "incorrect" =
-          pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+  if (wcPools.length > 0) {
+    const wcPhase = getCurrentWcPhase();
+    // Only grade during active WC phases; skip if no phase active
+    if (wcPhase) {
+      const wcGames = await fetchGamesForDate("worldcup", todayEspn);
+      const completedWcGames = wcGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
 
-        await db
-          .update(pickemPicksTable)
-          .set({ result, updatedAt: new Date() })
-          .where(eq(pickemPicksTable.id, pick.id));
+      // Build gameId → 3-way outcome map
+      const outcomeByGameId = new Map<string, "home_win" | "draw" | "away_win">();
+      for (const game of completedWcGames) {
+        const outcome = wcOutcome(game);
+        if (outcome) {
+          outcomeByGameId.set(game.id, outcome);
+          logger.info(
+            {
+              gameId: game.id,
+              outcome,
+              score: `${game.awayTeam.abbreviation} ${game.awayScore} - ${game.homeScore} ${game.homeTeam.abbreviation}`,
+            },
+            "Pick-Em WC: completed game found",
+          );
+        }
+      }
 
-        picksGraded++;
-        logger.info(
-          {
-            poolId: pool.id,
-            userId: pick.userId,
-            gameId,
-            pickedTeamId: pick.pickedTeamId,
-            winningTeamId,
-            result,
-          },
-          "Auto-graded pickem pick",
-        );
+      for (const pool of wcPools) {
+        for (const [gameId, outcome] of outcomeByGameId) {
+          const gamePicks = await db
+            .select()
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, gameId),
+                eq(pickemPicksTable.gameDate, todayEt),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            );
+
+          for (const pick of gamePicks) {
+            const result: "correct" | "incorrect" =
+              pick.pickedTeamId === outcome ? "correct" : "incorrect";
+
+            await db
+              .update(pickemPicksTable)
+              .set({ result, updatedAt: new Date() })
+              .where(eq(pickemPicksTable.id, pick.id));
+
+            picksGraded++;
+            logger.info(
+              { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
+              "Auto-graded WC pickem pick",
+            );
+          }
+        }
       }
     }
   }

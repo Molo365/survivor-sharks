@@ -4,7 +4,29 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   nba: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
   nhl: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl",
   fifa: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
+  worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
 };
+
+// ---------------------------------------------------------------------------
+// World Cup 2026 phase helpers
+// ---------------------------------------------------------------------------
+export const WC_PHASES = {
+  group_stage: { start: "2026-06-11", end: "2026-06-30" },
+  knockout_stage: { start: "2026-07-03", end: "2026-07-19" },
+} as const;
+export type WcPhase = keyof typeof WC_PHASES;
+
+/** Determine which WC phase a YYYY-MM-DD date falls in. */
+export function getWcPhase(dateStr: string): WcPhase | null {
+  if (dateStr >= WC_PHASES.group_stage.start && dateStr <= WC_PHASES.group_stage.end) return "group_stage";
+  if (dateStr >= WC_PHASES.knockout_stage.start && dateStr <= WC_PHASES.knockout_stage.end) return "knockout_stage";
+  return null;
+}
+
+/** Get the current WC phase based on today's ET date. */
+export function getCurrentWcPhase(): WcPhase | null {
+  return getWcPhase(getTodayEtDate());
+}
 
 export interface EspnTeam {
   id: string;

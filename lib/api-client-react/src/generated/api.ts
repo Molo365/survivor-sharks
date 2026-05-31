@@ -28,6 +28,7 @@ import type {
   Elimination,
   ErrorResponse,
   Game,
+  GetPickEmLeaderboardParams,
   HealthStatus,
   JoinPoolInput,
   Leaderboard,
@@ -2016,20 +2017,29 @@ export const useSubmitPickEmPicks = <TError = ErrorType<ErrorResponse>,
       return useMutation(getSubmitPickEmPicksMutationOptions(options));
     }
 
-export const getGetPickEmLeaderboardUrl = (poolId: number,) => {
+export const getGetPickEmLeaderboardUrl = (poolId: number,
+    params?: GetPickEmLeaderboardParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/pools/${poolId}/pickem/leaderboard`
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem/leaderboard?${stringifiedParams}` : `/api/pools/${poolId}/pickem/leaderboard`
 }
 
 /**
- * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ * @summary Get pick-em leaderboard (correct pick totals ranked, phase-aware for World Cup)
  */
-export const getPickEmLeaderboard = async (poolId: number, options?: RequestInit): Promise<PickEmLeaderboard> => {
+export const getPickEmLeaderboard = async (poolId: number,
+    params?: GetPickEmLeaderboardParams, options?: RequestInit): Promise<PickEmLeaderboard> => {
 
-  return customFetch<PickEmLeaderboard>(getGetPickEmLeaderboardUrl(poolId),
+  return customFetch<PickEmLeaderboard>(getGetPickEmLeaderboardUrl(poolId,params),
   {
     ...options,
     method: 'GET'
@@ -2042,23 +2052,25 @@ export const getPickEmLeaderboard = async (poolId: number, options?: RequestInit
 
 
 
-export const getGetPickEmLeaderboardQueryKey = (poolId: number,) => {
+export const getGetPickEmLeaderboardQueryKey = (poolId: number,
+    params?: GetPickEmLeaderboardParams,) => {
     return [
-    `/api/pools/${poolId}/pickem/leaderboard`
+    `/api/pools/${poolId}/pickem/leaderboard`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetPickEmLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPickEmLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetPickEmLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPickEmLeaderboardQueryKey(poolId);
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmLeaderboardQueryKey(poolId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmLeaderboard>>> = ({ signal }) => getPickEmLeaderboard(poolId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmLeaderboard>>> = ({ signal }) => getPickEmLeaderboard(poolId,params, { signal, ...requestOptions });
 
 
 
@@ -2072,15 +2084,16 @@ export type GetPickEmLeaderboardQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ * @summary Get pick-em leaderboard (correct pick totals ranked, phase-aware for World Cup)
  */
 
 export function useGetPickEmLeaderboard<TData = Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError = ErrorType<unknown>>(
- poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ poolId: number,
+    params?: GetPickEmLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPickEmLeaderboardQueryOptions(poolId,options)
+  const queryOptions = getGetPickEmLeaderboardQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

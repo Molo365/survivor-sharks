@@ -26,7 +26,7 @@ export default function PoolHome() {
   const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
 
   const isPickEm = (pool?.poolType as string) === "pickem";
-  const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, {
+  const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
@@ -143,7 +143,7 @@ export default function PoolHome() {
             </div>
 
             {(pool.poolType as string) === "pickem" ? (
-              <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} />
+              <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">

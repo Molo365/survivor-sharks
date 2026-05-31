@@ -64,6 +64,7 @@ export const PoolInputSport = {
   nba: 'nba',
   nhl: 'nhl',
   fifa: 'fifa',
+  worldcup: 'worldcup',
 } as const;
 
 export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputPoolType];
@@ -695,12 +696,29 @@ export interface PickEmGame {
   awayRecord?: string | null;
   homePitcher?: GamePitcher | null;
   awayPitcher?: GamePitcher | null;
+  /**
+     * Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup
+     * @nullable
+     */
+  pickOptions?: string[] | null;
+  /**
+     * User's 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made
+     * @nullable
+     */
+  userPickOption?: string | null;
 }
 
 export interface PickEmSlate {
   date: string;
   label: string;
   deadlinePassed: boolean;
+  /** Sport for this slate (mlb, worldcup, etc.) */
+  sport?: string;
+  /**
+     * Current WC phase (group_stage, knockout_stage) for worldcup pools; null otherwise
+     * @nullable
+     */
+  phase?: string | null;
   games: PickEmGame[];
 }
 
@@ -708,6 +726,8 @@ export interface PickEmPickItem {
   gameId: string;
   pickedTeamId: string;
   pickedTeamName: string;
+  /** For World Cup pools — the pick outcome (home_win, draw, away_win) */
+  pickOption?: string;
 }
 
 export interface PickEmPickInput {
@@ -764,6 +784,11 @@ export interface PickEmLeaderboardEntry {
 export interface PickEmLeaderboard {
   poolId: number;
   week: number;
+  /**
+     * WC phase returned (group_stage, knockout_stage); null for MLB
+     * @nullable
+     */
+  phase?: string | null;
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
 }
@@ -772,4 +797,19 @@ export interface PickEmProcessResult {
   processed: number;
   date: string;
 }
+
+export type GetPickEmLeaderboardParams = {
+/**
+ * World Cup phase filter (only used for worldcup sport pools)
+ */
+phase?: GetPickEmLeaderboardPhase;
+};
+
+export type GetPickEmLeaderboardPhase = typeof GetPickEmLeaderboardPhase[keyof typeof GetPickEmLeaderboardPhase];
+
+
+export const GetPickEmLeaderboardPhase = {
+  group_stage: 'group_stage',
+  knockout_stage: 'knockout_stage',
+} as const;
 

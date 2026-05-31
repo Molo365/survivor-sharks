@@ -1,19 +1,36 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
   getTodayEtDate,
   formatDateEt,
+  WC_PHASES,
+  type WcPhase,
 } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
-/** 5-minute pregame lock — matches the daily pick deadline pattern */
+const WC_PICK_OPTIONS = ["home_win", "draw", "away_win"] as const;
+type WcPickOption = (typeof WC_PICK_OPTIONS)[number];
+
+const WC_PICK_LABELS: Record<WcPickOption, string> = {
+  home_win: "Home Win",
+  draw: "Draw",
+  away_win: "Away Win",
+};
+
+/** 5-minute pregame lock */
 function isGameLocked(gameStartIso: string): boolean {
   return new Date(gameStartIso).getTime() - 5 * 60 * 1000 <= Date.now();
+}
+
+function wcOutcome(homeScore: number, awayScore: number): WcPickOption {
+  if (homeScore > awayScore) return "home_win";
+  if (awayScore > homeScore) return "away_win";
+  return "draw";
 }
 
 // GET /api/pools/:poolId/pickem/games
@@ -22,29 +39,22 @@ router.get("/games", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) {
-    res.status(404).json({ error: "Pool not found" });
-    return;
-  }
-  if (pool.poolType !== "pickem") {
-    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
-    return;
-  }
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
     .from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
-  if (!entry) {
-    res.status(403).json({ error: "Not a member of this pool" });
-    return;
-  }
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
+  const sport = pool.sport as string;
+  const isWc = sport === "worldcup";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate("mlb", todayEspn);
+  const games = await fetchGamesForDate(sport, todayEspn);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const existingPicks = await db
@@ -63,7 +73,7 @@ router.get("/games", requireAuth, async (req, res) => {
   const formattedGames = games.map((g) => {
     const existing = pickMap.get(g.id);
     const locked = isGameLocked(g.date);
-    return {
+    const base = {
       id: g.id,
       startTime: g.date,
       status: g.status,
@@ -82,26 +92,35 @@ router.get("/games", requireAuth, async (req, res) => {
       },
       awayScore: g.awayScore ?? null,
       homeScore: g.homeScore ?? null,
-      userPickTeamId: existing?.pickedTeamId ?? null,
+      userPickTeamId: isWc ? null : (existing?.pickedTeamId ?? null),
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
-      liveOuts: g.liveState?.outs ?? null,
-      liveBaseRunners: g.liveState
-        ? {
-            onFirst: g.liveState.onFirst,
-            onSecond: g.liveState.onSecond,
-            onThird: g.liveState.onThird,
-          }
-        : null,
+      liveOuts: null as number | null,
+      liveBaseRunners: null as { onFirst: boolean; onSecond: boolean; onThird: boolean } | null,
       homeRecord: g.homeRecord ?? null,
       awayRecord: g.awayRecord ?? null,
-      homePitcher: g.homeStartingPitcher
-        ? { name: g.homeStartingPitcher.name, photoUrl: null, era: g.homeStartingPitcher.era, wins: g.homeStartingPitcher.wins, losses: g.homeStartingPitcher.losses }
-        : null,
-      awayPitcher: g.awayStartingPitcher
-        ? { name: g.awayStartingPitcher.name, photoUrl: null, era: g.awayStartingPitcher.era, wins: g.awayStartingPitcher.wins, losses: g.awayStartingPitcher.losses }
-        : null,
+      homePitcher: null as null,
+      awayPitcher: null as null,
+      pickOptions: isWc ? WC_PICK_OPTIONS.map(id => id) : null,
+      userPickOption: isWc ? (existing?.pickedTeamId ?? null) : null,
     };
+
+    if (!isWc) {
+      return {
+        ...base,
+        liveOuts: g.liveState?.outs ?? null,
+        liveBaseRunners: g.liveState
+          ? { onFirst: g.liveState.onFirst, onSecond: g.liveState.onSecond, onThird: g.liveState.onThird }
+          : null,
+        homePitcher: g.homeStartingPitcher
+          ? { name: g.homeStartingPitcher.name, photoUrl: null, era: g.homeStartingPitcher.era, wins: g.homeStartingPitcher.wins, losses: g.homeStartingPitcher.losses }
+          : null as any,
+        awayPitcher: g.awayStartingPitcher
+          ? { name: g.awayStartingPitcher.name, photoUrl: null, era: g.awayStartingPitcher.era, wins: g.awayStartingPitcher.wins, losses: g.awayStartingPitcher.losses }
+          : null as any,
+      };
+    }
+    return base;
   });
 
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -111,13 +130,21 @@ router.get("/games", requireAuth, async (req, res) => {
     day: "numeric",
   });
 
-  const slateDeadlinePassed =
-    games.length > 0 && games.some((g) => isGameLocked(g.date));
+  const slateDeadlinePassed = games.length > 0 && games.some((g) => isGameLocked(g.date));
+
+  // Determine current WC phase
+  const phase = isWc ? (WC_PHASES.group_stage.start <= todayEt && todayEt <= WC_PHASES.group_stage.end
+    ? "group_stage"
+    : WC_PHASES.knockout_stage.start <= todayEt && todayEt <= WC_PHASES.knockout_stage.end
+      ? "knockout_stage"
+      : null) : null;
 
   res.json({
     date: todayEt,
     label: fmt.format(new Date()),
     deadlinePassed: slateDeadlinePassed,
+    sport,
+    phase,
     games: formattedGames,
   });
 });
@@ -137,34 +164,27 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) {
-    res.status(404).json({ error: "Pool not found" });
-    return;
-  }
-  if (pool.poolType !== "pickem") {
-    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
-    return;
-  }
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
     .from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
-  if (!entry) {
-    res.status(403).json({ error: "Not a member of this pool" });
-    return;
-  }
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
+  const sport = pool.sport as string;
+  const isWc = sport === "worldcup";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate("mlb", todayEspn);
+  const games = await fetchGamesForDate(sport, todayEspn);
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
-  // Reject picks that target invalid or locked games
   const lockedGameIds: string[] = [];
   const unknownGameIds: string[] = [];
+  const invalidPickIds: string[] = [];
 
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId);
@@ -172,25 +192,31 @@ router.post("/picks", requireAuth, async (req, res) => {
       unknownGameIds.push(pick.gameId);
     } else if (isGameLocked(game.date)) {
       lockedGameIds.push(pick.gameId);
+    } else if (isWc && !WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption)) {
+      invalidPickIds.push(pick.gameId);
     }
   }
 
   if (unknownGameIds.length > 0) {
-    res.status(400).json({
-      error: `Unknown games (not in today's slate): ${unknownGameIds.join(", ")}`,
-    });
+    res.status(400).json({ error: `Unknown games: ${unknownGameIds.join(", ")}` });
     return;
   }
   if (lockedGameIds.length > 0) {
-    res.status(400).json({
-      error: `Cannot pick already-locked games (deadline passed): ${lockedGameIds.join(", ")}`,
-    });
+    res.status(400).json({ error: `Games already locked: ${lockedGameIds.join(", ")}` });
+    return;
+  }
+  if (invalidPickIds.length > 0) {
+    res.status(400).json({ error: `Invalid WC pick option — must be home_win, draw, or away_win` });
     return;
   }
 
   let saved = 0;
 
   for (const pick of picks) {
+    const pickedTeamName = isWc
+      ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
+      : pick.pickedTeamName;
+
     await db
       .insert(pickemPicksTable)
       .values({
@@ -200,14 +226,14 @@ router.post("/picks", requireAuth, async (req, res) => {
         gameDate: todayEt,
         week: pool.currentWeek,
         pickedTeamId: pick.pickedTeamId,
-        pickedTeamName: pick.pickedTeamName,
+        pickedTeamName,
         result: "pending",
       })
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
           pickedTeamId: pick.pickedTeamId,
-          pickedTeamName: pick.pickedTeamName,
+          pickedTeamName,
           result: "pending",
           updatedAt: new Date(),
         },
@@ -224,40 +250,41 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) {
-    res.status(404).json({ error: "Pool not found" });
-    return;
-  }
-  if (pool.poolType !== "pickem") {
-    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
-    return;
-  }
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
     .from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
-  if (!entry) {
-    res.status(403).json({ error: "Not a member of this pool" });
-    return;
-  }
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
+  const sport = pool.sport as string;
+  const isWc = sport === "worldcup";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  // Fetch today's schedule and all picks for this pool/week in parallel
+  // Determine date filter for picks (phase-aware for WC)
+  const phaseParam = req.query.phase as string | undefined;
+  let dateFilter: ReturnType<typeof eq>;
+  let phaseRangeFilter: ReturnType<typeof and> | undefined;
+
+  if (isWc && phaseParam && WC_PHASES[phaseParam as WcPhase]) {
+    const range = WC_PHASES[phaseParam as WcPhase];
+    phaseRangeFilter = and(
+      gte(pickemPicksTable.gameDate, range.start),
+      lte(pickemPicksTable.gameDate, range.end),
+    );
+  }
+
+  const picksWhereClause = phaseRangeFilter
+    ? and(eq(pickemPicksTable.poolId, poolId), phaseRangeFilter)
+    : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
+
   const [games, allPicks, aggregates] = await Promise.all([
-    fetchGamesForDate("mlb", todayEspn),
-    db
-      .select()
-      .from(pickemPicksTable)
-      .where(
-        and(
-          eq(pickemPicksTable.poolId, poolId),
-          eq(pickemPicksTable.gameDate, todayEt),
-        ),
-      ),
+    fetchGamesForDate(sport, todayEspn),
+    db.select().from(pickemPicksTable).where(picksWhereClause),
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -268,12 +295,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       })
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-      .where(
-        and(
-          eq(pickemPicksTable.poolId, poolId),
-          eq(pickemPicksTable.gameDate, todayEt),
-        ),
-      )
+      .where(picksWhereClause)
       .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
       .orderBy(
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
@@ -283,7 +305,6 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Build per-user pick map: userId → { gameId → pick }
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
     if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
@@ -304,6 +325,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         pickedTeamId: p.pickedTeamId,
         pickedTeamName: p.pickedTeamName,
         result: p.result,
+        pickOption: isWc ? p.pickedTeamId : undefined,
       })),
     };
   });
@@ -316,7 +338,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
   }));
 
-  res.json({ poolId, week: pool.currentWeek, games: formattedGames, entries });
+  const phase = isWc ? (phaseParam ?? null) : null;
+
+  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries });
 });
 
 // POST /api/pools/:poolId/pickem/process-results  — commissioner only
@@ -325,31 +349,25 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) {
-    res.status(404).json({ error: "Pool not found" });
-    return;
-  }
-  if (pool.poolType !== "pickem") {
-    res.status(400).json({ error: "This pool is not a Pick-Em pool" });
-    return;
-  }
-
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
   if (pool.commissionerId !== userId && req.user!.role !== "admin") {
     res.status(403).json({ error: "Commissioner only" });
     return;
   }
 
+  const sport = pool.sport as string;
+  const isWc = sport === "worldcup";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate("mlb", todayEspn);
+  const games = await fetchGamesForDate(sport, todayEspn);
   const finalGames = games.filter((g) => g.isCompleted);
 
   let processed = 0;
 
   for (const game of finalGames) {
     if (game.homeScore == null || game.awayScore == null) continue;
-    const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
 
     const gamePicks = await db
       .select()
@@ -363,8 +381,16 @@ router.post("/process-results", requireAuth, async (req, res) => {
       );
 
     for (const pick of gamePicks) {
-      const result: "correct" | "incorrect" =
-        pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+      let result: "correct" | "incorrect";
+
+      if (isWc) {
+        const outcome = wcOutcome(game.homeScore, game.awayScore);
+        result = pick.pickedTeamId === outcome ? "correct" : "incorrect";
+      } else {
+        const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
+        result = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+      }
+
       await db
         .update(pickemPicksTable)
         .set({ result, updatedAt: new Date() })

@@ -626,13 +626,20 @@ paths:
     get:
       operationId: getPickEmLeaderboard
       tags: [pickem]
-      summary: Get pick-em weekly leaderboard (correct pick totals ranked)
+      summary: Get pick-em leaderboard (correct pick totals ranked, phase-aware for World Cup)
       parameters:
         - name: poolId
           in: path
           required: true
           schema:
             type: integer
+        - name: phase
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [group_stage, knockout_stage]
+          description: World Cup phase filter (only used for worldcup sport pools)
       responses:
         "200":
           description: Pick-em leaderboard
@@ -828,7 +835,7 @@ components:
           type: string
         sport:
           type: string
-          enum: [nfl, mlb, nba, nhl, fifa]
+          enum: [nfl, mlb, nba, nhl, fifa, worldcup]
         poolType:
           type: string
           enum: [season, weekly, mid_season, pickem]
@@ -1593,6 +1600,14 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/GamePitcher"
+        pickOptions:
+          type: ["array", "null"]
+          items:
+            type: string
+          description: Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup
+        userPickOption:
+          type: ["string", "null"]
+          description: User's 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made
 
     PickEmSlate:
       type: object
@@ -1604,6 +1619,12 @@ components:
           type: string
         deadlinePassed:
           type: boolean
+        sport:
+          type: string
+          description: Sport for this slate (mlb, worldcup, etc.)
+        phase:
+          type: ["string", "null"]
+          description: Current WC phase (group_stage, knockout_stage) for worldcup pools; null otherwise
         games:
           type: array
           items:
@@ -1619,6 +1640,9 @@ components:
           type: string
         pickedTeamName:
           type: string
+        pickOption:
+          type: string
+          description: For World Cup pools — the pick outcome (home_win, draw, away_win)
 
     PickEmPickInput:
       type: object
@@ -1707,6 +1731,9 @@ components:
           type: integer
         week:
           type: integer
+        phase:
+          type: ["string", "null"]
+          description: WC phase returned (group_stage, knockout_stage); null for MLB
         games:
           type: array
           items:

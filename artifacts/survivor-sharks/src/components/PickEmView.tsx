@@ -98,6 +98,141 @@ interface PickEmViewProps {
   poolName: string;
   commissionerId: number;
   inviteCode: string;
+  sport?: string;
+}
+
+const WC_PICK_OPTIONS = ["home_win", "draw", "away_win"] as const;
+type WcPickOption = (typeof WC_PICK_OPTIONS)[number];
+const WC_PICK_LABELS: Record<WcPickOption, string> = {
+  away_win: "Away Win",
+  draw: "Draw",
+  home_win: "Home Win",
+};
+const WC_PICK_SHORT: Record<WcPickOption, string> = {
+  away_win: "AW",
+  draw: "D",
+  home_win: "HW",
+};
+
+function WcGameCard({
+  game,
+  pickedOption,
+  onPick,
+}: {
+  game: PickEmGame;
+  pickedOption: WcPickOption | null;
+  onPick: (opt: WcPickOption) => void;
+}) {
+  const isFinal = game.status === "final";
+  const isLive = game.status === "in_progress";
+  const isLocked = game.deadlinePassed || isLive;
+
+  const result = pickedOption ? game.userPickResult : null;
+  const isCorrect = result === "correct";
+  const isWrong = result === "incorrect";
+
+  return (
+    <div
+      className={cn(
+        "shark-card rounded-xl border overflow-hidden relative",
+        isLive ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]" : "border-border/40",
+      )}
+    >
+      {isLive && (
+        <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
+      )}
+      {isLive && (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+          Live
+        </span>
+      )}
+
+      {/* Teams row */}
+      <div className="flex items-center justify-between px-4 py-3 gap-2">
+        {/* Away team */}
+        <div className="flex items-center gap-2 flex-1">
+          {game.awayTeam.logoUrl && (
+            <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+              <img src={game.awayTeam.logoUrl} alt={game.awayTeam.name} className="w-8 h-8 object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            </div>
+          )}
+          <div>
+            <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.awayTeam.name}</div>
+            {(isFinal || isLive) && game.awayScore != null && (
+              <div className="font-bebas text-2xl leading-none text-foreground">{game.awayScore}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Center */}
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          {isLive ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
+              ● LIVE{game.liveDetail ? ` · ${game.liveDetail}` : ""}
+            </span>
+          ) : isFinal ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">Final</span>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
+              <span className="text-[9px] text-muted-foreground/60 font-medium whitespace-nowrap">{formatTime(game.startTime)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Home team */}
+        <div className="flex items-center gap-2 flex-1 justify-end text-right">
+          <div>
+            <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.homeTeam.name}</div>
+            {(isFinal || isLive) && game.homeScore != null && (
+              <div className="font-bebas text-2xl leading-none text-foreground">{game.homeScore}</div>
+            )}
+          </div>
+          {game.homeTeam.logoUrl && (
+            <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+              <img src={game.homeTeam.logoUrl} alt={game.homeTeam.name} className="w-8 h-8 object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3-way pick buttons */}
+      <div className="grid grid-cols-3 gap-1 px-3 pb-3">
+        {(["away_win", "draw", "home_win"] as WcPickOption[]).map((opt) => {
+          const isPicked = pickedOption === opt;
+          const label = opt === "away_win"
+            ? `${game.awayTeam.abbreviation} Win`
+            : opt === "home_win"
+              ? `${game.homeTeam.abbreviation} Win`
+              : "Draw";
+          return (
+            <button
+              key={opt}
+              type="button"
+              disabled={isLocked}
+              onClick={() => !isLocked && onPick(opt)}
+              className={cn(
+                "rounded-lg border-2 px-2 py-2 text-center font-bebas text-sm tracking-wide transition-all select-none",
+                isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+                isPicked && !isCorrect && !isWrong
+                  ? "border-primary bg-primary/10 ring-2 ring-primary/40 text-foreground"
+                  : isPicked && isCorrect
+                    ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40 text-green-400"
+                    : isPicked && isWrong
+                      ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30 text-destructive/80"
+                      : "border-border/40 bg-card/60 text-muted-foreground hover:border-border",
+              )}
+            >
+              {label}
+              {isPicked && isCorrect && <Check className="w-3 h-3 inline ml-1 text-green-400" />}
+              {isPicked && isWrong && <X className="w-3 h-3 inline ml-1" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function formatTime(iso: string) {
@@ -384,6 +519,32 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
                         );
                       }
 
+                      const isWcPick = WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption);
+
+                      if (isWcPick) {
+                        const opt = pick.pickedTeamId as WcPickOption;
+                        const shortLabel = WC_PICK_SHORT[opt] ?? opt;
+                        return (
+                          <td key={game.id} className="px-1 py-2 text-center">
+                            <div className={cn(
+                              "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[40px]",
+                              pick.result === "correct" ? "border-green-500/40 bg-green-500/10"
+                              : pick.result === "incorrect" ? "border-red-500/40 bg-red-500/10"
+                              : "border-border/30 bg-muted/10",
+                            )}>
+                              <span className={cn(
+                                "font-bebas text-[11px] tracking-wide leading-none",
+                                pick.result === "correct" ? "text-green-400"
+                                : pick.result === "incorrect" ? "text-red-400"
+                                : "text-muted-foreground/70",
+                              )}>{shortLabel}</span>
+                              {pick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
+                              {pick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
+                            </div>
+                          </td>
+                        );
+                      }
+
                       const isAway = pick.pickedTeamId === game.awayTeam.id;
                       const team = isAway ? game.awayTeam : game.homeTeam;
 
@@ -647,10 +808,11 @@ function StatsView({ games, entries, currentUserId }: StatsViewProps) {
   );
 }
 
-export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: PickEmViewProps) {
+export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb" }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const isWc = sport === "worldcup";
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
@@ -676,10 +838,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
     },
   });
 
-  const { data: leaderboard, isLoading: lbLoading } = useGetPickEmLeaderboard(poolId, {
+  const { data: leaderboard, isLoading: lbLoading } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
-      refetchInterval: (query) => pickRefetchInterval(slate),
+      refetchInterval: () => pickRefetchInterval(slate),
     },
   });
 
@@ -691,13 +853,14 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
     setLocalPicks((prev) => {
       const next = new Map(prev);
       for (const game of slate.games) {
-        if (game.userPickTeamId && !next.has(game.id)) {
-          next.set(game.id, game.userPickTeamId);
+        const savedPick = isWc ? game.userPickOption : game.userPickTeamId;
+        if (savedPick && !next.has(game.id)) {
+          next.set(game.id, savedPick);
         }
       }
       return next;
     });
-  }, [slate]);
+  }, [slate, isWc]);
 
   function togglePick(gameId: string, teamId: string) {
     setLocalPicks((prev) => {
@@ -715,11 +878,15 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
     if (!slate) return;
 
     const picks = Array.from(localPicks.entries())
-      .map(([gameId, teamId]) => {
+      .map(([gameId, pickValue]) => {
         const game = slate.games.find((g) => g.id === gameId);
         if (!game || game.deadlinePassed) return null;
-        const team = teamId === game.awayTeam.id ? game.awayTeam : game.homeTeam;
-        return { gameId, pickedTeamId: teamId, pickedTeamName: team.name };
+        if (isWc) {
+          const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
+          return { gameId, pickedTeamId: pickValue, pickedTeamName: label };
+        }
+        const team = pickValue === game.awayTeam.id ? game.awayTeam : game.homeTeam;
+        return { gameId, pickedTeamId: pickValue, pickedTeamName: team.name };
       })
       .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
 
@@ -888,14 +1055,23 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
 
               {/* All games in original scheduled-time order — never reorganised */}
               <div className="space-y-3">
-                {slate.games.map((game) => (
-                  <GameCard
-                    key={game.id}
-                    game={game}
-                    pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                    onPick={(teamId) => togglePick(game.id, teamId)}
-                  />
-                ))}
+                {slate.games.map((game) =>
+                  isWc ? (
+                    <WcGameCard
+                      key={game.id}
+                      game={game}
+                      pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
+                      onPick={(opt) => togglePick(game.id, opt)}
+                    />
+                  ) : (
+                    <GameCard
+                      key={game.id}
+                      game={game}
+                      pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                      onPick={(teamId) => togglePick(game.id, teamId)}
+                    />
+                  )
+                )}
               </div>
 
               {openGames.length > 0 && (
@@ -948,7 +1124,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bebas text-2xl tracking-wide text-foreground">
-                  Today's Standings
+                  {isWc && leaderboard?.phase
+                    ? leaderboard.phase === "group_stage" ? "Group Stage Standings" : "Knockout Stage Standings"
+                    : "Today's Standings"}
                 </h3>
                 <span className="text-xs text-muted-foreground">
                   {leaderboard.entries.length} player{leaderboard.entries.length !== 1 ? "s" : ""}

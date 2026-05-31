@@ -110,12 +110,14 @@ export default function CreatePool() {
   const selectedType = form.watch("poolType");
   const selectedSport = form.watch("sport");
 
-  // Pick-Ems is MLB-only — auto-lock sport when that type is chosen
+  const PICKEM_SPORTS = [PoolInputSport.mlb, PoolInputSport.worldcup] as const;
+
+  // Pick-Ems: auto-set to MLB if current sport isn't a valid pick-em sport
   useEffect(() => {
-    if (selectedType === "pickem") {
+    if (selectedType === "pickem" && !PICKEM_SPORTS.includes(selectedSport as typeof PICKEM_SPORTS[number])) {
       form.setValue("sport", PoolInputSport.mlb, { shouldValidate: true });
     }
-  }, [selectedType, form]);
+  }, [selectedType, selectedSport, form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: Record<string, unknown> = { ...values };
@@ -375,7 +377,10 @@ export default function CreatePool() {
                         </FormControl>
                         <SelectContent>
                           {selectedType === "pickem" ? (
-                            <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
+                            <>
+                              <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
+                              <SelectItem value={PoolInputSport.worldcup}>⚽ World Cup 2026</SelectItem>
+                            </>
                           ) : (
                             <>
                               <SelectItem value={PoolInputSport.nfl}>NFL Football</SelectItem>

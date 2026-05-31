@@ -113,7 +113,7 @@ export const createPoolBodyPickFrequencyDefault = `weekly`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
-  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa']),
+  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup']),
   "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
@@ -825,6 +825,8 @@ export const GetPickEmGamesResponse = zod.object({
   "date": zod.string(),
   "label": zod.string(),
   "deadlinePassed": zod.boolean(),
+  "sport": zod.string().optional().describe('Sport for this slate (mlb, worldcup, etc.)'),
+  "phase": zod.string().nullish().describe('Current WC phase (group_stage, knockout_stage) for worldcup pools; null otherwise'),
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
@@ -868,7 +870,9 @@ export const GetPickEmGamesResponse = zod.object({
   "era": zod.string().nullish(),
   "wins": zod.number().nullish(),
   "losses": zod.number().nullish()
-}).nullish()
+}).nullish(),
+  "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
+  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made')
 }))
 })
 
@@ -884,21 +888,27 @@ export const SubmitPickEmPicksBody = zod.object({
   "picks": zod.array(zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
-  "pickedTeamName": zod.string()
+  "pickedTeamName": zod.string(),
+  "pickOption": zod.string().optional().describe('For World Cup pools — the pick outcome (home_win, draw, away_win)')
 }))
 })
 
 
 /**
- * @summary Get pick-em weekly leaderboard (correct pick totals ranked)
+ * @summary Get pick-em leaderboard (correct pick totals ranked, phase-aware for World Cup)
  */
 export const GetPickEmLeaderboardParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const GetPickEmLeaderboardQueryParams = zod.object({
+  "phase": zod.enum(['group_stage', 'knockout_stage']).optional().describe('World Cup phase filter (only used for worldcup sport pools)')
+})
+
 export const GetPickEmLeaderboardResponse = zod.object({
   "poolId": zod.number(),
   "week": zod.number(),
+  "phase": zod.string().nullish().describe('WC phase returned (group_stage, knockout_stage); null for MLB'),
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
