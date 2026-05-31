@@ -116,9 +116,9 @@ interface GameCardProps {
 }
 
 function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
-  const isLocked = game.deadlinePassed;
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
+  const isLocked = game.deadlinePassed || isLive;
 
   function teamBtn(
     team: PickEmGame["awayTeam"],
@@ -240,7 +240,23 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
   }
 
   return (
-    <div className="shark-card rounded-xl border border-border/40 overflow-hidden">
+    <div className={cn(
+      "shark-card rounded-xl border overflow-hidden relative",
+      isLive
+        ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]"
+        : "border-border/40",
+    )}>
+      {/* Pulsing live border overlay */}
+      {isLive && (
+        <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
+      )}
+      {/* LIVE badge */}
+      {isLive && (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+          Live
+        </span>
+      )}
       <div className="flex items-stretch gap-0">
         {teamBtn(game.awayTeam, "away", game.awayScore, game.awayRecord, game.awayPitcher)}
 
@@ -870,34 +886,17 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: Pic
                 </div>
               </div>
 
-              {openGames.length > 0 && (
-                <div className="space-y-3">
-                  {openGames.map((game) => (
-                    <GameCard
-                      key={game.id}
-                      game={game}
-                      pickedTeamId={localPicks.get(game.id) ?? null}
-                      onPick={(teamId) => togglePick(game.id, teamId)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {lockedGames.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 border-t border-border/30 pt-4">
-                    In Progress / Final
-                  </p>
-                  {lockedGames.map((game) => (
-                    <GameCard
-                      key={game.id}
-                      game={game}
-                      pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                      onPick={() => {}}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* All games in original scheduled-time order — never reorganised */}
+              <div className="space-y-3">
+                {slate.games.map((game) => (
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                    onPick={(teamId) => togglePick(game.id, teamId)}
+                  />
+                ))}
+              </div>
 
               {openGames.length > 0 && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
