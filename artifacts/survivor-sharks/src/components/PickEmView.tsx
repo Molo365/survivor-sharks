@@ -95,6 +95,7 @@ function pickRefetchInterval(data: PickEmSlate | undefined): number {
 
 interface PickEmViewProps {
   poolId: number;
+  poolName: string;
   commissionerId: number;
   inviteCode: string;
 }
@@ -631,11 +632,21 @@ function StatsView({ games, entries, currentUserId }: StatsViewProps) {
   );
 }
 
-export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewProps) {
+export function PickEmView({ poolId, poolName, commissionerId, inviteCode }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
+
+  const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    try { return localStorage.getItem(welcomeKey) !== "1"; } catch { return false; }
+  });
+
+  function dismissWelcome() {
+    try { localStorage.setItem(welcomeKey, "1"); } catch { /* ignore */ }
+    setShowWelcome(false);
+  }
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
@@ -804,6 +815,29 @@ export function PickEmView({ poolId, commissionerId, inviteCode }: PickEmViewPro
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Welcome banner — shown once per user per pool */}
+              {showWelcome && (
+                <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+                  <span className="text-xl leading-none mt-0.5">🎯</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-foreground leading-snug">
+                      Welcome to {poolName}!
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+                      Pick the winner of each game below. The player with the most correct picks at the end of the week wins. Good luck!
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={dismissWelcome}
+                    className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+                    aria-label="Dismiss welcome message"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Date header */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
