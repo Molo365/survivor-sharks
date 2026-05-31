@@ -117,11 +117,11 @@ function WcGameCard({
         {/* Away team */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {game.awayTeam.logoUrl && (
-            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
+            <div className="shrink-0 w-10 h-10 flex items-center justify-center">
               <img
                 src={game.awayTeam.logoUrl}
                 alt={game.awayTeam.name}
-                className="w-7 h-7 object-contain"
+                className="w-10 h-10 object-contain drop-shadow-sm"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
             </div>
@@ -154,11 +154,11 @@ function WcGameCard({
             )}
           </div>
           {game.homeTeam.logoUrl && (
-            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
+            <div className="shrink-0 w-10 h-10 flex items-center justify-center">
               <img
                 src={game.homeTeam.logoUrl}
                 alt={game.homeTeam.name}
-                className="w-7 h-7 object-contain"
+                className="w-10 h-10 object-contain drop-shadow-sm"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
             </div>

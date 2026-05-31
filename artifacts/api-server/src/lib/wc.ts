@@ -56,59 +56,60 @@ export interface WcScheduleDay {
 
 // ---------------------------------------------------------------------------
 // Static team metadata for all 48 WC 2026 teams
-// openfootball name → { abbr, flagCode (flagcdn.com alpha-2), slug }
+// espnSlug → slug used in https://a.espncdn.com/i/teamlogos/countries/500/{espnSlug}.png
+// Most match abbr.toLowerCase(); exceptions: DR Congo = "rdc", South Korea = "kors"
 // ---------------------------------------------------------------------------
-interface TeamMeta { abbr: string; flagCode: string; slug: string }
+interface TeamMeta { abbr: string; espnSlug: string; slug: string }
 
 const TEAM_META: Record<string, TeamMeta> = {
-  "Algeria":               { abbr: "ALG", flagCode: "dz", slug: "algeria" },
-  "Argentina":             { abbr: "ARG", flagCode: "ar", slug: "argentina" },
-  "Australia":             { abbr: "AUS", flagCode: "au", slug: "australia" },
-  "Austria":               { abbr: "AUT", flagCode: "at", slug: "austria" },
-  "Belgium":               { abbr: "BEL", flagCode: "be", slug: "belgium" },
-  "Bosnia & Herzegovina":  { abbr: "BIH", flagCode: "ba", slug: "bosnia_herzegovina" },
-  "Brazil":                { abbr: "BRA", flagCode: "br", slug: "brazil" },
-  "Canada":                { abbr: "CAN", flagCode: "ca", slug: "canada" },
-  "Cape Verde":            { abbr: "CPV", flagCode: "cv", slug: "cape_verde" },
-  "Colombia":              { abbr: "COL", flagCode: "co", slug: "colombia" },
-  "Croatia":               { abbr: "CRO", flagCode: "hr", slug: "croatia" },
-  "Curaçao":               { abbr: "CUW", flagCode: "cw", slug: "curacao" },
-  "Czech Republic":        { abbr: "CZE", flagCode: "cz", slug: "czech_republic" },
-  "DR Congo":              { abbr: "COD", flagCode: "cd", slug: "dr_congo" },
-  "Ecuador":               { abbr: "ECU", flagCode: "ec", slug: "ecuador" },
-  "Egypt":                 { abbr: "EGY", flagCode: "eg", slug: "egypt" },
-  "England":               { abbr: "ENG", flagCode: "gb-eng", slug: "england" },
-  "France":                { abbr: "FRA", flagCode: "fr", slug: "france" },
-  "Germany":               { abbr: "GER", flagCode: "de", slug: "germany" },
-  "Ghana":                 { abbr: "GHA", flagCode: "gh", slug: "ghana" },
-  "Haiti":                 { abbr: "HAI", flagCode: "ht", slug: "haiti" },
-  "Iran":                  { abbr: "IRN", flagCode: "ir", slug: "iran" },
-  "Iraq":                  { abbr: "IRQ", flagCode: "iq", slug: "iraq" },
-  "Ivory Coast":           { abbr: "CIV", flagCode: "ci", slug: "ivory_coast" },
-  "Japan":                 { abbr: "JPN", flagCode: "jp", slug: "japan" },
-  "Jordan":                { abbr: "JOR", flagCode: "jo", slug: "jordan" },
-  "Mexico":                { abbr: "MEX", flagCode: "mx", slug: "mexico" },
-  "Morocco":               { abbr: "MAR", flagCode: "ma", slug: "morocco" },
-  "Netherlands":           { abbr: "NED", flagCode: "nl", slug: "netherlands" },
-  "New Zealand":           { abbr: "NZL", flagCode: "nz", slug: "new_zealand" },
-  "Norway":                { abbr: "NOR", flagCode: "no", slug: "norway" },
-  "Panama":                { abbr: "PAN", flagCode: "pa", slug: "panama" },
-  "Paraguay":              { abbr: "PAR", flagCode: "py", slug: "paraguay" },
-  "Portugal":              { abbr: "POR", flagCode: "pt", slug: "portugal" },
-  "Qatar":                 { abbr: "QAT", flagCode: "qa", slug: "qatar" },
-  "Saudi Arabia":          { abbr: "KSA", flagCode: "sa", slug: "saudi_arabia" },
-  "Scotland":              { abbr: "SCO", flagCode: "gb-sct", slug: "scotland" },
-  "Senegal":               { abbr: "SEN", flagCode: "sn", slug: "senegal" },
-  "South Africa":          { abbr: "RSA", flagCode: "za", slug: "south_africa" },
-  "South Korea":           { abbr: "KOR", flagCode: "kr", slug: "south_korea" },
-  "Spain":                 { abbr: "ESP", flagCode: "es", slug: "spain" },
-  "Sweden":                { abbr: "SWE", flagCode: "se", slug: "sweden" },
-  "Switzerland":           { abbr: "SUI", flagCode: "ch", slug: "switzerland" },
-  "Tunisia":               { abbr: "TUN", flagCode: "tn", slug: "tunisia" },
-  "Turkey":                { abbr: "TUR", flagCode: "tr", slug: "turkey" },
-  "USA":                   { abbr: "USA", flagCode: "us", slug: "usa" },
-  "Uruguay":               { abbr: "URU", flagCode: "uy", slug: "uruguay" },
-  "Uzbekistan":            { abbr: "UZB", flagCode: "uz", slug: "uzbekistan" },
+  "Algeria":               { abbr: "ALG", espnSlug: "alg",  slug: "algeria" },
+  "Argentina":             { abbr: "ARG", espnSlug: "arg",  slug: "argentina" },
+  "Australia":             { abbr: "AUS", espnSlug: "aus",  slug: "australia" },
+  "Austria":               { abbr: "AUT", espnSlug: "aut",  slug: "austria" },
+  "Belgium":               { abbr: "BEL", espnSlug: "bel",  slug: "belgium" },
+  "Bosnia & Herzegovina":  { abbr: "BIH", espnSlug: "bih",  slug: "bosnia_herzegovina" },
+  "Brazil":                { abbr: "BRA", espnSlug: "bra",  slug: "brazil" },
+  "Canada":                { abbr: "CAN", espnSlug: "can",  slug: "canada" },
+  "Cape Verde":            { abbr: "CPV", espnSlug: "cpv",  slug: "cape_verde" },
+  "Colombia":              { abbr: "COL", espnSlug: "col",  slug: "colombia" },
+  "Croatia":               { abbr: "CRO", espnSlug: "cro",  slug: "croatia" },
+  "Curaçao":               { abbr: "CUW", espnSlug: "",     slug: "curacao" },
+  "Czech Republic":        { abbr: "CZE", espnSlug: "cze",  slug: "czech_republic" },
+  "DR Congo":              { abbr: "COD", espnSlug: "rdc",  slug: "dr_congo" },
+  "Ecuador":               { abbr: "ECU", espnSlug: "ecu",  slug: "ecuador" },
+  "Egypt":                 { abbr: "EGY", espnSlug: "egy",  slug: "egypt" },
+  "England":               { abbr: "ENG", espnSlug: "eng",  slug: "england" },
+  "France":                { abbr: "FRA", espnSlug: "fra",  slug: "france" },
+  "Germany":               { abbr: "GER", espnSlug: "ger",  slug: "germany" },
+  "Ghana":                 { abbr: "GHA", espnSlug: "gha",  slug: "ghana" },
+  "Haiti":                 { abbr: "HAI", espnSlug: "hai",  slug: "haiti" },
+  "Iran":                  { abbr: "IRN", espnSlug: "irn",  slug: "iran" },
+  "Iraq":                  { abbr: "IRQ", espnSlug: "irq",  slug: "iraq" },
+  "Ivory Coast":           { abbr: "CIV", espnSlug: "civ",  slug: "ivory_coast" },
+  "Japan":                 { abbr: "JPN", espnSlug: "jpn",  slug: "japan" },
+  "Jordan":                { abbr: "JOR", espnSlug: "jor",  slug: "jordan" },
+  "Mexico":                { abbr: "MEX", espnSlug: "mex",  slug: "mexico" },
+  "Morocco":               { abbr: "MAR", espnSlug: "mar",  slug: "morocco" },
+  "Netherlands":           { abbr: "NED", espnSlug: "ned",  slug: "netherlands" },
+  "New Zealand":           { abbr: "NZL", espnSlug: "nzl",  slug: "new_zealand" },
+  "Norway":                { abbr: "NOR", espnSlug: "nor",  slug: "norway" },
+  "Panama":                { abbr: "PAN", espnSlug: "pan",  slug: "panama" },
+  "Paraguay":              { abbr: "PAR", espnSlug: "par",  slug: "paraguay" },
+  "Portugal":              { abbr: "POR", espnSlug: "por",  slug: "portugal" },
+  "Qatar":                 { abbr: "QAT", espnSlug: "qat",  slug: "qatar" },
+  "Saudi Arabia":          { abbr: "KSA", espnSlug: "ksa",  slug: "saudi_arabia" },
+  "Scotland":              { abbr: "SCO", espnSlug: "sco",  slug: "scotland" },
+  "Senegal":               { abbr: "SEN", espnSlug: "sen",  slug: "senegal" },
+  "South Africa":          { abbr: "RSA", espnSlug: "rsa",  slug: "south_africa" },
+  "South Korea":           { abbr: "KOR", espnSlug: "kors", slug: "south_korea" },
+  "Spain":                 { abbr: "ESP", espnSlug: "esp",  slug: "spain" },
+  "Sweden":                { abbr: "SWE", espnSlug: "swe",  slug: "sweden" },
+  "Switzerland":           { abbr: "SUI", espnSlug: "sui",  slug: "switzerland" },
+  "Tunisia":               { abbr: "TUN", espnSlug: "tun",  slug: "tunisia" },
+  "Turkey":                { abbr: "TUR", espnSlug: "tur",  slug: "turkey" },
+  "USA":                   { abbr: "USA", espnSlug: "usa",  slug: "usa" },
+  "Uruguay":               { abbr: "URU", espnSlug: "uru",  slug: "uruguay" },
+  "Uzbekistan":            { abbr: "UZB", espnSlug: "uzb",  slug: "uzbekistan" },
 };
 
 // Aliases: API-Football / alternate spellings → canonical openfootball name
@@ -140,9 +141,9 @@ function teamMeta(name: string): TeamMeta {
   };
 }
 
-function flagUrl(flagCode: string): string | null {
-  if (!flagCode) return null;
-  return `https://flagcdn.com/h40/${flagCode}.png`;
+function crestUrl(espnSlug: string): string | null {
+  if (!espnSlug) return null;
+  return `https://a.espncdn.com/i/teamlogos/countries/500/${espnSlug}.png`;
 }
 
 function buildTeam(name: string): WcTeam {
@@ -152,7 +153,7 @@ function buildTeam(name: string): WcTeam {
     id: meta.slug,
     displayName: resolved,
     abbreviation: meta.abbr,
-    logo: flagUrl(meta.flagCode),
+    logo: crestUrl(meta.espnSlug),
   };
 }
 
