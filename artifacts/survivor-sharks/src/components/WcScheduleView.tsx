@@ -33,10 +33,6 @@ function formatKickoffTime(isoStr: string): string {
   }
 }
 
-function hoursUntil(isoStr: string): number {
-  return (new Date(isoStr).getTime() - Date.now()) / (60 * 60 * 1000);
-}
-
 // ---------------------------------------------------------------------------
 // Per-game card
 // ---------------------------------------------------------------------------
@@ -53,21 +49,12 @@ function WcGameCard({
 }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
-  const isPast = isFinal || isLive || game.deadlinePassed;
   const isPickable = game.isPickable;
 
   const result = pickedOption ? game.userPickResult : null;
   const isCorrect = result === "correct";
   const isWrong = result === "incorrect";
   const isPending = result === "pending";
-
-  const hrs = hoursUntil(game.startTime);
-  const opensLabel =
-    hrs <= 0
-      ? null
-      : hrs < 24
-        ? `Opens in ${Math.floor(hrs)}h ${Math.floor((hrs % 1) * 60)}m`
-        : `Opens ${Math.floor(hrs / 24)}d ${Math.floor(hrs % 24)}h before kickoff`;
 
   return (
     <div
@@ -103,7 +90,7 @@ function WcGameCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {!isPast && (
+          {!isFinal && !isLive && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
               <Clock className="w-2.5 h-2.5" />
               {formatKickoffTime(game.startTime)}
@@ -207,35 +194,26 @@ function WcGameCard({
             );
           })}
         </div>
-      ) : isPast ? (
-        pickedOption ? (
-          <div className="px-3 pb-2.5">
-            <div
-              className={cn(
-                "text-xs font-medium rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5",
-                isCorrect
-                  ? "bg-green-500/10 text-green-400 border border-green-500/30"
-                  : isWrong
-                    ? "bg-red-500/10 text-red-400 border border-red-500/30"
-                    : "bg-muted/20 text-muted-foreground/70 border border-border/30",
-              )}
-            >
-              {isCorrect && <Check className="w-3 h-3" />}
-              {isWrong && <X className="w-3 h-3" />}
-              Your pick: {WC_PICK_LABELS[pickedOption]}
-            </div>
-          </div>
-        ) : (
-          <div className="px-3 pb-2.5">
-            <span className="text-[11px] text-muted-foreground/40 italic">No pick made</span>
-          </div>
-        )
-      ) : (
-        /* Future / not yet within 24h window */
+      ) : pickedOption ? (
         <div className="px-3 pb-2.5">
-          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 border border-border/30 rounded-full px-2.5 py-0.5">
-            {opensLabel ?? "Upcoming"}
-          </span>
+          <div
+            className={cn(
+              "text-xs font-medium rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5",
+              isCorrect
+                ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                : isWrong
+                  ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                  : "bg-muted/20 text-muted-foreground/70 border border-border/30",
+            )}
+          >
+            {isCorrect && <Check className="w-3 h-3" />}
+            {isWrong && <X className="w-3 h-3" />}
+            Your pick: {WC_PICK_LABELS[pickedOption]}
+          </div>
+        </div>
+      ) : (
+        <div className="px-3 pb-2.5">
+          <span className="text-[11px] text-muted-foreground/40 italic">No pick made</span>
         </div>
       )}
     </div>
@@ -388,7 +366,7 @@ export function WcScheduleView({ poolId, commissionerId }: WcScheduleViewProps) 
             )}
           </div>
           <p className="text-xs text-muted-foreground/70">
-            Picks open 24 hours before each kickoff · Pick Away Win, Draw, or Home Win
+            Pick Away Win, Draw, or Home Win for any match · Locks at kickoff
           </p>
         </div>
         {pickableGames.length > 0 && (
@@ -501,7 +479,7 @@ export function WcScheduleView({ poolId, commissionerId }: WcScheduleViewProps) 
         <div className="text-center py-8 border border-border/30 rounded-xl text-muted-foreground/60 bg-muted/10">
           <Trophy className="w-8 h-8 mx-auto mb-3 opacity-30" />
           <p className="font-bebas text-lg tracking-wide">Group Stage: June 11 – 30, 2026</p>
-          <p className="text-sm mt-1">Picks open 24 hours before each match.</p>
+          <p className="text-sm mt-1">Picks open June 10 · Lock at each match's kickoff.</p>
         </div>
       )}
     </div>

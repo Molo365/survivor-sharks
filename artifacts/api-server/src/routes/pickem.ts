@@ -182,9 +182,6 @@ router.get("/wc-schedule", requireAuth, async (req, res) => {
     ));
 
   const pickMap = new Map(allPicks.map((p) => [p.gameId, p]));
-  const nowMs = Date.now();
-  const TWENTY_FOUR_H_MS = 24 * 60 * 60 * 1000;
-
   const todayEt = getTodayEtDate();
   const phase = todayEt >= WC_PHASES.group_stage.start && todayEt <= WC_PHASES.group_stage.end
     ? "group_stage"
@@ -197,9 +194,8 @@ router.get("/wc-schedule", requireAuth, async (req, res) => {
     label,
     games: games.map((g) => {
       const existing = pickMap.get(g.id);
-      const msUntil = new Date(g.date).getTime() - nowMs;
       const locked = isGameLocked(g.date);
-      const isPickable = !locked && msUntil <= TWENTY_FOUR_H_MS;
+      const isPickable = !locked;
 
       return {
         id: g.id,
