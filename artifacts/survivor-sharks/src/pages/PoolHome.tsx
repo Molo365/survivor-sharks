@@ -25,6 +25,14 @@ export default function PoolHome() {
 
   const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
 
+  const isPickEm = (pool?.poolType as string) === "pickem";
+  const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, {
+    query: {
+      enabled: isPickEm && !!poolId,
+      queryKey: getGetPickEmLeaderboardQueryKey(poolId),
+    },
+  });
+
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
   if (pool && (pool.poolType as string) === "pickem" && !location.endsWith("/pickem")) {
     return <Redirect to={`/pools/${poolId}/pickem`} />;
@@ -48,14 +56,6 @@ export default function PoolHome() {
   }
 
   const isCommissioner = pool?.commissionerId === user?.id || user?.role === 'admin';
-  const isPickEm = (pool?.poolType as string) === "pickem";
-
-  const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, {
-    query: {
-      enabled: isPickEm && !!poolId,
-      queryKey: getGetPickEmLeaderboardQueryKey(poolId),
-    },
-  });
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
