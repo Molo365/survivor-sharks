@@ -160,8 +160,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
       <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
         {/* Team name */}
         <span className={cn("font-bebas tracking-wide text-base sm:text-lg leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
-          <span className="sm:hidden">{team.abbreviation}</span>
-          <span className="hidden sm:inline">{team.name}</span>
+          {team.name}
         </span>
 
         {/* Record */}
@@ -173,7 +172,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
 
         {/* Pitcher — scheduled games only */}
         {pitcherLine && !isFinal && !isLive && (
-          <span className="text-[10px] leading-snug truncate max-w-full" style={{ color: "#cccccc" }}>
+          <span className="text-[10px] leading-snug break-words" style={{ color: "#cccccc" }}>
             {pitcherLine}
           </span>
         )}
@@ -222,7 +221,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
         disabled={isLocked}
         onClick={() => !isLocked && onPick(team.id)}
         className={cn(
-          "flex-1 flex items-center gap-3 p-3 sm:p-4 rounded-xl border-2 transition-all select-none",
+          "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
           isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
           isPicked && !isCorrect && !isWrong
             ? "border-primary bg-primary/10 ring-2 ring-primary/40"
@@ -246,7 +245,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
         {teamBtn(game.awayTeam, "away", game.awayScore, game.awayRecord, game.awayPitcher)}
 
         {/* Center divider */}
-        <div className="flex flex-col items-center justify-center gap-1 px-3 min-w-[64px]">
+        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[48px] sm:px-3 sm:min-w-[64px]">
           {isLive ? (
             <>
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
