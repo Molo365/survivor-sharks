@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
@@ -109,6 +110,13 @@ export default function CreatePool() {
   const selectedType = form.watch("poolType");
   const selectedSport = form.watch("sport");
 
+  // Pick-Ems is MLB-only — auto-lock sport when that type is chosen
+  useEffect(() => {
+    if (selectedType === "pickem") {
+      form.setValue("sport", PoolInputSport.mlb, { shouldValidate: true });
+    }
+  }, [selectedType, form]);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: Record<string, unknown> = { ...values };
     if (values.poolType === "mid_season" && values.startWeek) {
@@ -139,8 +147,12 @@ export default function CreatePool() {
         </Link>
 
         <div className="mb-8">
-          <h1 className="font-bebas text-4xl tracking-wide text-primary">CREATE A NEW POOL</h1>
-          <p className="text-muted-foreground text-sm uppercase tracking-wider">Set the rules. Invite the sharks.</p>
+          <h1 className="font-bebas text-4xl tracking-wide text-primary">
+            {selectedType === "pickem" ? "MLB DAILY PICK-EMS" : "CREATE A NEW POOL"}
+          </h1>
+          <p className="text-muted-foreground text-sm uppercase tracking-wider">
+            {selectedType === "pickem" ? "Pick every game, every day." : "Set the rules. Invite the sharks."}
+          </p>
         </div>
 
         <div className="shark-card rounded-lg p-6 md:p-8 border-border/50">
@@ -362,11 +374,17 @@ export default function CreatePool() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value={PoolInputSport.nfl}>NFL Football</SelectItem>
-                          <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
-                          <SelectItem value={PoolInputSport.nba}>NBA Basketball</SelectItem>
-                          <SelectItem value={PoolInputSport.nhl}>NHL Hockey</SelectItem>
-                          <SelectItem value={PoolInputSport.fifa}>Soccer (FIFA)</SelectItem>
+                          {selectedType === "pickem" ? (
+                            <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
+                          ) : (
+                            <>
+                              <SelectItem value={PoolInputSport.nfl}>NFL Football</SelectItem>
+                              <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
+                              <SelectItem value={PoolInputSport.nba}>NBA Basketball</SelectItem>
+                              <SelectItem value={PoolInputSport.nhl}>NHL Hockey</SelectItem>
+                              <SelectItem value={PoolInputSport.fifa}>Soccer (FIFA)</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
