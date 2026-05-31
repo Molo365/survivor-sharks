@@ -286,12 +286,6 @@ interface PicksGridProps {
   week: number;
 }
 
-function gameStatusLabel(status: string): string {
-  if (status === "in_progress") return "LIVE";
-  if (status === "final") return "Final";
-  return "";
-}
-
 function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
   return (
     <div className="space-y-3">
@@ -308,62 +302,6 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
       <div className="rounded-xl border border-border/40 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * 72)}px` }}>
-            <thead>
-              <tr className="border-b border-border/40 bg-muted/20">
-                {/* Sticky player column header */}
-                <th className="sticky left-0 z-10 bg-muted/20 text-left px-3 py-2.5 font-bebas text-base tracking-wide text-muted-foreground min-w-[160px] border-r border-border/30">
-                  Player
-                </th>
-                {/* Game column headers */}
-                {games.map((game) => {
-                  const statusLabel = gameStatusLabel(game.status);
-                  return (
-                    <th key={game.id} className="px-1 py-2 text-center font-normal w-[68px]">
-                      <div className="flex flex-col items-center gap-0.5">
-                        {/* Away */}
-                        <div className="flex items-center gap-1">
-                          {game.awayTeam.logoUrl && (
-                            <div className="rounded-full bg-white/90 p-0.5 shrink-0">
-                              <img src={game.awayTeam.logoUrl} alt={game.awayTeam.abbreviation} className="w-3.5 h-3.5 object-contain" />
-                            </div>
-                          )}
-                          <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
-                            {game.awayTeam.abbreviation}
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-muted-foreground/40 leading-none">@</span>
-                        {/* Home */}
-                        <div className="flex items-center gap-1">
-                          {game.homeTeam.logoUrl && (
-                            <div className="rounded-full bg-white/90 p-0.5 shrink-0">
-                              <img src={game.homeTeam.logoUrl} alt={game.homeTeam.abbreviation} className="w-3.5 h-3.5 object-contain" />
-                            </div>
-                          )}
-                          <span className="font-bebas text-[11px] tracking-wide text-muted-foreground/70">
-                            {game.homeTeam.abbreviation}
-                          </span>
-                        </div>
-                        {/* Status badge */}
-                        {statusLabel && (
-                          <span className={cn(
-                            "text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded leading-none mt-0.5",
-                            game.status === "in_progress"
-                              ? "bg-red-500/20 text-red-400 animate-pulse"
-                              : "bg-muted/30 text-muted-foreground/50",
-                          )}>
-                            {statusLabel}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {/* Score header */}
-                <th className="px-3 py-2.5 text-right font-bebas text-base tracking-wide text-muted-foreground min-w-[72px]">
-                  Score
-                </th>
-              </tr>
-            </thead>
             <tbody>
               {entries.map((entry, idx) => {
                 const isMe = entry.userId === currentUserId;
