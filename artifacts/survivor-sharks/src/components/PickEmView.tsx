@@ -130,81 +130,74 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
     const result = isPicked ? game.userPickResult : null;
     const isCorrect = result === "correct";
     const isWrong = result === "incorrect";
+    const isHome = side === "home";
 
-    return (
-      <button
-        key={team.id}
-        type="button"
-        disabled={isLocked}
-        onClick={() => !isLocked && onPick(team.id)}
-        className={cn(
-          "flex-1 flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-xl border-2 transition-all select-none",
-          isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-          isPicked && !isCorrect && !isWrong
-            ? "border-primary bg-primary/10 ring-2 ring-primary/40"
-            : isPicked && isCorrect
-              ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
-              : isPicked && isWrong
-                ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
-                : "border-border/40 bg-card/60 hover:border-border",
-          side === "home" ? "items-end" : "items-start",
-        )}
-      >
-        <div className="rounded-full bg-white/90 p-1.5 shadow-sm">
-          <img
-            src={
-              team.logoUrl ??
-              `https://a.espncdn.com/i/teamlogos/mlb/500/${team.abbreviation.toLowerCase()}.png`
-            }
-            alt={team.name}
-            className="w-9 h-9 sm:w-10 sm:h-10 object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-        </div>
-        <span
-          className={cn(
-            "font-bebas tracking-wide text-sm sm:text-base leading-tight text-center",
-            isPicked ? "text-foreground" : "text-muted-foreground",
-          )}
-        >
+    // Build pitcher line e.g. "S. Miles 4-2 | 3.45 ERA"
+    const pitcherLine = pitcher?.name
+      ? [
+          pitcher.name,
+          pitcher.wins != null && pitcher.losses != null ? `${pitcher.wins}-${pitcher.losses}` : null,
+          pitcher.era != null ? `${pitcher.era} ERA` : null,
+        ]
+          .filter(Boolean)
+          .join("  |  ")
+      : null;
+
+    const logo = (
+      <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+        <img
+          src={
+            team.logoUrl ??
+            `https://a.espncdn.com/i/teamlogos/mlb/500/${team.abbreviation.toLowerCase()}.png`
+          }
+          alt={team.name}
+          className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </div>
+    );
+
+    const info = (
+      <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
+        {/* Team name */}
+        <span className={cn("font-bebas tracking-wide text-base sm:text-lg leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
           <span className="sm:hidden">{team.abbreviation}</span>
           <span className="hidden sm:inline">{team.name}</span>
         </span>
+
+        {/* Record */}
         {record && (
-          <span className="text-[11px] text-white leading-none font-semibold tabular-nums">
+          <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
             {record}
           </span>
         )}
-        {pitcher?.name && !isFinal && !isLive && (
-          <div className={cn("flex flex-col items-center gap-0", side === "home" ? "items-end" : "items-start")}>
-            <span className="text-[10px] leading-tight truncate max-w-[80px] sm:max-w-[100px] text-center" style={{ color: "#cccccc" }}>
-              {pitcher.name}
-            </span>
-            {pitcher.era != null && (
-              <span className="text-[10px] leading-none" style={{ color: "#cccccc" }}>
-                ERA {pitcher.era}
-              </span>
-            )}
-          </div>
+
+        {/* Pitcher — scheduled games only */}
+        {pitcherLine && !isFinal && !isLive && (
+          <span className="text-[10px] leading-snug truncate max-w-full" style={{ color: "#cccccc" }}>
+            {pitcherLine}
+          </span>
         )}
+
+        {/* Score — live or final */}
         {(isFinal || isLive) && score != null && (
-          <span
-            className={cn(
-              "font-bebas text-2xl leading-none",
-              isLive
-                ? "text-white"
-                : isPicked && isCorrect
-                  ? "text-green-400"
-                  : isPicked && isWrong
-                    ? "text-destructive/70"
-                    : "text-foreground/60",
-            )}
-          >
+          <span className={cn(
+            "font-bebas text-3xl leading-none mt-0.5",
+            isLive
+              ? "text-white"
+              : isPicked && isCorrect
+                ? "text-green-400"
+                : isPicked && isWrong
+                  ? "text-destructive/70"
+                  : "text-foreground/60",
+          )}>
             {score}
           </span>
         )}
+
+        {/* Pick indicator */}
         {isPicked && (
           <div className="flex items-center gap-1 mt-0.5">
             {isCorrect ? (
@@ -216,10 +209,36 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
                 ✗ Wrong
               </span>
             ) : (
-              <Check className="w-3 h-3 text-primary" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Picked
+              </span>
             )}
           </div>
         )}
+      </div>
+    );
+
+    return (
+      <button
+        key={team.id}
+        type="button"
+        disabled={isLocked}
+        onClick={() => !isLocked && onPick(team.id)}
+        className={cn(
+          "flex-1 flex items-center gap-3 p-3 sm:p-4 rounded-xl border-2 transition-all select-none",
+          isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+          isPicked && !isCorrect && !isWrong
+            ? "border-primary bg-primary/10 ring-2 ring-primary/40"
+            : isPicked && isCorrect
+              ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
+              : isPicked && isWrong
+                ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+                : "border-border/40 bg-card/60 hover:border-border",
+          isHome ? "flex-row-reverse" : "flex-row",
+        )}
+      >
+        {logo}
+        {info}
       </button>
     );
   }
