@@ -335,8 +335,8 @@ function PicksGrid({ games, entries, currentUserId, week }: PicksGridProps) {
                   >
                     {/* Sticky player info */}
                     <td className={cn(
-                      "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30",
-                      isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-card" : "bg-card",
+                      "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30 bg-card",
+                      isMe && "ring-inset ring-1 ring-primary/20",
                     )}>
                       <div className="flex items-center gap-2">
                         <span className={cn(
