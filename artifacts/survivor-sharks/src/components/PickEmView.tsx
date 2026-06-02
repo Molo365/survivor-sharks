@@ -474,7 +474,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
       {/* Scrollable picks grid */}
       <div className="rounded-xl border border-border/40 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * 72)}px` }}>
+          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * (isWc ? 64 : 72))}px` }}>
             <tbody>
               {entries.map((entry, idx) => {
                 const isMe = entry.userId === currentUserId;
@@ -517,37 +517,79 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
 
                     {/* Per-game pick cells */}
                     {games.map((game) => {
+                      if (isWc) {
+                        const pick = pickMap.get(game.id);
+                        const pickedOpt = (pick?.pickedTeamId ?? null) as WcPickOption | null;
+                        const result = pick?.result ?? null;
+
+                        const slotCn = (opt: WcPickOption) => cn(
+                          "flex items-center gap-[3px] justify-center rounded-[4px] px-1 py-[3px] transition-all",
+                          pickedOpt === opt
+                            ? result === "correct"
+                              ? "bg-green-500/25 ring-1 ring-green-500/55"
+                              : result === "incorrect"
+                                ? "bg-red-500/20 ring-1 ring-red-500/45"
+                                : "bg-primary/20 ring-1 ring-primary/50"
+                            : "opacity-[0.18]",
+                        );
+
+                        const textCn = (opt: WcPickOption) => cn(
+                          "font-bebas text-[9px] tracking-wide leading-none",
+                          pickedOpt === opt
+                            ? result === "correct" ? "text-green-400"
+                              : result === "incorrect" ? "text-red-400"
+                              : "text-foreground"
+                            : "text-muted-foreground",
+                        );
+
+                        return (
+                          <td key={game.id} className="px-[3px] py-1.5 align-middle">
+                            <div className="flex flex-col items-stretch gap-[2px]" style={{ width: 58 }}>
+                              {/* Home Win — flag + abbreviation */}
+                              <div className={slotCn("home_win")}>
+                                {game.homeTeam.logoUrl
+                                  ? <img src={game.homeTeam.logoUrl} alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                  : null}
+                                <span className={textCn("home_win")}>{game.homeTeam.abbreviation}</span>
+                              </div>
+                              {/* Draw — X */}
+                              <div className={cn(
+                                "flex items-center justify-center rounded-[4px] px-1 py-[2px] transition-all",
+                                pickedOpt === "draw"
+                                  ? result === "correct"
+                                    ? "bg-green-500/25 ring-1 ring-green-500/55"
+                                    : result === "incorrect"
+                                      ? "bg-red-500/20 ring-1 ring-red-500/45"
+                                      : "bg-primary/20 ring-1 ring-primary/50"
+                                  : "opacity-[0.18]",
+                              )}>
+                                <span className={cn(
+                                  "text-[11px] font-bold leading-none select-none",
+                                  pickedOpt === "draw"
+                                    ? result === "correct" ? "text-green-400"
+                                      : result === "incorrect" ? "text-red-400"
+                                      : "text-foreground"
+                                    : "text-muted-foreground",
+                                )}>✕</span>
+                              </div>
+                              {/* Away Win — flag + abbreviation */}
+                              <div className={slotCn("away_win")}>
+                                {game.awayTeam.logoUrl
+                                  ? <img src={game.awayTeam.logoUrl} alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                  : null}
+                                <span className={textCn("away_win")}>{game.awayTeam.abbreviation}</span>
+                              </div>
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      // Non-WC pick cells
                       const pick = pickMap.get(game.id);
                       if (!pick) {
                         return (
                           <td key={game.id} className="px-1 py-2 text-center">
                             <span className="text-muted-foreground/20 text-xs">—</span>
-                          </td>
-                        );
-                      }
-
-                      const isWcPick = WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption);
-
-                      if (isWcPick) {
-                        const opt = pick.pickedTeamId as WcPickOption;
-                        const shortLabel = WC_PICK_SHORT[opt] ?? opt;
-                        return (
-                          <td key={game.id} className="px-1 py-2 text-center">
-                            <div className={cn(
-                              "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[40px]",
-                              pick.result === "correct" ? "border-green-500/40 bg-green-500/10"
-                              : pick.result === "incorrect" ? "border-red-500/40 bg-red-500/10"
-                              : "border-border/30 bg-muted/10",
-                            )}>
-                              <span className={cn(
-                                "font-bebas text-[11px] tracking-wide leading-none",
-                                pick.result === "correct" ? "text-green-400"
-                                : pick.result === "incorrect" ? "text-red-400"
-                                : "text-muted-foreground/70",
-                              )}>{shortLabel}</span>
-                              {pick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
-                              {pick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
-                            </div>
                           </td>
                         );
                       }
@@ -578,12 +620,8 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                             )}>
                               {team.abbreviation}
                             </span>
-                            {pick.result === "correct" && (
-                              <Check className="w-2.5 h-2.5 text-green-400" />
-                            )}
-                            {pick.result === "incorrect" && (
-                              <X className="w-2.5 h-2.5 text-red-400" />
-                            )}
+                            {pick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
+                            {pick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
                           </div>
                         </td>
                       );
