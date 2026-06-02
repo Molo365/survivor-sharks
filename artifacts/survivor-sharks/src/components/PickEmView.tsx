@@ -457,7 +457,9 @@ interface PicksGridProps {
 
 function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGridProps) {
   const title = isWc
-    ? phase === "knockout_stage" ? "Knockout Stage Grid" : "Group Stage Grid"
+    ? phase === "knockout_stage" ? "Knockout Stage Grid"
+      : phase === "group_stage" ? "Group Stage Grid"
+      : "Picks Grid"
     : `Week ${week} Standings`;
 
   return (
@@ -1258,7 +1260,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">{isWc ? "No picks yet" : "No picks yet today"}</p>
+              <p className="font-bebas text-2xl tracking-wide">{is3way ? "No picks yet" : "No picks yet today"}</p>
               <p className="text-sm mt-1">Submit picks to see the grid.</p>
             </div>
           ) : (
@@ -1267,7 +1269,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               entries={leaderboard.entries}
               currentUserId={user?.id ?? null}
               week={leaderboard.week}
-              isWc={isWc}
+              isWc={is3way}
               phase={leaderboard.phase}
             />
           )}
