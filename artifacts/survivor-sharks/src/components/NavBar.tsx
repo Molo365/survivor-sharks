@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, ShieldAlert } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 export function NavBar() {
   const { user, isLoading, logout } = useAuth();
@@ -9,18 +9,8 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        {/* Left side: Admin link + Logo */}
+        {/* Left side: Logo */}
         <div className="flex items-center gap-4">
-          <Link
-            href="/admin/login"
-            className="flex items-center gap-1 text-xs font-medium text-muted-foreground/60 hover:text-destructive transition-colors"
-            data-testid="nav-admin-link"
-            title="Admin Panel"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Admin</span>
-          </Link>
-
           <Link href="/" className="flex items-center gap-2" data-testid="nav-logo">
             <img src="/logo.png" alt="Survivor Sharks" className="h-10 w-10 object-contain drop-shadow-[0_0_6px_rgba(30,144,255,0.5)]" />
             <span className="font-bebas text-2xl tracking-widest text-primary hidden sm:inline">SURVIVOR SHARKS</span>

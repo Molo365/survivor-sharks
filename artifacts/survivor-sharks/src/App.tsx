@@ -48,14 +48,16 @@ const AdminRoute = ({ component: Component }: { component: any }) => {
 };
 
 const AdminPanelRoute = ({ component: Component }: { component: any }) => {
-  const { isAuthenticated, isLoading } = useAdminAuth();
-  if (isLoading) {
+  const { isAuthenticated, isLoading: adminLoading } = useAdminAuth();
+  const { user, isLoading: userLoading } = useAuth();
+  if (adminLoading || userLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-destructive"></div>
       </div>
     );
   }
+  if (!user || user.role !== "admin") return <Redirect to="/" />;
   if (!isAuthenticated) return <Redirect to="/admin/login" />;
   return <Component />;
 };
@@ -91,8 +93,10 @@ function Router() {
         {() => <AdminRoute component={AdminUsers} />}
       </Route>
 
-      {/* New standalone admin panel routes */}
-      <Route path="/admin/login" component={AdminLogin} />
+      {/* Standalone admin panel routes — role-gated */}
+      <Route path="/admin/login">
+        {() => <AdminRoute component={AdminLogin} />}
+      </Route>
       <Route path="/admin/dashboard">
         {() => <AdminPanelRoute component={AdminPanel} />}
       </Route>

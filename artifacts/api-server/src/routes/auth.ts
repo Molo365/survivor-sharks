@@ -58,13 +58,14 @@ router.post("/register", async (req, res) => {
     return;
   }
 
+  const ADMIN_USERNAMES = ["mule"];
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(usersTable).values({
     username,
     email: email.toLowerCase(),
     passwordHash,
     displayName: displayName ?? null,
-    role: "user",
+    role: ADMIN_USERNAMES.includes(username.toLowerCase()) ? "admin" : "user",
   }).returning();
 
   const token = signToken({ sub: user.id, username: user.username, role: user.role });
