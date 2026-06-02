@@ -474,7 +474,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
       {/* Scrollable picks grid */}
       <div className="rounded-xl border border-border/40 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * (isWc ? 64 : 72))}px` }}>
+          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * (isWc ? 68 : 72))}px` }}>
             <tbody>
               {entries.map((entry, idx) => {
                 const isMe = entry.userId === currentUserId;
@@ -522,63 +522,58 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                         const pickedOpt = (pick?.pickedTeamId ?? null) as WcPickOption | null;
                         const result = pick?.result ?? null;
 
-                        const slotCn = (opt: WcPickOption) => cn(
-                          "flex items-center gap-[3px] justify-center rounded-[4px] px-1 py-[3px] transition-all",
-                          pickedOpt === opt
-                            ? result === "correct"
-                              ? "bg-green-500/25 ring-1 ring-green-500/55"
-                              : result === "incorrect"
-                                ? "bg-red-500/20 ring-1 ring-red-500/45"
-                                : "bg-primary/20 ring-1 ring-primary/50"
-                            : "opacity-[0.18]",
-                        );
+                        const sectionCn = (opt: WcPickOption) => {
+                          const active = pickedOpt === opt;
+                          if (!active) return "border border-border/20 bg-transparent";
+                          if (result === "correct") return "border border-green-500/70 bg-green-500/15 shadow-[0_0_8px_rgba(34,197,94,0.3)]";
+                          if (result === "incorrect") return "border border-red-500/70 bg-red-500/15 shadow-[0_0_8px_rgba(239,68,68,0.3)]";
+                          return "border border-primary/70 bg-primary/15 shadow-[0_0_8px_rgba(99,102,241,0.3)]";
+                        };
 
-                        const textCn = (opt: WcPickOption) => cn(
-                          "font-bebas text-[9px] tracking-wide leading-none",
-                          pickedOpt === opt
-                            ? result === "correct" ? "text-green-400"
-                              : result === "incorrect" ? "text-red-400"
-                              : "text-foreground"
-                            : "text-muted-foreground",
+                        const abbrevCn = (opt: WcPickOption) => {
+                          const active = pickedOpt === opt;
+                          if (!active) return "text-muted-foreground/25";
+                          if (result === "correct") return "text-green-400";
+                          if (result === "incorrect") return "text-red-400";
+                          return "text-foreground";
+                        };
+
+                        const TeamSection = ({ opt, team }: { opt: "home_win" | "away_win"; team: typeof game.homeTeam }) => (
+                          <div className={cn("flex flex-col items-center justify-center gap-[3px] rounded-md py-1.5 px-1 transition-all", sectionCn(opt))}>
+                            <div className={cn("rounded-full p-[3px] shrink-0 transition-all", pickedOpt === opt ? "bg-white/90" : "bg-white/15")}>
+                              {team.logoUrl
+                                ? <img src={team.logoUrl} alt="" className="w-[18px] h-[18px] object-contain block" />
+                                : <div className="w-[18px] h-[18px] rounded-full bg-muted/40 flex items-center justify-center">
+                                    <span className="font-bebas text-[7px] text-muted-foreground">{team.abbreviation?.slice(0, 1)}</span>
+                                  </div>
+                              }
+                            </div>
+                            <span className={cn("font-bebas text-[10px] tracking-wider leading-none", abbrevCn(opt))}>
+                              {team.abbreviation}
+                            </span>
+                            {pickedOpt === opt && result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
+                            {pickedOpt === opt && result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
+                          </div>
                         );
 
                         return (
                           <td key={game.id} className="px-[3px] py-1.5 align-middle">
-                            <div className="flex flex-col items-stretch gap-[2px]" style={{ width: 58 }}>
-                              {/* Home Win — flag + abbreviation */}
-                              <div className={slotCn("home_win")}>
-                                {game.homeTeam.logoUrl
-                                  ? <img src={game.homeTeam.logoUrl} alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                  : null}
-                                <span className={textCn("home_win")}>{game.homeTeam.abbreviation}</span>
-                              </div>
-                              {/* Draw — X */}
-                              <div className={cn(
-                                "flex items-center justify-center rounded-[4px] px-1 py-[2px] transition-all",
-                                pickedOpt === "draw"
-                                  ? result === "correct"
-                                    ? "bg-green-500/25 ring-1 ring-green-500/55"
-                                    : result === "incorrect"
-                                      ? "bg-red-500/20 ring-1 ring-red-500/45"
-                                      : "bg-primary/20 ring-1 ring-primary/50"
-                                  : "opacity-[0.18]",
-                              )}>
+                            <div className="flex flex-col gap-[2px]" style={{ width: 60 }}>
+                              <TeamSection opt="home_win" team={game.homeTeam} />
+                              {/* Draw section */}
+                              <div className={cn("flex flex-col items-center justify-center rounded-md py-[5px] px-1 transition-all", sectionCn("draw"))}>
                                 <span className={cn(
-                                  "text-[11px] font-bold leading-none select-none",
+                                  "font-bebas text-[9px] tracking-[0.1em] leading-none select-none",
                                   pickedOpt === "draw"
                                     ? result === "correct" ? "text-green-400"
                                       : result === "incorrect" ? "text-red-400"
                                       : "text-foreground"
-                                    : "text-muted-foreground",
-                                )}>✕</span>
+                                    : "text-muted-foreground/25",
+                                )}>DRAW</span>
+                                {pickedOpt === "draw" && result === "correct" && <Check className="w-2.5 h-2.5 text-green-400 mt-0.5" />}
+                                {pickedOpt === "draw" && result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400 mt-0.5" />}
                               </div>
-                              {/* Away Win — flag + abbreviation */}
-                              <div className={slotCn("away_win")}>
-                                {game.awayTeam.logoUrl
-                                  ? <img src={game.awayTeam.logoUrl} alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                  : null}
-                                <span className={textCn("away_win")}>{game.awayTeam.abbreviation}</span>
-                              </div>
+                              <TeamSection opt="away_win" team={game.awayTeam} />
                             </div>
                           </td>
                         );
