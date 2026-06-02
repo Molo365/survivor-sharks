@@ -28,6 +28,7 @@ import type {
   Elimination,
   ErrorResponse,
   Game,
+  GetDailyScheduleParams,
   GetPickEmLeaderboardParams,
   HealthStatus,
   JoinPoolInput,
@@ -1099,20 +1100,29 @@ export function useGetPoolSchedule<TData = Awaited<ReturnType<typeof getPoolSche
 
 
 
-export const getGetDailyScheduleUrl = (poolId: number,) => {
+export const getGetDailyScheduleUrl = (poolId: number,
+    params?: GetDailyScheduleParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/pools/${poolId}/schedule/daily`
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/schedule/daily?${stringifiedParams}` : `/api/pools/${poolId}/schedule/daily`
 }
 
 /**
- * @summary Get today's MLB game slate for a daily pick pool
+ * @summary Get MLB game slate for a daily pick pool on a given date
  */
-export const getDailySchedule = async (poolId: number, options?: RequestInit): Promise<DailySchedule> => {
+export const getDailySchedule = async (poolId: number,
+    params?: GetDailyScheduleParams, options?: RequestInit): Promise<DailySchedule> => {
 
-  return customFetch<DailySchedule>(getGetDailyScheduleUrl(poolId),
+  return customFetch<DailySchedule>(getGetDailyScheduleUrl(poolId,params),
   {
     ...options,
     method: 'GET'
@@ -1125,23 +1135,25 @@ export const getDailySchedule = async (poolId: number, options?: RequestInit): P
 
 
 
-export const getGetDailyScheduleQueryKey = (poolId: number,) => {
+export const getGetDailyScheduleQueryKey = (poolId: number,
+    params?: GetDailyScheduleParams,) => {
     return [
-    `/api/pools/${poolId}/schedule/daily`
+    `/api/pools/${poolId}/schedule/daily`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDailyScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getDailySchedule>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDailyScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getDailySchedule>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    params?: GetDailyScheduleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDailyScheduleQueryKey(poolId);
+  const queryKey =  queryOptions?.queryKey ?? getGetDailyScheduleQueryKey(poolId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailySchedule>>> = ({ signal }) => getDailySchedule(poolId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailySchedule>>> = ({ signal }) => getDailySchedule(poolId,params, { signal, ...requestOptions });
 
 
 
@@ -1155,15 +1167,16 @@ export type GetDailyScheduleQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get today's MLB game slate for a daily pick pool
+ * @summary Get MLB game slate for a daily pick pool on a given date
  */
 
 export function useGetDailySchedule<TData = Awaited<ReturnType<typeof getDailySchedule>>, TError = ErrorType<ErrorResponse>>(
- poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ poolId: number,
+    params?: GetDailyScheduleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDailyScheduleQueryOptions(poolId,options)
+  const queryOptions = getGetDailyScheduleQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

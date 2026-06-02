@@ -882,6 +882,13 @@ export interface PickEmProcessResult {
   date: string;
 }
 
+export type GetDailyScheduleParams = {
+/**
+ * ET date as YYYY-MM-DD. Defaults to today.
+ */
+date?: string;
+};
+
 export type GetPickEmLeaderboardParams = {
 /**
  * World Cup phase filter (only used for worldcup sport pools)

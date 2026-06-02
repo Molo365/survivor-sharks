@@ -146,7 +146,7 @@ router.get("/", requireAuth, async (req, res) => {
   });
 });
 
-// GET /api/pools/:poolId/schedule/daily — today's MLB slate for daily pick pools
+// GET /api/pools/:poolId/schedule/daily — MLB slate for a given ET date (defaults to today)
 router.get("/daily", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
 
@@ -157,9 +157,14 @@ router.get("/daily", requireAuth, async (req, res) => {
   }
 
   const todayEt = getTodayEtDate();
-  const todayEspn = formatDateEt(new Date());
+  const dateParam = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+    ? req.query.date
+    : todayEt;
 
-  const games = await fetchGamesForDate("mlb", todayEspn);
+  // Convert YYYY-MM-DD → YYYYMMDD for the ESPN API
+  const espnDate = dateParam.replace(/-/g, "");
+
+  const games = await fetchGamesForDate("mlb", espnDate);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const deadline = getDailyPickDeadline(games);
@@ -172,10 +177,13 @@ router.get("/daily", requireAuth, async (req, res) => {
     month: "long",
     day: "numeric",
   });
-  const label = fmt.format(new Date());
+  // Build a noon-ET timestamp for the selected date so the label is always correct
+  const [yr, mo, dy] = dateParam.split("-").map(Number);
+  const dateForLabel = new Date(Date.UTC(yr, mo - 1, dy, 17, 0, 0)); // 17:00 UTC = noon EDT
+  const label = fmt.format(dateForLabel);
 
   res.json({
-    date: todayEt,
+    date: dateParam,
     label,
     deadline: deadline?.toISOString() ?? null,
     deadlinePassed,

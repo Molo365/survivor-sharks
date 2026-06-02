@@ -407,10 +407,14 @@ export const GetPoolScheduleResponse = zod.object({
 
 
 /**
- * @summary Get today's MLB game slate for a daily pick pool
+ * @summary Get MLB game slate for a daily pick pool on a given date
  */
 export const GetDailyScheduleParams = zod.object({
   "poolId": zod.coerce.number()
+})
+
+export const GetDailyScheduleQueryParams = zod.object({
+  "date": zod.coerce.string().optional().describe('ET date as YYYY-MM-DD. Defaults to today.')
 })
 
 export const GetDailyScheduleResponse = zod.object({
