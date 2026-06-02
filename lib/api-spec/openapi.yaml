@@ -866,7 +866,7 @@ components:
           type: string
         sport:
           type: string
-          enum: [nfl, mlb, nba, nhl, fifa, worldcup]
+          enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl]
         poolType:
           type: string
           enum: [season, weekly, mid_season, pickem]

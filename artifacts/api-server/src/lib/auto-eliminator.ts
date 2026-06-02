@@ -23,6 +23,7 @@ import { eq, and, ne, inArray, count } from "drizzle-orm";
 import {
   fetchGames,
   fetchGamesForDate,
+  fetchIntlGamesForDate,
   getTodayEtDate,
   formatDateEt,
   type EspnGame,
@@ -683,6 +684,7 @@ export async function processPickEmResults(): Promise<{
   // Separate pools by sport
   const mlbPools = pickemPools.filter((p) => p.sport === "mlb");
   const wcPools = pickemPools.filter((p) => p.sport === "worldcup");
+  const intlPools = pickemPools.filter((p) => p.sport === "intl");
 
   // ── MLB grading ───────────────────────────────────────────────────────────
 
@@ -739,6 +741,60 @@ export async function processPickEmResults(): Promise<{
           logger.info(
             { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result },
             "Auto-graded pickem pick",
+          );
+        }
+      }
+    }
+  }
+
+  // ── International Soccer grading (3-way: home_win / draw / away_win) ────────
+
+  if (intlPools.length > 0) {
+    const intlGames = await fetchIntlGamesForDate(todayEspn);
+    const completedIntlGames = intlGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
+
+    const outcomeByIntlGameId = new Map<string, "home_win" | "draw" | "away_win">();
+    for (const game of completedIntlGames) {
+      const h = game.homeScore!, a = game.awayScore!;
+      const outcome: "home_win" | "draw" | "away_win" = h > a ? "home_win" : a > h ? "away_win" : "draw";
+      outcomeByIntlGameId.set(game.id, outcome);
+      logger.info(
+        {
+          gameId: game.id,
+          outcome,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} - ${game.homeScore} ${game.homeTeam.abbreviation}`,
+        },
+        "Pick-Em intl: completed game found",
+      );
+    }
+
+    for (const pool of intlPools) {
+      for (const [gameId, outcome] of outcomeByIntlGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.gameDate, todayEt),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          );
+
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" =
+            pick.pickedTeamId === outcome ? "correct" : "incorrect";
+
+          await db
+            .update(pickemPicksTable)
+            .set({ result, updatedAt: new Date() })
+            .where(eq(pickemPicksTable.id, pick.id));
+
+          picksGraded++;
+          logger.info(
+            { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
+            "Auto-graded intl pickem pick",
           );
         }
       }

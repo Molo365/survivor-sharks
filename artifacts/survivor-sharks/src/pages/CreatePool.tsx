@@ -110,7 +110,7 @@ export default function CreatePool() {
   const selectedType = form.watch("poolType");
   const selectedSport = form.watch("sport");
 
-  const PICKEM_SPORTS = [PoolInputSport.mlb, PoolInputSport.worldcup] as const;
+  const PICKEM_SPORTS = [PoolInputSport.mlb, PoolInputSport.worldcup, PoolInputSport.intl] as const;
 
   // Pick-Ems: auto-set to MLB if current sport isn't a valid pick-em sport
   useEffect(() => {
@@ -380,6 +380,7 @@ export default function CreatePool() {
                             <>
                               <SelectItem value={PoolInputSport.mlb}>MLB Baseball</SelectItem>
                               <SelectItem value={PoolInputSport.worldcup}>⚽ World Cup 2026</SelectItem>
+                              <SelectItem value={PoolInputSport.intl}>🌍 International Soccer</SelectItem>
                             </>
                           ) : (
                             <>

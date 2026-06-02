@@ -854,6 +854,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isWc = sport === "worldcup";
+  const is3way = sport === "worldcup" || sport === "intl";
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
@@ -894,14 +895,14 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
     setLocalPicks((prev) => {
       const next = new Map(prev);
       for (const game of slate.games) {
-        const savedPick = isWc ? game.userPickOption : game.userPickTeamId;
+        const savedPick = is3way ? game.userPickOption : game.userPickTeamId;
         if (savedPick && !next.has(game.id)) {
           next.set(game.id, savedPick);
         }
       }
       return next;
     });
-  }, [slate, isWc]);
+  }, [slate, is3way]);
 
   function togglePick(gameId: string, teamId: string) {
     setLocalPicks((prev) => {
@@ -922,7 +923,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       .map(([gameId, pickValue]) => {
         const game = slate.games.find((g) => g.id === gameId);
         if (!game || game.deadlinePassed) return null;
-        if (isWc) {
+        if (is3way) {
           const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
           return { gameId, pickedTeamId: pickValue, pickedTeamName: label };
         }
@@ -1003,7 +1004,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           value="grid"
           className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
         >
-          <LayoutGrid className="w-5 h-5" /> {isWc ? "Pick Grid" : "Daily Grid"}
+          <LayoutGrid className="w-5 h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
         </TabsTrigger>
         <TabsTrigger
           value="stats"
@@ -1099,7 +1100,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               {/* All games in original scheduled-time order — never reorganised */}
               <div className="space-y-3">
                 {slate.games.map((game) =>
-                  isWc ? (
+                  is3way ? (
                     <WcGameCard
                       key={game.id}
                       game={game}
@@ -1160,7 +1161,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">{isWc ? "No picks yet" : "No picks yet today"}</p>
+              <p className="font-bebas text-2xl tracking-wide">{is3way ? "No picks yet" : "No picks yet today"}</p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
           ) : (
@@ -1169,6 +1170,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 <h3 className="font-bebas text-2xl tracking-wide text-foreground">
                   {isWc && leaderboard?.phase
                     ? leaderboard.phase === "group_stage" ? "Group Stage Standings" : "Knockout Stage Standings"
+                    : sport === "intl" ? "All-Time Standings"
                     : "Today's Standings"}
                 </h3>
                 <span className="text-xs text-muted-foreground">

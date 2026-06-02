@@ -5,7 +5,16 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   nhl: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl",
   fifa: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
   worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
+  // intl intentionally omitted — use fetchIntlGamesForDate() which merges multiple leagues
 };
+
+// Soccer league slugs for international matches:
+// fifa.friendly.i = International A friendlies / warm-up matches
+// fifa.world      = FIFA World Cup (active Jun 11 – Jul 19 2026)
+const INTL_SOCCER_SLUGS = [
+  "fifa.friendly.i",
+  "fifa.world",
+];
 
 
 export interface EspnTeam {
@@ -355,6 +364,33 @@ export function isDailyPickDeadlinePassed(games: EspnGame[]): boolean {
   const deadline = getDailyPickDeadline(games);
   if (!deadline) return false;
   return Date.now() >= deadline.getTime();
+}
+
+/**
+ * Fetch international soccer games for a specific ET date (YYYYMMDD).
+ * Merges results from multiple ESPN league endpoints (friendlies + WC) and deduplicates.
+ */
+export async function fetchIntlGamesForDate(dateStr: string): Promise<EspnGame[]> {
+  const allResults = await Promise.all(
+    INTL_SOCCER_SLUGS.map((slug) => {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${dateStr}&limit=50`;
+      return fetch(url, { signal: AbortSignal.timeout(8000) })
+        .then((r) => r.ok ? r.json() : { events: [] })
+        .then((d: any) => ((d.events ?? []) as any[]).map(parseGame))
+        .catch((): EspnGame[] => []);
+    }),
+  );
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of allResults) {
+    for (const g of dayGames) {
+      if (!seen.has(g.id)) {
+        seen.add(g.id);
+        games.push(g);
+      }
+    }
+  }
+  return games;
 }
 
 /**

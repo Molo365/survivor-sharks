@@ -80,12 +80,13 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const resolvedPickFrequency = (pickFrequency === "daily" && sport === "mlb") ? "daily" : "weekly";
+  const dailySports = ["mlb", "intl"];
+  const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
 
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
-    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa",
+    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl",
     poolType: resolvedPoolType,
     startWeek: startWeek ?? null,
     description: description ?? null,

@@ -5,6 +5,7 @@ import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
+  fetchIntlGamesForDate,
   getTodayEtDate,
   formatDateEt,
 } from "../lib/espn";
@@ -54,10 +55,14 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
+  const isIntl = sport === "intl";
+  const is3way = isWc || isIntl;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate(sport, todayEspn);
+  const games = isIntl
+    ? await fetchIntlGamesForDate(todayEspn)
+    : await fetchGamesForDate(sport, todayEspn);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const existingPicks = await db
@@ -95,7 +100,7 @@ router.get("/games", requireAuth, async (req, res) => {
       },
       awayScore: g.awayScore ?? null,
       homeScore: g.homeScore ?? null,
-      userPickTeamId: isWc ? null : (existing?.pickedTeamId ?? null),
+      userPickTeamId: is3way ? null : (existing?.pickedTeamId ?? null),
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
       liveOuts: null as number | null,
@@ -104,11 +109,11 @@ router.get("/games", requireAuth, async (req, res) => {
       awayRecord: g.awayRecord ?? null,
       homePitcher: null as null,
       awayPitcher: null as null,
-      pickOptions: isWc ? WC_PICK_OPTIONS.map(id => id) : null,
-      userPickOption: isWc ? (existing?.pickedTeamId ?? null) : null,
+      pickOptions: is3way ? WC_PICK_OPTIONS.map(id => id) : null,
+      userPickOption: is3way ? (existing?.pickedTeamId ?? null) : null,
     };
 
-    if (!isWc) {
+    if (!is3way) {
       return {
         ...base,
         liveOuts: g.liveState?.outs ?? null,
@@ -135,7 +140,7 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const slateDeadlinePassed = games.length > 0 && games.some((g) => isGameLocked(g.date));
 
-  // Determine current WC phase
+  // Phase: only meaningful for WC pools
   const phase = isWc ? (WC_PHASES.group_stage.start <= todayEt && todayEt <= WC_PHASES.group_stage.end
     ? "group_stage"
     : WC_PHASES.knockout_stage.start <= todayEt && todayEt <= WC_PHASES.knockout_stage.end
@@ -245,6 +250,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
+  const isIntl = sport === "intl";
+  const is3way = isWc || isIntl;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -257,6 +264,9 @@ router.post("/picks", requireAuth, async (req, res) => {
     for (const day of schedule) {
       for (const g of day.games) gameMap.set(g.id, { date: g.date });
     }
+  } else if (isIntl) {
+    const games = await fetchIntlGamesForDate(todayEspn);
+    for (const g of games) gameMap.set(g.id, { date: g.date });
   } else {
     const games = await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
@@ -272,7 +282,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       unknownGameIds.push(pick.gameId);
     } else if (isGameLocked(game.date)) {
       lockedGameIds.push(pick.gameId);
-    } else if (isWc && !WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption)) {
+    } else if (is3way && !WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption)) {
       invalidPickIds.push(pick.gameId);
     }
   }
@@ -286,19 +296,19 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
   if (invalidPickIds.length > 0) {
-    res.status(400).json({ error: `Invalid WC pick option — must be home_win, draw, or away_win` });
+    res.status(400).json({ error: `Invalid pick option — must be home_win, draw, or away_win` });
     return;
   }
 
   let saved = 0;
 
   for (const pick of picks) {
-    const pickedTeamName = isWc
+    const pickedTeamName = is3way
       ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
       : pick.pickedTeamName;
 
-    // For WC: use the game-specific date; for other sports: use today
-    const gameDate = isWc && pick.gameDate ? pick.gameDate : todayEt;
+    // For 3-way picks: use the game-specific date; for other sports: use today
+    const gameDate = is3way && pick.gameDate ? pick.gameDate : todayEt;
 
     await db
       .insert(pickemPicksTable)
@@ -345,6 +355,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
+  const isIntl = sport === "intl";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -354,18 +365,25 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     ? (phaseParam as WcPhase)
     : "group_stage";
 
-  // Build picks WHERE clause — WC uses full phase range, others use today only
+  // Build picks WHERE clause:
+  //   WC   → full phase date range
+  //   intl → all picks in pool (cumulative standings)
+  //   other → today only
   const picksWhereClause = isWc
     ? and(
         eq(pickemPicksTable.poolId, poolId),
         gte(pickemPicksTable.gameDate, WC_PHASES[wcPhase].start),
         lte(pickemPicksTable.gameDate, WC_PHASES[wcPhase].end),
       )
+    : isIntl
+    ? eq(pickemPicksTable.poolId, poolId)
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
 
   const [wcSchedule, espnGames, allPicks, aggregates] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
-    isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>) : fetchGamesForDate(sport, todayEspn),
+    isIntl ? fetchIntlGamesForDate(todayEspn)
+    : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
+    : fetchGamesForDate(sport, todayEspn),
     db.select().from(pickemPicksTable).where(picksWhereClause),
     db
       .select({
@@ -389,6 +407,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
+
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
     if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
@@ -409,7 +428,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         pickedTeamId: p.pickedTeamId,
         pickedTeamName: p.pickedTeamName,
         result: p.result,
-        pickOption: isWc ? p.pickedTeamId : undefined,
+        pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined,
       })),
     };
   });
@@ -466,10 +485,14 @@ router.post("/process-results", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
+  const isIntl = sport === "intl";
+  const is3way = isWc || isIntl;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
-  const games = await fetchGamesForDate(sport, todayEspn);
+  const games = isIntl
+    ? await fetchIntlGamesForDate(todayEspn)
+    : await fetchGamesForDate(sport, todayEspn);
   const finalGames = games.filter((g) => g.isCompleted);
 
   let processed = 0;
@@ -491,7 +514,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
     for (const pick of gamePicks) {
       let result: "correct" | "incorrect";
 
-      if (isWc) {
+      if (is3way) {
         const outcome = wcOutcome(game.homeScore, game.awayScore);
         result = pick.pickedTeamId === outcome ? "correct" : "incorrect";
       } else {

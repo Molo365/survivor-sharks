@@ -113,7 +113,7 @@ export const createPoolBodyPickFrequencyDefault = `weekly`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
-  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup']),
+  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl']),
   "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
