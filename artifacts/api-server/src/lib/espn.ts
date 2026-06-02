@@ -9,10 +9,10 @@ const ESPN_ENDPOINTS: Record<string, string> = {
 };
 
 // Soccer league slugs for international matches:
-// fifa.friendly.i = International A friendlies / warm-up matches
-// fifa.world      = FIFA World Cup (active Jun 11 – Jul 19 2026)
+// fifa.friendly = International friendlies / warm-up matches (ESPN public endpoint)
+// fifa.world    = FIFA World Cup (active Jun 11 – Jul 19 2026)
 const INTL_SOCCER_SLUGS = [
-  "fifa.friendly.i",
+  "fifa.friendly",
   "fifa.world",
 ];
 
@@ -368,14 +368,15 @@ export function isDailyPickDeadlinePassed(games: EspnGame[]): boolean {
 
 /**
  * Fetch international soccer games for a specific ET date (YYYYMMDD).
- * Merges results from multiple ESPN league endpoints (friendlies + WC) and deduplicates.
+ * Merges ESPN fifa.friendly (pre-WC warm-ups / ongoing friendlies) with
+ * fifa.world (active during the FIFA World Cup), then deduplicates.
  */
 export async function fetchIntlGamesForDate(dateStr: string): Promise<EspnGame[]> {
   const allResults = await Promise.all(
     INTL_SOCCER_SLUGS.map((slug) => {
       const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${dateStr}&limit=50`;
       return fetch(url, { signal: AbortSignal.timeout(8000) })
-        .then((r) => r.ok ? r.json() : { events: [] })
+        .then((r) => (r.ok ? r.json() : { events: [] }))
         .then((d: any) => ((d.events ?? []) as any[]).map(parseGame))
         .catch((): EspnGame[] => []);
     }),
