@@ -119,6 +119,16 @@ export default function CreatePool() {
     }
   }, [selectedType, selectedSport, form]);
 
+  // Pick-Ems: default pick frequency to "daily" when switching to pickem
+  useEffect(() => {
+    if (selectedType === "pickem") {
+      const cur = form.getValues("pickFrequency");
+      if (cur !== "daily" && cur !== "weekly") {
+        form.setValue("pickFrequency", "daily", { shouldValidate: true });
+      }
+    }
+  }, [selectedType, form]);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: Record<string, unknown> = { ...values };
     if (values.poolType === "mid_season" && values.startWeek) {
@@ -247,7 +257,76 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* Pick Format — MLB only, not for pick-ems */}
+              {/* Pick Format — Pick-Ems: daily vs weekly competition */}
+              {selectedType === "pickem" && selectedSport === PoolInputSport.mlb && (
+                <FormField
+                  control={form.control}
+                  name="pickFrequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bebas text-xl tracking-wide">Competition Style</FormLabel>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        {([
+                          {
+                            id: "daily" as const,
+                            label: "Daily",
+                            icon: Calendar,
+                            desc: "Leaderboard shows today's picks only — fresh competition every day.",
+                          },
+                          {
+                            id: "weekly" as const,
+                            label: "Weekly",
+                            icon: Clock,
+                            desc: "Picks accumulate Monday–Sunday. Leaderboard shows the full week with per-day breakdown.",
+                            badge: "New",
+                          },
+                        ] as const).map(opt => {
+                          const Icon = opt.icon;
+                          const isSelected = field.value === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => field.onChange(opt.id)}
+                              data-testid={`pickem-freq-${opt.id}`}
+                              className={cn(
+                                "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                isSelected
+                                  ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
+                                  : "border-border/40 hover:border-border bg-card/50"
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <Icon className={cn("w-5 h-5 mt-0.5 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={cn("font-bebas text-lg tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                                      {opt.label}
+                                    </span>
+                                    {"badge" in opt && (
+                                      <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">
+                                        {opt.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground leading-snug">{opt.desc}</p>
+                                </div>
+                                <div className={cn(
+                                  "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
+                                  isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                                )} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Pick Format — MLB survivor only, not for pick-ems */}
               {selectedSport === PoolInputSport.mlb && selectedType !== "pickem" && (
                 <FormField
                   control={form.control}

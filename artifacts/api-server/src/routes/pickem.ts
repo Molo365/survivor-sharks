@@ -348,6 +348,21 @@ router.post("/picks", requireAuth, async (req, res) => {
   res.status(201).json({ saved, skipped: 0 });
 });
 
+/** Compute the Mon–Sun week bounds (ET dates) containing today. */
+function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string } {
+  const [y, m, d] = todayEt.split("-").map(Number);
+  // Build a UTC date that represents this ET calendar date
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
+  const daysFromMonday = (dow - 1 + 7) % 7; // 0 on Monday, 6 on Sunday
+  const monday = new Date(Date.UTC(y, m - 1, d - daysFromMonday));
+  const sunday = new Date(Date.UTC(y, m - 1, d - daysFromMonday + 6));
+  return {
+    weekStart: monday.toISOString().slice(0, 10),
+    weekEnd: sunday.toISOString().slice(0, 10),
+  };
+}
+
 // GET /api/pools/:poolId/pickem/leaderboard
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -367,6 +382,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
+  const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -376,10 +392,13 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     ? (phaseParam as WcPhase)
     : "group_stage";
 
+  const weekBounds = isWeekly ? getWeekBoundsEt(todayEt) : null;
+
   // Build picks WHERE clause:
-  //   WC   → full phase date range
-  //   intl → all picks in pool (cumulative standings)
-  //   other → today only
+  //   WC     → full phase date range
+  //   intl   → all picks in pool (cumulative standings)
+  //   weekly → current Mon–Sun week
+  //   other  → today only
   const picksWhereClause = isWc
     ? and(
         eq(pickemPicksTable.poolId, poolId),
@@ -388,9 +407,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       )
     : isIntl
     ? eq(pickemPicksTable.poolId, poolId)
+    : isWeekly
+    ? and(
+        eq(pickemPicksTable.poolId, poolId),
+        gte(pickemPicksTable.gameDate, weekBounds!.weekStart),
+        lte(pickemPicksTable.gameDate, weekBounds!.weekEnd),
+      )
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
 
-  const [wcSchedule, espnGames, allPicks, aggregates] = await Promise.all([
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -412,12 +437,37 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
         sql`COUNT(*) DESC`,
       ),
+    isWeekly
+      ? db
+          .select({
+            userId: pickemPicksTable.userId,
+            gameDate: pickemPicksTable.gameDate,
+            correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+            picked: sql<string>`COUNT(*)`,
+          })
+          .from(pickemPicksTable)
+          .where(picksWhereClause)
+          .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
+          .orderBy(pickemPicksTable.gameDate)
+      : Promise.resolve(null as null),
   ]);
 
   if (!isWc) {
     espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
+  // Build per-day breakdown map for weekly pools
+  const dailyByUser = new Map<number, { date: string; correct: number; picked: number }[]>();
+  if (dailyAggregates) {
+    for (const row of dailyAggregates) {
+      if (!dailyByUser.has(row.userId)) dailyByUser.set(row.userId, []);
+      dailyByUser.get(row.userId)!.push({
+        date: row.gameDate,
+        correct: Number(row.correct),
+        picked: Number(row.picked),
+      });
+    }
+  }
 
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
@@ -441,6 +491,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         result: p.result,
         pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined,
       })),
+      dailyBreakdown: isWeekly ? (dailyByUser.get(row.userId) ?? []) : undefined,
     };
   });
 
@@ -478,7 +529,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         .length
     : null;
 
-  res.json({ poolId, week: pool.currentWeek, phase, games: formattedGames, entries, totalGames, completedGames });
+  res.json({
+    poolId,
+    week: pool.currentWeek,
+    isWeekly: isWeekly || undefined,
+    weekStart: weekBounds?.weekStart ?? null,
+    weekEnd: weekBounds?.weekEnd ?? null,
+    phase,
+    games: formattedGames,
+    entries,
+    totalGames,
+    completedGames,
+  });
 });
 
 // POST /api/pools/:poolId/pickem/process-results  — commissioner only

@@ -1809,6 +1809,18 @@ components:
           type: string
           enum: [pending, correct, incorrect]
 
+    PickEmDailyBreakdown:
+      type: object
+      required: [date, correct, picked]
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD date in ET"
+        correct:
+          type: integer
+        picked:
+          type: integer
+
     PickEmLeaderboardEntry:
       type: object
       required: [rank, userId, username, correct, picked, picks]
@@ -1829,6 +1841,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmPlayerPick"
+        dailyBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmDailyBreakdown"
+          description: "Per-day breakdown; present only for weekly pick-em pools"
 
     PickEmLeaderboard:
       type: object
@@ -1838,6 +1855,15 @@ components:
           type: integer
         week:
           type: integer
+        isWeekly:
+          type: boolean
+          description: "True for weekly pick-em pools (Mon–Sun accumulation)"
+        weekStart:
+          type: ["string", "null"]
+          description: "Monday of the current scoring week (YYYY-MM-DD); null for non-weekly pools"
+        weekEnd:
+          type: ["string", "null"]
+          description: "Sunday of the current scoring week (YYYY-MM-DD); null for non-weekly pools"
         phase:
           type: ["string", "null"]
           description: WC phase returned (group_stage, knockout_stage); null for non-WC sports

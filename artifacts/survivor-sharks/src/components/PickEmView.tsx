@@ -7,7 +7,7 @@ import {
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -100,6 +100,7 @@ interface PickEmViewProps {
   commissionerId: number;
   inviteCode: string;
   sport?: string;
+  pickFrequency?: string;
 }
 
 const WC_PICK_OPTIONS = ["home_win", "draw", "away_win"] as const;
@@ -861,12 +862,141 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb" }: PickEmViewProps) {
+// ── Weekly Leaderboard ────────────────────────────────────────────────────────
+
+const SHORT_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function dayAbbrev(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return SHORT_DAY[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+function generateWeekDays(weekStart: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
+}
+
+interface WeeklyLeaderboardProps {
+  entries: PickEmLeaderboardEntry[];
+  currentUserId: number | null;
+  weekStart: string;
+  weekEnd: string;
+}
+
+function WeeklyLeaderboard({ entries, currentUserId, weekStart, weekEnd }: WeeklyLeaderboardProps) {
+  const todayEt = getTodayEt();
+  const days = generateWeekDays(weekStart);
+
+  const fmtDate = (d: string) =>
+    new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bebas text-2xl tracking-wide text-foreground">This Week's Standings</h3>
+        <span className="text-xs text-muted-foreground">{fmtDate(weekStart)} – {fmtDate(weekEnd)}</span>
+      </div>
+
+      <div className="rounded-xl border border-border/40 overflow-hidden">
+        {/* Day-of-week header */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/20 bg-muted/10">
+          <div className="flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Player</div>
+          <div className="flex gap-1">
+            {days.map(date => (
+              <div key={date} className={cn("w-9 text-center text-[9px] font-bold uppercase tracking-wider shrink-0", date === todayEt ? "text-primary" : "text-muted-foreground/40")}>
+                {dayAbbrev(date)}
+              </div>
+            ))}
+          </div>
+          <div className="w-16 text-right text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 shrink-0">Total</div>
+        </div>
+
+        {entries.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">No picks yet this week.</div>
+        ) : entries.map((entry, idx) => {
+          const isMe = entry.userId === currentUserId;
+          const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
+          const pct = entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null;
+
+          return (
+            <div
+              key={entry.userId}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 border-b border-border/10 last:border-0",
+                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+              )}
+            >
+              {/* Rank + name */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className={cn(
+                  "font-bebas text-base w-5 shrink-0 text-center",
+                  entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
+                )}>
+                  {entry.rank}
+                </span>
+                <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
+                  {entry.displayName ?? entry.username}
+                  {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                </span>
+              </div>
+
+              {/* Per-day cells */}
+              <div className="flex gap-1 shrink-0">
+                {days.map(date => {
+                  const day = breakdownMap.get(date);
+                  const isPast = date < todayEt;
+                  const isToday = date === todayEt;
+
+                  if (day) {
+                    const allCorrect = day.correct === day.picked && day.picked > 0;
+                    return (
+                      <div key={date} className={cn(
+                        "w-9 h-9 flex flex-col items-center justify-center rounded-md border shrink-0",
+                        allCorrect ? "bg-green-500/10 border-green-500/30" : "bg-muted/20 border-border/30",
+                      )}>
+                        <span className={cn("font-bebas text-sm leading-none", allCorrect ? "text-green-400" : "text-foreground")}>{day.correct}</span>
+                        <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
+                      </div>
+                    );
+                  }
+                  if (isPast || isToday) {
+                    return (
+                      <div key={date} className={cn(
+                        "w-9 h-9 flex items-center justify-center rounded-md border shrink-0",
+                        isToday ? "border-primary/20 bg-primary/5" : "border-border/15 bg-transparent",
+                      )}>
+                        <span className={cn("text-xs", isToday ? "text-primary/30" : "text-muted-foreground/20")}>—</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={date} className="w-9 h-9 flex items-center justify-center rounded-md border border-border/10 bg-transparent shrink-0">
+                      <span className="text-[10px] text-muted-foreground/15">·</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Weekly total */}
+              <div className="w-16 text-right shrink-0">
+                <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
+                <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+                {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb", pickFrequency }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isWc = sport === "worldcup";
   const is3way = sport === "worldcup" || sport === "intl";
+  const isWeekly = pickFrequency === "weekly" && !is3way;
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
@@ -1207,9 +1337,18 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : !leaderboard || leaderboard.entries.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">{is3way ? "No picks yet" : "No picks yet today"}</p>
+              <p className="font-bebas text-2xl tracking-wide">
+                {isWeekly ? "No picks yet this week" : is3way ? "No picks yet" : "No picks yet today"}
+              </p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
+          ) : isWeekly && leaderboard.weekStart && leaderboard.weekEnd ? (
+            <WeeklyLeaderboard
+              entries={leaderboard.entries}
+              currentUserId={user?.id ?? null}
+              weekStart={leaderboard.weekStart}
+              weekEnd={leaderboard.weekEnd}
+            />
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">

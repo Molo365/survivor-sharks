@@ -961,6 +961,9 @@ export const GetPickEmLeaderboardQueryParams = zod.object({
 export const GetPickEmLeaderboardResponse = zod.object({
   "poolId": zod.number(),
   "week": zod.number(),
+  "isWeekly": zod.boolean().optional().describe('True for weekly pick-em pools (Mon–Sun accumulation)'),
+  "weekStart": zod.string().nullish().describe('Monday of the current scoring week (YYYY-MM-DD); null for non-weekly pools'),
+  "weekEnd": zod.string().nullish().describe('Sunday of the current scoring week (YYYY-MM-DD); null for non-weekly pools'),
   "phase": zod.string().nullish().describe('WC phase returned (group_stage, knockout_stage); null for non-WC sports'),
   "totalGames": zod.number().nullish().describe('Total schedulable games for the active phase (WC only); null for non-WC'),
   "completedGames": zod.number().nullish().describe('Games with a final result in the active phase (WC only); use as pick-accuracy denominator; null for non-WC'),
@@ -992,7 +995,12 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
   "result": zod.enum(['pending', 'correct', 'incorrect'])
-}))
+})),
+  "dailyBreakdown": zod.array(zod.object({
+  "date": zod.string().describe('YYYY-MM-DD date in ET'),
+  "correct": zod.number(),
+  "picked": zod.number()
+})).optional().describe('Per-day breakdown; present only for weekly pick-em pools')
 }))
 })
 

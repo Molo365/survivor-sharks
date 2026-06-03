@@ -845,6 +845,13 @@ export interface PickEmPlayerPick {
   result: PickEmPlayerPickResult;
 }
 
+export interface PickEmDailyBreakdown {
+  /** YYYY-MM-DD date in ET */
+  date: string;
+  correct: number;
+  picked: number;
+}
+
 export interface PickEmLeaderboardEntry {
   rank: number;
   userId: number;
@@ -854,11 +861,25 @@ export interface PickEmLeaderboardEntry {
   correct: number;
   picked: number;
   picks: PickEmPlayerPick[];
+  /** Per-day breakdown; present only for weekly pick-em pools */
+  dailyBreakdown?: PickEmDailyBreakdown[];
 }
 
 export interface PickEmLeaderboard {
   poolId: number;
   week: number;
+  /** True for weekly pick-em pools (Mon–Sun accumulation) */
+  isWeekly?: boolean;
+  /**
+     * Monday of the current scoring week (YYYY-MM-DD); null for non-weekly pools
+     * @nullable
+     */
+  weekStart?: string | null;
+  /**
+     * Sunday of the current scoring week (YYYY-MM-DD); null for non-weekly pools
+     * @nullable
+     */
+  weekEnd?: string | null;
   /**
      * WC phase returned (group_stage, knockout_stage); null for non-WC sports
      * @nullable
