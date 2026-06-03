@@ -15,7 +15,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function BaseDiamond({
@@ -851,6 +851,16 @@ function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
   );
 }
 
+function getTodayEt(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function offsetDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
 export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb" }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -869,16 +879,21 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
     setShowWelcome(false);
   }
 
+  const todayEt = getTodayEt();
+  const [selectedDate, setSelectedDate] = useState<string>(() => todayEt);
+  const isToday = selectedDate === todayEt;
+  const dateParams = isToday ? undefined : { date: selectedDate };
+
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
   const {
     data: slate,
     isLoading: gamesLoading,
     isFetching: gamesFetching,
-  } = useGetPickEmGames(poolId, {
+  } = useGetPickEmGames(poolId, dateParams, {
     query: {
-      queryKey: getGetPickEmGamesQueryKey(poolId),
-      refetchInterval: (query) => pickRefetchInterval(query.state.data),
+      queryKey: getGetPickEmGamesQueryKey(poolId, dateParams),
+      refetchInterval: (query) => isToday ? pickRefetchInterval(query.state.data) : false,
     },
   });
 
@@ -891,6 +906,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
   const submitPicks = useSubmitPickEmPicks();
   const processResults = useProcessPickEmResults();
+
+  useEffect(() => {
+    setLocalPicks(new Map());
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!slate?.games) return;
@@ -1066,14 +1085,39 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 </div>
               )}
 
-              {/* Date header */}
+              {/* Date header with navigation */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h3 className="font-bebas text-2xl text-foreground tracking-wide">{slate.label}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {slate.games.length} game{slate.games.length !== 1 ? "s" : ""} ·{" "}
-                    {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
-                  </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedDate((d) => offsetDate(d, -1))}
+                    className="p-1.5 rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                    aria-label="Previous day"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div>
+                    <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">
+                      {slate.label}
+                      {isToday && <span className="ml-2 text-sm font-sans font-normal text-primary/50 tracking-normal normal-case">Today</span>}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {slate.games.length} game{slate.games.length !== 1 ? "s" : ""}
+                      {isToday && <> · {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected</>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDate((d) => offsetDate(d, 1))}
+                    disabled={isToday}
+                    className={cn(
+                      "p-1.5 rounded-lg border transition-colors shrink-0",
+                      isToday
+                        ? "border-border/15 text-muted-foreground/20 cursor-not-allowed bg-transparent"
+                        : "border-border/40 bg-muted/20 hover:bg-muted/40 text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-label="Next day"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {slate.games.some((g) => g.status === "in_progress") ? (
@@ -1120,7 +1164,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 )}
               </div>
 
-              {openGames.length > 0 && (
+              {isToday && openGames.length > 0 && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                   <p className="text-sm text-muted-foreground">
                     {pendingPickCount > 0 ? (

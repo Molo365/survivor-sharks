@@ -819,10 +819,17 @@ export const ListSportGamesResponse = zod.array(ListSportGamesResponseItem)
 
 
 /**
- * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ * @summary Get MLB games for a pick-em pool on a given date with user picks overlaid
  */
 export const GetPickEmGamesParams = zod.object({
   "poolId": zod.coerce.number()
+})
+
+export const getPickEmGamesQueryDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetPickEmGamesQueryParams = zod.object({
+  "date": zod.coerce.string().regex(getPickEmGamesQueryDateRegExp).optional().describe('ET date as YYYY-MM-DD. Defaults to today.')
 })
 
 export const GetPickEmGamesResponse = zod.object({

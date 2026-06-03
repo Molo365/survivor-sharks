@@ -29,6 +29,7 @@ import type {
   ErrorResponse,
   Game,
   GetDailyScheduleParams,
+  GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
   HealthStatus,
   JoinPoolInput,
@@ -1882,20 +1883,29 @@ export function useListSportGames<TData = Awaited<ReturnType<typeof listSportGam
 
 
 
-export const getGetPickEmGamesUrl = (poolId: number,) => {
+export const getGetPickEmGamesUrl = (poolId: number,
+    params?: GetPickEmGamesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/pools/${poolId}/pickem/games`
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem/games?${stringifiedParams}` : `/api/pools/${poolId}/pickem/games`
 }
 
 /**
- * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ * @summary Get MLB games for a pick-em pool on a given date with user picks overlaid
  */
-export const getPickEmGames = async (poolId: number, options?: RequestInit): Promise<PickEmSlate> => {
+export const getPickEmGames = async (poolId: number,
+    params?: GetPickEmGamesParams, options?: RequestInit): Promise<PickEmSlate> => {
 
-  return customFetch<PickEmSlate>(getGetPickEmGamesUrl(poolId),
+  return customFetch<PickEmSlate>(getGetPickEmGamesUrl(poolId,params),
   {
     ...options,
     method: 'GET'
@@ -1908,23 +1918,25 @@ export const getPickEmGames = async (poolId: number, options?: RequestInit): Pro
 
 
 
-export const getGetPickEmGamesQueryKey = (poolId: number,) => {
+export const getGetPickEmGamesQueryKey = (poolId: number,
+    params?: GetPickEmGamesParams,) => {
     return [
-    `/api/pools/${poolId}/pickem/games`
+    `/api/pools/${poolId}/pickem/games`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetPickEmGamesQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmGames>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPickEmGamesQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmGames>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    params?: GetPickEmGamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPickEmGamesQueryKey(poolId);
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmGamesQueryKey(poolId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmGames>>> = ({ signal }) => getPickEmGames(poolId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmGames>>> = ({ signal }) => getPickEmGames(poolId,params, { signal, ...requestOptions });
 
 
 
@@ -1938,15 +1950,16 @@ export type GetPickEmGamesQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get today's MLB games for a pick-em pool with user picks overlaid
+ * @summary Get MLB games for a pick-em pool on a given date with user picks overlaid
  */
 
 export function useGetPickEmGames<TData = Awaited<ReturnType<typeof getPickEmGames>>, TError = ErrorType<ErrorResponse>>(
- poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ poolId: number,
+    params?: GetPickEmGamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPickEmGamesQueryOptions(poolId,options)
+  const queryOptions = getGetPickEmGamesQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

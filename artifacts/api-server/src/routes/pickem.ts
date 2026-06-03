@@ -57,12 +57,16 @@ router.get("/games", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const is3way = isWc || isIntl;
-  const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
+  // Accept an optional ?date=YYYY-MM-DD param; fall back to today
+  const rawDate = typeof req.query.date === "string" ? req.query.date : null;
+  const requestedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayEt;
+  const espnDate = requestedDate.replace(/-/g, "");
+
   const games = isIntl
-    ? await fetchIntlGamesForDate(todayEspn)
-    : await fetchGamesForDate(sport, todayEspn);
+    ? await fetchIntlGamesForDate(espnDate)
+    : await fetchGamesForDate(sport, espnDate);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const existingPicks = await db
@@ -72,7 +76,7 @@ router.get("/games", requireAuth, async (req, res) => {
       and(
         eq(pickemPicksTable.poolId, poolId),
         eq(pickemPicksTable.userId, userId),
-        eq(pickemPicksTable.gameDate, todayEt),
+        eq(pickemPicksTable.gameDate, requestedDate),
       ),
     );
 
@@ -138,18 +142,25 @@ router.get("/games", requireAuth, async (req, res) => {
     day: "numeric",
   });
 
-  const slateDeadlinePassed = games.length > 0 && games.some((g) => isGameLocked(g.date));
+  // Past dates are always fully locked; present/future: check actual game times
+  const isPastDate = requestedDate < todayEt;
+  const slateDeadlinePassed = isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
+
+  // Format the label from the requested date (not always "today")
+  const [ry, rm, rd] = requestedDate.split("-").map(Number);
+  const labelDate = new Date(Date.UTC(ry, rm - 1, rd, 12, 0, 0)); // noon UTC → any ET offset lands on correct day
+  const label = fmt.format(labelDate);
 
   // Phase: only meaningful for WC pools
-  const phase = isWc ? (WC_PHASES.group_stage.start <= todayEt && todayEt <= WC_PHASES.group_stage.end
+  const phase = isWc ? (WC_PHASES.group_stage.start <= requestedDate && requestedDate <= WC_PHASES.group_stage.end
     ? "group_stage"
-    : WC_PHASES.knockout_stage.start <= todayEt && todayEt <= WC_PHASES.knockout_stage.end
+    : WC_PHASES.knockout_stage.start <= requestedDate && requestedDate <= WC_PHASES.knockout_stage.end
       ? "knockout_stage"
       : null) : null;
 
   res.json({
-    date: todayEt,
-    label: fmt.format(new Date()),
+    date: requestedDate,
+    label,
     deadlinePassed: slateDeadlinePassed,
     sport,
     phase,

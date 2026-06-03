@@ -890,6 +890,14 @@ export type GetDailyScheduleParams = {
 date?: string;
 };
 
+export type GetPickEmGamesParams = {
+/**
+ * ET date as YYYY-MM-DD. Defaults to today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+date?: string;
+};
+
 export type GetPickEmLeaderboardParams = {
 /**
  * World Cup phase filter (only used for worldcup sport pools)
