@@ -1214,9 +1214,11 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bebas text-2xl tracking-wide text-foreground">
-                  {isWc && leaderboard?.phase
-                    ? leaderboard.phase === "group_stage" ? "Group Stage Standings" : "Knockout Stage Standings"
-                    : sport === "intl" ? "All-Time Standings"
+                  {isWc
+                    ? leaderboard?.phase === "group_stage" ? "Group Stage Standings"
+                      : leaderboard?.phase === "knockout_stage" ? "Knockout Stage Standings"
+                      : "Overall Standings"
+                    : sport === "intl" ? "Overall Standings"
                     : "Today's Standings"}
                 </h3>
                 <span className="text-xs text-muted-foreground">

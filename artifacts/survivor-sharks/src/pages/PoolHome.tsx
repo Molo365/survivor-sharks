@@ -109,7 +109,9 @@ export default function PoolHome() {
                     </span>
                   )}
                   <span>Season {pool.season}</span>
-                  <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
+                  {pool.sport !== "intl" && pool.sport !== "worldcup" && (
+                    <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
+                  )}
                 </div>
               </div>
               <div className="flex gap-4">
