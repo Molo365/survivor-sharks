@@ -560,19 +560,36 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const is3way = isWc || isIntl;
-  const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
+  const todayEspn = formatDateEt(new Date());
 
-  const games = isIntl
-    ? await fetchIntlGamesForDate(todayEspn)
-    : await fetchGamesForDate(sport, todayEspn);
-  const finalGames = games.filter((g) => g.isCompleted);
+  // Also fetch yesterday's games so that late West Coast games finishing after
+  // midnight ET (still on yesterday's ESPN schedule) are picked up and graded.
+  const [y, m, d] = todayEt.split("-").map(Number);
+  const yesterdayDate = new Date(Date.UTC(y, m - 1, d - 1));
+  const yesterdayEspn = yesterdayDate.toISOString().slice(0, 10).replace(/-/g, "");
+
+  const [todayGames, yesterdayGames] = await Promise.all([
+    isIntl ? fetchIntlGamesForDate(todayEspn) : fetchGamesForDate(sport, todayEspn),
+    isIntl ? fetchIntlGamesForDate(yesterdayEspn) : fetchGamesForDate(sport, yesterdayEspn),
+  ]);
+
+  // Merge, deduplicate by game ID, keep only completed games with scores.
+  const seenIds = new Set<string>();
+  const finalGames = [...todayGames, ...yesterdayGames].filter((g) => {
+    if (!g.isCompleted || g.homeScore == null || g.awayScore == null) return false;
+    if (seenIds.has(g.id)) return false;
+    seenIds.add(g.id);
+    return true;
+  });
 
   let processed = 0;
 
   for (const game of finalGames) {
     if (game.homeScore == null || game.awayScore == null) continue;
-
+    // Match picks by poolId + gameId only — no date filter, so games that
+    // finish after midnight ET (stored under the previous calendar date) are
+    // still found and graded.  Only process picks still marked "pending".
     const gamePicks = await db
       .select()
       .from(pickemPicksTable)
@@ -580,7 +597,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
         and(
           eq(pickemPicksTable.poolId, poolId),
           eq(pickemPicksTable.gameId, game.id),
-          eq(pickemPicksTable.gameDate, todayEt),
+          eq(pickemPicksTable.result, "pending"),
         ),
       );
 
