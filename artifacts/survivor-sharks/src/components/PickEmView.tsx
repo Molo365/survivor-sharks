@@ -477,7 +477,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
       {/* Scrollable picks grid */}
       <div className="rounded-xl border border-border/40 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: `${Math.max(400, 220 + games.length * (isWc ? 68 : 72))}px` }}>
+          <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: `${Math.max(400, 220 + games.length * (isWc ? 68 : 72))}px` }}>
             <tbody>
               {entries.map((entry, idx) => {
                 const isMe = entry.userId === currentUserId;
@@ -490,7 +490,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                   <tr
                     key={entry.userId}
                     className={cn(
-                      "border-b border-border/20 last:border-0",
+                      "border-b border-border/25 last:border-b-0",
                       isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
                     )}
                   >
