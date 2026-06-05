@@ -1480,7 +1480,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               <div className="rounded-xl border border-border/40 overflow-hidden">
                 {leaderboard.entries.map((entry, idx) => {
                   const isMe = entry.userId === user?.id;
-                  const denominator = isWc ? (leaderboard.completedGames ?? 0) : entry.picked;
+                  const denominator = entry.picked;
                   const pct =
                     denominator > 0
                       ? Math.round((entry.correct / denominator) * 100)
