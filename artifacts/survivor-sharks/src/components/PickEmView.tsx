@@ -1623,9 +1623,22 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                     <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
                       {inviteCode}
                     </div>
-                    <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
-                      <Copy className="w-5 h-5 mr-2" /> Copy Code
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
+                        <Copy className="w-5 h-5 mr-2" /> Copy Code
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/join/${inviteCode}`);
+                          toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
+                        }}
+                      >
+                        <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
