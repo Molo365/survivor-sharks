@@ -18,6 +18,7 @@ import AdminUsers from "@/pages/AdminUsers";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminPanel from "@/pages/AdminPanel";
 import ResetPassword from "@/pages/ResetPassword";
+import JoinInvite from "@/pages/JoinInvite";
 
 const queryClient = new QueryClient();
 
@@ -101,6 +102,7 @@ function Router() {
         {() => <AdminPanelRoute component={AdminPanel} />}
       </Route>
 
+      <Route path="/join/:inviteCode" component={JoinInvite} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLoginUser, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useLoginUser, useJoinPool, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useLocation, Link, Redirect } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ export default function Login() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const loginUser = useLoginUser();
+  const joinPool = useJoinPool();
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -70,7 +71,24 @@ export default function Login() {
           if (data?.user) {
             queryClient.setQueryData(getGetMeQueryKey(), data.user);
           }
-          setLocation("/dashboard");
+          const pendingCode = localStorage.getItem("pending_invite_code");
+          if (pendingCode) {
+            localStorage.removeItem("pending_invite_code");
+            joinPool.mutate(
+              { data: { inviteCode: pendingCode } },
+              {
+                onSuccess: (pool: any) => {
+                  toast({ title: "You're in! 🎉", description: "Successfully joined the pool." });
+                  setLocation(`/pools/${pool.id}`);
+                },
+                onError: () => {
+                  setLocation("/dashboard");
+                },
+              },
+            );
+          } else {
+            setLocation("/dashboard");
+          }
         },
         onError: (error: any) => {
           toast({

@@ -140,6 +140,34 @@ router.post("/join", requireAuth, async (req, res) => {
   res.json(formatPool(pool, Number(total), Number(active), commissioner?.username ?? ""));
 });
 
+// GET /api/pools/invite/:inviteCode/preview  — public, no auth required
+router.get("/invite/:inviteCode/preview", async (req, res) => {
+  const inviteCode = String(req.params.inviteCode).toUpperCase();
+  const [pool] = await db
+    .select()
+    .from(poolsTable)
+    .where(eq(poolsTable.inviteCode, inviteCode))
+    .limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  const [{ playerCount }] = await db
+    .select({ playerCount: count() })
+    .from(entriesTable)
+    .where(eq(entriesTable.poolId, pool.id));
+  res.json({
+    id: pool.id,
+    name: pool.name,
+    sport: pool.sport,
+    poolType: pool.poolType,
+    prizePot: pool.prizePot ?? null,
+    playerCount: Number(playerCount),
+    description: pool.description ?? null,
+    season: pool.season ?? null,
+  });
+});
+
 // GET /api/pools/:poolId
 router.get("/:poolId", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
