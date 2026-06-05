@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  useGetPickEmDailyPicks,
   useGetPickEmGames,
   useSubmitPickEmPicks,
   useGetPickEmLeaderboard,
@@ -7,7 +8,7 @@ import {
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +16,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function BaseDiamond({
@@ -875,16 +876,108 @@ function generateWeekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
 }
 
+// ── Daily pick detail panel ───────────────────────────────────────────────────
+
+function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: number; date: string }) {
+  const { data: picks, isLoading } = useGetPickEmDailyPicks(poolId, { date, userId });
+
+  if (isLoading) {
+    return (
+      <div className="px-3 py-3 space-y-2 border-t border-border/10 bg-muted/5">
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
+      </div>
+    );
+  }
+
+  if (!picks || picks.length === 0) {
+    return (
+      <div className="px-3 py-3 text-sm text-center text-muted-foreground border-t border-border/10 bg-muted/5">
+        No picks recorded for this day.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-3 space-y-1.5 border-t border-border/10 bg-muted/5">
+      {picks.map((pick: PickEmDailyPickDetail) => {
+        const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
+        const opponent = pickedIsHome ? pick.awayTeam : pick.homeTeam;
+        const hasScore = pick.homeScore !== null && pick.awayScore !== null;
+
+        return (
+          <div
+            key={pick.gameId}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 border",
+              pick.result === "correct"
+                ? "bg-green-500/[0.08] border-green-500/20"
+                : pick.result === "incorrect"
+                ? "bg-red-500/[0.08] border-red-500/20"
+                : "bg-card/40 border-border/20",
+            )}
+          >
+            {/* Result icon */}
+            <div className="shrink-0 w-4">
+              {pick.result === "correct" ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : pick.result === "incorrect" ? (
+                <XCircle className="w-4 h-4 text-red-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-primary/30" />
+              )}
+            </div>
+
+            {/* Picked team */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              {pick.pickedTeamLogoUrl && (
+                <img src={pick.pickedTeamLogoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
+              )}
+              <span className={cn(
+                "font-medium text-sm truncate",
+                pick.result === "correct" ? "text-green-300"
+                  : pick.result === "incorrect" ? "text-red-300"
+                  : "text-foreground",
+              )}>
+                {pick.pickedTeamName}
+              </span>
+            </div>
+
+            {/* Opponent */}
+            <span className="text-xs text-muted-foreground shrink-0">vs {opponent.abbreviation}</span>
+
+            {/* Score */}
+            {hasScore && (
+              <span className="text-xs font-mono text-muted-foreground/70 shrink-0 tabular-nums">
+                {pick.awayScore}–{pick.homeScore}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Weekly leaderboard ────────────────────────────────────────────────────────
+
 interface WeeklyLeaderboardProps {
+  poolId: number;
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
   weekStart: string;
   weekEnd: string;
 }
 
-function WeeklyLeaderboard({ entries, currentUserId, weekStart, weekEnd }: WeeklyLeaderboardProps) {
+function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd }: WeeklyLeaderboardProps) {
   const todayEt = getTodayEt();
   const days = generateWeekDays(weekStart);
+  const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
+
+  function toggleCell(userId: number, date: string) {
+    setOpenCell((prev) =>
+      prev?.userId === userId && prev.date === date ? null : { userId, date },
+    );
+  }
 
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -901,7 +994,7 @@ function WeeklyLeaderboard({ entries, currentUserId, weekStart, weekEnd }: Weekl
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border/20 bg-muted/10">
           <div className="flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Player</div>
           <div className="flex gap-1">
-            {days.map(date => (
+            {days.map((date) => (
               <div key={date} className={cn("w-9 text-center text-[9px] font-bold uppercase tracking-wider shrink-0", date === todayEt ? "text-primary" : "text-muted-foreground/40")}>
                 {dayAbbrev(date)}
               </div>
@@ -916,72 +1009,91 @@ function WeeklyLeaderboard({ entries, currentUserId, weekStart, weekEnd }: Weekl
           const isMe = entry.userId === currentUserId;
           const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
           const pct = entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null;
+          const isPanelOpen = openCell?.userId === entry.userId;
 
           return (
-            <div
-              key={entry.userId}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2.5 border-b border-border/10 last:border-0",
+            <div key={entry.userId} className="border-b border-border/10 last:border-0">
+              {/* Player row */}
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-2.5",
                 isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+              )}>
+                {/* Rank + name */}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className={cn(
+                    "font-bebas text-base w-5 shrink-0 text-center",
+                    entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
+                  )}>
+                    {entry.rank}
+                  </span>
+                  <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
+                    {entry.displayName ?? entry.username}
+                    {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                  </span>
+                </div>
+
+                {/* Per-day cells */}
+                <div className="flex gap-1 shrink-0">
+                  {days.map((date) => {
+                    const day = breakdownMap.get(date);
+                    const isPast = date < todayEt;
+                    const isToday = date === todayEt;
+                    const isCellOpen = isPanelOpen && openCell?.date === date;
+
+                    if (day) {
+                      const allCorrect = day.correct === day.picked && day.picked > 0;
+                      return (
+                        <button
+                          key={date}
+                          type="button"
+                          title={`View ${dayAbbrev(date)} picks`}
+                          onClick={() => toggleCell(entry.userId, date)}
+                          className={cn(
+                            "w-9 h-9 flex flex-col items-center justify-center rounded-md border shrink-0 transition-all cursor-pointer",
+                            isCellOpen
+                              ? "ring-2 ring-primary/50 border-primary/50 bg-primary/10"
+                              : allCorrect
+                              ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+                              : "bg-muted/20 border-border/30 hover:bg-muted/30",
+                          )}
+                        >
+                          <span className={cn("font-bebas text-sm leading-none", isCellOpen ? "text-primary" : allCorrect ? "text-green-400" : "text-foreground")}>
+                            {day.correct}
+                          </span>
+                          <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
+                        </button>
+                      );
+                    }
+                    if (isPast || isToday) {
+                      return (
+                        <div key={date} className={cn(
+                          "w-9 h-9 flex items-center justify-center rounded-md border shrink-0",
+                          isToday ? "border-primary/20 bg-primary/5" : "border-border/15 bg-transparent",
+                        )}>
+                          <span className={cn("text-xs", isToday ? "text-primary/30" : "text-muted-foreground/20")}>—</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={date} className="w-9 h-9 flex items-center justify-center rounded-md border border-border/10 bg-transparent shrink-0">
+                        <span className="text-[10px] text-muted-foreground/15">·</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Weekly total */}
+                <div className="w-16 text-right shrink-0">
+                  <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
+                  <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+                  {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                </div>
+              </div>
+
+              {/* Expandable detail panel — shown when this player's cell is open */}
+              {isPanelOpen && openCell && (
+                <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
               )}
-            >
-              {/* Rank + name */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className={cn(
-                  "font-bebas text-base w-5 shrink-0 text-center",
-                  entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
-                )}>
-                  {entry.rank}
-                </span>
-                <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
-                  {entry.displayName ?? entry.username}
-                  {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
-                </span>
-              </div>
-
-              {/* Per-day cells */}
-              <div className="flex gap-1 shrink-0">
-                {days.map(date => {
-                  const day = breakdownMap.get(date);
-                  const isPast = date < todayEt;
-                  const isToday = date === todayEt;
-
-                  if (day) {
-                    const allCorrect = day.correct === day.picked && day.picked > 0;
-                    return (
-                      <div key={date} className={cn(
-                        "w-9 h-9 flex flex-col items-center justify-center rounded-md border shrink-0",
-                        allCorrect ? "bg-green-500/10 border-green-500/30" : "bg-muted/20 border-border/30",
-                      )}>
-                        <span className={cn("font-bebas text-sm leading-none", allCorrect ? "text-green-400" : "text-foreground")}>{day.correct}</span>
-                        <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
-                      </div>
-                    );
-                  }
-                  if (isPast || isToday) {
-                    return (
-                      <div key={date} className={cn(
-                        "w-9 h-9 flex items-center justify-center rounded-md border shrink-0",
-                        isToday ? "border-primary/20 bg-primary/5" : "border-border/15 bg-transparent",
-                      )}>
-                        <span className={cn("text-xs", isToday ? "text-primary/30" : "text-muted-foreground/20")}>—</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={date} className="w-9 h-9 flex items-center justify-center rounded-md border border-border/10 bg-transparent shrink-0">
-                      <span className="text-[10px] text-muted-foreground/15">·</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Weekly total */}
-              <div className="w-16 text-right shrink-0">
-                <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
-                <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
-                {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
-              </div>
             </div>
           );
         })}
@@ -1344,6 +1456,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             </div>
           ) : isWeekly && leaderboard.weekStart && leaderboard.weekEnd ? (
             <WeeklyLeaderboard
+              poolId={poolId}
               entries={leaderboard.entries}
               currentUserId={user?.id ?? null}
               weekStart={leaderboard.weekStart}

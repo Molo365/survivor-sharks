@@ -1019,6 +1019,44 @@ export const ProcessPickEmResultsResponse = zod.object({
 
 
 /**
+ * @summary Get detailed picks for a specific player on a specific date
+ */
+export const GetPickEmDailyPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmDailyPicksQueryParams = zod.object({
+  "date": zod.coerce.string().describe('Date in YYYY-MM-DD format (ET)'),
+  "userId": zod.coerce.number().describe('User ID whose picks to fetch')
+})
+
+export const GetPickEmDailyPicksResponseItem = zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "pickedTeamLogoUrl": zod.string().nullish(),
+  "result": zod.enum(['pending', 'correct', 'incorrect']),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeScore": zod.number().nullish(),
+  "awayScore": zod.number().nullish(),
+  "startTime": zod.string(),
+  "status": zod.string()
+})
+export const GetPickEmDailyPicksResponse = zod.array(GetPickEmDailyPicksResponseItem)
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({

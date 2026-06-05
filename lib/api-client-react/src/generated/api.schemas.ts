@@ -845,6 +845,40 @@ export interface PickEmPlayerPick {
   result: PickEmPlayerPickResult;
 }
 
+export interface PickEmDailyPickDetailTeam {
+  id: string;
+  abbreviation: string;
+  name: string;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export type PickEmDailyPickDetailResult = typeof PickEmDailyPickDetailResult[keyof typeof PickEmDailyPickDetailResult];
+
+
+export const PickEmDailyPickDetailResult = {
+  pending: 'pending',
+  correct: 'correct',
+  incorrect: 'incorrect',
+} as const;
+
+export interface PickEmDailyPickDetail {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  /** @nullable */
+  pickedTeamLogoUrl?: string | null;
+  result: PickEmDailyPickDetailResult;
+  homeTeam: PickEmDailyPickDetailTeam;
+  awayTeam: PickEmDailyPickDetailTeam;
+  /** @nullable */
+  homeScore?: number | null;
+  /** @nullable */
+  awayScore?: number | null;
+  startTime: string;
+  status: string;
+}
+
 export interface PickEmDailyBreakdown {
   /** YYYY-MM-DD date in ET */
   date: string;
@@ -933,4 +967,15 @@ export const GetPickEmLeaderboardPhase = {
   group_stage: 'group_stage',
   knockout_stage: 'knockout_stage',
 } as const;
+
+export type GetPickEmDailyPicksParams = {
+/**
+ * Date in YYYY-MM-DD format (ET)
+ */
+date: string;
+/**
+ * User ID whose picks to fetch
+ */
+userId: number;
+};
 

@@ -348,6 +348,79 @@ router.post("/picks", requireAuth, async (req, res) => {
   res.status(201).json({ saved, skipped: 0 });
 });
 
+// GET /api/pools/:poolId/pickem/daily-picks?date=YYYY-MM-DD&userId=N
+router.get("/daily-picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const requestingUserId = req.user!.id;
+  const date = String(req.query.date ?? "");
+  const targetUserId = parseInt(String(req.query.userId ?? "0"));
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    return;
+  }
+  if (!targetUserId) {
+    res.status(400).json({ error: "userId is required" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, requestingUserId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const sport = pool.sport as string;
+  const isIntl = sport === "intl";
+  const espnDate = date.replace(/-/g, "");
+
+  const [picks, games] = await Promise.all([
+    db
+      .select()
+      .from(pickemPicksTable)
+      .where(
+        and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, targetUserId),
+          eq(pickemPicksTable.gameDate, date),
+        ),
+      ),
+    isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate),
+  ]);
+
+  const gameMap = new Map(games.map((g) => [g.id, g]));
+
+  const details = picks.map((pick) => {
+    const game = gameMap.get(pick.gameId);
+    const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+    return {
+      gameId: pick.gameId,
+      pickedTeamId: pick.pickedTeamId,
+      pickedTeamName: pick.pickedTeamName,
+      pickedTeamLogoUrl: game
+        ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
+        : null,
+      result: pick.result,
+      homeTeam: game
+        ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      awayTeam: game
+        ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      homeScore: game?.homeScore ?? null,
+      awayScore: game?.awayScore ?? null,
+      startTime: game?.date ?? "",
+      status: game?.status ?? "unknown",
+    };
+  });
+
+  res.json(details);
+});
+
 /** Compute the Mon–Sun week bounds (ET dates) containing today. */
 function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string } {
   const [y, m, d] = todayEt.split("-").map(Number);
