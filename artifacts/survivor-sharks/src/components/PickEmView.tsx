@@ -903,6 +903,8 @@ function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: numb
         const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
         const opponent = pickedIsHome ? pick.awayTeam : pick.homeTeam;
         const hasScore = pick.homeScore !== null && pick.awayScore !== null;
+        const pickedScore = pickedIsHome ? pick.homeScore : pick.awayScore;
+        const opponentScore = pickedIsHome ? pick.awayScore : pick.homeScore;
 
         return (
           <div
@@ -947,8 +949,16 @@ function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: numb
 
             {/* Score */}
             {hasScore && (
-              <span className="text-xs font-mono text-muted-foreground/70 shrink-0 tabular-nums">
-                {pick.awayScore}–{pick.homeScore}
+              <span className="text-xs font-mono shrink-0 tabular-nums">
+                <span className={cn(
+                  pick.result === "correct" ? "text-green-400" :
+                  pick.result === "incorrect" ? "text-red-400" :
+                  "text-muted-foreground/70",
+                )}>
+                  {pickedScore}–{opponentScore}
+                </span>
+                {pick.result === "correct" && <span className="ml-1 text-[10px] font-bold text-green-400">W</span>}
+                {pick.result === "incorrect" && <span className="ml-1 text-[10px] font-bold text-red-400">L</span>}
               </span>
             )}
           </div>
