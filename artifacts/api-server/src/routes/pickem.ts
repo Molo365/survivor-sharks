@@ -634,22 +634,36 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const is3way = isWc || isIntl;
   const todayEt = getTodayEtDate();
-  const todayEspn = formatDateEt(new Date());
 
-  // Also fetch yesterday's games so that late West Coast games finishing after
-  // midnight ET (still on yesterday's ESPN schedule) are picked up and graded.
-  const [y, m, d] = todayEt.split("-").map(Number);
-  const yesterdayDate = new Date(Date.UTC(y, m - 1, d - 1));
-  const yesterdayEspn = yesterdayDate.toISOString().slice(0, 10).replace(/-/g, "");
+  // Find every distinct gameDate that has pending picks in this pool.
+  // This replaces the old "today + yesterday" hard window: any game that
+  // finished after midnight ET (stored under a prior ESPN date) is still
+  // found and graded, no matter how far back the ESPN date is.
+  const pendingDateRows = await db
+    .selectDistinct({ gameDate: pickemPicksTable.gameDate })
+    .from(pickemPicksTable)
+    .where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.result, "pending"),
+      ),
+    );
 
-  const [todayGames, yesterdayGames] = await Promise.all([
-    isIntl ? fetchIntlGamesForDate(todayEspn) : fetchGamesForDate(sport, todayEspn),
-    isIntl ? fetchIntlGamesForDate(yesterdayEspn) : fetchGamesForDate(sport, yesterdayEspn),
-  ]);
+  const pendingDates = pendingDateRows.map((r) => r.gameDate);
 
-  // Merge, deduplicate by game ID, keep only completed games with scores.
+  // Fetch ESPN scores for every date that has pending picks (in parallel),
+  // then flatten, deduplicate by gameId, and keep only completed games.
+  const gamesByDate = await Promise.all(
+    pendingDates.map((dateStr) => {
+      const espnDate = dateStr.replace(/-/g, "");
+      return isIntl
+        ? fetchIntlGamesForDate(espnDate)
+        : fetchGamesForDate(sport, espnDate);
+    }),
+  );
+
   const seenIds = new Set<string>();
-  const finalGames = [...todayGames, ...yesterdayGames].filter((g) => {
+  const finalGames = gamesByDate.flat().filter((g) => {
     if (!g.isCompleted || g.homeScore == null || g.awayScore == null) return false;
     if (seenIds.has(g.id)) return false;
     seenIds.add(g.id);
