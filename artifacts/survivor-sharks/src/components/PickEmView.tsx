@@ -4,7 +4,6 @@ import {
   useGetPickEmGames,
   useSubmitPickEmPicks,
   useGetPickEmLeaderboard,
-  useProcessPickEmResults,
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
 } from "@workspace/api-client-react";
@@ -1157,7 +1156,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   });
 
   const submitPicks = useSubmitPickEmPicks();
-  const processResults = useProcessPickEmResults();
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -1233,25 +1231,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   function copyInvite() {
     navigator.clipboard.writeText(inviteCode);
     toast({ title: "Invite code copied to clipboard!" });
-  }
-
-  function handleProcessResults() {
-    processResults.mutate(
-      { poolId },
-      {
-        onSuccess: (result) => {
-          toast({
-            title: "Results processed",
-            description: `${result.processed} pick${result.processed !== 1 ? "s" : ""} graded.`,
-          });
-          queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId) });
-          queryClient.invalidateQueries({ queryKey: getGetPickEmLeaderboardQueryKey(poolId) });
-        },
-        onError: () => {
-          toast({ variant: "destructive", title: "Failed to process results" });
-        },
-      },
-    );
   }
 
   const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
@@ -1653,32 +1632,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 </div>
               </div>
 
-              {/* Process Results */}
-              <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-4">
-                <div>
-                  <h4 className="font-bebas text-xl tracking-wide text-foreground mb-1">
-                    Process Today's Results
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    Fetches final scores from ESPN and marks each pick as correct or incorrect. Safe
-                    to run multiple times — only final games are graded.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleProcessResults}
-                  disabled={processResults.isPending}
-                  variant="outline"
-                  className="font-bebas text-lg tracking-widest"
-                >
-                  {processResults.isPending ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Processing…
-                    </>
-                  ) : (
-                    "Process Results"
-                  )}
-                </Button>
-              </div>
             </div>
           </TabsContent>
         )}
