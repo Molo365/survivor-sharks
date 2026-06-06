@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -37,7 +36,6 @@ function useAdminFetch() {
 interface StatData { totalUsers: number; totalPools: number; picksToday: number }
 interface PoolRow { id: number; name: string; sport: string; poolType: string; isActive: boolean; memberCount: number; commissionerName: string; currentWeek: number; season: number; createdAt: string }
 interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
-interface ProcessResult { processed: number; dates: string[] }
 
 function StatCard({ label, value, icon }: { label: string; value: number | undefined; icon: React.ReactNode }) {
   return (
@@ -101,11 +99,6 @@ export default function AdminPanel() {
   const [wiping, setWiping] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
-  const [processDate, setProcessDate] = useState(todayStr);
-  const [processingPool, setProcessingPool] = useState<number | null>(null);
-  const [processResults, setProcessResults] = useState<Record<number, ProcessResult | "error">>({});
-
   const handleWipe = async () => {
     setWiping(true);
     try {
@@ -131,23 +124,6 @@ export default function AdminPanel() {
       toast({ variant: "destructive", title: "Reset failed" });
     } finally {
       setResetting(false);
-    }
-  };
-
-  const handleProcessPickem = async (poolId: number) => {
-    setProcessingPool(poolId);
-    try {
-      const result = await adminFetch("/pickem/process-results", {
-        method: "POST",
-        body: JSON.stringify({ poolId, date: processDate }),
-      }) as ProcessResult;
-      setProcessResults((prev) => ({ ...prev, [poolId]: result }));
-      toast({ title: `Graded ${result.processed} pick${result.processed !== 1 ? "s" : ""}`, description: `Pool #${poolId} · ${processDate}` });
-    } catch {
-      setProcessResults((prev) => ({ ...prev, [poolId]: "error" }));
-      toast({ variant: "destructive", title: "Failed to process results" });
-    } finally {
-      setProcessingPool(null);
     }
   };
 
@@ -233,79 +209,6 @@ export default function AdminPanel() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </div>
-        </section>
-
-        {/* Process Pick-Em Results */}
-        <section>
-          <h2 className="font-bebas text-2xl tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
-            <RefreshCw className="w-5 h-5" /> PROCESS PICK-EM RESULTS
-          </h2>
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-5">
-            {/* Date picker */}
-            <div className="flex items-center gap-3">
-              <label className="text-xs uppercase tracking-widest text-muted-foreground whitespace-nowrap">Date</label>
-              <Input
-                type="date"
-                value={processDate}
-                onChange={(e) => {
-                  setProcessDate(e.target.value);
-                  setProcessResults({});
-                }}
-                className="bg-background/50 border-primary/20 w-48 font-mono text-sm"
-              />
-              <span className="text-xs text-muted-foreground">Leave blank to grade all pending picks across all dates</span>
-            </div>
-
-            {/* Pool rows */}
-            {loadingPools ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
-              </div>
-            ) : (() => {
-              const pickemPools = (pools ?? []).filter((p) => p.poolType === "pickem" && p.isActive);
-              if (pickemPools.length === 0) {
-                return <p className="text-sm text-muted-foreground py-4 text-center">No active Pick-Em pools found.</p>;
-              }
-              return (
-                <div className="space-y-2">
-                  {pickemPools.map((pool) => {
-                    const result = processResults[pool.id];
-                    const isProcessing = processingPool === pool.id;
-                    return (
-                      <div key={pool.id} className="flex items-center gap-3 rounded-lg border border-border/40 bg-background/40 px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-sm text-foreground">{pool.name}</span>
-                          <span className="ml-2 text-xs text-muted-foreground uppercase">{pool.sport} · #{pool.id}</span>
-                        </div>
-                        {result && result !== "error" && (
-                          <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium shrink-0">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            {result.processed} graded
-                          </span>
-                        )}
-                        {result === "error" && (
-                          <span className="text-xs text-destructive shrink-0">Failed</span>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="font-bebas tracking-wider shrink-0 border-primary/30 hover:bg-primary/10"
-                          disabled={isProcessing || processingPool !== null}
-                          onClick={() => handleProcessPickem(pool.id)}
-                        >
-                          {isProcessing ? (
-                            <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Processing…</>
-                          ) : (
-                            "Process Results"
-                          )}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
         </section>
 

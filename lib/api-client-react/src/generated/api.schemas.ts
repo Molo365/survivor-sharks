@@ -979,3 +979,14 @@ date: string;
 userId: number;
 };
 
+export type AdminProcessPickemResultsBody = {
+  poolId: number;
+  /** YYYY-MM-DD — omit to grade all pending picks */
+  date?: string;
+};
+
+export type AdminProcessPickemResults200 = {
+  processed: number;
+  dates: string[];
+};
+

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, usersTable, entriesTable } from "@workspace/db";
+import { poolsTable, usersTable, entriesTable, pickemPicksTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processCompletedGames } from "../lib/auto-eliminator";
+import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.get("/pools", requireAuth, requireAdmin, async (_req, res) => {
       id: pool.id,
       name: pool.name,
       sport: pool.sport,
+      poolType: pool.poolType,
       description: pool.description,
       inviteCode: pool.inviteCode,
       currentWeek: pool.currentWeek,
@@ -99,6 +101,73 @@ router.post("/process-results", requireAuth, requireAdmin, async (req, res) => {
   req.log.info("Manual auto-elimination triggered via admin API");
   const stats = await processCompletedGames();
   res.json({ success: true, ...stats });
+});
+
+// POST /api/admin/pickem/process-results
+// Body: { poolId: number, date?: string (YYYY-MM-DD) }
+router.post("/pickem/process-results", requireAuth, requireAdmin, async (req, res) => {
+  const { poolId, date } = req.body as { poolId: number; date?: string };
+
+  if (!poolId) { res.status(400).json({ error: "poolId is required" }); return; }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a Pick-Em pool" }); return; }
+
+  const sport = pool.sport as string;
+  const isIntl = sport === "intl";
+  const isWc = sport === "worldcup";
+  const is3way = isWc || isIntl;
+
+  let pendingDates: string[];
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    pendingDates = [date];
+  } else {
+    const rows = await db
+      .selectDistinct({ gameDate: pickemPicksTable.gameDate })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.result, "pending")));
+    pendingDates = rows.map((r) => r.gameDate);
+  }
+
+  const gamesByDate = await Promise.all(
+    pendingDates.map((dateStr) => {
+      const espnDate = dateStr.replace(/-/g, "");
+      return isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate);
+    }),
+  );
+
+  const seenIds = new Set<string>();
+  const finalGames = gamesByDate.flat().filter((g) => {
+    if (!g.isCompleted || g.homeScore == null || g.awayScore == null) return false;
+    if (seenIds.has(g.id)) return false;
+    seenIds.add(g.id);
+    return true;
+  });
+
+  let processed = 0;
+  for (const game of finalGames) {
+    const gamePicks = await db
+      .select()
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameId, game.id), eq(pickemPicksTable.result, "pending")));
+
+    for (const pick of gamePicks) {
+      let result: "correct" | "incorrect";
+      if (is3way) {
+        const outcome = game.homeScore! > game.awayScore! ? "home_win" : game.awayScore! > game.homeScore! ? "away_win" : "draw";
+        result = pick.pickedTeamId === outcome ? "correct" : "incorrect";
+      } else {
+        const winningTeamId = game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
+        result = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+      }
+      await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+      processed++;
+    }
+  }
+
+  req.log.info({ poolId, date, processed, pendingDates }, "Admin graded Pick-Em results");
+  res.json({ processed, dates: pendingDates });
 });
 
 export default router;

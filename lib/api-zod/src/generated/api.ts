@@ -1123,6 +1123,20 @@ export const AdminUpdateUserResponse = zod.object({
 
 
 /**
+ * @summary Admin — grade Pick-Em picks for a pool on a given date
+ */
+export const AdminProcessPickemResultsBody = zod.object({
+  "poolId": zod.number(),
+  "date": zod.string().optional().describe('YYYY-MM-DD — omit to grade all pending picks')
+})
+
+export const AdminProcessPickemResultsResponse = zod.object({
+  "processed": zod.number(),
+  "dates": zod.array(zod.string())
+})
+
+
+/**
  * @summary Admin — force delete any pool
  */
 export const AdminDeletePoolParams = zod.object({

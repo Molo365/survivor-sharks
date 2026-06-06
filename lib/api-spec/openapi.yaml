@@ -800,6 +800,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUser"
 
+  /admin/pickem/process-results:
+    post:
+      operationId: adminProcessPickemResults
+      tags: [admin]
+      summary: Admin — grade Pick-Em picks for a pool on a given date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poolId]
+              properties:
+                poolId:
+                  type: integer
+                date:
+                  type: string
+                  description: "YYYY-MM-DD — omit to grade all pending picks"
+      responses:
+        "200":
+          description: Results processed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [processed, dates]
+                properties:
+                  processed:
+                    type: integer
+                  dates:
+                    type: array
+                    items:
+                      type: string
+
   /admin/pools/{poolId}:
     delete:
       operationId: adminDeletePool

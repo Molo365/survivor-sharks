@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminProcessPickemResults200,
+  AdminProcessPickemResultsBody,
   AdminUser,
   AdminUserUpdate,
   AuthToken,
@@ -2595,6 +2597,77 @@ export const useAdminUpdateUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminUpdateUserMutationOptions(options));
+    }
+
+export const getAdminProcessPickemResultsUrl = () => {
+
+
+
+
+  return `/api/admin/pickem/process-results`
+}
+
+/**
+ * @summary Admin — grade Pick-Em picks for a pool on a given date
+ */
+export const adminProcessPickemResults = async (adminProcessPickemResultsBody: AdminProcessPickemResultsBody, options?: RequestInit): Promise<AdminProcessPickemResults200> => {
+
+  return customFetch<AdminProcessPickemResults200>(getAdminProcessPickemResultsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminProcessPickemResultsBody,)
+  }
+);}
+
+
+
+
+export const getAdminProcessPickemResultsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminProcessPickemResults>>, TError,{data: BodyType<AdminProcessPickemResultsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminProcessPickemResults>>, TError,{data: BodyType<AdminProcessPickemResultsBody>}, TContext> => {
+
+const mutationKey = ['adminProcessPickemResults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminProcessPickemResults>>, {data: BodyType<AdminProcessPickemResultsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminProcessPickemResults(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminProcessPickemResultsMutationResult = NonNullable<Awaited<ReturnType<typeof adminProcessPickemResults>>>
+    export type AdminProcessPickemResultsMutationBody = BodyType<AdminProcessPickemResultsBody>
+    export type AdminProcessPickemResultsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Admin — grade Pick-Em picks for a pool on a given date
+ */
+export const useAdminProcessPickemResults = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminProcessPickemResults>>, TError,{data: BodyType<AdminProcessPickemResultsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminProcessPickemResults>>,
+        TError,
+        {data: BodyType<AdminProcessPickemResultsBody>},
+        TContext
+      > => {
+      return useMutation(getAdminProcessPickemResultsMutationOptions(options));
     }
 
 export const getAdminDeletePoolUrl = (poolId: number,) => {
