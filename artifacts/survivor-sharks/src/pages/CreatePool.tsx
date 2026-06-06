@@ -23,6 +23,10 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import wcLogoImg from "@assets/WorldCup2026_1780690496803.png";
+import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
+import nflLogoImg from "@assets/nfl-logo_1780704744525.png";
+import nbaLogoImg from "@assets/Logo-NBA_1780704727332.png";
+import nhlLogoImg from "@assets/NHL-Logo_1780704736359.png";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -31,35 +35,30 @@ const SPORTS = [
     id: PoolInputSport.mlb,
     label: "MLB",
     sublabel: "Baseball",
-    logoUrl: "https://a.espncdn.com/i/leaguelogos/mlb/500/1.png",
-    logoImg: null as string | null,
+    logoImg: mlbLogoImg,
   },
   {
     id: PoolInputSport.nfl,
     label: "NFL",
     sublabel: "Football",
-    logoUrl: "https://a.espncdn.com/i/leaguelogos/nfl/500/1.png",
-    logoImg: null as string | null,
+    logoImg: nflLogoImg,
   },
   {
     id: PoolInputSport.nba,
     label: "NBA",
     sublabel: "Basketball",
-    logoUrl: "https://a.espncdn.com/i/leaguelogos/nba/500/1.png",
-    logoImg: null as string | null,
+    logoImg: nbaLogoImg,
   },
   {
     id: PoolInputSport.nhl,
     label: "NHL",
     sublabel: "Hockey",
-    logoUrl: "https://a.espncdn.com/i/leaguelogos/nhl/500/1.png",
-    logoImg: null as string | null,
+    logoImg: nhlLogoImg,
   },
   {
     id: PoolInputSport.worldcup,
     label: "World Cup",
     sublabel: "2026",
-    logoUrl: null as string | null,
     logoImg: wcLogoImg,
   },
 ] as const;
@@ -248,20 +247,11 @@ export default function CreatePool() {
                             )}
                           >
                             <div className="w-12 h-12 flex items-center justify-center">
-                              {sport.logoImg ? (
-                                <img
-                                  src={sport.logoImg}
-                                  alt={sport.label}
-                                  className="w-12 h-12 object-contain"
-                                />
-                              ) : (
-                                <img
-                                  src={sport.logoUrl!}
-                                  alt={sport.label}
-                                  className="w-10 h-10 object-contain"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                />
-                              )}
+                              <img
+                                src={sport.logoImg}
+                                alt={sport.label}
+                                className="w-12 h-12 object-contain"
+                              />
                             </div>
                             <div className="text-center leading-tight">
                               <div className={cn(
