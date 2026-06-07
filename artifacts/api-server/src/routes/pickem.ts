@@ -421,15 +421,20 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
   res.json(details);
 });
 
-/** Compute the Mon–Sun week bounds (ET dates) containing today. */
+/** Compute the Mon–Sun week bounds (ET dates) for the week that owns today.
+ *  Weeks run Monday–Sunday.  If today IS Sunday, it belongs to the NEXT week
+ *  (i.e. weekStart = tomorrow, weekEnd = next Sunday). */
 function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string } {
   const [y, m, d] = todayEt.split("-").map(Number);
-  // Build a UTC date that represents this ET calendar date
   const date = new Date(Date.UTC(y, m - 1, d));
-  const dow = date.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-  const daysFromMonday = (dow - 1 + 7) % 7; // 0 on Monday, 6 on Sunday
-  const monday = new Date(Date.UTC(y, m - 1, d - daysFromMonday));
-  const sunday = new Date(Date.UTC(y, m - 1, d - daysFromMonday + 6));
+  const dow = date.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+
+  // Sunday (dow=0) → advance to the next Monday (+1 day)
+  // Mon–Sat         → go back to this week's Monday
+  const daysToMonday = dow === 0 ? 1 : -(dow - 1);
+  const monday = new Date(date.getTime() + daysToMonday * 86_400_000);
+  const sunday = new Date(monday.getTime() + 6 * 86_400_000);
+
   return {
     weekStart: monday.toISOString().slice(0, 10),
     weekEnd: sunday.toISOString().slice(0, 10),
