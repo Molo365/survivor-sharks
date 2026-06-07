@@ -932,6 +932,17 @@ components:
           type: string
 
     # ── Pool Schemas ──────────────────────────────────────────────────────────
+    PrizeEntry:
+      type: object
+      required: [place, amount]
+      properties:
+        place:
+          type: integer
+          description: Finishing position (1 = 1st place)
+        amount:
+          type: number
+          description: Prize amount in dollars
+
     PoolInput:
       type: object
       required: [name, sport]
@@ -969,6 +980,11 @@ components:
           enum: [weekly, daily]
           default: weekly
           description: "MLB only: weekly = one pick per week; daily = one pick per day from that day's slate"
+        prizeStructure:
+          type: array
+          description: Ordered prize payouts. prizePot is auto-calculated as the sum.
+          items:
+            $ref: '#/components/schemas/PrizeEntry'
 
     PoolUpdate:
       type: object
@@ -995,6 +1011,10 @@ components:
         pickFrequency:
           type: string
           enum: [weekly, daily]
+        prizeStructure:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrizeEntry'
 
     JoinPoolInput:
       type: object
@@ -1048,6 +1068,11 @@ components:
           type: string
           enum: [weekly, daily]
           description: "MLB only: pick frequency for this pool"
+        prizeStructure:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/PrizeEntry'
         createdAt:
           type: string
 
@@ -1247,6 +1272,9 @@ components:
         hasWonThisWeek:
           type: boolean
           description: "MLB: true if team already won at least one game this week"
+        prizeWon:
+          type: ["number", "null"]
+          description: Dollar amount this player would win at their current rank
 
     Leaderboard:
       type: object
@@ -1262,6 +1290,11 @@ components:
         deadlinePassed:
           type: boolean
           description: "MLB: true if the pick deadline for the current week has passed"
+        prizeStructure:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/PrizeEntry'
         active:
           type: array
           items:

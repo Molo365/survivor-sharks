@@ -1,6 +1,6 @@
 import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Skull, Activity, Check, Zap, Clock } from "lucide-react";
+import { Skull, Activity, Check, Zap, Clock, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
   const isDeadlinePassed = leaderboard.deadlinePassed ?? false;
   const isDaily = pickFrequency === "daily" || (leaderboard as any).pickFrequency === "daily";
   const unitLabel = isDaily ? "day" : "week";
+  const prizeStructure = (leaderboard as any).prizeStructure as Array<{ place: number; amount: number }> | null ?? null;
 
   return (
     <div className="space-y-10">
@@ -23,6 +24,22 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
         <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border border-border/50 rounded-lg text-sm text-muted-foreground">
           <Clock className="w-4 h-4 shrink-0" />
           <span>Pick deadline has passed — results will be processed at end of week</span>
+        </div>
+      )}
+
+      {/* Prize structure legend */}
+      {prizeStructure && prizeStructure.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
+          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+          <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mr-1">Prizes:</span>
+          {prizeStructure.map((p) => (
+            <span
+              key={p.place}
+              className="text-xs bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 rounded-full px-2.5 py-0.5 font-semibold"
+            >
+              {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}: ${p.amount}
+            </span>
+          ))}
         </div>
       )}
 
@@ -35,6 +52,7 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
             const streak = entry.streak ?? 0;
             const strikeCount = entry.strikeCount ?? 0;
             const hasWon = entry.hasWonThisWeek ?? false;
+            const prizeWon = (entry as any).prizeWon as number | null ?? null;
             return (
               <div
                 key={entry.userId}
@@ -61,7 +79,7 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4 ml-13 sm:ml-0 flex-wrap">
+                <div className="flex items-center gap-3 ml-13 sm:ml-0 flex-wrap">
                   {entry.lastPickTeam && (
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <span className="uppercase text-xs tracking-wider">Pick:</span>
@@ -79,6 +97,11 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
                         )}
                       </span>
                     </div>
+                  )}
+                  {prizeWon !== null && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-yellow-500/10 text-yellow-300 border-yellow-500/30">
+                      <Trophy className="w-3 h-3" /> ${prizeWon}
+                    </span>
                   )}
                   <Badge className="bg-accent/10 text-accent border border-accent/30 font-bebas text-lg px-4 py-1 tracking-wider">
                     ALIVE

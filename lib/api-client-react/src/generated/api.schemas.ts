@@ -55,6 +55,13 @@ export interface LoginInput {
   password: string;
 }
 
+export interface PrizeEntry {
+  /** Finishing position (1 = 1st place) */
+  place: number;
+  /** Prize amount in dollars */
+  amount: number;
+}
+
 export type PoolInputSport = typeof PoolInputSport[keyof typeof PoolInputSport];
 
 
@@ -105,6 +112,8 @@ export interface PoolInput {
   doubleElimination?: boolean;
   /** MLB only: weekly = one pick per week; daily = one pick per day from that day's slate */
   pickFrequency?: PoolInputPickFrequency;
+  /** Ordered prize payouts. prizePot is auto-calculated as the sum. */
+  prizeStructure?: PrizeEntry[];
 }
 
 export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];
@@ -136,6 +145,7 @@ export interface PoolUpdate {
   startWeek?: number;
   doubleElimination?: boolean;
   pickFrequency?: PoolUpdatePickFrequency;
+  prizeStructure?: PrizeEntry[];
 }
 
 export interface JoinPoolInput {
@@ -189,6 +199,7 @@ export interface Pool {
   doubleElimination?: boolean;
   /** MLB only: pick frequency for this pool */
   pickFrequency?: PoolPickFrequency;
+  prizeStructure?: PrizeEntry[] | null;
   createdAt?: string;
 }
 
@@ -360,6 +371,11 @@ export interface LeaderboardEntry {
   strikeCount?: number;
   /** MLB: true if team already won at least one game this week */
   hasWonThisWeek?: boolean;
+  /**
+     * Dollar amount this player would win at their current rank
+     * @nullable
+     */
+  prizeWon?: number | null;
 }
 
 export interface Leaderboard {
@@ -369,6 +385,7 @@ export interface Leaderboard {
   doubleElimination?: boolean;
   /** MLB: true if the pick deadline for the current week has passed */
   deadlinePassed?: boolean;
+  prizeStructure?: PrizeEntry[] | null;
   active: LeaderboardEntry[];
   eliminated: LeaderboardEntry[];
 }

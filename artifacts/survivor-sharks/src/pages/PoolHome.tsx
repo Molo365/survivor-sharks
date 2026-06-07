@@ -135,12 +135,28 @@ export default function PoolHome() {
                     </div>
                   </div>
                 )}
-                {pool.prizePot && pool.prizePot > 0 && (
+                {(pool as any).prizeStructure && (pool as any).prizeStructure.length > 0 ? (
+                  <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg shadow-[0_0_15px_rgba(30,144,255,0.05)] min-w-[120px]">
+                    <div className="text-xs text-primary/80 uppercase font-bold tracking-wider mb-2 flex items-center gap-1">
+                      <Trophy className="w-3 h-3" /> Prizes
+                    </div>
+                    <div className="space-y-0.5">
+                      {((pool as any).prizeStructure as Array<{ place: number; amount: number }>).map((p) => (
+                        <div key={p.place} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-muted-foreground text-xs">
+                            {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}
+                          </span>
+                          <span className="font-bebas text-base text-primary">${p.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : pool.prizePot && pool.prizePot > 0 ? (
                   <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg text-center shadow-[0_0_15px_rgba(30,144,255,0.05)]">
                     <div className="text-xs text-primary/80 uppercase font-bold tracking-wider mb-1">Prize Pot</div>
                     <div className="font-bebas text-3xl text-primary">${pool.prizePot}</div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 

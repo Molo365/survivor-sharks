@@ -99,6 +99,10 @@ export const ListPoolsResponseItem = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
   "createdAt": zod.string().optional()
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
@@ -123,7 +127,11 @@ export const CreatePoolBody = zod.object({
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently'),
-  "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate')
+  "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).optional().describe('Ordered prize payouts. prizePot is auto-calculated as the sum.')
 })
 
 
@@ -154,6 +162,10 @@ export const JoinPoolResponse = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -214,7 +226,11 @@ export const UpdatePoolBody = zod.object({
   "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem']).optional(),
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
-  "pickFrequency": zod.enum(['weekly', 'daily']).optional()
+  "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).optional()
 })
 
 export const UpdatePoolResponse = zod.object({
@@ -237,6 +253,10 @@ export const UpdatePoolResponse = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -565,6 +585,10 @@ export const GetLeaderboardResponse = zod.object({
   "currentWeek": zod.number(),
   "doubleElimination": zod.boolean().optional().describe('Whether this pool uses double elimination mode'),
   "deadlinePassed": zod.boolean().optional().describe('MLB: true if the pick deadline for the current week has passed'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
   "active": zod.array(zod.object({
   "rank": zod.number(),
   "userId": zod.number(),
@@ -577,7 +601,8 @@ export const GetLeaderboardResponse = zod.object({
   "lastPickResult": zod.string().nullish(),
   "streak": zod.number().optional().describe('Consecutive weeks survived'),
   "strikeCount": zod.number().optional().describe('MLB double-elim: number of mulligan strikes used (0 or 1)'),
-  "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week')
+  "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week'),
+  "prizeWon": zod.number().nullish().describe('Dollar amount this player would win at their current rank')
 })),
   "eliminated": zod.array(zod.object({
   "rank": zod.number(),
@@ -591,7 +616,8 @@ export const GetLeaderboardResponse = zod.object({
   "lastPickResult": zod.string().nullish(),
   "streak": zod.number().optional().describe('Consecutive weeks survived'),
   "strikeCount": zod.number().optional().describe('MLB double-elim: number of mulligan strikes used (0 or 1)'),
-  "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week')
+  "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week'),
+  "prizeWon": zod.number().nullish().describe('Dollar amount this player would win at their current rank')
 }))
 })
 
@@ -1079,6 +1105,10 @@ export const AdminListPoolsResponseItem = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
   "createdAt": zod.string().optional()
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)

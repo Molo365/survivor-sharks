@@ -37,6 +37,8 @@ router.get("/", requireAuth, async (req, res) => {
     deadlinePassed = bounds.deadlinePassed;
   }
 
+  const prizeStructure = (pool.prizeStructure as Array<{ place: number; amount: number }> | null) ?? null;
+
   const entries = await Promise.all(members.map(async (member) => {
     const userPicks = await db.select().from(picksTable)
       .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, member.userId)));
@@ -70,12 +72,16 @@ router.get("/", requireAuth, async (req, res) => {
   const active = entries
     .filter(e => e.status === "active")
     .sort((a, b) => b.weeksAlive - a.weeksAlive)
-    .map((e, i) => ({ rank: i + 1, ...e }));
+    .map((e, i) => ({
+      rank: i + 1,
+      prizeWon: prizeStructure?.find(p => p.place === i + 1)?.amount ?? null,
+      ...e,
+    }));
 
   const eliminated = entries
     .filter(e => e.status === "eliminated")
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
-    .map((e, i) => ({ rank: active.length + i + 1, ...e }));
+    .map((e, i) => ({ rank: active.length + i + 1, prizeWon: null as number | null, ...e }));
 
   res.json({
     poolId,
@@ -83,6 +89,7 @@ router.get("/", requireAuth, async (req, res) => {
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     deadlinePassed,
+    prizeStructure,
     active,
     eliminated,
   });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import wcLogoImg from "@assets/WorldCup2026_1780690496803.png";
 import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
@@ -57,46 +57,42 @@ const SPORTS = [
   },
   {
     id: PoolInputSport.worldcup,
-    label: "World Cup",
-    sublabel: "2026",
+    label: "WC",
+    sublabel: "World Cup",
     logoImg: wcLogoImg,
   },
 ] as const;
 
-// ── Which pool types are available per sport ───────────────────────────────────
-
-const SPORT_POOL_TYPES: Record<string, Array<"season" | "weekly" | "pickem">> = {
-  [PoolInputSport.mlb]:      ["pickem"],
-  [PoolInputSport.nfl]:      ["season", "pickem"],
-  [PoolInputSport.nba]:      ["season", "weekly", "pickem"],
-  [PoolInputSport.nhl]:      ["season", "weekly", "pickem"],
+const SPORT_POOL_TYPES: Record<string, string[]> = {
+  [PoolInputSport.mlb]: ["season", "pickem"],
+  [PoolInputSport.nfl]: ["season", "weekly", "mid_season"],
+  [PoolInputSport.nba]: ["season", "weekly"],
+  [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem"],
 };
-
-// ── Pool type card definitions ─────────────────────────────────────────────────
 
 const POOL_TYPES = [
   {
     id: "season" as const,
-    label: "Season Pool",
+    label: "Season",
     icon: Trophy,
-    tagline: "Classic Survivor",
+    tagline: "Last One Standing Wins",
     description:
-      "The full season format. One pick per week, no repeats. Get it wrong and you're out. Last shark standing wins.",
-    badge: "Most Popular",
+      "Pick one team per week to win. Pick wrong and you're eliminated. Survive the whole season to claim the prize.",
+    badge: "Classic",
     badgeClass: "bg-primary/20 text-primary border-primary/30",
-    cardClass: "border-primary/40 bg-[linear-gradient(145deg,rgba(30,144,255,0.05)_0%,transparent_100%)]",
+    cardClass: "border-primary/60 bg-[linear-gradient(145deg,rgba(30,144,255,0.08)_0%,transparent_100%)]",
   },
   {
     id: "weekly" as const,
-    label: "Weekly Pool",
+    label: "Weekly",
     icon: RefreshCw,
     tagline: "Fresh Start Every Week",
     description:
-      "No carry-over. Everyone resets to alive each week. Pick the winner, collect the glory — no long-term commitment needed.",
+      "Each week is its own mini-survivor contest. Eliminated players reset and rejoin next week.",
     badge: "Casual",
     badgeClass: "bg-accent/20 text-accent border-accent/30",
-    cardClass: "border-accent/30",
+    cardClass: "border-accent/60 bg-[linear-gradient(145deg,rgba(0,200,150,0.05)_0%,transparent_100%)]",
   },
   {
     id: "pickem" as const,
@@ -112,6 +108,10 @@ const POOL_TYPES = [
   },
 ] as const;
 
+// ── Prize helpers ──────────────────────────────────────────────────────────────
+
+const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"];
+
 // ── Form schema ────────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
@@ -123,7 +123,6 @@ const formSchema = z.object({
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
-  prizePot: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
 });
 
@@ -134,6 +133,9 @@ export default function CreatePool() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const createPool = useCreatePool();
+
+  // Prize structure managed outside react-hook-form (dynamic list)
+  const [prizes, setPrizes] = useState<Array<{ amount: string }>>([{ amount: "" }]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -159,7 +161,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0], { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -172,6 +174,18 @@ export default function CreatePool() {
       form.setValue("pickFrequency", "daily");
     }
   }, [selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Prize structure helpers
+  function addPrize() {
+    if (prizes.length < 10) setPrizes(p => [...p, { amount: "" }]);
+  }
+  function removePrize(idx: number) {
+    setPrizes(p => p.filter((_, i) => i !== idx));
+  }
+  function updatePrize(idx: number, amount: string) {
+    setPrizes(p => p.map((entry, i) => (i === idx ? { amount } : entry)));
+  }
+  const totalPrize = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
   const pageTitle =
     selectedSport === PoolInputSport.worldcup
@@ -186,8 +200,21 @@ export default function CreatePool() {
       : "Set the rules. Invite the sharks.";
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const prizeStructure = prizes
+      .map((p, i) => ({ place: i + 1, amount: parseFloat(p.amount) || 0 }))
+      .filter(p => p.amount > 0);
+    const prizePot = prizeStructure.length > 0
+      ? prizeStructure.reduce((sum, p) => sum + p.amount, 0)
+      : undefined;
+
     createPool.mutate(
-      { data: values as any },
+      {
+        data: {
+          ...values,
+          ...(prizeStructure.length > 0 && { prizeStructure }),
+          ...(prizePot !== undefined && { prizePot }),
+        } as any,
+      },
       {
         onSuccess: (pool) => {
           queryClient.invalidateQueries({ queryKey: getListPoolsQueryKey() });
@@ -473,75 +500,115 @@ export default function CreatePool() {
               />
 
               {/* ── Money fields ── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/50">
-                <FormField
-                  control={form.control}
-                  name="maxEntries"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-bebas text-lg tracking-wide">Max Entries</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="Unlimited"
-                          {...field}
-                          value={field.value ?? ""}
-                          data-testid="input-max-entries"
-                          className="bg-background/50 border-primary/20"
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">Limit total members</FormDescription>
-                      <FormMessage />
-                    </FormItem>
+              <div className="space-y-6 pt-4 border-t border-border/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="maxEntries"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-bebas text-lg tracking-wide">Max Entries</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Unlimited"
+                            {...field}
+                            value={field.value ?? ""}
+                            data-testid="input-max-entries"
+                            className="bg-background/50 border-primary/20"
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Limit total members</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="entryFee"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-bebas text-lg tracking-wide">Entry Fee ($)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Free"
+                            {...field}
+                            value={field.value ?? ""}
+                            data-testid="input-entry-fee"
+                            className="bg-background/50 border-primary/20"
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Cost to join (display only)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* ── Prize structure ── */}
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
+                  </div>
+                  <div className="space-y-2">
+                    {prizes.map((prize, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
+                          {ORDINALS[i]}
+                        </span>
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={prize.amount}
+                            onChange={(e) => updatePrize(i, e.target.value)}
+                            data-testid={`input-prize-place-${i + 1}`}
+                            className="pl-7 bg-background/50 border-primary/20"
+                          />
+                        </div>
+                        {i > 0 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removePrize(i)}
+                            className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <div className="w-9 shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {prizes.length < 10 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={addPrize}
+                      className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
+                      data-testid="button-add-prize-place"
+                    >
+                      + Add {ORDINALS[prizes.length]} Place Prize
+                    </Button>
                   )}
-                />
-                <FormField
-                  control={form.control}
-                  name="entryFee"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-bebas text-lg tracking-wide">Entry Fee ($)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Free"
-                          {...field}
-                          value={field.value ?? ""}
-                          data-testid="input-entry-fee"
-                          className="bg-background/50 border-primary/20"
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">Cost to join (display only)</FormDescription>
-                      <FormMessage />
-                    </FormItem>
+                  {totalPrize > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Total prize pot:{" "}
+                      <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
+                    </p>
                   )}
-                />
-                <FormField
-                  control={form.control}
-                  name="prizePot"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-bebas text-lg tracking-wide">Prize Pot ($)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0.00"
-                          {...field}
-                          value={field.value ?? ""}
-                          data-testid="input-prize-pot"
-                          className="bg-background/50 border-primary/20"
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">Total winnings (display only)</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                </div>
               </div>
 
               <div className="pt-6 flex justify-end">

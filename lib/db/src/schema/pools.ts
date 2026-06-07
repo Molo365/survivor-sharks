@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, real, jsonb, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -22,6 +22,7 @@ export const poolsTable = pgTable("pools", {
   maxEntries: integer("max_entries"),
   entryFee: real("entry_fee"),
   prizePot: real("prize_pot"),
+  prizeStructure: jsonb("prize_structure").$type<Array<{ place: number; amount: number }>>(),
   doubleElimination: boolean("double_elimination").notNull().default(false),
   pickFrequency: pickFrequencyEnum("pick_frequency").notNull().default("weekly"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -32,6 +32,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     maxEntries: pool.maxEntries,
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
+    prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     createdAt: pool.createdAt.toISOString(),
@@ -67,7 +68,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, entryFee, prizePot, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
+  const { name, sport, description, maxEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -83,6 +84,14 @@ router.post("/", requireAuth, async (req, res) => {
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
 
+  // Auto-calculate prizePot from prizeStructure if provided
+  const resolvedPrizeStructure = Array.isArray(prizeStructure) && prizeStructure.length > 0
+    ? prizeStructure as Array<{ place: number; amount: number }>
+    : null;
+  const resolvedPrizePot = resolvedPrizeStructure
+    ? resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0)
+    : (prizePot ?? null);
+
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
@@ -97,7 +106,8 @@ router.post("/", requireAuth, async (req, res) => {
     commissionerId: req.user!.id,
     maxEntries: maxEntries ?? null,
     entryFee: entryFee ?? null,
-    prizePot: prizePot ?? null,
+    prizePot: resolvedPrizePot,
+    prizeStructure: resolvedPrizeStructure,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
   }).returning();
@@ -162,6 +172,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     sport: pool.sport,
     poolType: pool.poolType,
     prizePot: pool.prizePot ?? null,
+    prizeStructure: pool.prizeStructure ?? null,
     playerCount: Number(playerCount),
     description: pool.description ?? null,
     season: pool.season ?? null,
@@ -206,6 +217,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     maxEntries: pool.maxEntries,
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
+    prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     totalMembers: members.length,
