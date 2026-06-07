@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   useGetPickEmDailyPicks,
   useGetPickEmGames,
@@ -15,7 +15,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function BaseDiamond({
@@ -877,6 +877,194 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+// ── Snapshot (post-lock pick accountability table) ───────────────────────────
+
+interface SnapshotViewProps {
+  slate: PickEmSlate;
+  entries: PickEmLeaderboardEntry[];
+  lbGames: PickEmLeaderboardGame[];
+  currentUserId: number | null;
+  poolName: string;
+}
+
+function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: SnapshotViewProps) {
+  const slateGameIds = new Set(slate.games.map((g) => g.id));
+
+  const gameById = new Map<string, PickEmLeaderboardGame>(
+    lbGames.filter((g) => slateGameIds.has(g.id)).map((g) => [g.id, g]),
+  );
+  const slateGameById = new Map(slate.games.map((g) => [g.id, g]));
+
+  function gameLabel(gameId: string): string {
+    const g = gameById.get(gameId);
+    const sg = slateGameById.get(gameId);
+    const away = g?.awayTeam.abbreviation ?? sg?.awayTeam.abbreviation ?? "?";
+    const home = g?.homeTeam.abbreviation ?? sg?.homeTeam.abbreviation ?? "?";
+    return `${away} @ ${home}`;
+  }
+
+  function opponentAbbr(gameId: string, pickedTeamId: string): string {
+    const g = gameById.get(gameId);
+    const sg = slateGameById.get(gameId);
+    const homeId = g?.homeTeam.id ?? sg?.homeTeam.id;
+    const awayId = g?.awayTeam.id ?? sg?.awayTeam.id;
+    const homeAbbr = g?.homeTeam.abbreviation ?? sg?.homeTeam.abbreviation ?? "?";
+    const awayAbbr = g?.awayTeam.abbreviation ?? sg?.awayTeam.abbreviation ?? "?";
+    if (pickedTeamId === homeId) return awayAbbr;
+    if (pickedTeamId === awayId) return homeAbbr;
+    return "—";
+  }
+
+  type Row = { player: string; game: string; pick: string; opp: string; result: string; isMe: boolean };
+
+  const rows = useMemo<Row[]>(() => {
+    const out: Row[] = [];
+    const sorted = [...entries].sort((a, b) => a.rank - b.rank);
+    for (const entry of sorted) {
+      const name = entry.displayName ?? entry.username;
+      const pickMap = new Map(
+        entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
+      );
+      for (const sg of slate.games) {
+        const pick = pickMap.get(sg.id);
+        out.push({
+          player: name,
+          game: gameLabel(sg.id),
+          pick: pick ? pick.pickedTeamName : "—",
+          opp: pick ? opponentAbbr(sg.id, pick.pickedTeamId) : "—",
+          result: pick ? pick.result : "no_pick",
+          isMe: entry.userId === currentUserId,
+        });
+      }
+    }
+    return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, slate, currentUserId]);
+
+  function downloadCsv() {
+    const header = ["Player", "Game", "Pick", "Opponent", "Result"];
+    const csvRows = rows.map((r) => {
+      const resultLabel =
+        r.result === "correct" ? "Correct"
+        : r.result === "incorrect" ? "Wrong"
+        : r.result === "postponed" ? "PPD"
+        : r.result === "no_pick" ? "No Pick"
+        : "Pending";
+      return [r.player, r.game, r.pick, r.opp, resultLabel];
+    });
+    const csv = [header, ...csvRows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${poolName.replace(/\s+/g, "_")}_snapshot_${slate.date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function ResultBadge({ result }: { result: string }) {
+    if (result === "correct")
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-widest text-green-400">
+          <Check className="w-2.5 h-2.5" /> Correct
+        </span>
+      );
+    if (result === "incorrect")
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-widest text-red-400">
+          <X className="w-2.5 h-2.5" /> Wrong
+        </span>
+      );
+    if (result === "postponed")
+      return <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">PPD</span>;
+    if (result === "no_pick")
+      return <span className="text-[10px] text-muted-foreground/40">—</span>;
+    return (
+      <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-primary/25 bg-primary/[0.08] text-primary/60">
+        Pending
+      </span>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-bebas text-2xl tracking-wide text-foreground">Pick Snapshot</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {slate.label} · {entries.length} player{entries.length !== 1 ? "s" : ""} · {slate.games.length} game{slate.games.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={downloadCsv}
+          className="font-bebas text-base tracking-wider gap-1.5 shrink-0"
+        >
+          <Download className="w-4 h-4" /> Download CSV
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-border/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr className="bg-muted/20">
+                <th className="sticky left-0 z-10 bg-muted/20 text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40 border-r border-border/20">
+                  Player
+                </th>
+                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Game</th>
+                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Pick</th>
+                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Opp</th>
+                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-10 text-sm text-muted-foreground">
+                    No picks recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, i) => (
+                  <tr
+                    key={i}
+                    className={cn(
+                      "border-b border-border/15 last:border-0",
+                      row.isMe ? "bg-primary/5" : i % 2 === 0 ? "bg-transparent" : "bg-muted/[0.025]",
+                    )}
+                  >
+                    <td
+                      className={cn(
+                        "sticky left-0 z-10 px-4 py-2.5 font-medium border-r border-border/20 bg-card",
+                        row.isMe && "bg-primary/5 text-primary",
+                      )}
+                    >
+                      <span className="truncate max-w-[130px] inline-block align-bottom">{row.player}</span>
+                      {row.isMe && (
+                        <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.game}</td>
+                    <td className="px-4 py-2.5 font-medium whitespace-nowrap">{row.pick}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{row.opp}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <ResultBadge result={row.result} />
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Weekly Leaderboard ────────────────────────────────────────────────────────
 
 const SHORT_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1252,6 +1440,21 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const lockedGames = slate?.games.filter((g) => g.deadlinePassed) ?? [];
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
 
+  const slateLocked = slate?.deadlinePassed ?? false;
+
+  const lockTimeFormatted = useMemo(() => {
+    if (!slate?.games.length) return null;
+    const firstMs = Math.min(...slate.games.map((g) => new Date(g.startTime).getTime()));
+    const lockMs = firstMs - 5 * 60 * 1000;
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZoneName: "short",
+    }).format(new Date(lockMs));
+  }, [slate]);
+
   return (
     <Tabs defaultValue="picks" className="w-full">
       <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
@@ -1279,6 +1482,14 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
         >
           <BarChart2 className="w-5 h-5" /> Stats
         </TabsTrigger>
+        {slateLocked && !isWc && (leaderboard?.entries.length ?? 0) > 0 && (
+          <TabsTrigger
+            value="snapshot"
+            className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+          >
+            <Camera className="w-5 h-5" /> Snapshot
+          </TabsTrigger>
+        )}
         {isCommissioner && (
           <TabsTrigger
             value="commissioner"
@@ -1288,6 +1499,18 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           </TabsTrigger>
         )}
       </TabsList>
+
+      {slateLocked && (
+        <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
+          <Lock className="w-4 h-4 text-yellow-400 shrink-0" />
+          <span className="text-sm font-semibold text-yellow-300 leading-snug">
+            Picks locked
+            {lockTimeFormatted && (
+              <span className="font-normal text-yellow-400/70"> — snapshot taken at {lockTimeFormatted}</span>
+            )}
+          </span>
+        </div>
+      )}
 
       <div className="mt-8">
         {/* ── Today's Picks ── */}
@@ -1600,7 +1823,19 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           )}
         </TabsContent>
 
-        {/* ── Commissioner ── */}
+        {/* ── Snapshot ── */}
+        {slateLocked && !isWc && slate && leaderboard && (
+          <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
+            <SnapshotView
+              slate={slate}
+              entries={leaderboard.entries}
+              lbGames={leaderboard.games}
+              currentUserId={user?.id ?? null}
+              poolName={poolName}
+            />
+          </TabsContent>
+        )}
+
         {isCommissioner && (
           <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
             <div className="max-w-lg space-y-6">

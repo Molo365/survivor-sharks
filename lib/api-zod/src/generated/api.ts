@@ -994,7 +994,7 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
-  "result": zod.enum(['pending', 'correct', 'incorrect'])
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed'])
 })),
   "dailyBreakdown": zod.array(zod.object({
   "date": zod.string().describe('YYYY-MM-DD date in ET'),
@@ -1035,7 +1035,7 @@ export const GetPickEmDailyPicksResponseItem = zod.object({
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
   "pickedTeamLogoUrl": zod.string().nullish(),
-  "result": zod.enum(['pending', 'correct', 'incorrect']),
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed']),
   "homeTeam": zod.object({
   "id": zod.string(),
   "abbreviation": zod.string(),

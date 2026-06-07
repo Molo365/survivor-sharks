@@ -840,6 +840,7 @@ export const PickEmPlayerPickResult = {
   pending: 'pending',
   correct: 'correct',
   incorrect: 'incorrect',
+  postponed: 'postponed',
 } as const;
 
 export interface PickEmPlayerPick {
@@ -864,6 +865,7 @@ export const PickEmDailyPickDetailResult = {
   pending: 'pending',
   correct: 'correct',
   incorrect: 'incorrect',
+  postponed: 'postponed',
 } as const;
 
 export interface PickEmDailyPickDetail {
