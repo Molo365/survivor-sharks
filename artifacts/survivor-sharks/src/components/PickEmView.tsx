@@ -1632,7 +1632,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       Welcome to {poolName}!
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-                      Pick the winner of each game below. The player with the most correct picks at the end of the day wins. Good luck!
+                      {pickFrequency === "weekly"
+                        ? "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"
+                        : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
                     </p>
                   </div>
                   <button
