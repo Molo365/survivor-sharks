@@ -567,7 +567,7 @@ export default function CreatePool() {
                             type="number"
                             min="0"
                             step="0.01"
-                            placeholder="0.00"
+                            placeholder={i === 0 ? "e.g. 500" : "0.00"}
                             value={prize.amount}
                             onChange={(e) => updatePrize(i, e.target.value)}
                             data-testid={`input-prize-place-${i + 1}`}
