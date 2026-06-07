@@ -890,70 +890,57 @@ interface SnapshotViewProps {
 function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: SnapshotViewProps) {
   const slateGameIds = new Set(slate.games.map((g) => g.id));
 
-  const gameById = new Map<string, PickEmLeaderboardGame>(
-    lbGames.filter((g) => slateGameIds.has(g.id)).map((g) => [g.id, g]),
+  // Merge slate game order + team IDs with leaderboard logo URLs
+  const snapshotGames = useMemo(() => {
+    const lbGameById = new Map(lbGames.map((g) => [g.id, g]));
+    return slate.games.map((sg) => ({
+      id: sg.id,
+      awayTeam: {
+        id: sg.awayTeam.id,
+        abbreviation: sg.awayTeam.abbreviation,
+        logoUrl: lbGameById.get(sg.id)?.awayTeam.logoUrl ?? sg.awayTeam.logoUrl ?? null,
+      },
+      homeTeam: {
+        id: sg.homeTeam.id,
+        abbreviation: sg.homeTeam.abbreviation,
+        logoUrl: lbGameById.get(sg.id)?.homeTeam.logoUrl ?? sg.homeTeam.logoUrl ?? null,
+      },
+    }));
+  }, [slate.games, lbGames]);
+
+  const sortedEntries = useMemo(
+    () => [...entries].sort((a, b) => a.rank - b.rank),
+    [entries],
   );
-  const slateGameById = new Map(slate.games.map((g) => [g.id, g]));
 
-  function gameLabel(gameId: string): string {
-    const g = gameById.get(gameId);
-    const sg = slateGameById.get(gameId);
-    const away = g?.awayTeam.abbreviation ?? sg?.awayTeam.abbreviation ?? "?";
-    const home = g?.homeTeam.abbreviation ?? sg?.homeTeam.abbreviation ?? "?";
-    return `${away} @ ${home}`;
-  }
-
-  function opponentAbbr(gameId: string, pickedTeamId: string): string {
-    const g = gameById.get(gameId);
-    const sg = slateGameById.get(gameId);
-    const homeId = g?.homeTeam.id ?? sg?.homeTeam.id;
-    const awayId = g?.awayTeam.id ?? sg?.awayTeam.id;
-    const homeAbbr = g?.homeTeam.abbreviation ?? sg?.homeTeam.abbreviation ?? "?";
-    const awayAbbr = g?.awayTeam.abbreviation ?? sg?.awayTeam.abbreviation ?? "?";
-    if (pickedTeamId === homeId) return awayAbbr;
-    if (pickedTeamId === awayId) return homeAbbr;
-    return "—";
-  }
-
-  type Row = { player: string; game: string; pick: string; opp: string; result: string; isMe: boolean };
-
-  const rows = useMemo<Row[]>(() => {
-    const out: Row[] = [];
-    const sorted = [...entries].sort((a, b) => a.rank - b.rank);
-    for (const entry of sorted) {
+  function downloadCsv() {
+    const header = [
+      "Player",
+      ...snapshotGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`),
+      "Correct",
+      "Picked",
+    ];
+    const csvRows = sortedEntries.map((entry) => {
       const name = entry.displayName ?? entry.username;
       const pickMap = new Map(
         entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
       );
-      for (const sg of slate.games) {
-        const pick = pickMap.get(sg.id);
-        out.push({
-          player: name,
-          game: gameLabel(sg.id),
-          pick: pick ? pick.pickedTeamName : "—",
-          opp: pick ? opponentAbbr(sg.id, pick.pickedTeamId) : "—",
-          result: pick ? pick.result : "no_pick",
-          isMe: entry.userId === currentUserId,
-        });
-      }
-    }
-    return out;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, slate, currentUserId]);
-
-  function downloadCsv() {
-    const header = ["Player", "Game", "Pick", "Opponent", "Result"];
-    const csvRows = rows.map((r) => {
-      const resultLabel =
-        r.result === "correct" ? "Correct"
-        : r.result === "incorrect" ? "Wrong"
-        : r.result === "postponed" ? "PPD"
-        : r.result === "no_pick" ? "No Pick"
-        : "Pending";
-      return [r.player, r.game, r.pick, r.opp, resultLabel];
+      const todayCorrect = snapshotGames.filter((g) => pickMap.get(g.id)?.result === "correct").length;
+      const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
+      const pickCells = snapshotGames.map((g) => {
+        const pick = pickMap.get(g.id);
+        if (!pick) return "—";
+        const suffix =
+          pick.result === "correct" ? " (W)"
+          : pick.result === "incorrect" ? " (L)"
+          : pick.result === "postponed" ? " (PPD)"
+          : "";
+        return `${pick.pickedTeamName}${suffix}`;
+      });
+      return [name, ...pickCells, String(todayCorrect), String(todayPicked)];
     });
     const csv = [header, ...csvRows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -964,37 +951,16 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
     URL.revokeObjectURL(url);
   }
 
-  function ResultBadge({ result }: { result: string }) {
-    if (result === "correct")
-      return (
-        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-widest text-green-400">
-          <Check className="w-2.5 h-2.5" /> Correct
-        </span>
-      );
-    if (result === "incorrect")
-      return (
-        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-widest text-red-400">
-          <X className="w-2.5 h-2.5" /> Wrong
-        </span>
-      );
-    if (result === "postponed")
-      return <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">PPD</span>;
-    if (result === "no_pick")
-      return <span className="text-[10px] text-muted-foreground/40">—</span>;
-    return (
-      <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-primary/25 bg-primary/[0.08] text-primary/60">
-        Pending
-      </span>
-    );
-  }
+  const minWidth = Math.max(400, 220 + snapshotGames.length * 72);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Header row with CSV button */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-bebas text-2xl tracking-wide text-foreground">Pick Snapshot</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {slate.label} · {entries.length} player{entries.length !== 1 ? "s" : ""} · {slate.games.length} game{slate.games.length !== 1 ? "s" : ""}
+            {slate.label} · {entries.length} player{entries.length !== 1 ? "s" : ""} · {snapshotGames.length} game{snapshotGames.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Button
@@ -1007,60 +973,186 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
         </Button>
       </div>
 
+      {/* Grid — identical structure to PicksGrid, filtered to today's slate */}
       <div className="rounded-xl border border-border/40 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table
+            className="w-full text-sm border-separate border-spacing-0"
+            style={{ minWidth: `${minWidth}px` }}
+          >
+            {/* Game column headers — away @ home abbreviation */}
             <thead>
-              <tr className="bg-muted/20">
-                <th className="sticky left-0 z-10 bg-muted/20 text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40 border-r border-border/20">
-                  Player
+              <tr className="bg-muted/[0.05]">
+                <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20" />
+                {snapshotGames.map((game) => (
+                  <th
+                    key={game.id}
+                    className="px-1 py-2 text-center border-b border-border/30 font-mono text-[10px] font-medium text-muted-foreground/60 whitespace-nowrap"
+                    style={{ width: 72 }}
+                  >
+                    {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-right border-b border-border/30 font-bebas text-xs text-muted-foreground/40 whitespace-nowrap">
+                  Total
                 </th>
-                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Game</th>
-                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Pick</th>
-                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Opp</th>
-                <th className="text-left px-4 py-2.5 font-bebas text-base tracking-wide text-muted-foreground border-b border-border/40">Result</th>
               </tr>
             </thead>
+
             <tbody>
-              {rows.length === 0 ? (
+              {sortedEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-sm text-muted-foreground">
+                  <td
+                    colSpan={snapshotGames.length + 2}
+                    className="text-center py-10 text-sm text-muted-foreground"
+                  >
                     No picks recorded yet.
                   </td>
                 </tr>
               ) : (
-                rows.map((row, i) => (
-                  <tr
-                    key={i}
-                    className={cn(
-                      "border-b border-border/15 last:border-0",
-                      row.isMe ? "bg-primary/5" : i % 2 === 0 ? "bg-transparent" : "bg-muted/[0.025]",
-                    )}
-                  >
-                    <td
+                sortedEntries.map((entry, idx) => {
+                  const isMe = entry.userId === currentUserId;
+                  const pickMap = new Map(
+                    entry.picks
+                      .filter((p) => slateGameIds.has(p.gameId))
+                      .map((p) => [p.gameId, p]),
+                  );
+                  const todayCorrect = snapshotGames.filter(
+                    (g) => pickMap.get(g.id)?.result === "correct",
+                  ).length;
+                  const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
+                  const pct =
+                    todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
+
+                  return (
+                    <tr
+                      key={entry.userId}
                       className={cn(
-                        "sticky left-0 z-10 px-4 py-2.5 font-medium border-r border-border/20 bg-card",
-                        row.isMe && "bg-primary/5 text-primary",
+                        "border-b border-border/25 last:border-b-0",
+                        isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
                       )}
                     >
-                      <span className="truncate max-w-[130px] inline-block align-bottom">{row.player}</span>
-                      {row.isMe && (
-                        <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.game}</td>
-                    <td className="px-4 py-2.5 font-medium whitespace-nowrap">{row.pick}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{row.opp}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <ResultBadge result={row.result} />
-                    </td>
-                  </tr>
-                ))
+                      {/* Sticky player info — identical to PicksGrid */}
+                      <td
+                        className={cn(
+                          "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30 bg-card",
+                          isMe && "ring-inset ring-1 ring-primary/20",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-bebas text-base w-5 shrink-0",
+                              entry.rank === 1 ? "text-yellow-400"
+                              : entry.rank === 2 ? "text-zinc-300"
+                              : entry.rank === 3 ? "text-amber-600"
+                              : "text-muted-foreground/40",
+                            )}
+                          >
+                            {entry.rank}
+                          </span>
+                          <span
+                            className={cn(
+                              "font-medium text-sm truncate max-w-[110px]",
+                              isMe ? "text-primary" : "text-foreground",
+                            )}
+                          >
+                            {entry.displayName ?? entry.username}
+                            {isMe && (
+                              <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                                you
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Per-game pick cells — matches PicksGrid non-WC, adds PPD amber */}
+                      {snapshotGames.map((game) => {
+                        const pick = pickMap.get(game.id);
+                        if (!pick) {
+                          return (
+                            <td key={game.id} className="px-1 py-2 text-center">
+                              <span className="text-muted-foreground/20 text-xs">—</span>
+                            </td>
+                          );
+                        }
+
+                        const isAway = pick.pickedTeamId === game.awayTeam.id;
+                        const team = isAway ? game.awayTeam : game.homeTeam;
+
+                        return (
+                          <td key={game.id} className="px-1 py-2 text-center">
+                            <div
+                              className={cn(
+                                "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[52px]",
+                                pick.result === "correct"
+                                  ? "border-green-500/40 bg-green-500/10"
+                                  : pick.result === "incorrect"
+                                  ? "border-red-500/40 bg-red-500/10"
+                                  : pick.result === "postponed"
+                                  ? "border-yellow-500/40 bg-yellow-500/10"
+                                  : "border-border/30 bg-muted/10",
+                              )}
+                            >
+                              {team.logoUrl && (
+                                <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                                  <img
+                                    src={team.logoUrl}
+                                    alt={team.abbreviation}
+                                    className="w-4 h-4 object-contain"
+                                  />
+                                </div>
+                              )}
+                              <span
+                                className={cn(
+                                  "font-bebas text-[11px] tracking-wide leading-none",
+                                  pick.result === "correct" ? "text-green-400"
+                                  : pick.result === "incorrect" ? "text-red-400"
+                                  : pick.result === "postponed" ? "text-yellow-400"
+                                  : "text-muted-foreground/70",
+                                )}
+                              >
+                                {team.abbreviation}
+                              </span>
+                              {pick.result === "correct" && (
+                                <Check className="w-2.5 h-2.5 text-green-400" />
+                              )}
+                              {pick.result === "incorrect" && (
+                                <X className="w-2.5 h-2.5 text-red-400" />
+                              )}
+                              {pick.result === "postponed" && (
+                                <span className="text-[8px] font-bold tracking-widest text-yellow-400 leading-none">
+                                  PPD
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      {/* Total — matches PicksGrid score summary column */}
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                        <span className="font-bebas text-lg text-green-400">{todayCorrect}</span>
+                        <span className="font-bebas text-lg text-muted-foreground/40">
+                          /{todayPicked}
+                        </span>
+                        {pct !== null && (
+                          <span className="ml-1.5 font-mono text-[10px] text-primary/50">{pct}%</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <p className="text-[10px] text-muted-foreground/40 text-center">
+        Frozen at lock time · Scroll right to see all games · Results update automatically
+      </p>
     </div>
   );
 }
