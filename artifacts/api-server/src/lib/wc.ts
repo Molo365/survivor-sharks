@@ -434,6 +434,15 @@ export async function fetchTodayWcGames(): Promise<WcGame[]> {
   return days.find((d) => d.dateStr === todayEt)?.games ?? [];
 }
 
+/**
+ * Fetch WC games for a specific ET date (YYYY-MM-DD).
+ * Used to also check yesterday for games that finished after midnight ET.
+ */
+export async function fetchWcGamesForDate(dateStr: string): Promise<WcGame[]> {
+  const days = await fetchWcSchedule();
+  return days.find((d) => d.dateStr === dateStr)?.games ?? [];
+}
+
 /** Current WC phase based on today's ET date. */
 export function getCurrentWcPhase(): WcPhase | null {
   return getWcPhase(getTodayEtDate());

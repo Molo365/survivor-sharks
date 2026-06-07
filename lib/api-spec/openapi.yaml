@@ -1657,7 +1657,7 @@ components:
           type: string
         status:
           type: string
-          enum: [scheduled, in_progress, final]
+          enum: [scheduled, in_progress, final, postponed]
         deadlinePassed:
           type: boolean
         awayTeam:
@@ -1673,7 +1673,7 @@ components:
           description: Team ID the current user picked, null if no pick yet
         userPickResult:
           type: ["string", "null"]
-          enum: [pending, correct, incorrect, null]
+          enum: [pending, correct, incorrect, postponed, null]
         liveDetail:
           type: ["string", "null"]
           description: Live game clock/inning label from ESPN (e.g. "Top 7th", "Bot 4th", "3rd Quarter"), null when not in progress
@@ -1762,7 +1762,7 @@ components:
           type: string
         status:
           type: string
-          enum: [scheduled, in_progress, final]
+          enum: [scheduled, in_progress, final, postponed]
         deadlinePassed:
           type: boolean
         isPickable:
@@ -1784,7 +1784,7 @@ components:
           description: User's 3-way pick (home_win, draw, away_win), null if not picked
         userPickResult:
           type: ["string", "null"]
-          enum: [pending, correct, incorrect, null]
+          enum: [pending, correct, incorrect, postponed, null]
         liveDetail:
           type: ["string", "null"]
 
@@ -1874,7 +1874,7 @@ components:
           type: string
         result:
           type: string
-          enum: [pending, correct, incorrect]
+          enum: [pending, correct, incorrect, postponed]
 
     PickEmDailyPickDetailTeam:
       type: object
@@ -1903,7 +1903,7 @@ components:
           type: ["string", "null"]
         result:
           type: string
-          enum: [pending, correct, incorrect]
+          enum: [pending, correct, incorrect, postponed]
         homeTeam:
           $ref: "#/components/schemas/PickEmDailyPickDetailTeam"
         awayTeam:

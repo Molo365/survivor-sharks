@@ -49,12 +49,14 @@ function WcGameCard({
 }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
-  const isPickable = game.isPickable;
+  const isPostponed = game.status === "postponed";
+  const isPickable = game.isPickable && !isPostponed;
 
   const result = pickedOption ? game.userPickResult : null;
   const isCorrect = result === "correct";
   const isWrong = result === "incorrect";
   const isPending = result === "pending";
+  const isPickPostponed = result === "postponed";
 
   return (
     <div
@@ -64,9 +66,11 @@ function WcGameCard({
           ? "border-red-500/60 shadow-[0_0_16px_rgba(239,68,68,0.22)]"
           : isFinal
             ? "border-border/30 opacity-90"
-            : isPickable
-              ? "border-primary/30"
-              : "border-border/25 opacity-80",
+            : isPostponed
+              ? "border-yellow-500/30 opacity-80"
+              : isPickable
+                ? "border-primary/30"
+                : "border-border/25 opacity-80",
       )}
     >
       {/* Header bar: group + status + time */}
@@ -88,9 +92,14 @@ function WcGameCard({
               Final
             </span>
           )}
+          {isPostponed && (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-400">
+              PPD
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          {!isFinal && !isLive && (
+          {!isFinal && !isLive && !isPostponed && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
               <Clock className="w-2.5 h-2.5" />
               {formatKickoffTime(game.startTime)}
@@ -108,6 +117,9 @@ function WcGameCard({
           )}
           {pickedOption && isPending && (
             <span className="text-[10px] font-bold text-muted-foreground/60">Pending</span>
+          )}
+          {pickedOption && isPickPostponed && (
+            <span className="text-[10px] font-bold text-yellow-400">PPD</span>
           )}
         </div>
       </div>

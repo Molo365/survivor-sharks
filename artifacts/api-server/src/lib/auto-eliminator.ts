@@ -26,6 +26,7 @@ import {
   fetchIntlGamesForDate,
   getTodayEtDate,
   formatDateEt,
+  formatDateEtDash,
   type EspnGame,
   getMlbWeekBounds,
   getMlbProcessingTrigger,
@@ -35,6 +36,7 @@ import {
 import {
   getCurrentWcPhase,
   fetchTodayWcGames,
+  fetchWcGamesForDate,
   wcOutcome as wcOutcomeFromWc,
   type WcGame,
 } from "./wc";
@@ -678,8 +680,16 @@ export async function processPickEmResults(): Promise<{
 
   if (pickemPools.length === 0) return { picksGraded };
 
-  const todayEspn = formatDateEt(new Date());
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const todayEspn = formatDateEt(now);
   const todayEt = getTodayEtDate();
+  const yesterdayEspn = formatDateEt(yesterday);
+  const yesterdayEt = formatDateEtDash(yesterday);
+
+  // Both dates checked so West Coast games finishing after midnight ET are graded
+  const datesToCheck = [todayEt, yesterdayEt];
 
   // Separate pools by sport
   const mlbPools = pickemPools.filter((p) => p.sport === "mlb");
@@ -689,8 +699,13 @@ export async function processPickEmResults(): Promise<{
   // ── MLB grading ───────────────────────────────────────────────────────────
 
   if (mlbPools.length > 0) {
-    const games = await fetchGamesForDate("mlb", todayEspn);
-    const finalGames = games.filter(
+    const [todayGames, yesterdayGames] = await Promise.all([
+      fetchGamesForDate("mlb", todayEspn),
+      fetchGamesForDate("mlb", yesterdayEspn),
+    ]);
+    const allGames = [...todayGames, ...yesterdayGames];
+
+    const finalGames = allGames.filter(
       (g) =>
         g.isCompleted &&
         g.homeScore != null &&
@@ -714,6 +729,8 @@ export async function processPickEmResults(): Promise<{
       );
     }
 
+    const mlbPostponedIds = allGames.filter((g) => g.isPostponed).map((g) => g.id);
+
     for (const pool of mlbPools) {
       for (const [gameId, winningTeamId] of winnerByGameId) {
         const gamePicks = await db
@@ -723,7 +740,7 @@ export async function processPickEmResults(): Promise<{
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.gameId, gameId),
-              eq(pickemPicksTable.gameDate, todayEt),
+              inArray(pickemPicksTable.gameDate, datesToCheck),
               eq(pickemPicksTable.result, "pending"),
             ),
           );
@@ -744,14 +761,35 @@ export async function processPickEmResults(): Promise<{
           );
         }
       }
+
+      for (const gameId of mlbPostponedIds) {
+        const updated = await db
+          .update(pickemPicksTable)
+          .set({ result: "postponed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          )
+          .returning({ id: pickemPicksTable.id });
+        if (updated.length > 0) {
+          logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em: marked picks as postponed");
+        }
+      }
     }
   }
 
   // ── International Soccer grading (3-way: home_win / draw / away_win) ────────
 
   if (intlPools.length > 0) {
-    const intlGames = await fetchIntlGamesForDate(todayEspn);
-    const completedIntlGames = intlGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
+    const [todayIntlGames, yesterdayIntlGames] = await Promise.all([
+      fetchIntlGamesForDate(todayEspn),
+      fetchIntlGamesForDate(yesterdayEspn),
+    ]);
+    const allIntlGames = [...todayIntlGames, ...yesterdayIntlGames];
+    const completedIntlGames = allIntlGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
 
     const outcomeByIntlGameId = new Map<string, "home_win" | "draw" | "away_win">();
     for (const game of completedIntlGames) {
@@ -768,6 +806,8 @@ export async function processPickEmResults(): Promise<{
       );
     }
 
+    const intlPostponedIds = allIntlGames.filter((g) => g.isPostponed).map((g) => g.id);
+
     for (const pool of intlPools) {
       for (const [gameId, outcome] of outcomeByIntlGameId) {
         const gamePicks = await db
@@ -777,7 +817,7 @@ export async function processPickEmResults(): Promise<{
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.gameId, gameId),
-              eq(pickemPicksTable.gameDate, todayEt),
+              inArray(pickemPicksTable.gameDate, datesToCheck),
               eq(pickemPicksTable.result, "pending"),
             ),
           );
@@ -798,6 +838,23 @@ export async function processPickEmResults(): Promise<{
           );
         }
       }
+
+      for (const gameId of intlPostponedIds) {
+        const updated = await db
+          .update(pickemPicksTable)
+          .set({ result: "postponed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          )
+          .returning({ id: pickemPicksTable.id });
+        if (updated.length > 0) {
+          logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em intl: marked picks as postponed");
+        }
+      }
     }
   }
 
@@ -807,8 +864,12 @@ export async function processPickEmResults(): Promise<{
     const wcPhase = getCurrentWcPhase();
     // Only grade during active WC phases; skip if no phase active
     if (wcPhase) {
-      const wcGames = await fetchTodayWcGames();
-      const completedWcGames = wcGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
+      const [wcTodayGames, wcYesterdayGames] = await Promise.all([
+        fetchTodayWcGames(),
+        fetchWcGamesForDate(yesterdayEt),
+      ]);
+      const allWcGames = [...wcTodayGames, ...wcYesterdayGames];
+      const completedWcGames = allWcGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
 
       // Build gameId → 3-way outcome map
       const outcomeByGameId = new Map<string, "home_win" | "draw" | "away_win">();
@@ -836,7 +897,7 @@ export async function processPickEmResults(): Promise<{
               and(
                 eq(pickemPicksTable.poolId, pool.id),
                 eq(pickemPicksTable.gameId, gameId),
-                eq(pickemPicksTable.gameDate, todayEt),
+                inArray(pickemPicksTable.gameDate, datesToCheck),
                 eq(pickemPicksTable.result, "pending"),
               ),
             );

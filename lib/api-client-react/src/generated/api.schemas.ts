@@ -628,6 +628,7 @@ export const PickEmGameStatus = {
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   final: 'final',
+  postponed: 'postponed',
 } as const;
 
 /**
@@ -640,6 +641,7 @@ export const PickEmGameUserPickResult = {
   pending: 'pending',
   correct: 'correct',
   incorrect: 'incorrect',
+  postponed: 'postponed',
 } as const;
 
 /**
@@ -740,6 +742,7 @@ export const WcScheduleGameStatus = {
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   final: 'final',
+  postponed: 'postponed',
 } as const;
 
 /**
@@ -752,6 +755,7 @@ export const WcScheduleGameUserPickResult = {
   pending: 'pending',
   correct: 'correct',
   incorrect: 'incorrect',
+  postponed: 'postponed',
 } as const;
 
 export interface WcScheduleGame {

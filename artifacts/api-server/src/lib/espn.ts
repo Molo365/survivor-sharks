@@ -46,7 +46,7 @@ export interface EspnStartingPitcher {
 export interface EspnGame {
   id: string;
   date: string;          // ISO timestamp — game start time
-  status: "scheduled" | "in_progress" | "final";
+  status: "scheduled" | "in_progress" | "final" | "postponed";
   homeTeam: EspnTeam;
   awayTeam: EspnTeam;
   homeScore: number | null;
@@ -54,6 +54,7 @@ export interface EspnGame {
   homeRecord: string | null;
   awayRecord: string | null;
   isCompleted: boolean;
+  isPostponed: boolean;  // true when ESPN reports Postponed or Canceled
   hasStarted: boolean;
   liveState: EspnLiveState | null;
   homeStartingPitcher: EspnStartingPitcher | null;
@@ -133,6 +134,8 @@ function parseGame(event: EspnEvent): EspnGame {
   const state = comp?.status?.type?.state ?? "pre";
   const isCompleted = comp?.status?.type?.completed ?? false;
   const hasStarted = state === "in" || state === "post" || isCompleted;
+  const statusName = comp?.status?.type?.name ?? "";
+  const isPostponed = /postponed|cancel/i.test(statusName);
 
   // Live game state (only present when game is in progress)
   let liveState: EspnLiveState | null = null;
@@ -162,7 +165,7 @@ function parseGame(event: EspnEvent): EspnGame {
   return {
     id: event.id,
     date: event.date,
-    status: isCompleted ? "final" : hasStarted ? "in_progress" : "scheduled",
+    status: isPostponed ? "postponed" : isCompleted ? "final" : hasStarted ? "in_progress" : "scheduled",
     homeTeam: {
       id: home?.team.id ?? "",
       abbreviation: home?.team.abbreviation ?? "",
@@ -178,6 +181,7 @@ function parseGame(event: EspnEvent): EspnGame {
     homeScore: home?.score != null ? parseInt(home.score) : null,
     awayScore: away?.score != null ? parseInt(away.score) : null,
     isCompleted,
+    isPostponed,
     hasStarted,
     liveState,
     homeRecord: home?.records?.find(r => r.name === "overall" || r.type === "total")?.summary ?? null,

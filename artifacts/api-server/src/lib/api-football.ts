@@ -35,9 +35,10 @@ type ApifFixture = {
   goals: { home: number | null; away: number | null };
 };
 
-function mapStatus(short: string): "scheduled" | "in_progress" | "final" {
+function mapStatus(short: string): "scheduled" | "in_progress" | "final" | "postponed" {
   if (["FT", "AET", "PEN", "AWD", "WO"].includes(short)) return "final";
-  if (["NS", "TBD", "PST", "CANC", "ABD", "SUSP"].includes(short)) return "scheduled";
+  if (["PST", "CANC", "ABD"].includes(short)) return "postponed";
+  if (["NS", "TBD", "SUSP"].includes(short)) return "scheduled";
   return "in_progress";
 }
 
@@ -57,7 +58,8 @@ function mapFixture(f: ApifFixture): EspnGame {
   const short = f.fixture.status.short;
   const status = mapStatus(short);
   const isCompleted = status === "final";
-  const hasStarted = short !== "NS" && short !== "TBD" && short !== "PST";
+  const isPostponed = status === "postponed";
+  const hasStarted = short !== "NS" && short !== "TBD" && !isPostponed;
 
   const homeTeam: EspnTeam = {
     id: `apif-team-${f.teams.home.id}`,
@@ -88,6 +90,7 @@ function mapFixture(f: ApifFixture): EspnGame {
     homeRecord: null,
     awayRecord: null,
     isCompleted,
+    isPostponed,
     hasStarted,
     liveState: liveDetail
       ? {

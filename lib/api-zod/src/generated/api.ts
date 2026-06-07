@@ -841,7 +841,7 @@ export const GetPickEmGamesResponse = zod.object({
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
-  "status": zod.enum(['scheduled', 'in_progress', 'final']),
+  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed']),
   "deadlinePassed": zod.boolean(),
   "awayTeam": zod.object({
   "id": zod.string(),
@@ -858,7 +858,7 @@ export const GetPickEmGamesResponse = zod.object({
   "awayScore": zod.number().nullish(),
   "homeScore": zod.number().nullish(),
   "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
-  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal(null)]).nullish(),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish(),
   "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress'),
   "liveOuts": zod.number().nullish().describe('Current number of outs (0–3) for in-progress MLB games, null otherwise'),
   "liveBaseRunners": zod.object({
@@ -903,7 +903,7 @@ export const GetWcScheduleResponse = zod.object({
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
-  "status": zod.enum(['scheduled', 'in_progress', 'final']),
+  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed']),
   "deadlinePassed": zod.boolean(),
   "isPickable": zod.boolean().describe('True when the game is within the 24-hour pick window and has not yet started'),
   "group": zod.string().nullish().describe('Group label e.g. \'Group A\''),
@@ -922,7 +922,7 @@ export const GetWcScheduleResponse = zod.object({
   "awayScore": zod.number().nullish(),
   "homeScore": zod.number().nullish(),
   "userPickOption": zod.string().nullish().describe('User\'s 3-way pick (home_win, draw, away_win), null if not picked'),
-  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal(null)]).nullish(),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish(),
   "liveDetail": zod.string().nullish()
 }))
 }))

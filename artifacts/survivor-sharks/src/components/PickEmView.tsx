@@ -127,11 +127,13 @@ function WcGameCard({
 }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
-  const isLocked = game.deadlinePassed || isLive;
+  const isPostponed = game.status === "postponed";
+  const isLocked = game.deadlinePassed || isLive || isPostponed;
 
   const result = pickedOption ? game.userPickResult : null;
   const isCorrect = result === "correct";
   const isWrong = result === "incorrect";
+  const isPickPostponed = result === "postponed";
 
   return (
     <div
@@ -175,6 +177,8 @@ function WcGameCard({
             </span>
           ) : isFinal ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">Final</span>
+          ) : isPostponed ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">PPD</span>
           ) : (
             <div className="flex items-center gap-0.5">
               <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
@@ -229,6 +233,7 @@ function WcGameCard({
               {label}
               {isPicked && isCorrect && <Check className="w-3 h-3 inline ml-1 text-green-400" />}
               {isPicked && isWrong && <X className="w-3 h-3 inline ml-1" />}
+              {isPicked && isPickPostponed && <span className="text-[9px] ml-1 font-bold">PPD</span>}
             </button>
           );
         })}
@@ -255,7 +260,8 @@ interface GameCardProps {
 function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
-  const isLocked = game.deadlinePassed || isLive;
+  const isPostponed = game.status === "postponed";
+  const isLocked = game.deadlinePassed || isLive || isPostponed;
 
   function teamBtn(
     team: PickEmGame["awayTeam"],
@@ -268,6 +274,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
     const result = isPicked ? game.userPickResult : null;
     const isCorrect = result === "correct";
     const isWrong = result === "incorrect";
+    const isPickPostponed = result === "postponed";
     const isHome = side === "home";
 
     // Build pitcher line e.g. "Spencer Miles (5-4) 3.45 ERA"
@@ -340,6 +347,10 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
             ) : isWrong ? (
               <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80">
                 ✗ Wrong
+              </span>
+            ) : isPickPostponed ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                PPD
               </span>
             ) : (
               <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
@@ -423,6 +434,10 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
           ) : isFinal ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
               Final
+            </span>
+          ) : isPostponed ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
+              PPD
             </span>
           ) : (
             <>
