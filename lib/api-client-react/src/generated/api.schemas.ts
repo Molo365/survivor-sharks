@@ -83,6 +83,7 @@ export const PoolInputPoolType = {
   weekly: 'weekly',
   mid_season: 'mid_season',
   pickem: 'pickem',
+  group_stage_predictor: 'group_stage_predictor',
 } as const;
 
 /**
@@ -124,6 +125,7 @@ export const PoolUpdatePoolType = {
   weekly: 'weekly',
   mid_season: 'mid_season',
   pickem: 'pickem',
+  group_stage_predictor: 'group_stage_predictor',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -160,6 +162,7 @@ export const PoolPoolType = {
   weekly: 'weekly',
   mid_season: 'mid_season',
   pickem: 'pickem',
+  group_stage_predictor: 'group_stage_predictor',
 } as const;
 
 /**
@@ -211,6 +214,7 @@ export const PoolDetailPoolType = {
   weekly: 'weekly',
   mid_season: 'mid_season',
   pickem: 'pickem',
+  group_stage_predictor: 'group_stage_predictor',
 } as const;
 
 /**

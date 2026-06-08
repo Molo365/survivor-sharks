@@ -455,3 +455,33 @@ export function wcOutcome(g: WcGame): "home_win" | "draw" | "away_win" | null {
   if (g.awayScore > g.homeScore) return "away_win";
   return "draw";
 }
+
+// ---------------------------------------------------------------------------
+// WC 2026 Group Stage — static group definitions
+// Source: FIFA World Cup 2026 draw, Miami, December 5, 2024
+// Team names match the canonical keys in TEAM_META above.
+// ---------------------------------------------------------------------------
+export interface WcGroup {
+  name: string;
+  teams: [string, string, string, string];
+}
+
+export const WC_2026_GROUPS: WcGroup[] = [
+  { name: "A", teams: ["USA",       "Panama",   "Uruguay",        "South Africa"] },
+  { name: "B", teams: ["Canada",    "Morocco",  "Czech Republic", "Norway"      ] },
+  { name: "C", teams: ["Mexico",    "Curaçao",  "Spain",          "Algeria"     ] },
+  { name: "D", teams: ["Argentina", "Australia","England",        "Ghana"       ] },
+  { name: "E", teams: ["France",    "Colombia", "Egypt",          "Japan"       ] },
+  { name: "F", teams: ["Germany",   "Brazil",   "Netherlands",    "Ecuador"     ] },
+  { name: "G", teams: ["Portugal",  "Belgium",  "South Korea",    "Tunisia"     ] },
+  { name: "H", teams: ["Spain",     "Croatia",  "Saudi Arabia",   "DR Congo"   ] },
+  { name: "I", teams: ["England",   "Senegal",  "Switzerland",    "Iran"        ] },
+  { name: "J", teams: ["Turkey",    "Paraguay", "Ivory Coast",    "Iraq"        ] },
+  { name: "K", teams: ["Austria",   "Scotland", "New Zealand",    "Jordan"      ] },
+  { name: "L", teams: ["Sweden",    "Haiti",    "Bosnia & Herzegovina", "Qatar" ] },
+];
+
+/** Return the group definition for a given group name (A–L), or undefined. */
+export function getWcGroup(groupName: string): WcGroup | undefined {
+  return WC_2026_GROUPS.find((g) => g.name === groupName);
+}

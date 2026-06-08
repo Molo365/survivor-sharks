@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
 import wcLogoImg from "@assets/WorldCup2026_1780690496803.png";
 import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
@@ -68,7 +68,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nfl]: ["season", "weekly", "mid_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
-  [PoolInputSport.worldcup]: ["pickem"],
+  [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
 };
 
 const POOL_TYPES = [
@@ -106,6 +106,18 @@ const POOL_TYPES = [
     cardClass:
       "border-green-500/30 bg-[linear-gradient(145deg,rgba(34,197,94,0.05)_0%,transparent_100%)]",
   },
+  {
+    id: "group_stage_predictor" as const,
+    label: "Group Stage Predictor",
+    icon: ListOrdered,
+    tagline: "Predict Every Group, Every Position",
+    description:
+      "Rank all 4 teams in each World Cup group from 1st to 4th. Compete to nail the final group standings.",
+    badge: "WC 2026",
+    badgeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    cardClass:
+      "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -117,7 +129,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -161,7 +173,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");

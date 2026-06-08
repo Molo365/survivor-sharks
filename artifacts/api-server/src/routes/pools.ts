@@ -75,7 +75,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season" | "pickem") ?? "season";
+  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor") ?? "season";
   if (resolvedPoolType === "mid_season" && !startWeek) {
     res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;
@@ -248,7 +248,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(currentWeek !== undefined && { currentWeek }),
     ...(season !== undefined && { season }),
     ...(isActive !== undefined && { isActive }),
-    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" }),
+    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" }),
     ...(startWeek !== undefined && { startWeek }),
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
