@@ -1607,6 +1607,34 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       <div className="mt-8">
         {/* ── Today's Picks ── */}
         <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+          <div className="space-y-6">
+            {/* Welcome banner — shown once per user per pool, all sport types */}
+            {showWelcome && (
+              <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+                <span className="text-xl leading-none mt-0.5">🎯</span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-foreground leading-snug">
+                    Welcome to {poolName}!
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+                    {is3way
+                      ? "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
+                      : pickFrequency === "weekly"
+                      ? "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"
+                      : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissWelcome}
+                  className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+                  aria-label="Dismiss welcome message"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
           {isWc ? (
             <WcScheduleView poolId={poolId} commissionerId={commissionerId} />
           ) : gamesLoading ? (
@@ -1623,32 +1651,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Welcome banner — shown once per user per pool */}
-              {showWelcome && (
-                <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
-                  <span className="text-xl leading-none mt-0.5">🎯</span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-foreground leading-snug">
-                      Welcome to {poolName}!
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-                      {is3way
-                        ? "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck!"
-                        : pickFrequency === "weekly"
-                        ? "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"
-                        : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={dismissWelcome}
-                    className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-                    aria-label="Dismiss welcome message"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
 
               {/* Date header with navigation */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1759,6 +1761,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               )}
             </div>
           )}
+          </div>
         </TabsContent>
 
         {/* ── Leaderboard (simple standings) ── */}
