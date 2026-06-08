@@ -27,9 +27,15 @@ export function NavBar() {
                 Dashboard
               </Link>
               {user.role === "admin" && (
-                <Link href="/admin" className="text-sm font-medium text-accent hover:text-primary transition-colors" data-testid="nav-admin">
+                <a
+                  href="/admin/dashboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-accent hover:text-primary transition-colors"
+                  data-testid="nav-admin"
+                >
                   Super Admin
-                </Link>
+                </a>
               )}
               <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
                 <span className="text-sm text-muted-foreground truncate max-w-[90px]">
