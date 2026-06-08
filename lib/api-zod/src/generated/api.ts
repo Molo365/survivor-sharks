@@ -1156,6 +1156,58 @@ export const GetPickEmYesterdayWinnerResponse = zod.object({
 
 
 /**
+ * @summary Get WC 2026 group definitions with team info and the user's existing picks
+ */
+export const GetGspGroupsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetGspGroupsResponseItem = zod.object({
+  "name": zod.string(),
+  "teams": zod.array(zod.object({
+  "name": zod.string(),
+  "abbr": zod.string(),
+  "flagUrl": zod.string()
+})),
+  "myPick": zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable()
+})
+export const GetGspGroupsResponse = zod.array(GetGspGroupsResponseItem)
+
+
+/**
+ * @summary Upsert group stage predictor picks (all groups submitted at once)
+ */
+export const SubmitGspPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitGspPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}))
+})
+
+export const SubmitGspPicksResponseItem = zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const SubmitGspPicksResponse = zod.array(SubmitGspPicksResponseItem)
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({

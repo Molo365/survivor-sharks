@@ -485,3 +485,19 @@ export const WC_2026_GROUPS: WcGroup[] = [
 export function getWcGroup(groupName: string): WcGroup | undefined {
   return WC_2026_GROUPS.find((g) => g.name === groupName);
 }
+
+export interface WcTeamInfo { name: string; abbr: string; flagUrl: string; }
+
+/** Return display metadata for a WC team by canonical name. */
+export function getWcTeamInfo(name: string): WcTeamInfo {
+  const resolved = resolveTeamName(name);
+  const meta = TEAM_META[resolved];
+  const espnSlug = meta?.espnSlug ?? "";
+  return {
+    name: resolved,
+    abbr: meta?.abbr ?? resolved.slice(0, 3).toUpperCase(),
+    flagUrl: espnSlug
+      ? `https://a.espncdn.com/i/teamlogos/countries/500/${espnSlug}.png`
+      : "",
+  };
+}

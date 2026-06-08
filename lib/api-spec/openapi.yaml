@@ -17,6 +17,7 @@ tags:
   - name: picks
     description: Weekly picks
   - name: pickem
+  - name: gsp
     description: Pick-em pools
   - name: teams
     description: Sports teams and schedules
@@ -793,6 +794,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PickEmYesterdayWinner"
+
+  # ── Group Stage Predictor ─────────────────────────────────────────────────
+  /pools/{poolId}/gsp/groups:
+    get:
+      operationId: getGspGroups
+      tags: [gsp]
+      summary: Get WC 2026 group definitions with team info and the user's existing picks
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All 12 WC groups with team metadata and current user picks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspGroupWithPick"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/gsp/picks:
+    post:
+      operationId: submitGspPicks
+      tags: [gsp]
+      summary: Upsert group stage predictor picks (all groups submitted at once)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GspPicksInput"
+      responses:
+        "200":
+          description: Saved picks for all submitted groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspPick"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
@@ -2196,3 +2264,53 @@ components:
           type: integer
         date:
           type: string
+
+    GspTeam:
+      type: object
+      required: [name, abbr, flagUrl]
+      properties:
+        name:
+          type: string
+        abbr:
+          type: string
+        flagUrl:
+          type: string
+
+    GspPick:
+      type: object
+      required: [groupName, pos1Team, pos2Team, pos3Team, pos4Team]
+      properties:
+        groupName:
+          type: string
+        pos1Team:
+          type: string
+        pos2Team:
+          type: string
+        pos3Team:
+          type: string
+        pos4Team:
+          type: string
+
+    GspGroupWithPick:
+      type: object
+      required: [name, teams, myPick]
+      properties:
+        name:
+          type: string
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/GspTeam"
+        myPick:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GspPick"
+
+    GspPicksInput:
+      type: object
+      required: [picks]
+      properties:
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/GspPick"

@@ -1038,6 +1038,30 @@ export interface PickEmProcessResult {
   date: string;
 }
 
+export interface GspTeam {
+  name: string;
+  abbr: string;
+  flagUrl: string;
+}
+
+export interface GspPick {
+  groupName: string;
+  pos1Team: string;
+  pos2Team: string;
+  pos3Team: string;
+  pos4Team: string;
+}
+
+export interface GspGroupWithPick {
+  name: string;
+  teams: GspTeam[];
+  myPick: GspPick | null;
+}
+
+export interface GspPicksInput {
+  picks: GspPick[];
+}
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

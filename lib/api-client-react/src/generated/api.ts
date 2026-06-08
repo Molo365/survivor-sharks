@@ -36,6 +36,9 @@ import type {
   GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
   GetPickEmYesterdayWinnerParams,
+  GspGroupWithPick,
+  GspPick,
+  GspPicksInput,
   HealthStatus,
   JoinPoolInput,
   Leaderboard,
@@ -2554,6 +2557,155 @@ export function useGetPickEmYesterdayWinner<TData = Awaited<ReturnType<typeof ge
 
 
 
+
+export const getGetGspGroupsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/groups`
+}
+
+/**
+ * @summary Get WC 2026 group definitions with team info and the user's existing picks
+ */
+export const getGspGroups = async (poolId: number, options?: RequestInit): Promise<GspGroupWithPick[]> => {
+
+  return customFetch<GspGroupWithPick[]>(getGetGspGroupsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGspGroupsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/gsp/groups`
+    ] as const;
+    }
+
+
+export const getGetGspGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getGspGroups>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGspGroupsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGspGroups>>> = ({ signal }) => getGspGroups(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGspGroups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGspGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof getGspGroups>>>
+export type GetGspGroupsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get WC 2026 group definitions with team info and the user's existing picks
+ */
+
+export function useGetGspGroups<TData = Awaited<ReturnType<typeof getGspGroups>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGspGroupsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitGspPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/picks`
+}
+
+/**
+ * @summary Upsert group stage predictor picks (all groups submitted at once)
+ */
+export const submitGspPicks = async (poolId: number,
+    gspPicksInput: GspPicksInput, options?: RequestInit): Promise<GspPick[]> => {
+
+  return customFetch<GspPick[]>(getSubmitGspPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      gspPicksInput,)
+  }
+);}
+
+
+
+
+export const getSubmitGspPicksMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGspPicks>>, TError,{poolId: number;data: BodyType<GspPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitGspPicks>>, TError,{poolId: number;data: BodyType<GspPicksInput>}, TContext> => {
+
+const mutationKey = ['submitGspPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitGspPicks>>, {poolId: number;data: BodyType<GspPicksInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitGspPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitGspPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitGspPicks>>>
+    export type SubmitGspPicksMutationBody = BodyType<GspPicksInput>
+    export type SubmitGspPicksMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Upsert group stage predictor picks (all groups submitted at once)
+ */
+export const useSubmitGspPicks = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGspPicks>>, TError,{poolId: number;data: BodyType<GspPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitGspPicks>>,
+        TError,
+        {poolId: number;data: BodyType<GspPicksInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitGspPicksMutationOptions(options));
+    }
 
 export const getAdminListPoolsUrl = () => {
 

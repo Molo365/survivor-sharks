@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -16,6 +16,7 @@ import { PoolStats } from "@/components/PoolStats";
 import { CommissionerPanel } from "@/components/CommissionerPanel";
 import { InjuriesTab } from "@/components/InjuriesTab";
 import { PickEmView } from "@/components/PickEmView";
+import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -26,6 +27,7 @@ export default function PoolHome() {
   const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
 
   const isPickEm = (pool?.poolType as string) === "pickem";
+  const isGsp = (pool?.poolType as string) === "group_stage_predictor";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -108,6 +110,11 @@ export default function PoolHome() {
                       <Crosshair className="w-3 h-3" /> Pick-Ems
                     </span>
                   )}
+                  {(pool.poolType as string) === "group_stage_predictor" && (
+                    <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
+                      <ListOrdered className="w-3 h-3" /> Group Predictor
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
@@ -162,6 +169,8 @@ export default function PoolHome() {
 
             {(pool.poolType as string) === "pickem" ? (
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />
+            ) : isGsp ? (
+              <GroupStagePredictorView poolId={pool.id} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
