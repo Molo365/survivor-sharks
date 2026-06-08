@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   ChevronUp,
@@ -20,11 +21,15 @@ import {
   Send,
   Trophy,
   Medal,
+  ShieldAlert,
+  Copy,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Props {
   poolId: number;
+  isCommissioner?: boolean;
+  inviteCode?: string | null;
 }
 
 type TeamOrder = [string, string, string, string];
@@ -170,6 +175,50 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
   );
 }
 
+// ── Commissioner tab ──────────────────────────────────────────────────────────
+
+function CommissionerTab({ inviteCode }: { inviteCode: string }) {
+  const { toast } = useToast();
+
+  const copyInvite = () => {
+    navigator.clipboard.writeText(inviteCode);
+    toast({ title: "Invite code copied to clipboard!" });
+  };
+
+  const copyLink = () => {
+    const url = `${window.location.origin}/join/${inviteCode}`;
+    navigator.clipboard.writeText(url);
+    toast({ title: "Invite link copied!", description: url });
+  };
+
+  return (
+    <div className="pt-4 max-w-xl space-y-6">
+      <Card className="bg-card border-border/50 overflow-hidden relative">
+        <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />
+        <CardHeader>
+          <CardTitle className="font-bebas text-3xl tracking-wide text-primary">Invite Code</CardTitle>
+          <CardDescription>Share this code or link to let sharks into the pool.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
+              {inviteCode}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
+                <Copy className="w-5 h-5 mr-2" /> Copy Code
+              </Button>
+              <Button size="sm" variant="outline" onClick={copyLink} className="font-bebas tracking-wider text-sm">
+                <Copy className="w-4 h-4 mr-2" /> Copy Invite Link
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── My Picks tab ─────────────────────────────────────────────────────────────
 
 function MyPicksTab({ poolId }: { poolId: number }) {
@@ -181,26 +230,32 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   const [orders, setOrders] = useState<Record<string, TeamOrder>>({});
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
+  // savedOrders mirrors what is currently persisted in the DB
+  const [savedOrders, setSavedOrders] = useState<Record<string, TeamOrder>>({});
   const [initialised, setInitialised] = useState(false);
 
   useEffect(() => {
     if (!groups || initialised) return;
     const newOrders: Record<string, TeamOrder> = {};
+    const newSaved: Record<string, TeamOrder> = {};
     const newConfirmed = new Set<string>();
     for (const group of groups) {
       if (group.myPick) {
-        newOrders[group.name] = [
+        const savedOrder: TeamOrder = [
           group.myPick.pos1Team,
           group.myPick.pos2Team,
           group.myPick.pos3Team,
           group.myPick.pos4Team,
         ];
+        newOrders[group.name] = savedOrder;
+        newSaved[group.name] = savedOrder;
         newConfirmed.add(group.name);
       } else {
         newOrders[group.name] = group.teams.map((t) => t.name) as TeamOrder;
       }
     }
     setOrders(newOrders);
+    setSavedOrders(newSaved);
     setConfirmed(newConfirmed);
     setInitialised(true);
   }, [groups, initialised]);
@@ -227,6 +282,16 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   const totalGroups = groups?.length ?? 12;
   const allConfirmed = confirmedCount === totalGroups;
 
+  // Show the submit bar only when all groups are confirmed AND at least one
+  // confirmed group's current order differs from what's saved in the DB.
+  const hasPendingChanges = allConfirmed && Array.from(confirmed).some((g) => {
+    const saved = savedOrders[g];
+    const current = orders[g];
+    if (!saved) return true; // group has never been submitted
+    if (!current) return false;
+    return current.some((t, i) => t !== saved[i]);
+  });
+
   async function handleSubmit() {
     if (!allConfirmed) return;
     const picks = Object.entries(orders).map(([groupName, order]) => ({
@@ -241,6 +306,8 @@ function MyPicksTab({ poolId }: { poolId: number }) {
       {
         onSuccess: () => {
           toast({ title: "Picks locked in! 🏆", description: "All 12 group predictions have been saved." });
+          // Mark current orders as saved so the bar hides
+          setSavedOrders({ ...orders });
           queryClient.invalidateQueries({ queryKey: ["getGspGroups", poolId] });
         },
         onError: () => {
@@ -402,40 +469,36 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         })}
       </div>
 
-      {/* Sticky submit */}
-      <div className="sticky bottom-4 flex justify-center pt-2">
-        <div className={cn(
-          "flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm transition-all",
-          allConfirmed ? "bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10" : "bg-card/90 border-border/50",
-        )}>
-          <div className="text-center sm:text-left">
-            <p className={cn("font-bebas text-xl tracking-wider", allConfirmed ? "text-yellow-300" : "text-muted-foreground")}>
-              {allConfirmed ? "All groups predicted!" : `${totalGroups - confirmedCount} group${totalGroups - confirmedCount !== 1 ? "s" : ""} left`}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {allConfirmed ? "Lock in your picks for all 12 WC groups" : "Rank and confirm every group to unlock submission"}
-            </p>
+      {/* Sticky submit bar — only visible when there are unsaved changes */}
+      {hasPendingChanges && (
+        <div className="sticky bottom-4 flex justify-center pt-2">
+          <div className="flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10">
+            <div className="text-center sm:text-left">
+              <p className="font-bebas text-xl tracking-wider text-yellow-300">
+                All groups predicted!
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Lock in your picks for all 12 WC groups
+              </p>
+            </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitPicks.isPending}
+              className="gap-2 font-bebas text-xl tracking-wider px-8 py-5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20"
+            >
+              <Send className="w-5 h-5" />
+              {submitPicks.isPending ? "Saving..." : "Submit All Picks"}
+            </Button>
           </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={!allConfirmed || submitPicks.isPending}
-            className={cn(
-              "gap-2 font-bebas text-xl tracking-wider px-8 py-5 rounded-xl transition-all",
-              allConfirmed ? "bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20" : "bg-muted text-muted-foreground cursor-not-allowed",
-            )}
-          >
-            <Send className="w-5 h-5" />
-            {submitPicks.isPending ? "Saving..." : "Submit All Picks"}
-          </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 // ── Main view ────────────────────────────────────────────────────────────────
 
-export function GroupStagePredictorView({ poolId }: Props) {
+export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -458,6 +521,11 @@ export function GroupStagePredictorView({ poolId }: Props) {
           <TabsTrigger value="leaderboard" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
             <Trophy className="w-4 h-4" /> Leaderboard
           </TabsTrigger>
+          {isCommissioner && (
+            <TabsTrigger value="commissioner" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2 text-muted-foreground hover:text-foreground ml-auto">
+              <ShieldAlert className="w-4 h-4" /> Commissioner
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="picks">
@@ -467,6 +535,12 @@ export function GroupStagePredictorView({ poolId }: Props) {
         <TabsContent value="leaderboard">
           <LeaderboardTab poolId={poolId} />
         </TabsContent>
+
+        {isCommissioner && inviteCode && (
+          <TabsContent value="commissioner">
+            <CommissionerTab inviteCode={inviteCode} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

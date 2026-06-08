@@ -170,7 +170,7 @@ export default function PoolHome() {
             {(pool.poolType as string) === "pickem" ? (
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />
             ) : isGsp ? (
-              <GroupStagePredictorView poolId={pool.id} />
+              <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
