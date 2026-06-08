@@ -4,6 +4,8 @@ import {
   useSubmitGspPicks,
   useGetGspLeaderboard,
   getGetGspLeaderboardQueryKey,
+  useGetGspMemberPicks,
+  getGetGspMemberPicksQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   ChevronUp,
@@ -23,6 +26,7 @@ import {
   Medal,
   ShieldAlert,
   Copy,
+  X,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -47,6 +51,129 @@ const RANK_STYLES = [
   { icon: "🥉", bg: "bg-orange-600/10 border-orange-600/30 text-orange-400" },
 ];
 
+// ── Player picks modal ────────────────────────────────────────────────────────
+
+function PlayerPicksModal({
+  poolId,
+  userId,
+  displayName,
+  onClose,
+}: {
+  poolId: number;
+  userId: number;
+  displayName: string;
+  onClose: () => void;
+}) {
+  const { data: groups, isLoading } = useGetGspMemberPicks(poolId, userId, {
+    query: { queryKey: getGetGspMemberPicksQueryKey(poolId, userId) },
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-background border-border/60 p-0">
+        {/* Header */}
+        <DialogHeader className="flex flex-row items-center justify-between px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
+          <DialogTitle className="font-bebas text-2xl tracking-wider text-foreground leading-none">
+            <span className="text-yellow-400">{displayName}</span>
+            <span className="text-muted-foreground">'s Predictions</span>
+          </DialogTitle>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </DialogHeader>
+
+        <div className="px-6 pb-6 pt-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <Skeleton key={i} className="h-32 rounded-xl" />
+              ))}
+            </div>
+          ) : !groups || groups.length === 0 ? (
+            <p className="text-center text-muted-foreground py-10">No predictions found.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {groups.map((group) => {
+                const teamByName = new Map(group.teams.map((t) => [t.name, t]));
+                const order = group.myPick
+                  ? [
+                      group.myPick.pos1Team,
+                      group.myPick.pos2Team,
+                      group.myPick.pos3Team,
+                      group.myPick.pos4Team,
+                    ]
+                  : null;
+
+                return (
+                  <div
+                    key={group.name}
+                    className={cn(
+                      "rounded-xl border p-3 bg-card",
+                      order ? "border-border/50" : "border-border/30 opacity-60",
+                    )}
+                  >
+                    <p className="font-bebas text-lg tracking-wider text-foreground mb-2 flex items-center gap-1.5">
+                      <span className="text-yellow-400/70 text-sm">GROUP</span>
+                      {group.name}
+                    </p>
+
+                    {order ? (
+                      <div className="flex flex-col gap-1.5">
+                        {order.map((teamName, idx) => {
+                          const team = teamByName.get(teamName);
+                          const pos = POSITION_STYLES[idx];
+                          return (
+                            <div
+                              key={teamName}
+                              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-background/50 border border-border/20"
+                            >
+                              <span className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider border rounded-full px-1.5 py-0.5 w-9 text-center shrink-0",
+                                pos.bg,
+                              )}>
+                                {pos.label}
+                              </span>
+                              {team?.flagUrl ? (
+                                <img
+                                  src={team.flagUrl}
+                                  alt={teamName}
+                                  className="w-6 h-4 object-cover rounded-sm shrink-0"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
+                              ) : (
+                                <div className="w-6 h-4 rounded-sm bg-muted/50 flex items-center justify-center shrink-0">
+                                  <span className="text-[8px] text-muted-foreground font-bold">
+                                    {team?.abbr?.slice(0, 2)}
+                                  </span>
+                                </div>
+                              )}
+                              <span className="flex-1 text-sm font-medium text-foreground truncate">
+                                {team?.name ?? teamName}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic py-3 text-center">
+                        No pick submitted
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Leaderboard tab ──────────────────────────────────────────────────────────
 
 function LeaderboardTab({ poolId }: { poolId: number }) {
@@ -54,6 +181,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
   const { data: leaderboard, isLoading } = useGetGspLeaderboard(poolId, {
     query: { queryKey: getGetGspLeaderboardQueryKey(poolId), refetchInterval: 60_000 },
   });
+  const [selectedPlayer, setSelectedPlayer] = useState<{ userId: number; displayName: string } | null>(null);
 
   if (isLoading) {
     return (
@@ -77,101 +205,120 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
   const groupsScored = leaderboard[0]?.groupScores.filter((g) => g.hasResult).length ?? 0;
 
   return (
-    <div className="space-y-4 pt-4">
-      {/* Scoring status bar */}
-      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Medal className="w-4 h-4 text-yellow-400" />
-          <span className="text-sm font-medium">Group Results Entered</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            "font-bebas text-xl tracking-wider",
-            groupsScored === 12 ? "text-yellow-400" : "text-foreground",
-          )}>
-            {groupsScored}
-          </span>
-          <span className="text-muted-foreground font-bebas text-xl">/12</span>
-          {groupsScored === 0 && (
-            <span className="text-xs text-muted-foreground ml-2">
-              Leaderboard updates as results are entered
+    <>
+      {selectedPlayer && (
+        <PlayerPicksModal
+          poolId={poolId}
+          userId={selectedPlayer.userId}
+          displayName={selectedPlayer.displayName}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
+
+      <div className="space-y-4 pt-4">
+        {/* Scoring status bar */}
+        <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Medal className="w-4 h-4 text-yellow-400" />
+            <span className="text-sm font-medium">Group Results Entered</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "font-bebas text-xl tracking-wider",
+              groupsScored === 12 ? "text-yellow-400" : "text-foreground",
+            )}>
+              {groupsScored}
             </span>
-          )}
+            <span className="text-muted-foreground font-bebas text-xl">/12</span>
+            {groupsScored === 0 && (
+              <span className="text-xs text-muted-foreground ml-2">
+                Leaderboard updates as results are entered
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Player rows */}
-      <div className="space-y-2">
-        {leaderboard.map((entry) => {
-          const isMe = entry.userId === user?.id;
-          const rankStyle = RANK_STYLES[entry.rank - 1];
-          const pct = groupsScored > 0 ? (entry.totalScore / (groupsScored * 12)) * 100 : 0;
+        {/* Player rows */}
+        <div className="space-y-2">
+          {leaderboard.map((entry) => {
+            const isMe = entry.userId === user?.id;
+            const rankStyle = RANK_STYLES[entry.rank - 1];
+            const pct = groupsScored > 0 ? (entry.totalScore / (groupsScored * 12)) * 100 : 0;
+            const displayName = entry.displayName || entry.username;
 
-          return (
-            <div
-              key={entry.userId}
-              className={cn(
-                "rounded-xl border px-4 py-3 transition-all",
-                isMe
-                  ? "border-primary/40 bg-primary/5 shadow-[0_0_16px_rgba(var(--primary-rgb),0.06)]"
-                  : "border-border/50 bg-card hover:border-border",
-              )}
-            >
-              <div className="flex items-center gap-3">
-                {/* Rank badge */}
-                <div className={cn(
-                  "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 font-bebas text-lg",
-                  rankStyle
-                    ? rankStyle.bg
-                    : "bg-muted/30 border-border/40 text-muted-foreground",
-                )}>
-                  {rankStyle ? rankStyle.icon : `#${entry.rank}`}
-                </div>
+            return (
+              <div
+                key={entry.userId}
+                className={cn(
+                  "rounded-xl border px-4 py-3 transition-all",
+                  isMe
+                    ? "border-primary/40 bg-primary/5 shadow-[0_0_16px_rgba(var(--primary-rgb),0.06)]"
+                    : "border-border/50 bg-card hover:border-border",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Rank badge */}
+                  <div className={cn(
+                    "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 font-bebas text-lg",
+                    rankStyle
+                      ? rankStyle.bg
+                      : "bg-muted/30 border-border/40 text-muted-foreground",
+                  )}>
+                    {rankStyle ? rankStyle.icon : `#${entry.rank}`}
+                  </div>
 
-                {/* Name */}
-                <div className="flex-1 min-w-0">
-                  <p className={cn("font-medium truncate", isMe && "text-primary")}>
-                    {entry.displayName || entry.username}
-                    {isMe && <span className="ml-1.5 text-xs text-primary/60 font-normal">(you)</span>}
-                  </p>
-                  {/* Mini score bar */}
-                  <div className="mt-1.5 h-1 w-full bg-muted/40 rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-700",
-                        entry.rank === 1 ? "bg-yellow-400" : isMe ? "bg-primary" : "bg-muted-foreground/40",
-                      )}
-                      style={{ width: `${pct}%` }}
-                    />
+                  {/* Name — clickable */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlayer({ userId: entry.userId, displayName })}
+                    className="flex-1 min-w-0 text-left group"
+                  >
+                    <p className={cn(
+                      "font-medium truncate group-hover:underline decoration-dotted underline-offset-2 transition-colors",
+                      isMe ? "text-primary" : "group-hover:text-yellow-400",
+                    )}>
+                      {displayName}
+                      {isMe && <span className="ml-1.5 text-xs text-primary/60 font-normal no-underline">(you)</span>}
+                    </p>
+                    {/* Mini score bar */}
+                    <div className="mt-1.5 h-1 w-full bg-muted/40 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-700",
+                          entry.rank === 1 ? "bg-yellow-400" : isMe ? "bg-primary" : "bg-muted-foreground/40",
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Score */}
+                  <div className="text-right shrink-0">
+                    <p className="font-bebas text-2xl tracking-wider leading-none">
+                      <span className={entry.totalScore > 0 ? "text-foreground" : "text-muted-foreground"}>
+                        {entry.totalScore}
+                      </span>
+                      <span className="text-muted-foreground text-base"> / 144</span>
+                    </p>
+                    {groupsScored > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {groupsScored} group{groupsScored !== 1 ? "s" : ""} scored
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                {/* Score */}
-                <div className="text-right shrink-0">
-                  <p className="font-bebas text-2xl tracking-wider leading-none">
-                    <span className={entry.totalScore > 0 ? "text-foreground" : "text-muted-foreground"}>
-                      {entry.totalScore}
-                    </span>
-                    <span className="text-muted-foreground text-base"> / 144</span>
-                  </p>
-                  {groupsScored > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {groupsScored} group{groupsScored !== 1 ? "s" : ""} scored
-                    </p>
-                  )}
-                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      {groupsScored === 0 && (
-        <p className="text-center text-sm text-muted-foreground py-4">
-          Scores will appear here once the pool commissioner enters actual group stage results.
-        </p>
-      )}
-    </div>
+        {groupsScored === 0 && (
+          <p className="text-center text-sm text-muted-foreground py-4">
+            Scores will appear here once the pool commissioner enters actual group stage results.
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 

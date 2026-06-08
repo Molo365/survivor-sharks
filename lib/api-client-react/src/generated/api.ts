@@ -2859,6 +2859,88 @@ export const useSubmitGspResults = <TError = ErrorType<ErrorResponse>,
       return useMutation(getSubmitGspResultsMutationOptions(options));
     }
 
+export const getGetGspMemberPicksUrl = (poolId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/members/${userId}/picks`
+}
+
+/**
+ * @summary Get a specific member's group stage predictions (read-only)
+ */
+export const getGspMemberPicks = async (poolId: number,
+    userId: number, options?: RequestInit): Promise<GspGroupWithPick[]> => {
+
+  return customFetch<GspGroupWithPick[]>(getGetGspMemberPicksUrl(poolId,userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGspMemberPicksQueryKey = (poolId: number,
+    userId: number,) => {
+    return [
+    `/api/pools/${poolId}/gsp/members/${userId}/picks`
+    ] as const;
+    }
+
+
+export const getGetGspMemberPicksQueryOptions = <TData = Awaited<ReturnType<typeof getGspMemberPicks>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGspMemberPicksQueryKey(poolId,userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGspMemberPicks>>> = ({ signal }) => getGspMemberPicks(poolId,userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId && userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGspMemberPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGspMemberPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getGspMemberPicks>>>
+export type GetGspMemberPicksQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a specific member's group stage predictions (read-only)
+ */
+
+export function useGetGspMemberPicks<TData = Awaited<ReturnType<typeof getGspMemberPicks>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGspMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetGspLeaderboardUrl = (poolId: number,) => {
 
 

@@ -296,6 +296,69 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
   })));
 });
 
+// GET /api/pools/:poolId/gsp/members/:userId/picks
+router.get("/members/:userId/picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const targetUserId = parseInt(String(req.params.userId));
+  const requesterId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "group_stage_predictor") {
+    res.status(400).json({ error: "This pool is not a Group Stage Predictor pool" });
+    return;
+  }
+
+  // Requester must be a member of the pool
+  const [requesterEntry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, requesterId)))
+    .limit(1);
+  if (!requesterEntry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const [standings, targetPicks] = await Promise.all([
+    fetchWcStandings(),
+    db
+      .select()
+      .from(groupStagePredictorPicksTable)
+      .where(and(
+        eq(groupStagePredictorPicksTable.poolId, poolId),
+        eq(groupStagePredictorPicksTable.userId, targetUserId),
+      )),
+  ]);
+
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Group data unavailable — ESPN API unreachable" });
+    return;
+  }
+
+  const picksByGroup = new Map(targetPicks.map((p) => [p.groupName, p]));
+
+  const groups = standings.map((group) => {
+    const pick = picksByGroup.get(group.groupLetter) ?? null;
+    return {
+      name: group.groupLetter,
+      teams: group.teams.map((t) => ({
+        name: t.displayName,
+        abbr: t.abbreviation,
+        flagUrl: t.logo ?? "",
+      })),
+      myPick: pick
+        ? {
+            groupName: pick.groupName,
+            pos1Team: pick.pos1Team,
+            pos2Team: pick.pos2Team,
+            pos3Team: pick.pos3Team,
+            pos4Team: pick.pos4Team,
+          }
+        : null,
+    };
+  });
+
+  res.json(groups);
+});
+
 // GET /api/pools/:poolId/gsp/leaderboard
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));

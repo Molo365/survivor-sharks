@@ -1252,6 +1252,32 @@ export const SubmitGspResultsResponse = zod.array(SubmitGspResultsResponseItem)
 
 
 /**
+ * @summary Get a specific member's group stage predictions (read-only)
+ */
+export const GetGspMemberPicksParams = zod.object({
+  "poolId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const GetGspMemberPicksResponseItem = zod.object({
+  "name": zod.string(),
+  "teams": zod.array(zod.object({
+  "name": zod.string(),
+  "abbr": zod.string(),
+  "flagUrl": zod.string()
+})),
+  "myPick": zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable()
+})
+export const GetGspMemberPicksResponse = zod.array(GetGspMemberPicksResponseItem)
+
+
+/**
  * @summary Get leaderboard for a Group Stage Predictor pool
  */
 export const GetGspLeaderboardParams = zod.object({
