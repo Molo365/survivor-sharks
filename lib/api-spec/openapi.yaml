@@ -744,6 +744,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/PickEmDailyPickDetail"
 
+  /pools/{poolId}/pickem/yesterday-winner:
+    get:
+      operationId: getPickEmYesterdayWinner
+      tags: [pickem]
+      summary: Get the top scorer(s) for a given date (typically yesterday)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date in YYYY-MM-DD format (ET)
+      responses:
+        "200":
+          description: Top scorer(s) and their scores for the date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmYesterdayWinner"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -2039,6 +2064,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
+
+    PickEmDayWinnerEntry:
+      type: object
+      required: [userId, username, correct, total]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        correct:
+          type: integer
+        total:
+          type: integer
+
+    PickEmYesterdayWinner:
+      type: object
+      required: [date, hasResults, winners]
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD date queried
+        hasResults:
+          type: boolean
+          description: True if picks for this date have been graded
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmDayWinnerEntry"
 
     PickEmProcessResult:
       type: object

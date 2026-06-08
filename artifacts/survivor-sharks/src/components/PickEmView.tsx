@@ -4,8 +4,10 @@ import {
   useGetPickEmGames,
   useSubmitPickEmPicks,
   useGetPickEmLeaderboard,
+  useGetPickEmYesterdayWinner,
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
+  getGetPickEmYesterdayWinnerQueryKey,
 } from "@workspace/api-client-react";
 import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1430,6 +1432,15 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const isToday = selectedDate === todayEt;
   const dateParams = isToday ? undefined : { date: selectedDate };
 
+  const yesterdayDate = useMemo(() => offsetDate(todayEt, -1), [todayEt]);
+
+  const yesterdayParams = { date: yesterdayDate };
+  const { data: yesterdayWinner } = useGetPickEmYesterdayWinner(
+    poolId,
+    yesterdayParams,
+    { query: { queryKey: getGetPickEmYesterdayWinnerQueryKey(poolId, yesterdayParams), enabled: isToday && !isWc, staleTime: 5 * 60 * 1000 } },
+  );
+
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
   const {
@@ -1651,6 +1662,32 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             </div>
           ) : (
             <div className="space-y-6">
+
+              {/* Yesterday's Winner banner */}
+              {isToday && yesterdayWinner?.hasResults && yesterdayWinner.winners.length > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+                  <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-yellow-200">
+                      Yesterday&apos;s Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
+                    </span>
+                    <span className="text-sm text-yellow-300">
+                      {yesterdayWinner.winners.map((w) => w.displayName || w.username).join(" & ")}
+                    </span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-sm text-yellow-400/70">
+                      {yesterdayWinner.winners[0].correct}/{yesterdayWinner.winners[0].total} correct
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(yesterdayDate)}
+                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+                  >
+                    View Results →
+                  </button>
+                </div>
+              )}
 
               {/* Date header with navigation */}
               <div className="flex items-center justify-between gap-3 flex-wrap">

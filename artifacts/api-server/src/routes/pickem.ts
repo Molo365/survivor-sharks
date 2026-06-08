@@ -441,6 +441,62 @@ function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string 
   };
 }
 
+// GET /api/pools/:poolId/pickem/yesterday-winner?date=YYYY-MM-DD
+router.get("/yesterday-winner", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+  const date = String(req.query.date ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const rows = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+      total: sql<string>`COUNT(*)`,
+      graded: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IS NOT NULL)`,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, date)))
+    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+    .orderBy(sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`);
+
+  const hasResults = rows.some((r) => Number(r.graded) > 0);
+  if (!hasResults) {
+    res.json({ date, hasResults: false, winners: [] });
+    return;
+  }
+
+  const maxCorrect = Math.max(...rows.map((r) => Number(r.correct)));
+  const winners = rows
+    .filter((r) => Number(r.correct) === maxCorrect)
+    .map((r) => ({
+      userId: r.userId,
+      username: r.username,
+      displayName: r.displayName ?? null,
+      correct: Number(r.correct),
+      total: Number(r.total),
+    }));
+
+  res.json({ date, hasResults: true, winners });
+});
+
 // GET /api/pools/:poolId/pickem/leaderboard
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));

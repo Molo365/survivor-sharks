@@ -34,6 +34,7 @@ import type {
   GetPickEmDailyPicksParams,
   GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
+  GetPickEmYesterdayWinnerParams,
   HealthStatus,
   JoinPoolInput,
   Leaderboard,
@@ -45,6 +46,7 @@ import type {
   PickEmPicksResult,
   PickEmProcessResult,
   PickEmSlate,
+  PickEmYesterdayWinner,
   PickInput,
   Pool,
   PoolDetail,
@@ -2361,6 +2363,95 @@ export function useGetPickEmDailyPicks<TData = Awaited<ReturnType<typeof getPick
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPickEmDailyPicksQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPickEmYesterdayWinnerUrl = (poolId: number,
+    params: GetPickEmYesterdayWinnerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem/yesterday-winner?${stringifiedParams}` : `/api/pools/${poolId}/pickem/yesterday-winner`
+}
+
+/**
+ * @summary Get the top scorer(s) for a given date (typically yesterday)
+ */
+export const getPickEmYesterdayWinner = async (poolId: number,
+    params: GetPickEmYesterdayWinnerParams, options?: RequestInit): Promise<PickEmYesterdayWinner> => {
+
+  return customFetch<PickEmYesterdayWinner>(getGetPickEmYesterdayWinnerUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmYesterdayWinnerQueryKey = (poolId: number,
+    params?: GetPickEmYesterdayWinnerParams,) => {
+    return [
+    `/api/pools/${poolId}/pickem/yesterday-winner`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPickEmYesterdayWinnerQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmYesterdayWinner>>, TError = ErrorType<unknown>>(poolId: number,
+    params: GetPickEmYesterdayWinnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmYesterdayWinner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmYesterdayWinnerQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmYesterdayWinner>>> = ({ signal }) => getPickEmYesterdayWinner(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmYesterdayWinner>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmYesterdayWinnerQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmYesterdayWinner>>>
+export type GetPickEmYesterdayWinnerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the top scorer(s) for a given date (typically yesterday)
+ */
+
+export function useGetPickEmYesterdayWinner<TData = Awaited<ReturnType<typeof getPickEmYesterdayWinner>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    params: GetPickEmYesterdayWinnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmYesterdayWinner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmYesterdayWinnerQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

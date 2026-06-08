@@ -956,6 +956,23 @@ export interface PickEmLeaderboard {
   entries: PickEmLeaderboardEntry[];
 }
 
+export interface PickEmDayWinnerEntry {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  correct: number;
+  total: number;
+}
+
+export interface PickEmYesterdayWinner {
+  /** YYYY-MM-DD date queried */
+  date: string;
+  /** True if picks for this date have been graded */
+  hasResults: boolean;
+  winners: PickEmDayWinnerEntry[];
+}
+
 export interface PickEmProcessResult {
   processed: number;
   date: string;
@@ -1000,6 +1017,13 @@ date: string;
  * User ID whose picks to fetch
  */
 userId: number;
+};
+
+export type GetPickEmYesterdayWinnerParams = {
+/**
+ * Date in YYYY-MM-DD format (ET)
+ */
+date: string;
 };
 
 export type AdminProcessPickemResultsBody = {

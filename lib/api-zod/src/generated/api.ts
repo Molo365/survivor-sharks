@@ -1083,6 +1083,30 @@ export const GetPickEmDailyPicksResponse = zod.array(GetPickEmDailyPicksResponse
 
 
 /**
+ * @summary Get the top scorer(s) for a given date (typically yesterday)
+ */
+export const GetPickEmYesterdayWinnerParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmYesterdayWinnerQueryParams = zod.object({
+  "date": zod.coerce.string().describe('Date in YYYY-MM-DD format (ET)')
+})
+
+export const GetPickEmYesterdayWinnerResponse = zod.object({
+  "date": zod.string().describe('YYYY-MM-DD date queried'),
+  "hasResults": zod.boolean().describe('True if picks for this date have been graded'),
+  "winners": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({
