@@ -5,7 +5,7 @@ import { eq, count, gte, sql, and } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
-import { WC_2026_GROUPS, getWcTeamInfo } from "../lib/wc";
+import { fetchWcStandings } from "../lib/wc";
 
 const router = Router();
 
@@ -246,11 +246,20 @@ router.get("/gsp/pools", async (_req, res) => {
   res.json(gspPools);
 });
 
-// GET /api/admin-panel/gsp/groups — WC 2026 static group definitions
+// GET /api/admin-panel/gsp/groups — WC 2026 live group definitions from ESPN
 router.get("/gsp/groups", async (_req, res) => {
-  const groups = WC_2026_GROUPS.map((g) => ({
-    name: g.name,
-    teams: g.teams.map((teamName) => getWcTeamInfo(teamName)),
+  const standings = await fetchWcStandings();
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Group data unavailable — ESPN API unreachable" });
+    return;
+  }
+  const groups = standings.map((g) => ({
+    name: g.groupLetter,
+    teams: g.teams.map((t) => ({
+      name: t.displayName,
+      abbr: t.abbreviation,
+      flagUrl: t.logo ?? "",
+    })),
   }));
   res.json(groups);
 });
@@ -294,7 +303,15 @@ router.post("/gsp/results", async (req, res) => {
     return;
   }
 
-  const validGroupMap = new Map(WC_2026_GROUPS.map((g) => [g.name, new Set(g.teams)]));
+  const standings = await fetchWcStandings();
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Cannot validate results — ESPN API unreachable" });
+    return;
+  }
+
+  const validGroupMap = new Map(
+    standings.map((g) => [g.groupLetter, new Set(g.teams.map((t) => t.displayName))]),
+  );
 
   for (const result of results) {
     const groupTeams = validGroupMap.get(result.groupName);

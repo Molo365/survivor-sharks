@@ -9,7 +9,7 @@ import {
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
-import { WC_2026_GROUPS, getWcTeamInfo } from "../lib/wc";
+import { fetchWcStandings } from "../lib/wc";
 
 const router = Router({ mergeParams: true });
 
@@ -42,21 +42,33 @@ router.get("/groups", requireAuth, async (req, res) => {
     return;
   }
 
-  const existingPicks = await db
-    .select()
-    .from(groupStagePredictorPicksTable)
-    .where(and(
-      eq(groupStagePredictorPicksTable.poolId, poolId),
-      eq(groupStagePredictorPicksTable.userId, userId),
-    ));
+  const [standings, existingPicks] = await Promise.all([
+    fetchWcStandings(),
+    db
+      .select()
+      .from(groupStagePredictorPicksTable)
+      .where(and(
+        eq(groupStagePredictorPicksTable.poolId, poolId),
+        eq(groupStagePredictorPicksTable.userId, userId),
+      )),
+  ]);
+
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Group data unavailable — ESPN API unreachable" });
+    return;
+  }
 
   const picksByGroup = new Map(existingPicks.map((p) => [p.groupName, p]));
 
-  const groups = WC_2026_GROUPS.map((group) => {
-    const pick = picksByGroup.get(group.name) ?? null;
+  const groups = standings.map((group) => {
+    const pick = picksByGroup.get(group.groupLetter) ?? null;
     return {
-      name: group.name,
-      teams: group.teams.map((teamName) => getWcTeamInfo(teamName)),
+      name: group.groupLetter,
+      teams: group.teams.map((t) => ({
+        name: t.displayName,
+        abbr: t.abbreviation,
+        flagUrl: t.logo ?? "",
+      })),
       myPick: pick
         ? {
             groupName: pick.groupName,
@@ -99,7 +111,15 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  const validGroupMap = new Map(WC_2026_GROUPS.map((g) => [g.name, new Set(g.teams)]));
+  const standings = await fetchWcStandings();
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Cannot validate picks — ESPN API unreachable" });
+    return;
+  }
+
+  const validGroupMap = new Map(
+    standings.map((g) => [g.groupLetter, new Set(g.teams.map((t) => t.displayName))]),
+  );
 
   for (const pick of picks) {
     const groupTeams = validGroupMap.get(pick.groupName);
@@ -208,7 +228,15 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
     return;
   }
 
-  const validGroupMap = new Map(WC_2026_GROUPS.map((g) => [g.name, new Set(g.teams)]));
+  const standings = await fetchWcStandings();
+  if (standings.length === 0) {
+    res.status(503).json({ error: "Cannot validate results — ESPN API unreachable" });
+    return;
+  }
+
+  const validGroupMap = new Map(
+    standings.map((g) => [g.groupLetter, new Set(g.teams.map((t) => t.displayName))]),
+  );
 
   for (const result of results) {
     const groupTeams = validGroupMap.get(result.groupName);
@@ -275,27 +303,26 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
-  const actualResults = await db
-    .select()
-    .from(groupStageResultsTable)
-    .where(eq(groupStageResultsTable.poolId, poolId));
-
-  const resultsByGroup = new Map(actualResults.map((r) => [r.groupName, r]));
-
-  const members = await db
-    .select({
-      userId: entriesTable.userId,
-      username: usersTable.username,
-      displayName: usersTable.displayName,
-    })
-    .from(entriesTable)
-    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
-    .where(eq(entriesTable.poolId, poolId));
+  const [standings, actualResults, members] = await Promise.all([
+    fetchWcStandings(),
+    db.select().from(groupStageResultsTable).where(eq(groupStageResultsTable.poolId, poolId)),
+    db
+      .select({
+        userId: entriesTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+      })
+      .from(entriesTable)
+      .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+      .where(eq(entriesTable.poolId, poolId)),
+  ]);
 
   if (members.length === 0) {
     res.json([]);
     return;
   }
+
+  const resultsByGroup = new Map(actualResults.map((r) => [r.groupName, r]));
 
   const allPicks = await db
     .select()
@@ -311,20 +338,23 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }
 
   const MAX_SCORE = 144;
+  const groupLetters = standings.length > 0
+    ? standings.map((g) => g.groupLetter)
+    : Array.from({ length: 12 }, (_, i) => String.fromCharCode(65 + i));
 
   const entries = members.map((member) => {
     const userPicks = picksByUser.get(member.userId);
     let totalScore = 0;
 
-    const groupScores = WC_2026_GROUPS.map((group) => {
-      const actual = resultsByGroup.get(group.name);
-      const pick = userPicks?.get(group.name);
+    const groupScores = groupLetters.map((letter) => {
+      const actual = resultsByGroup.get(letter);
+      const pick = userPicks?.get(letter);
 
       if (!actual) {
-        return { groupName: group.name, score: 0, hasResult: false };
+        return { groupName: letter, score: 0, hasResult: false };
       }
       if (!pick) {
-        return { groupName: group.name, score: 0, hasResult: true };
+        return { groupName: letter, score: 0, hasResult: true };
       }
 
       const score = scoreGroup(
@@ -332,7 +362,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
       );
       totalScore += score;
-      return { groupName: group.name, score, hasResult: true };
+      return { groupName: letter, score, hasResult: true };
     });
 
     return {

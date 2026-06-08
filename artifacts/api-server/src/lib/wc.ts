@@ -457,6 +457,91 @@ export function wcOutcome(g: WcGame): "home_win" | "draw" | "away_win" | null {
 }
 
 // ---------------------------------------------------------------------------
+// ESPN Standings API — live group definitions + standings
+// https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings
+// Single source of truth for GSP group/team data; 5-minute cache.
+// ---------------------------------------------------------------------------
+
+interface EspnStandingsTeamRaw {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  logos?: { href: string }[];
+}
+
+interface EspnStandingsEntryRaw {
+  team: EspnStandingsTeamRaw;
+  note?: { rank?: number };
+}
+
+interface EspnStandingsGroupRaw {
+  name: string;
+  standings: { entries: EspnStandingsEntryRaw[] };
+}
+
+interface EspnStandingsResponseRaw {
+  children?: EspnStandingsGroupRaw[];
+}
+
+export interface WcStandingsTeam {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  logo: string | null;
+  rank: number; // 1–4 current standing position
+}
+
+export interface WcStandingsGroup {
+  groupLetter: string; // "A" – "L"
+  displayName: string; // "Group A"
+  teams: WcStandingsTeam[]; // 4 teams sorted by rank asc
+}
+
+const ESPN_STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings";
+const STANDINGS_TTL_MS = 5 * 60 * 1000; // 5 min
+
+let _standingsCache: { data: WcStandingsGroup[]; fetchedAt: number } | null = null;
+
+/**
+ * Fetch and cache WC 2026 group definitions + live standings from ESPN.
+ * This is the single source of truth for GSP group/team data.
+ * Teams are sorted by their current standing rank (1 = leading).
+ * Falls back to stale cache if ESPN is unreachable.
+ */
+export async function fetchWcStandings(): Promise<WcStandingsGroup[]> {
+  const now = Date.now();
+  if (_standingsCache && now - _standingsCache.fetchedAt < STANDINGS_TTL_MS) {
+    return _standingsCache.data;
+  }
+  try {
+    const res = await fetch(ESPN_STANDINGS_URL, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`ESPN standings HTTP ${res.status}`);
+    const data = await res.json() as EspnStandingsResponseRaw;
+
+    const groups: WcStandingsGroup[] = (data.children ?? []).map((child) => {
+      const teams: WcStandingsTeam[] = child.standings.entries.map((e) => ({
+        id: e.team.id,
+        displayName: e.team.displayName,
+        abbreviation: e.team.abbreviation,
+        logo: e.team.logos?.[0]?.href ?? null,
+        rank: e.note?.rank ?? 99,
+      }));
+      teams.sort((a, b) => a.rank - b.rank);
+      const groupLetter = child.name.replace(/^Group\s+/, "");
+      return { groupLetter, displayName: child.name, teams };
+    });
+
+    groups.sort((a, b) => a.groupLetter.localeCompare(b.groupLetter));
+    _standingsCache = { data: groups, fetchedAt: now };
+    logger.info({ count: groups.length }, "wc: refreshed ESPN standings cache");
+    return groups;
+  } catch (err) {
+    logger.warn({ err }, "wc: failed to fetch ESPN standings, using stale cache");
+    return _standingsCache?.data ?? [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // WC 2026 Group Stage — static group definitions
 // Source: FIFA World Cup 2026 draw, Miami, December 5, 2024
 // Team names match the canonical keys in TEAM_META above.
