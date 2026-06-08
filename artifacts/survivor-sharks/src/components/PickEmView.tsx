@@ -1632,7 +1632,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       Welcome to {poolName}!
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-                      {pickFrequency === "weekly"
+                      {is3way
+                        ? "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck!"
+                        : pickFrequency === "weekly"
                         ? "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"
                         : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
                     </p>
