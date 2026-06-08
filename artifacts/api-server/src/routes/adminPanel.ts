@@ -98,6 +98,23 @@ router.delete("/users/:userId", async (req, res) => {
     res.status(400).json({ error: "Invalid user ID" });
     return;
   }
+  const [existing] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (existing.role === "admin") {
+    res.status(403).json({ error: "Cannot delete admin users" });
+    return;
+  }
+  const ownedPools = await db.select({ id: poolsTable.id }).from(poolsTable).where(eq(poolsTable.commissionerId, userId));
+  if (ownedPools.length > 0) {
+    res.status(409).json({ error: "User is a commissioner of one or more pools. Delete those pools first." });
+    return;
+  }
+  await db.delete(pickemPicksTable).where(eq(pickemPicksTable.userId, userId));
+  await db.delete(picksTable).where(eq(picksTable.userId, userId));
+  await db.delete(entriesTable).where(eq(entriesTable.userId, userId));
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   res.json({ success: true });
 });
