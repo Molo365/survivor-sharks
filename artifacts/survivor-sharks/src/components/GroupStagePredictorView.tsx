@@ -239,8 +239,8 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
         </div>
 
         {/* Hint */}
-        <p className="text-xs text-muted-foreground/60 text-center">
-          Click on a player's name to view their predictions.
+        <p className="text-sm text-muted-foreground text-center">
+          Click on a player's name to view their predictions!
         </p>
 
         {/* Player rows */}
