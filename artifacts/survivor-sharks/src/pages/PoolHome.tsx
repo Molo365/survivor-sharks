@@ -118,11 +118,11 @@ export default function PoolHome() {
                 {isPickEm ? (
                   <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
                     <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
-                      <Target className="w-3 h-3" /> Picked
+                      <Target className="w-3 h-3" /> Players Picked
                     </div>
                     <div className="font-bebas text-3xl text-green-400">
                       {pickemLeaderboard?.entries.length ?? 0}
-                      <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers}</span>
+                      <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers} players</span>
                     </div>
                   </div>
                 ) : (
