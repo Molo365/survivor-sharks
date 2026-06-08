@@ -64,7 +64,7 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["season", "pickem"],
+  [PoolInputSport.mlb]: ["pickem"],
   [PoolInputSport.nfl]: ["season", "weekly", "mid_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
