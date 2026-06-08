@@ -508,8 +508,7 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
           Group Stage Predictor
         </h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Rank all 4 teams in each group — 3 pts for exact position, 1 pt for correct top-2.
-          Max 144 pts total.
+          Pick the final standings for all 12 World Cup groups. 3 pts for exact position, 1 pt if the team advances but wrong spot. Max 144 pts — highest score wins the pot. Lock in your picks before June 11 kickoff!
         </p>
       </div>
 
