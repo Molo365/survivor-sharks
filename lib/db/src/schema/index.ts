@@ -5,3 +5,4 @@ export * from "./picks";
 export * from "./week_results";
 export * from "./pickem_picks";
 export * from "./group_stage_predictor_picks";
+export * from "./group_stage_results";

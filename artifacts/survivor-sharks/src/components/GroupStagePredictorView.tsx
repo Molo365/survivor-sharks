@@ -1,10 +1,26 @@
 import { useState, useEffect } from "react";
-import { useGetGspGroups, useSubmitGspPicks } from "@workspace/api-client-react";
+import {
+  useGetGspGroups,
+  useSubmitGspPicks,
+  useGetGspLeaderboard,
+  getGetGspLeaderboardQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ChevronUp, ChevronDown, CheckCircle2, Circle, ListOrdered, Send, Trophy } from "lucide-react";
+import {
+  ChevronUp,
+  ChevronDown,
+  CheckCircle2,
+  Circle,
+  ListOrdered,
+  Send,
+  Trophy,
+  Medal,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Props {
@@ -20,18 +36,151 @@ const POSITION_STYLES = [
   { label: "4th", bg: "bg-muted/40 text-muted-foreground border-border/40",   dot: "bg-muted-foreground/40" },
 ];
 
-export function GroupStagePredictorView({ poolId }: Props) {
+const RANK_STYLES = [
+  { icon: "🥇", bg: "bg-yellow-500/10 border-yellow-500/30 text-yellow-300" },
+  { icon: "🥈", bg: "bg-slate-400/10 border-slate-400/30 text-slate-300" },
+  { icon: "🥉", bg: "bg-orange-600/10 border-orange-600/30 text-orange-400" },
+];
+
+// ── Leaderboard tab ──────────────────────────────────────────────────────────
+
+function LeaderboardTab({ poolId }: { poolId: number }) {
+  const { user } = useAuth();
+  const { data: leaderboard, isLoading } = useGetGspLeaderboard(poolId, {
+    query: { queryKey: getGetGspLeaderboardQueryKey(poolId), refetchInterval: 60_000 },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3 pt-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!leaderboard || leaderboard.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <Trophy className="w-10 h-10 text-muted-foreground/30" />
+        <p className="text-muted-foreground">No members in this pool yet.</p>
+      </div>
+    );
+  }
+
+  const groupsScored = leaderboard[0]?.groupScores.filter((g) => g.hasResult).length ?? 0;
+
+  return (
+    <div className="space-y-4 pt-4">
+      {/* Scoring status bar */}
+      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Medal className="w-4 h-4 text-yellow-400" />
+          <span className="text-sm font-medium">Group Results Entered</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "font-bebas text-xl tracking-wider",
+            groupsScored === 12 ? "text-yellow-400" : "text-foreground",
+          )}>
+            {groupsScored}
+          </span>
+          <span className="text-muted-foreground font-bebas text-xl">/12</span>
+          {groupsScored === 0 && (
+            <span className="text-xs text-muted-foreground ml-2">
+              Leaderboard updates as results are entered
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Player rows */}
+      <div className="space-y-2">
+        {leaderboard.map((entry) => {
+          const isMe = entry.userId === user?.id;
+          const rankStyle = RANK_STYLES[entry.rank - 1];
+          const pct = groupsScored > 0 ? (entry.totalScore / (groupsScored * 12)) * 100 : 0;
+
+          return (
+            <div
+              key={entry.userId}
+              className={cn(
+                "rounded-xl border px-4 py-3 transition-all",
+                isMe
+                  ? "border-primary/40 bg-primary/5 shadow-[0_0_16px_rgba(var(--primary-rgb),0.06)]"
+                  : "border-border/50 bg-card hover:border-border",
+              )}
+            >
+              <div className="flex items-center gap-3">
+                {/* Rank badge */}
+                <div className={cn(
+                  "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 font-bebas text-lg",
+                  rankStyle
+                    ? rankStyle.bg
+                    : "bg-muted/30 border-border/40 text-muted-foreground",
+                )}>
+                  {rankStyle ? rankStyle.icon : `#${entry.rank}`}
+                </div>
+
+                {/* Name */}
+                <div className="flex-1 min-w-0">
+                  <p className={cn("font-medium truncate", isMe && "text-primary")}>
+                    {entry.displayName ?? entry.username}
+                    {isMe && <span className="ml-1.5 text-xs text-primary/60 font-normal">(you)</span>}
+                  </p>
+                  {/* Mini score bar */}
+                  <div className="mt-1.5 h-1 w-full bg-muted/40 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-700",
+                        entry.rank === 1 ? "bg-yellow-400" : isMe ? "bg-primary" : "bg-muted-foreground/40",
+                      )}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Score */}
+                <div className="text-right shrink-0">
+                  <p className="font-bebas text-2xl tracking-wider leading-none">
+                    <span className={entry.totalScore > 0 ? "text-foreground" : "text-muted-foreground"}>
+                      {entry.totalScore}
+                    </span>
+                    <span className="text-muted-foreground text-base"> / 144</span>
+                  </p>
+                  {groupsScored > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {groupsScored} group{groupsScored !== 1 ? "s" : ""} scored
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {groupsScored === 0 && (
+        <p className="text-center text-sm text-muted-foreground py-4">
+          Scores will appear here once the pool commissioner enters actual group stage results.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── My Picks tab ─────────────────────────────────────────────────────────────
+
+function MyPicksTab({ poolId }: { poolId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: groups, isLoading } = useGetGspGroups(poolId);
   const submitPicks = useSubmitGspPicks();
 
-  // Local pick state: groupName -> ordered team names
   const [orders, setOrders] = useState<Record<string, TeamOrder>>({});
-  // Which groups the user has explicitly confirmed
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
-  // Track whether we've initialised from server data
   const [initialised, setInitialised] = useState(false);
 
   useEffect(() => {
@@ -63,7 +212,6 @@ export function GroupStagePredictorView({ poolId }: Props) {
       order.splice(toIdx, 0, moved);
       return { ...prev, [groupName]: order as TeamOrder };
     });
-    // Unconfirm the group when user changes the order
     setConfirmed((prev) => {
       const next = new Set(prev);
       next.delete(groupName);
@@ -72,11 +220,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
   }
 
   function confirmGroup(groupName: string) {
-    setConfirmed((prev) => {
-      const next = new Set(prev);
-      next.add(groupName);
-      return next;
-    });
+    setConfirmed((prev) => new Set([...prev, groupName]));
   }
 
   const confirmedCount = confirmed.size;
@@ -92,7 +236,6 @@ export function GroupStagePredictorView({ poolId }: Props) {
       pos3Team: order[2],
       pos4Team: order[3],
     }));
-
     submitPicks.mutate(
       { poolId, data: { picks } },
       {
@@ -109,8 +252,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
 
   if (isLoading || !groups) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
+      <div className="space-y-4 pt-4">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="h-56 rounded-xl" />
@@ -121,48 +263,26 @@ export function GroupStagePredictorView({ poolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ── Header / Progress ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="font-bebas text-3xl tracking-wider text-foreground flex items-center gap-2">
-            <ListOrdered className="w-7 h-7 text-yellow-400" />
-            Group Stage Predictor
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Rank all 4 teams in each group from 1st to 4th, then confirm and submit.
-          </p>
+    <div className="space-y-6 pt-4">
+      {/* Progress bar */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 bg-card border border-border/50 rounded-full px-4 py-2 shadow-sm">
+          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+          <span className="font-bebas text-xl tracking-wider">
+            <span className={cn(allConfirmed ? "text-yellow-400" : "text-foreground")}>{confirmedCount}</span>
+            <span className="text-muted-foreground">/{totalGroups}</span>
+          </span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider hidden sm:block">groups predicted</span>
         </div>
-
-        <div className="flex items-center gap-4">
-          {/* Progress pill */}
-          <div className="flex items-center gap-2 bg-card border border-border/50 rounded-full px-4 py-2 shadow-sm">
-            <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-            <span className="font-bebas text-xl tracking-wider">
-              <span className={cn(allConfirmed ? "text-yellow-400" : "text-foreground")}>
-                {confirmedCount}
-              </span>
-              <span className="text-muted-foreground">/{totalGroups}</span>
-            </span>
-            <span className="text-xs text-muted-foreground uppercase tracking-wider hidden sm:block">
-              groups predicted
-            </span>
-          </div>
+        <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+          <div
+            className={cn("h-full rounded-full transition-all duration-500", allConfirmed ? "bg-yellow-400" : "bg-primary")}
+            style={{ width: `${(confirmedCount / totalGroups) * 100}%` }}
+          />
         </div>
       </div>
 
-      {/* ── Progress bar ── */}
-      <div className="w-full h-1.5 bg-muted/40 rounded-full overflow-hidden">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            allConfirmed ? "bg-yellow-400" : "bg-primary",
-          )}
-          style={{ width: `${(confirmedCount / totalGroups) * 100}%` }}
-        />
-      </div>
-
-      {/* ── Group Cards Grid ── */}
+      {/* Group cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {groups.map((group) => {
           const isConfirmed = confirmed.has(group.name);
@@ -179,15 +299,10 @@ export function GroupStagePredictorView({ poolId }: Props) {
                   : "border-border/50 bg-card",
               )}
             >
-              {/* Card header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-bebas text-2xl tracking-wider text-foreground">
-                    Group {group.name}
-                  </span>
-                  {isConfirmed && (
-                    <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />
-                  )}
+                  <span className="font-bebas text-2xl tracking-wider text-foreground">Group {group.name}</span>
+                  {isConfirmed && <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />}
                 </div>
                 {!isConfirmed && (
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border border-border/50 rounded-full px-2 py-0.5">
@@ -196,7 +311,6 @@ export function GroupStagePredictorView({ poolId }: Props) {
                 )}
               </div>
 
-              {/* Team rows */}
               <div className="flex flex-col gap-1.5">
                 {order.map((teamName, idx) => {
                   const team = teamByName.get(teamName);
@@ -214,15 +328,9 @@ export function GroupStagePredictorView({ poolId }: Props) {
                           : "bg-background/30 border-border/20 hover:border-border/50",
                       )}
                     >
-                      {/* Position badge */}
-                      <span className={cn(
-                        "text-[11px] font-bold uppercase tracking-wider border rounded-full px-2 py-0.5 w-10 text-center shrink-0",
-                        pos.bg,
-                      )}>
+                      <span className={cn("text-[11px] font-bold uppercase tracking-wider border rounded-full px-2 py-0.5 w-10 text-center shrink-0", pos.bg)}>
                         {pos.label}
                       </span>
-
-                      {/* Flag */}
                       {team?.flagUrl ? (
                         <img
                           src={team.flagUrl}
@@ -235,13 +343,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
                           <span className="text-[9px] text-muted-foreground font-bold">{team?.abbr?.slice(0, 2)}</span>
                         </div>
                       )}
-
-                      {/* Team name */}
-                      <span className="flex-1 text-sm font-medium text-foreground truncate">
-                        {team?.name ?? teamName}
-                      </span>
-
-                      {/* Move buttons */}
+                      <span className="flex-1 text-sm font-medium text-foreground truncate">{team?.name ?? teamName}</span>
                       {!isConfirmed && (
                         <div className="flex flex-col gap-0.5 shrink-0">
                           <button
@@ -250,9 +352,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
                             onClick={() => moveTeam(group.name, idx, idx - 1)}
                             className={cn(
                               "w-6 h-5 flex items-center justify-center rounded transition-colors",
-                              isFirst
-                                ? "text-muted-foreground/20 cursor-not-allowed"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                              isFirst ? "text-muted-foreground/20 cursor-not-allowed" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                             )}
                           >
                             <ChevronUp className="w-4 h-4" />
@@ -263,9 +363,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
                             onClick={() => moveTeam(group.name, idx, idx + 1)}
                             className={cn(
                               "w-6 h-5 flex items-center justify-center rounded transition-colors",
-                              isLast
-                                ? "text-muted-foreground/20 cursor-not-allowed"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                              isLast ? "text-muted-foreground/20 cursor-not-allowed" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                             )}
                           >
                             <ChevronDown className="w-4 h-4" />
@@ -277,7 +375,6 @@ export function GroupStagePredictorView({ poolId }: Props) {
                 })}
               </div>
 
-              {/* Confirm / Edit button */}
               <div className="mt-auto pt-1">
                 {isConfirmed ? (
                   <button
@@ -305,22 +402,18 @@ export function GroupStagePredictorView({ poolId }: Props) {
         })}
       </div>
 
-      {/* ── Submit All Picks ── */}
+      {/* Sticky submit */}
       <div className="sticky bottom-4 flex justify-center pt-2">
         <div className={cn(
           "flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm transition-all",
-          allConfirmed
-            ? "bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10"
-            : "bg-card/90 border-border/50",
+          allConfirmed ? "bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10" : "bg-card/90 border-border/50",
         )}>
           <div className="text-center sm:text-left">
             <p className={cn("font-bebas text-xl tracking-wider", allConfirmed ? "text-yellow-300" : "text-muted-foreground")}>
               {allConfirmed ? "All groups predicted!" : `${totalGroups - confirmedCount} group${totalGroups - confirmedCount !== 1 ? "s" : ""} left`}
             </p>
             <p className="text-xs text-muted-foreground">
-              {allConfirmed
-                ? "Lock in your picks for all 12 WC groups"
-                : "Rank and confirm every group to unlock submission"}
+              {allConfirmed ? "Lock in your picks for all 12 WC groups" : "Rank and confirm every group to unlock submission"}
             </p>
           </div>
           <Button
@@ -328,9 +421,7 @@ export function GroupStagePredictorView({ poolId }: Props) {
             disabled={!allConfirmed || submitPicks.isPending}
             className={cn(
               "gap-2 font-bebas text-xl tracking-wider px-8 py-5 rounded-xl transition-all",
-              allConfirmed
-                ? "bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20"
-                : "bg-muted text-muted-foreground cursor-not-allowed",
+              allConfirmed ? "bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20" : "bg-muted text-muted-foreground cursor-not-allowed",
             )}
           >
             <Send className="w-5 h-5" />
@@ -338,6 +429,45 @@ export function GroupStagePredictorView({ poolId }: Props) {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Main view ────────────────────────────────────────────────────────────────
+
+export function GroupStagePredictorView({ poolId }: Props) {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="font-bebas text-3xl tracking-wider text-foreground flex items-center gap-2">
+          <ListOrdered className="w-7 h-7 text-yellow-400" />
+          Group Stage Predictor
+        </h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Rank all 4 teams in each group — 3 pts for exact position, 1 pt for correct top-2.
+          Max 144 pts total.
+        </p>
+      </div>
+
+      <Tabs defaultValue="picks" className="w-full">
+        <TabsList className="bg-card border border-border">
+          <TabsTrigger value="picks" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
+            <ListOrdered className="w-4 h-4" /> My Picks
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
+            <Trophy className="w-4 h-4" /> Leaderboard
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="picks">
+          <MyPicksTab poolId={poolId} />
+        </TabsContent>
+
+        <TabsContent value="leaderboard">
+          <LeaderboardTab poolId={poolId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

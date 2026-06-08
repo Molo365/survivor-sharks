@@ -862,6 +862,91 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/gsp/results:
+    get:
+      operationId: getGspResults
+      tags: [gsp]
+      summary: Get actual group stage results entered by admin
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Actual results for all groups (partial or empty if not yet entered)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspGroupResult"
+    post:
+      operationId: submitGspResults
+      tags: [gsp]
+      summary: Admin — enter or update actual group stage final standings
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GspResultsInput"
+      responses:
+        "200":
+          description: Saved actual results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspGroupResult"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/gsp/leaderboard:
+    get:
+      operationId: getGspLeaderboard
+      tags: [gsp]
+      summary: Get leaderboard for a Group Stage Predictor pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ranked leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspLeaderboardEntry"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -2314,3 +2399,57 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GspPick"
+
+    GspGroupResult:
+      type: object
+      required: [groupName, pos1Team, pos2Team, pos3Team, pos4Team]
+      properties:
+        groupName:
+          type: string
+        pos1Team:
+          type: string
+        pos2Team:
+          type: string
+        pos3Team:
+          type: string
+        pos4Team:
+          type: string
+
+    GspResultsInput:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/GspGroupResult"
+
+    GspLeaderboardEntry:
+      type: object
+      required: [userId, username, totalScore, maxScore, rank, groupScores]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        totalScore:
+          type: integer
+        maxScore:
+          type: integer
+        rank:
+          type: integer
+        groupScores:
+          type: array
+          items:
+            type: object
+            required: [groupName, score, hasResult]
+            properties:
+              groupName:
+                type: string
+              score:
+                type: integer
+              hasResult:
+                type: boolean

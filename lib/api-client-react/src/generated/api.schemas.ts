@@ -1062,6 +1062,34 @@ export interface GspPicksInput {
   picks: GspPick[];
 }
 
+export interface GspGroupResult {
+  groupName: string;
+  pos1Team: string;
+  pos2Team: string;
+  pos3Team: string;
+  pos4Team: string;
+}
+
+export interface GspResultsInput {
+  results: GspGroupResult[];
+}
+
+export type GspLeaderboardEntryGroupScoresItem = {
+  groupName: string;
+  score: number;
+  hasResult: boolean;
+};
+
+export interface GspLeaderboardEntry {
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  totalScore: number;
+  maxScore: number;
+  rank: number;
+  groupScores: GspLeaderboardEntryGroupScoresItem[];
+}
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

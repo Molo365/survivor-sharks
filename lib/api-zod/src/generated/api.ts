@@ -1208,6 +1208,73 @@ export const SubmitGspPicksResponse = zod.array(SubmitGspPicksResponseItem)
 
 
 /**
+ * @summary Get actual group stage results entered by admin
+ */
+export const GetGspResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetGspResultsResponseItem = zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const GetGspResultsResponse = zod.array(GetGspResultsResponseItem)
+
+
+/**
+ * @summary Admin — enter or update actual group stage final standings
+ */
+export const SubmitGspResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitGspResultsBody = zod.object({
+  "results": zod.array(zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}))
+})
+
+export const SubmitGspResultsResponseItem = zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const SubmitGspResultsResponse = zod.array(SubmitGspResultsResponseItem)
+
+
+/**
+ * @summary Get leaderboard for a Group Stage Predictor pool
+ */
+export const GetGspLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetGspLeaderboardResponseItem = zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "totalScore": zod.number(),
+  "maxScore": zod.number(),
+  "rank": zod.number(),
+  "groupScores": zod.array(zod.object({
+  "groupName": zod.string(),
+  "score": zod.number(),
+  "hasResult": zod.boolean()
+}))
+})
+export const GetGspLeaderboardResponse = zod.array(GetGspLeaderboardResponseItem)
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({

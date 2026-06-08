@@ -36,9 +36,12 @@ import type {
   GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
   GetPickEmYesterdayWinnerParams,
+  GspGroupResult,
   GspGroupWithPick,
+  GspLeaderboardEntry,
   GspPick,
   GspPicksInput,
+  GspResultsInput,
   HealthStatus,
   JoinPoolInput,
   Leaderboard,
@@ -2706,6 +2709,232 @@ export const useSubmitGspPicks = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getSubmitGspPicksMutationOptions(options));
     }
+
+export const getGetGspResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/results`
+}
+
+/**
+ * @summary Get actual group stage results entered by admin
+ */
+export const getGspResults = async (poolId: number, options?: RequestInit): Promise<GspGroupResult[]> => {
+
+  return customFetch<GspGroupResult[]>(getGetGspResultsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGspResultsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/gsp/results`
+    ] as const;
+    }
+
+
+export const getGetGspResultsQueryOptions = <TData = Awaited<ReturnType<typeof getGspResults>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGspResultsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGspResults>>> = ({ signal }) => getGspResults(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGspResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGspResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getGspResults>>>
+export type GetGspResultsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get actual group stage results entered by admin
+ */
+
+export function useGetGspResults<TData = Awaited<ReturnType<typeof getGspResults>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGspResultsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitGspResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/results`
+}
+
+/**
+ * @summary Admin — enter or update actual group stage final standings
+ */
+export const submitGspResults = async (poolId: number,
+    gspResultsInput: GspResultsInput, options?: RequestInit): Promise<GspGroupResult[]> => {
+
+  return customFetch<GspGroupResult[]>(getSubmitGspResultsUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      gspResultsInput,)
+  }
+);}
+
+
+
+
+export const getSubmitGspResultsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGspResults>>, TError,{poolId: number;data: BodyType<GspResultsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitGspResults>>, TError,{poolId: number;data: BodyType<GspResultsInput>}, TContext> => {
+
+const mutationKey = ['submitGspResults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitGspResults>>, {poolId: number;data: BodyType<GspResultsInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitGspResults(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitGspResultsMutationResult = NonNullable<Awaited<ReturnType<typeof submitGspResults>>>
+    export type SubmitGspResultsMutationBody = BodyType<GspResultsInput>
+    export type SubmitGspResultsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Admin — enter or update actual group stage final standings
+ */
+export const useSubmitGspResults = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGspResults>>, TError,{poolId: number;data: BodyType<GspResultsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitGspResults>>,
+        TError,
+        {poolId: number;data: BodyType<GspResultsInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitGspResultsMutationOptions(options));
+    }
+
+export const getGetGspLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/leaderboard`
+}
+
+/**
+ * @summary Get leaderboard for a Group Stage Predictor pool
+ */
+export const getGspLeaderboard = async (poolId: number, options?: RequestInit): Promise<GspLeaderboardEntry[]> => {
+
+  return customFetch<GspLeaderboardEntry[]>(getGetGspLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGspLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/gsp/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetGspLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getGspLeaderboard>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGspLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGspLeaderboard>>> = ({ signal }) => getGspLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGspLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGspLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getGspLeaderboard>>>
+export type GetGspLeaderboardQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get leaderboard for a Group Stage Predictor pool
+ */
+
+export function useGetGspLeaderboard<TData = Awaited<ReturnType<typeof getGspLeaderboard>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGspLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getAdminListPoolsUrl = () => {
 

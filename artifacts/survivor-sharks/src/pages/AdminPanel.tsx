@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2 } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -36,6 +39,218 @@ function useAdminFetch() {
 interface StatData { totalUsers: number; totalPools: number; picksToday: number }
 interface PoolRow { id: number; name: string; sport: string; poolType: string; isActive: boolean; memberCount: number; commissionerName: string; currentWeek: number; season: number; createdAt: string }
 interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
+
+// ── GSP Results Section ──────────────────────────────────────────────────────
+
+interface GspPool { id: number; name: string }
+interface GspTeamDef { name: string; abbr: string | null; flagUrl: string | null }
+interface GspGroupDef { name: string; teams: GspTeamDef[] }
+interface GspResultRow { groupName: string; pos1Team: string; pos2Team: string; pos3Team: string; pos4Team: string }
+
+type GroupResultState = [string, string, string, string];
+
+const POS_LABELS = ["1st", "2nd", "3rd", "4th"];
+
+function GspResultsSection() {
+  const { token, logout } = useAdminAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const adminFetch = useCallback(async (path: string, opts: RequestInit = {}) => {
+    const res = await fetch(`${API_BASE}/api/admin-panel${path}`, {
+      ...opts,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts.headers },
+    });
+    if (res.status === 401) { logout(); throw new Error("Session expired"); }
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return res.json();
+  }, [token, logout]);
+
+  const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null);
+  const [groupResults, setGroupResults] = useState<Record<string, GroupResultState>>({});
+  const [saving, setSaving] = useState(false);
+
+  const { data: pools, isLoading: loadingPools } = useQuery<GspPool[]>({
+    queryKey: ["admin-gsp-pools"],
+    queryFn: () => adminFetch("/gsp/pools"),
+  });
+
+  const { data: groups } = useQuery<GspGroupDef[]>({
+    queryKey: ["admin-gsp-groups"],
+    queryFn: () => adminFetch("/gsp/groups"),
+  });
+
+  const { data: existingResults } = useQuery<GspResultRow[]>({
+    queryKey: ["admin-gsp-results", selectedPoolId],
+    queryFn: () => adminFetch(`/gsp/results/${selectedPoolId}`),
+    enabled: selectedPoolId !== null,
+  });
+
+  // Populate form state when existing results load
+  useEffect(() => {
+    if (!existingResults) return;
+    const next: Record<string, GroupResultState> = {};
+    for (const r of existingResults) {
+      next[r.groupName] = [r.pos1Team, r.pos2Team, r.pos3Team, r.pos4Team];
+    }
+    setGroupResults((prev) => ({ ...prev, ...next }));
+  }, [existingResults]);
+
+  function setTeam(groupName: string, posIdx: number, teamName: string) {
+    setGroupResults((prev) => {
+      const current: GroupResultState = prev[groupName] ?? ["", "", "", ""];
+      const next = [...current] as GroupResultState;
+      next[posIdx] = teamName;
+      return { ...prev, [groupName]: next };
+    });
+  }
+
+  function getAvailableTeams(groupName: string, allTeams: GspTeamDef[], posIdx: number): GspTeamDef[] {
+    const current = groupResults[groupName] ?? ["", "", "", ""];
+    const usedTeams = new Set(current.filter((t, i) => i !== posIdx && t !== ""));
+    return allTeams.filter((t) => !usedTeams.has(t.name));
+  }
+
+  const completedGroups = groups?.filter((g) => {
+    const r = groupResults[g.name];
+    return r && r.every((t) => t !== "");
+  }) ?? [];
+
+  const handleSave = async () => {
+    if (!selectedPoolId || completedGroups.length === 0) return;
+    setSaving(true);
+    try {
+      const payload = completedGroups.map((g) => {
+        const [pos1Team, pos2Team, pos3Team, pos4Team] = groupResults[g.name];
+        return { groupName: g.name, pos1Team, pos2Team, pos3Team, pos4Team };
+      });
+      await adminFetch("/gsp/results", {
+        method: "POST",
+        body: JSON.stringify({ poolId: selectedPoolId, results: payload }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-gsp-results", selectedPoolId] });
+      toast({ title: `Saved ${payload.length} group result${payload.length !== 1 ? "s" : ""}`, description: "Leaderboard scores will update automatically." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save results" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Pool selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider shrink-0">Pool</label>
+        {loadingPools ? (
+          <Skeleton className="h-10 w-64" />
+        ) : !pools?.length ? (
+          <p className="text-sm text-muted-foreground">No Group Stage Predictor pools found.</p>
+        ) : (
+          <Select
+            value={selectedPoolId !== null ? String(selectedPoolId) : ""}
+            onValueChange={(v) => {
+              setSelectedPoolId(Number(v));
+              setGroupResults({});
+            }}
+          >
+            <SelectTrigger className="w-64 bg-card border-border">
+              <SelectValue placeholder="Select a pool…" />
+            </SelectTrigger>
+            <SelectContent>
+              {pools.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {selectedPoolId !== null && completedGroups.length > 0 && (
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="gap-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? "Saving…" : `Save ${completedGroups.length} Group${completedGroups.length !== 1 ? "s" : ""}`}
+          </Button>
+        )}
+      </div>
+
+      {/* Scoring explanation */}
+      <div className="rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm text-muted-foreground flex flex-wrap gap-x-6 gap-y-1">
+        <span><span className="text-yellow-400 font-semibold">3 pts</span> — exact position match</span>
+        <span><span className="text-primary font-semibold">1 pt</span> — team is in top 2 + player had them top 2 (wrong slot)</span>
+        <span><span className="text-muted-foreground font-semibold">0 pts</span> — all other cases</span>
+        <span className="ml-auto font-medium text-foreground">Max: 144 pts</span>
+      </div>
+
+      {selectedPoolId === null ? (
+        <div className="flex flex-col items-center gap-3 py-16 text-center rounded-xl border border-dashed border-border/50">
+          <ListOrdered className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-muted-foreground">Select a pool above to enter group standings.</p>
+        </div>
+      ) : !groups ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {groups.map((group) => {
+            const result = groupResults[group.name] ?? ["", "", "", ""];
+            const isComplete = result.every((t) => t !== "");
+
+            return (
+              <div
+                key={group.name}
+                className={`rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${
+                  isComplete
+                    ? "border-yellow-500/50 bg-yellow-500/5"
+                    : "border-border/50 bg-card"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bebas text-2xl tracking-wider">Group {group.name}</span>
+                  {isComplete && <CheckCircle2 className="w-4 h-4 text-yellow-400" />}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {POS_LABELS.map((label, posIdx) => {
+                    const available = getAvailableTeams(group.name, group.teams, posIdx);
+                    return (
+                      <div key={posIdx} className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-8 shrink-0">{label}</span>
+                        <Select
+                          value={result[posIdx] || ""}
+                          onValueChange={(v) => setTeam(group.name, posIdx, v)}
+                        >
+                          <SelectTrigger className="flex-1 h-8 text-sm bg-background/50 border-border/40">
+                            <SelectValue placeholder="Pick team…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {/* Always show the currently selected value even if not in available */}
+                            {group.teams.map((t) => {
+                              const isAvailable = available.some((a) => a.name === t.name) || t.name === result[posIdx];
+                              return isAvailable ? (
+                                <SelectItem key={t.name} value={t.name}>
+                                  {t.name}
+                                </SelectItem>
+                              ) : null;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon }: { label: string; value: number | undefined; icon: React.ReactNode }) {
   return (
@@ -215,12 +430,15 @@ export default function AdminPanel() {
         {/* Tables */}
         <section>
           <Tabs defaultValue="pools">
-            <TabsList className="bg-card border border-border mb-6">
+            <TabsList className="bg-card border border-border mb-6 flex-wrap h-auto">
               <TabsTrigger value="pools" className="font-bebas tracking-wider text-sm gap-2">
                 <LayoutGrid className="w-4 h-4" /> Pools {pools && <span className="text-muted-foreground">({pools.length})</span>}
               </TabsTrigger>
               <TabsTrigger value="users" className="font-bebas tracking-wider text-sm gap-2">
                 <Users className="w-4 h-4" /> Users {users && <span className="text-muted-foreground">({users.length})</span>}
+              </TabsTrigger>
+              <TabsTrigger value="wc-groups" className="font-bebas tracking-wider text-sm gap-2">
+                <ListOrdered className="w-4 h-4" /> WC Group Results
               </TabsTrigger>
             </TabsList>
 
@@ -350,6 +568,10 @@ export default function AdminPanel() {
                   </TableBody>
                 </Table>
               </div>
+            </TabsContent>
+
+            <TabsContent value="wc-groups">
+              <GspResultsSection />
             </TabsContent>
           </Tabs>
         </section>

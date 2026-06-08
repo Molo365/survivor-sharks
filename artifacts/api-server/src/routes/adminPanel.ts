@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db, pool as pgPool } from "@workspace/db";
-import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable } from "@workspace/db";
+import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable } from "@workspace/db";
 import { eq, count, gte, sql, and } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
+import { WC_2026_GROUPS, getWcTeamInfo } from "../lib/wc";
 
 const router = Router();
 
@@ -232,6 +233,110 @@ router.post("/pickem/process-results", async (req, res) => {
 
   req.log.info({ poolId, date, processed, pendingDates }, "Admin graded Pick-Em results");
   res.json({ processed, dates: pendingDates });
+});
+
+// ── GSP Admin endpoints ──────────────────────────────────────────────────────
+
+// GET /api/admin-panel/gsp/pools — list all Group Stage Predictor pools
+router.get("/gsp/pools", async (_req, res) => {
+  const gspPools = await db
+    .select({ id: poolsTable.id, name: poolsTable.name })
+    .from(poolsTable)
+    .where(sql`${poolsTable.poolType}::text = 'group_stage_predictor'`);
+  res.json(gspPools);
+});
+
+// GET /api/admin-panel/gsp/groups — WC 2026 static group definitions
+router.get("/gsp/groups", async (_req, res) => {
+  const groups = WC_2026_GROUPS.map((g) => ({
+    name: g.name,
+    teams: g.teams.map((teamName) => getWcTeamInfo(teamName)),
+  }));
+  res.json(groups);
+});
+
+// GET /api/admin-panel/gsp/results/:poolId — current actual results for a pool
+router.get("/gsp/results/:poolId", async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
+
+  const results = await db
+    .select()
+    .from(groupStageResultsTable)
+    .where(eq(groupStageResultsTable.poolId, poolId));
+
+  res.json(results.map((r) => ({
+    groupName: r.groupName,
+    pos1Team: r.pos1Team,
+    pos2Team: r.pos2Team,
+    pos3Team: r.pos3Team,
+    pos4Team: r.pos4Team,
+  })));
+});
+
+// POST /api/admin-panel/gsp/results — enter actual group stage standings
+// Body: { poolId: number, results: Array<{ groupName, pos1Team..pos4Team }> }
+router.post("/gsp/results", async (req, res) => {
+  const { poolId, results } = req.body as {
+    poolId: number;
+    results: Array<{
+      groupName: string;
+      pos1Team: string;
+      pos2Team: string;
+      pos3Team: string;
+      pos4Team: string;
+    }>;
+  };
+
+  if (!poolId) { res.status(400).json({ error: "poolId is required" }); return; }
+  if (!Array.isArray(results) || results.length === 0) {
+    res.status(400).json({ error: "results array is required" });
+    return;
+  }
+
+  const validGroupMap = new Map(WC_2026_GROUPS.map((g) => [g.name, new Set(g.teams)]));
+
+  for (const result of results) {
+    const groupTeams = validGroupMap.get(result.groupName);
+    if (!groupTeams) {
+      res.status(400).json({ error: `Invalid group: ${result.groupName}` });
+      return;
+    }
+    const submitted = [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team];
+    if (!submitted.every((t) => groupTeams.has(t))) {
+      res.status(400).json({ error: `Invalid teams for group ${result.groupName}` });
+      return;
+    }
+    if (new Set(submitted).size !== 4) {
+      res.status(400).json({ error: `Duplicate teams in group ${result.groupName}` });
+      return;
+    }
+  }
+
+  const values = results.map((r) => ({
+    poolId,
+    groupName: r.groupName,
+    pos1Team: r.pos1Team,
+    pos2Team: r.pos2Team,
+    pos3Team: r.pos3Team,
+    pos4Team: r.pos4Team,
+  }));
+
+  await db
+    .insert(groupStageResultsTable)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [groupStageResultsTable.poolId, groupStageResultsTable.groupName],
+      set: {
+        pos1Team: sql`excluded.pos1_team`,
+        pos2Team: sql`excluded.pos2_team`,
+        pos3Team: sql`excluded.pos3_team`,
+        pos4Team: sql`excluded.pos4_team`,
+        enteredAt: sql`now()`,
+      },
+    });
+
+  res.json({ saved: results.length });
 });
 
 export default router;
