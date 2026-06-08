@@ -1083,6 +1083,55 @@ export const GetPickEmDailyPicksResponse = zod.array(GetPickEmDailyPicksResponse
 
 
 /**
+ * @summary Get full ranked results grid for all players on a specific date
+ */
+export const GetPickEmDailyResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmDailyResultsQueryParams = zod.object({
+  "date": zod.coerce.string().describe('Date in YYYY-MM-DD format (ET)')
+})
+
+export const GetPickEmDailyResultsResponse = zod.object({
+  "date": zod.string(),
+  "label": zod.string(),
+  "hasResults": zod.boolean(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "abbreviation": zod.string(),
+  "name": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish()
+})),
+  "players": zod.array(zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "result": zod.union([zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish()
+}))
+}))
+})
+
+
+/**
  * @summary Get the top scorer(s) for a given date (typically yesterday)
  */
 export const GetPickEmYesterdayWinnerParams = zod.object({

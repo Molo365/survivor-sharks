@@ -5,11 +5,20 @@ import {
   useSubmitPickEmPicks,
   useGetPickEmLeaderboard,
   useGetPickEmYesterdayWinner,
+  useGetPickEmDailyResults,
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
   getGetPickEmYesterdayWinnerQueryKey,
+  getGetPickEmDailyResultsQueryKey,
 } from "@workspace/api-client-react";
 import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1408,6 +1417,211 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
   );
 }
 
+function DayResultsModal({
+  open,
+  onClose,
+  poolId,
+  date,
+  currentUserId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  poolId: number;
+  date: string;
+  currentUserId: number;
+}) {
+  const params = useMemo(() => ({ date }), [date]);
+  const { data, isLoading } = useGetPickEmDailyResults(poolId, params, {
+    query: {
+      queryKey: getGetPickEmDailyResultsQueryKey(poolId, params),
+      enabled: open && !!date,
+      staleTime: 5 * 60 * 1000,
+    },
+  });
+
+  const games = data?.games ?? [];
+  const players = data?.players ?? [];
+
+  // Build teamId → abbreviation map for compact cell labels
+  const teamAbbrMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of games) {
+      m.set(g.awayTeam.id, g.awayTeam.abbreviation);
+      m.set(g.homeTeam.id, g.homeTeam.abbreviation);
+    }
+    return m;
+  }, [games]);
+
+  const minWidth = Math.max(400, 220 + games.length * 76);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-[min(95vw,960px)] p-0 gap-0 flex flex-col overflow-hidden max-h-[90vh]">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/40 shrink-0">
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-400" />
+            {data?.label ?? date} · Results
+          </DialogTitle>
+          {data && (
+            <DialogDescription>
+              {players.length} player{players.length !== 1 ? "s" : ""} · {games.length} game{games.length !== 1 ? "s" : ""}
+              {!data.hasResults && " · not yet graded"}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        <div className="overflow-auto flex-1 p-4">
+          {isLoading ? (
+            <div className="space-y-2 p-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : !data?.hasResults || players.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Trophy className="w-9 h-9 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">
+                {players.length === 0
+                  ? "No picks recorded for this day."
+                  : "Results haven't been graded yet."}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border/40 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm border-separate border-spacing-0"
+                  style={{ minWidth: `${minWidth}px` }}
+                >
+                  <thead>
+                    <tr className="bg-muted/[0.05]">
+                      {/* Sticky player header */}
+                      <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40">
+                        Player
+                      </th>
+                      {games.map((game) => (
+                        <th
+                          key={game.id}
+                          className="px-1 py-2 text-center border-b border-border/30 font-mono text-[10px] font-medium text-muted-foreground/60 whitespace-nowrap"
+                          style={{ width: 76 }}
+                        >
+                          <div>{game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}</div>
+                          {game.awayScore != null && game.homeScore != null && (
+                            <div className="text-[9px] text-muted-foreground/35 font-normal mt-0.5">
+                              {game.awayScore}–{game.homeScore}
+                            </div>
+                          )}
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-right border-b border-border/30 font-bebas text-xs text-muted-foreground/40 whitespace-nowrap">
+                        Score
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {players.map((player, idx) => {
+                      const isMe = player.userId === currentUserId;
+                      const pickMap = new Map(player.picks.map((p) => [p.gameId, p]));
+                      return (
+                        <tr
+                          key={player.userId}
+                          className={cn(
+                            "border-b border-border/25 last:border-b-0",
+                            isMe
+                              ? "bg-primary/5"
+                              : idx % 2 === 0
+                              ? "bg-transparent"
+                              : "bg-muted/[0.03]",
+                          )}
+                        >
+                          {/* Sticky player column */}
+                          <td
+                            className={cn(
+                              "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30 bg-card",
+                              isMe && "ring-inset ring-1 ring-primary/20",
+                            )}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {player.rank === 1 ? (
+                                <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "font-bebas text-sm w-[14px] text-center shrink-0",
+                                    player.rank === 2 ? "text-zinc-300"
+                                    : player.rank === 3 ? "text-amber-600"
+                                    : "text-muted-foreground/35",
+                                  )}
+                                >
+                                  {player.rank}
+                                </span>
+                              )}
+                              <span
+                                className={cn(
+                                  "font-medium text-sm truncate max-w-[120px]",
+                                  isMe ? "text-primary" : "text-foreground",
+                                )}
+                              >
+                                {player.displayName ?? player.username}
+                              </span>
+                              {isMe && (
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-primary/50 shrink-0">
+                                  you
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Per-game pick cells */}
+                          {games.map((game) => {
+                            const pick = pickMap.get(game.id);
+                            if (!pick) {
+                              return (
+                                <td key={game.id} className="px-1 py-2.5 text-center">
+                                  <span className="text-muted-foreground/25 text-xs">—</span>
+                                </td>
+                              );
+                            }
+                            const isCorrect = pick.result === "correct";
+                            const isWrong = pick.result === "incorrect";
+                            const isPostponed = pick.result === "postponed";
+                            const abbr = teamAbbrMap.get(pick.pickedTeamId) ?? pick.pickedTeamName.slice(0, 4);
+                            return (
+                              <td key={game.id} className="px-1 py-2.5 text-center">
+                                <span
+                                  className={cn(
+                                    "inline-block px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tracking-wide",
+                                    isCorrect && "bg-green-500/10 text-green-400 border border-green-500/25",
+                                    isWrong && "bg-red-500/10 text-red-400 border border-red-500/25",
+                                    isPostponed && "bg-yellow-500/8 text-yellow-500/60 border border-yellow-500/20",
+                                    !isCorrect && !isWrong && !isPostponed && "bg-muted/10 text-muted-foreground/50 border border-border/20",
+                                  )}
+                                >
+                                  {abbr}
+                                </span>
+                              </td>
+                            );
+                          })}
+
+                          {/* Score */}
+                          <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                            <span className="font-bebas text-base text-foreground">{player.correct}</span>
+                            <span className="font-bebas text-base text-muted-foreground/40">/{player.total}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb", pickFrequency }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1433,6 +1647,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const dateParams = isToday ? undefined : { date: selectedDate };
 
   const yesterdayDate = useMemo(() => offsetDate(todayEt, -1), [todayEt]);
+  const [resultsModalDate, setResultsModalDate] = useState<string | null>(null);
 
   const yesterdayParams = { date: yesterdayDate };
   const { data: yesterdayWinner } = useGetPickEmYesterdayWinner(
@@ -1559,6 +1774,16 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   }, [slate]);
 
   return (
+    <>
+    {resultsModalDate && (
+      <DayResultsModal
+        open={!!resultsModalDate}
+        onClose={() => setResultsModalDate(null)}
+        poolId={poolId}
+        date={resultsModalDate}
+        currentUserId={user?.id ?? 0}
+      />
+    )}
     <Tabs defaultValue="picks" className="w-full">
       <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
         <TabsTrigger
@@ -1681,7 +1906,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSelectedDate(yesterdayDate)}
+                    onClick={() => setResultsModalDate(yesterdayDate)}
                     className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
                   >
                     View Results →
@@ -2023,5 +2248,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
         )}
       </div>
     </Tabs>
+    </>
   );
 }

@@ -32,6 +32,7 @@ import type {
   Game,
   GetDailyScheduleParams,
   GetPickEmDailyPicksParams,
+  GetPickEmDailyResultsParams,
   GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
   GetPickEmYesterdayWinnerParams,
@@ -41,6 +42,7 @@ import type {
   LoginInput,
   Pick,
   PickEmDailyPickDetail,
+  PickEmDailyResults,
   PickEmLeaderboard,
   PickEmPickInput,
   PickEmPicksResult,
@@ -2363,6 +2365,95 @@ export function useGetPickEmDailyPicks<TData = Awaited<ReturnType<typeof getPick
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPickEmDailyPicksQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPickEmDailyResultsUrl = (poolId: number,
+    params: GetPickEmDailyResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem/daily-results?${stringifiedParams}` : `/api/pools/${poolId}/pickem/daily-results`
+}
+
+/**
+ * @summary Get full ranked results grid for all players on a specific date
+ */
+export const getPickEmDailyResults = async (poolId: number,
+    params: GetPickEmDailyResultsParams, options?: RequestInit): Promise<PickEmDailyResults> => {
+
+  return customFetch<PickEmDailyResults>(getGetPickEmDailyResultsUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmDailyResultsQueryKey = (poolId: number,
+    params?: GetPickEmDailyResultsParams,) => {
+    return [
+    `/api/pools/${poolId}/pickem/daily-results`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPickEmDailyResultsQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmDailyResults>>, TError = ErrorType<unknown>>(poolId: number,
+    params: GetPickEmDailyResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmDailyResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmDailyResultsQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmDailyResults>>> = ({ signal }) => getPickEmDailyResults(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmDailyResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmDailyResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmDailyResults>>>
+export type GetPickEmDailyResultsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get full ranked results grid for all players on a specific date
+ */
+
+export function useGetPickEmDailyResults<TData = Awaited<ReturnType<typeof getPickEmDailyResults>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    params: GetPickEmDailyResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmDailyResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmDailyResultsQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -956,6 +956,62 @@ export interface PickEmLeaderboard {
   entries: PickEmLeaderboardEntry[];
 }
 
+export type PickEmDailyResultsGameAwayTeam = {
+  id: string;
+  abbreviation: string;
+  name: string;
+  logoUrl?: string | null;
+};
+
+export type PickEmDailyResultsGameHomeTeam = {
+  id: string;
+  abbreviation: string;
+  name: string;
+  logoUrl?: string | null;
+};
+
+export interface PickEmDailyResultsGame {
+  id: string;
+  awayTeam: PickEmDailyResultsGameAwayTeam;
+  homeTeam: PickEmDailyResultsGameHomeTeam;
+  awayScore?: number | null;
+  homeScore?: number | null;
+}
+
+export type PickEmDailyResultsPickResult = typeof PickEmDailyResultsPickResult[keyof typeof PickEmDailyResultsPickResult] | null;
+
+
+export const PickEmDailyResultsPickResult = {
+  correct: 'correct',
+  incorrect: 'incorrect',
+  postponed: 'postponed',
+} as const;
+
+export interface PickEmDailyResultsPick {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  result?: PickEmDailyResultsPickResult;
+}
+
+export interface PickEmDailyResultsPlayer {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+  picks: PickEmDailyResultsPick[];
+}
+
+export interface PickEmDailyResults {
+  date: string;
+  label: string;
+  hasResults: boolean;
+  games: PickEmDailyResultsGame[];
+  players: PickEmDailyResultsPlayer[];
+}
+
 export interface PickEmDayWinnerEntry {
   userId: number;
   username: string;
@@ -1017,6 +1073,13 @@ date: string;
  * User ID whose picks to fetch
  */
 userId: number;
+};
+
+export type GetPickEmDailyResultsParams = {
+/**
+ * Date in YYYY-MM-DD format (ET)
+ */
+date: string;
 };
 
 export type GetPickEmYesterdayWinnerParams = {

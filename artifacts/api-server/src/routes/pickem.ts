@@ -441,6 +441,123 @@ function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string 
   };
 }
 
+// GET /api/pools/:poolId/pickem/daily-results?date=YYYY-MM-DD
+router.get("/daily-results", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+  const date = String(req.query.date ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a Pick-Em pool" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const sport = pool.sport as string;
+  const isIntl = sport === "intl";
+
+  // Friendly label: "Monday, June 7"
+  const [y, mo, d] = date.split("-").map(Number);
+  const dateLabel = new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+  });
+
+  // ESPN date format: YYYYMMDD
+  const espnDate = date.replace(/-/g, "");
+
+  const [espnGames, allPicks] = await Promise.all([
+    isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate),
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        gameId: pickemPicksTable.gameId,
+        pickedTeamId: pickemPicksTable.pickedTeamId,
+        pickedTeamName: pickemPicksTable.pickedTeamName,
+        result: pickemPicksTable.result,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, date))),
+  ]);
+
+  espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const hasResults = allPicks.some((p) => p.result != null);
+
+  // Group picks by user
+  const userMap = new Map<number, {
+    userId: number; username: string; displayName: string | null;
+    picks: Map<string, { pickedTeamId: string; pickedTeamName: string; result: string | null }>;
+  }>();
+
+  for (const pick of allPicks) {
+    if (!userMap.has(pick.userId)) {
+      userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
+    }
+    userMap.get(pick.userId)!.picks.set(pick.gameId, {
+      pickedTeamId: pick.pickedTeamId,
+      pickedTeamName: pick.pickedTeamName,
+      result: pick.result ?? null,
+    });
+  }
+
+  // Compute scores and sort
+  const scored = Array.from(userMap.values()).map((u) => {
+    const picks = Array.from(u.picks.entries());
+    const correct = picks.filter(([, p]) => p.result === "correct").length;
+    const total = picks.length;
+    return { ...u, correct, total };
+  });
+
+  scored.sort((a, b) => b.correct - a.correct || b.total - a.total);
+
+  // Assign ranks with ties
+  let rank = 1;
+  const players = scored.map((u, i) => {
+    if (i > 0 && u.correct === scored[i - 1].correct) {
+      // same rank as previous
+    } else {
+      rank = i + 1;
+    }
+    return {
+      rank,
+      userId: u.userId,
+      username: u.username,
+      displayName: u.displayName,
+      correct: u.correct,
+      total: u.total,
+      picks: Array.from(u.picks.entries()).map(([gameId, p]) => ({
+        gameId,
+        pickedTeamId: p.pickedTeamId,
+        pickedTeamName: p.pickedTeamName,
+        result: p.result,
+      })),
+    };
+  });
+
+  const games = espnGames.map((g) => ({
+    id: g.id,
+    awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+    homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+    awayScore: g.awayScore,
+    homeScore: g.homeScore,
+  }));
+
+  res.json({ date, label: dateLabel, hasResults, games, players });
+});
+
 // GET /api/pools/:poolId/pickem/yesterday-winner?date=YYYY-MM-DD
 router.get("/yesterday-winner", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));

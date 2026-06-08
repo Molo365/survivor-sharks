@@ -744,6 +744,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/PickEmDailyPickDetail"
 
+  /pools/{poolId}/pickem/daily-results:
+    get:
+      operationId: getPickEmDailyResults
+      tags: [pickem]
+      summary: Get full ranked results grid for all players on a specific date
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date in YYYY-MM-DD format (ET)
+      responses:
+        "200":
+          description: Ranked results grid for the date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmDailyResults"
+
   /pools/{poolId}/pickem/yesterday-winner:
     get:
       operationId: getPickEmYesterdayWinner
@@ -2064,6 +2089,74 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
+
+    PickEmDailyResultsGame:
+      type: object
+      required: [id, awayTeam, homeTeam]
+      properties:
+        id:
+          type: string
+        awayTeam:
+          type: object
+          required: [id, abbreviation, name]
+          properties:
+            id: { type: string }
+            abbreviation: { type: string }
+            name: { type: string }
+            logoUrl: { type: string, nullable: true }
+        homeTeam:
+          type: object
+          required: [id, abbreviation, name]
+          properties:
+            id: { type: string }
+            abbreviation: { type: string }
+            name: { type: string }
+            logoUrl: { type: string, nullable: true }
+        awayScore: { type: integer, nullable: true }
+        homeScore: { type: integer, nullable: true }
+
+    PickEmDailyResultsPick:
+      type: object
+      required: [gameId, pickedTeamId, pickedTeamName]
+      properties:
+        gameId: { type: string }
+        pickedTeamId: { type: string }
+        pickedTeamName: { type: string }
+        result:
+          type: string
+          nullable: true
+          enum: [correct, incorrect, postponed, null]
+
+    PickEmDailyResultsPlayer:
+      type: object
+      required: [rank, userId, username, correct, total, picks]
+      properties:
+        rank: { type: integer }
+        userId: { type: integer }
+        username: { type: string }
+        displayName: { type: string, nullable: true }
+        correct: { type: integer }
+        total: { type: integer }
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmDailyResultsPick"
+
+    PickEmDailyResults:
+      type: object
+      required: [date, label, hasResults, games, players]
+      properties:
+        date: { type: string }
+        label: { type: string }
+        hasResults: { type: boolean }
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmDailyResultsGame"
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmDailyResultsPlayer"
 
     PickEmDayWinnerEntry:
       type: object
