@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, usersTable, entriesTable, pickemPicksTable } from "@workspace/db";
+import { poolsTable, usersTable, entriesTable, pickemPicksTable, picksTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processCompletedGames } from "../lib/auto-eliminator";
@@ -84,6 +84,14 @@ router.delete("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
     res.status(403).json({ error: "Cannot delete admin users" });
     return;
   }
+  const ownedPools = await db.select({ id: poolsTable.id }).from(poolsTable).where(eq(poolsTable.commissionerId, userId));
+  if (ownedPools.length > 0) {
+    res.status(409).json({ error: "User is a commissioner of one or more pools. Delete or reassign those pools first." });
+    return;
+  }
+  await db.delete(pickemPicksTable).where(eq(pickemPicksTable.userId, userId));
+  await db.delete(picksTable).where(eq(picksTable.userId, userId));
+  await db.delete(entriesTable).where(eq(entriesTable.userId, userId));
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   res.json({ success: true });
 });

@@ -59,7 +59,14 @@ export default function AdminUsers() {
           queryClient.invalidateQueries({ queryKey: getAdminListUsersQueryKey() });
           toast({ title: `${username} deleted` });
         },
-        onError: () => toast({ variant: "destructive", title: "Failed to delete user" }),
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          toast({
+            variant: "destructive",
+            title: "Cannot delete user",
+            description: msg ?? "Something went wrong.",
+          });
+        },
       },
     );
   }
@@ -123,13 +130,13 @@ export default function AdminUsers() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                     <div className="animate-pulse">Loading users…</div>
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
