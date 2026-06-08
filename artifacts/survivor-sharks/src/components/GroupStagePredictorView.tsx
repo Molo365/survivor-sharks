@@ -238,6 +238,11 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
           </div>
         </div>
 
+        {/* Hint */}
+        <p className="text-xs text-muted-foreground/60 text-center">
+          Click on a player's name to view their predictions.
+        </p>
+
         {/* Player rows */}
         <div className="space-y-2">
           {leaderboard.map((entry) => {
