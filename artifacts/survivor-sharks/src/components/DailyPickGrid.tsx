@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Lock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 
 function formatGameTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString("en-US", {
@@ -203,8 +204,7 @@ export function DailyPickGrid({ poolId }: { poolId: number }) {
       { poolId, data: { teamId, teamName, teamLogoUrl } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetMyPicksQueryKey(poolId) });
-          queryClient.invalidateQueries({ queryKey: getGetDailyScheduleQueryKey(poolId, { date: selectedDate }) });
+          void invalidatePoolQueries(queryClient, poolId);
           toast({ title: "Pick saved!", description: `${teamName} locked in for today.` });
           setPendingTeamId(null);
         },

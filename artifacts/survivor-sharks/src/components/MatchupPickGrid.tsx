@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -634,7 +635,7 @@ export function MatchupPickGrid({
       {
         onSuccess: () => {
           toast({ title: "Pick locked in!", description: `Week ${currentWeek} pick saved.` });
-          queryClient.invalidateQueries({ queryKey: getGetMyPicksQueryKey(poolId) });
+          void invalidatePoolQueries(queryClient, poolId);
           setSelectedTeam(null);
         },
         onError: (err: any) => {

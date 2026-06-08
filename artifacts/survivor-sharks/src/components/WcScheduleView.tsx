@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { Check, X, Clock, Trophy, Globe, Loader2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -314,7 +315,7 @@ export function WcScheduleView({ poolId, commissionerId }: WcScheduleViewProps) 
             title: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved`,
             description: "Your picks have been recorded.",
           });
-          void queryClient.invalidateQueries({ queryKey: getGetWcScheduleQueryKey(poolId) });
+          void invalidatePoolQueries(queryClient, poolId);
         },
         onError: (err: unknown) => {
           const msg = err instanceof Error ? err.message : "Something went wrong";

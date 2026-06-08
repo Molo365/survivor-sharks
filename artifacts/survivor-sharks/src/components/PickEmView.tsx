@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 
 function BaseDiamond({
   onFirst,
@@ -1740,7 +1741,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             title: "Picks saved!",
             description: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved.`,
           });
-          queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId) });
+          void invalidatePoolQueries(queryClient, poolId);
         },
         onError: () => {
           toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });

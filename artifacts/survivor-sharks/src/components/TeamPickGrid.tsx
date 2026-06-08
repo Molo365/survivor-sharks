@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGetSportTeams, useGetMyPicks, useSubmitPick, getGetMyPicksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +28,7 @@ export function TeamPickGrid({ poolId, sport, currentWeek }: { poolId: number, s
       {
         onSuccess: () => {
           toast({ title: "Pick locked in!" });
-          queryClient.invalidateQueries({ queryKey: getGetMyPicksQueryKey(poolId) });
+          void invalidatePoolQueries(queryClient, poolId);
         },
         onError: (err: any) => {
           toast({ variant: "destructive", title: "Failed to submit pick", description: err?.message || "Error submitting pick" });
