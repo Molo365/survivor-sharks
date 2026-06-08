@@ -537,7 +537,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                           {entry.rank}
                         </span>
                         <span className={cn("font-medium text-sm truncate max-w-[110px]", isMe ? "text-primary" : "text-foreground")}>
-                          {entry.displayName ?? entry.username}
+                          {entry.displayName || entry.username}
                           {isMe && (
                             <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>
                           )}
@@ -775,7 +775,7 @@ function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
                     {idx + 1}
                   </span>
                   <span className={cn("flex-1 font-medium text-sm truncate", isMe && "text-primary")}>
-                    {entry.displayName ?? entry.username}
+                    {entry.displayName || entry.username}
                     {isMe && (
                       <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                         you
@@ -933,7 +933,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
       "Picked",
     ];
     const csvRows = sortedEntries.map((entry) => {
-      const name = entry.displayName ?? entry.username;
+      const name = entry.displayName || entry.username;
       const pickMap = new Map(
         entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
       );
@@ -1069,7 +1069,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
                               isMe ? "text-primary" : "text-foreground",
                             )}
                           >
-                            {entry.displayName ?? entry.username}
+                            {entry.displayName || entry.username}
                             {isMe && (
                               <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                                 you
@@ -1343,7 +1343,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
                     {entry.rank}
                   </span>
                   <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
-                    {entry.displayName ?? entry.username}
+                    {entry.displayName || entry.username}
                     {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                   </span>
                 </div>
@@ -1563,7 +1563,7 @@ function DayResultsModal({
                                   isMe ? "text-primary" : "text-foreground",
                                 )}
                               >
-                                {player.displayName ?? player.username}
+                                {player.displayName || player.username}
                               </span>
                               {isMe && (
                                 <span className="text-[9px] font-bold uppercase tracking-widest text-primary/50 shrink-0">
@@ -2102,7 +2102,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                           isMe ? "text-primary" : "text-foreground",
                         )}
                       >
-                        {entry.displayName ?? entry.username}
+                        {entry.displayName || entry.username}
                         {isMe && (
                           <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                             you

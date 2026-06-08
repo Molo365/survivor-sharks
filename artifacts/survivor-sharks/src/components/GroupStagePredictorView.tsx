@@ -131,7 +131,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
                 {/* Name */}
                 <div className="flex-1 min-w-0">
                   <p className={cn("font-medium truncate", isMe && "text-primary")}>
-                    {entry.displayName ?? entry.username}
+                    {entry.displayName || entry.username}
                     {isMe && <span className="ml-1.5 text-xs text-primary/60 font-normal">(you)</span>}
                   </p>
                   {/* Mini score bar */}

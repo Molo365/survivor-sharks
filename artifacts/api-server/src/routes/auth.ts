@@ -64,7 +64,7 @@ router.post("/register", async (req, res) => {
     username,
     email: email.toLowerCase(),
     passwordHash,
-    displayName: displayName ?? null,
+    displayName: displayName?.trim() || null,
     role: ADMIN_USERNAMES.includes(username.toLowerCase()) ? "admin" : "user",
   }).returning();
 
