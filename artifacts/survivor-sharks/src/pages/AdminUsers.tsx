@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminUpdateUser, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminUpdateUser, useAdminDeleteUser, getAdminListUsersQueryKey } from "@workspace/api-client-react";
 import type { AdminUser } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
@@ -19,15 +19,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 
 export default function AdminUsers() {
   const { user } = useAuth();
   const { data: users, isLoading } = useAdminListUsers();
   const updateUser = useAdminUpdateUser();
+  const deleteUser = useAdminDeleteUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -37,6 +50,19 @@ export default function AdminUsers() {
     u.email.toLowerCase().includes(search.toLowerCase()) ||
     (u.displayName ?? "").toLowerCase().includes(search.toLowerCase()),
   );
+
+  function handleDelete(userId: number, username: string) {
+    deleteUser.mutate(
+      { userId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getAdminListUsersQueryKey() });
+          toast({ title: `${username} deleted` });
+        },
+        onError: () => toast({ variant: "destructive", title: "Failed to delete user" }),
+      },
+    );
+  }
 
   function handleRoleChange(userId: number, role: string) {
     updateUser.mutate(
@@ -91,6 +117,7 @@ export default function AdminUsers() {
                 {user?.role === "admin" && (
                   <TableHead className="font-bebas text-base tracking-wider text-muted-foreground">Change Role</TableHead>
                 )}
+                <TableHead className="font-bebas text-base tracking-wider text-muted-foreground text-right">Delete</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -146,6 +173,34 @@ export default function AdminUsers() {
                         </Select>
                       </TableCell>
                     )}
+                    <TableCell className="text-right">
+                      {u.role !== "admin" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="border-destructive/20">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Delete User?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {u.username}? This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(u.id, u.username)}
+                                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                              >
+                                Delete Permanently
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               )}

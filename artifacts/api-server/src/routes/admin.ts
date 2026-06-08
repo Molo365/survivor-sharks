@@ -68,6 +68,26 @@ router.get("/users", requireAuth, requireAdmin, async (_req, res) => {
   res.json(result);
 });
 
+// DELETE /api/admin/users/:userId
+router.delete("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
+  const userId = parseInt(String(req.params.userId));
+  if (isNaN(userId)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+  const [existing] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (existing.role === "admin") {
+    res.status(403).json({ error: "Cannot delete admin users" });
+    return;
+  }
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+  res.json({ success: true });
+});
+
 // PATCH /api/admin/users/:userId
 router.patch("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
   const userId = parseInt(String(req.params.userId));

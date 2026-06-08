@@ -776,6 +776,23 @@ paths:
                   $ref: "#/components/schemas/AdminUser"
 
   /admin/users/{userId}:
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin]
+      summary: Admin — delete a user account
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
     patch:
       operationId: adminUpdateUser
       tags: [admin]

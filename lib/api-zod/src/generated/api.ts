@@ -1130,6 +1130,19 @@ export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
 
 
 /**
+ * @summary Admin — delete a user account
+ */
+export const AdminDeleteUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const AdminDeleteUserResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
  * @summary Admin — update user role or status
  */
 export const AdminUpdateUserParams = zod.object({
