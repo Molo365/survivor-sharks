@@ -517,7 +517,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                   <tr
                     key={entry.userId}
                     className={cn(
-                      "border-b border-border/25 last:border-b-0",
+                      "border-b-2 border-border/60 last:border-b-0",
                       isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
                     )}
                   >
@@ -1040,7 +1040,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
                     <tr
                       key={entry.userId}
                       className={cn(
-                        "border-b border-border/25 last:border-b-0",
+                        "border-b-2 border-border/60 last:border-b-0",
                         isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
                       )}
                     >
@@ -1527,7 +1527,7 @@ function DayResultsModal({
                         <tr
                           key={player.userId}
                           className={cn(
-                            "border-b border-border/25 last:border-b-0",
+                            "border-b-2 border-border/60 last:border-b-0",
                             isMe
                               ? "bg-primary/5"
                               : idx % 2 === 0
