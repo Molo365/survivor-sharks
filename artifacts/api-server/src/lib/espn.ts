@@ -197,7 +197,7 @@ async function fetchGames(sport: string, week?: number): Promise<EspnGame[]> {
   if (!base) return [];
 
   const url = sport === "nfl" && week
-    ? `${base}/scoreboard?week=${week}&seasontype=2`
+    ? `${base}/scoreboard?week=${week}&seasontype=2&dates=2026`
     : `${base}/scoreboard`;
 
   try {

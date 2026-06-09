@@ -269,7 +269,7 @@ router.get("/:sport/schedule/:week", requireAuth, async (req, res) => {
     : "soccer/fifa.world";
 
   const scoreboardUrl = sport === "nfl"
-    ? `https://site.api.espn.com/apis/site/v2/sports/${espnPath}/scoreboard?week=${week}&seasontype=2`
+    ? `https://site.api.espn.com/apis/site/v2/sports/${espnPath}/scoreboard?week=${week}&seasontype=2&dates=2026`
     : `https://site.api.espn.com/apis/site/v2/sports/${espnPath}/scoreboard`;
 
   try {

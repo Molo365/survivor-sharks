@@ -889,7 +889,14 @@ export function MatchupPickGrid({
 
       {/* Cards */}
       {gameList.length === 0 ? (
-        <p className="text-muted-foreground text-center py-10">No games found for this week.</p>
+        sport === "nfl" && new Date() < new Date("2026-09-04T00:00:00Z") ? (
+          <div className="bg-muted/30 border border-border/40 rounded-xl p-8 text-center space-y-2">
+            <p className="font-bebas text-2xl tracking-wider text-foreground/70">NFL Season Starts September 2026</p>
+            <p className="text-sm text-muted-foreground">The 2026 regular season schedule isn't out yet — check back in September when Week 1 kicks off.</p>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-center py-10">No games found for this week.</p>
+        )
       ) : (
         <div className={cn("space-y-3", pickIsLocked && "pointer-events-none select-none")}>
           {gameList.map(game => (
