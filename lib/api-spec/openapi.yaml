@@ -17,6 +17,8 @@ tags:
   - name: picks
     description: Weekly picks
   - name: pickem
+  - name: pickem-season
+    description: NFL Pick-Ems Season pools
   - name: gsp
     description: Pick-em pools
   - name: teams
@@ -795,6 +797,125 @@ paths:
               schema:
                 $ref: "#/components/schemas/PickEmYesterdayWinner"
 
+  # ── NFL Pick-Ems Season ───────────────────────────────────────────────────
+  /pools/{poolId}/pickem-season/games:
+    get:
+      operationId: getNflPickEmSeasonGames
+      tags: [pickem-season]
+      summary: Get NFL games for a specific week with the user's picks overlaid
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: week
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 18
+          description: NFL week number (1-18). Defaults to pool's currentWeek.
+      responses:
+        "200":
+          description: NFL week game slate with user picks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflPickEmSeasonSlate"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/pickem-season/picks:
+    post:
+      operationId: submitNflPickEmSeasonPicks
+      tags: [pickem-season]
+      summary: Submit picks for an NFL week (locks per-game at kickoff)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NflPickEmSeasonPickInput"
+      responses:
+        "201":
+          description: Picks saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmPicksResult"
+        "400":
+          description: Invalid picks or game already locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/pickem-season/leaderboard:
+    get:
+      operationId: getNflPickEmSeasonLeaderboard
+      tags: [pickem-season]
+      summary: Get season-long leaderboard with weekly breakdowns and tiebreaker info
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Season leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflPickEmSeasonLeaderboard"
+
+  /pools/{poolId}/pickem-season/process-results:
+    post:
+      operationId: processNflPickEmSeasonResults
+      tags: [pickem-season]
+      summary: Grade completed games for a given NFL week (commissioner/admin only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                week:
+                  type: integer
+                  description: NFL week to grade (defaults to pool's currentWeek)
+      responses:
+        "200":
+          description: Results processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflPickEmSeasonProcessResult"
+        "403":
+          description: Commissioner or admin only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Group Stage Predictor ─────────────────────────────────────────────────
   /pools/{poolId}/gsp/groups:
     get:
@@ -1239,7 +1360,7 @@ components:
           enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl]
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
           default: season
         startWeek:
           type: integer
@@ -1288,7 +1409,7 @@ components:
           type: boolean
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
         startWeek:
           type: integer
         doubleElimination:
@@ -1307,6 +1428,9 @@ components:
       properties:
         inviteCode:
           type: string
+        tiebreakerPrediction:
+          type: integer
+          description: "Predicted total combined points for the final NFL game of the season (for pickem_season pools)"
 
     Pool:
       type: object
@@ -1320,7 +1444,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -1373,7 +1497,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -2413,6 +2537,159 @@ components:
         processed:
           type: integer
         date:
+          type: string
+
+    NflPickEmSeasonGame:
+      type: object
+      required: [id, startTime, status, deadlinePassed, awayTeam, homeTeam]
+      properties:
+        id:
+          type: string
+        startTime:
+          type: string
+        status:
+          type: string
+        deadlinePassed:
+          type: boolean
+        awayTeam:
+          type: object
+          required: [id, name, abbreviation]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            abbreviation:
+              type: string
+            logoUrl:
+              type: string
+              nullable: true
+        homeTeam:
+          type: object
+          required: [id, name, abbreviation]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            abbreviation:
+              type: string
+            logoUrl:
+              type: string
+              nullable: true
+        awayScore:
+          type: integer
+          nullable: true
+        homeScore:
+          type: integer
+          nullable: true
+        userPickTeamId:
+          type: string
+          nullable: true
+        userPickResult:
+          type: string
+          nullable: true
+          enum: [pending, correct, incorrect, postponed]
+        liveDetail:
+          type: string
+          nullable: true
+        homeRecord:
+          type: string
+          nullable: true
+        awayRecord:
+          type: string
+          nullable: true
+
+    NflPickEmSeasonSlate:
+      type: object
+      required: [week, totalWeeks, currentWeek, games]
+      properties:
+        week:
+          type: integer
+        totalWeeks:
+          type: integer
+        currentWeek:
+          type: integer
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonGame"
+
+    NflPickEmSeasonPickInput:
+      type: object
+      required: [week, picks]
+      properties:
+        week:
+          type: integer
+          minimum: 1
+          maximum: 18
+        picks:
+          type: array
+          items:
+            type: object
+            required: [gameId, pickedTeamId, pickedTeamName]
+            properties:
+              gameId:
+                type: string
+              pickedTeamId:
+                type: string
+              pickedTeamName:
+                type: string
+
+    NflPickEmSeasonLeaderboardEntry:
+      type: object
+      required: [rank, userId, username, seasonCorrect, seasonTotal, weeklyScores]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        seasonCorrect:
+          type: integer
+        seasonTotal:
+          type: integer
+        tiebreakerPrediction:
+          type: integer
+          nullable: true
+        weeklyScores:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              correct:
+                type: integer
+              total:
+                type: integer
+
+    NflPickEmSeasonLeaderboard:
+      type: object
+      required: [currentWeek, totalWeeks, entries]
+      properties:
+        currentWeek:
+          type: integer
+        totalWeeks:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonLeaderboardEntry"
+
+    NflPickEmSeasonProcessResult:
+      type: object
+      required: [graded, week, completedGames]
+      properties:
+        graded:
+          type: integer
+        week:
+          type: integer
+        completedGames:
+          type: integer
+        message:
           type: string
 
     GspTeam:

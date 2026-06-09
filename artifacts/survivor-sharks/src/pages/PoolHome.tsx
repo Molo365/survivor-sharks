@@ -17,6 +17,7 @@ import { CommissionerPanel } from "@/components/CommissionerPanel";
 import { InjuriesTab } from "@/components/InjuriesTab";
 import { PickEmView } from "@/components/PickEmView";
 import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
+import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -28,6 +29,7 @@ export default function PoolHome() {
 
   const isPickEm = (pool?.poolType as string) === "pickem";
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
+  const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -115,6 +117,11 @@ export default function PoolHome() {
                       <ListOrdered className="w-3 h-3" /> Group Predictor
                     </span>
                   )}
+                  {(pool.poolType as string) === "pickem_season" && (
+                    <span className="flex items-center gap-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-1 rounded">
+                      <Target className="w-3 h-3" /> Pick-Ems Season
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
@@ -171,6 +178,8 @@ export default function PoolHome() {
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />
             ) : isGsp ? (
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
+            ) : isPickEmSeason ? (
+              <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">

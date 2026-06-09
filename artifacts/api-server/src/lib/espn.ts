@@ -417,6 +417,14 @@ export async function fetchGamesForDate(sport: string, dateStr: string): Promise
 }
 
 /**
+ * Fetch all NFL games for a given regular-season week (1-18).
+ * Uses ESPN's week-based scoreboard endpoint with dates=2026.
+ */
+export async function fetchNflGamesByWeek(week: number): Promise<EspnGame[]> {
+  return fetchGames("nfl", week);
+}
+
+/**
  * Fetch all MLB games for a full week (7 days, Mon–Sun ET).
  * Calls ESPN once per day in parallel.
  */

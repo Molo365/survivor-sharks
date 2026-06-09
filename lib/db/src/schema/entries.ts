@@ -14,6 +14,7 @@ export const entriesTable = pgTable("entries", {
   eliminatedWeek: integer("eliminated_week"),
   strikeCount: integer("strike_count").notNull().default(0),
   streak: integer("streak").notNull().default(0),
+  tiebreakerPrediction: integer("tiebreaker_prediction"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

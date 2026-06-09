@@ -65,7 +65,7 @@ const SPORTS = [
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
-  [PoolInputSport.nfl]: ["season", "weekly", "mid_season"],
+  [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
@@ -118,6 +118,18 @@ const POOL_TYPES = [
     cardClass:
       "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
   },
+  {
+    id: "pickem_season" as const,
+    label: "Pick-Ems Season",
+    icon: Target,
+    tagline: "Pick Every NFL Game, All 18 Weeks",
+    description:
+      "Pick the winner of every NFL game each week across all 18 regular-season weeks. Most correct picks at season's end wins. Tiebreaker: predict the final game's total score.",
+    badge: "NFL",
+    badgeClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    cardClass:
+      "border-orange-500/30 bg-[linear-gradient(145deg,rgba(249,115,22,0.06)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -129,7 +141,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -173,7 +185,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");

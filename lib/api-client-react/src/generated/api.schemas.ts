@@ -84,6 +84,7 @@ export const PoolInputPoolType = {
   mid_season: 'mid_season',
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
+  pickem_season: 'pickem_season',
 } as const;
 
 /**
@@ -126,6 +127,7 @@ export const PoolUpdatePoolType = {
   mid_season: 'mid_season',
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
+  pickem_season: 'pickem_season',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -152,6 +154,8 @@ export interface PoolUpdate {
 
 export interface JoinPoolInput {
   inviteCode: string;
+  /** Predicted total combined points for the final NFL game of the season (for pickem_season pools) */
+  tiebreakerPrediction?: number;
 }
 
 export type PoolPoolType = typeof PoolPoolType[keyof typeof PoolPoolType];
@@ -163,6 +167,7 @@ export const PoolPoolType = {
   mid_season: 'mid_season',
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
+  pickem_season: 'pickem_season',
 } as const;
 
 /**
@@ -215,6 +220,7 @@ export const PoolDetailPoolType = {
   mid_season: 'mid_season',
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
+  pickem_season: 'pickem_season',
 } as const;
 
 /**
@@ -1038,6 +1044,97 @@ export interface PickEmProcessResult {
   date: string;
 }
 
+export type NflPickEmSeasonGameAwayTeam = {
+  id: string;
+  name: string;
+  abbreviation: string;
+  logoUrl?: string | null;
+};
+
+export type NflPickEmSeasonGameHomeTeam = {
+  id: string;
+  name: string;
+  abbreviation: string;
+  logoUrl?: string | null;
+};
+
+export type NflPickEmSeasonGameUserPickResult = typeof NflPickEmSeasonGameUserPickResult[keyof typeof NflPickEmSeasonGameUserPickResult] | null;
+
+
+export const NflPickEmSeasonGameUserPickResult = {
+  pending: 'pending',
+  correct: 'correct',
+  incorrect: 'incorrect',
+  postponed: 'postponed',
+} as const;
+
+export interface NflPickEmSeasonGame {
+  id: string;
+  startTime: string;
+  status: string;
+  deadlinePassed: boolean;
+  awayTeam: NflPickEmSeasonGameAwayTeam;
+  homeTeam: NflPickEmSeasonGameHomeTeam;
+  awayScore?: number | null;
+  homeScore?: number | null;
+  userPickTeamId?: string | null;
+  userPickResult?: NflPickEmSeasonGameUserPickResult;
+  liveDetail?: string | null;
+  homeRecord?: string | null;
+  awayRecord?: string | null;
+}
+
+export interface NflPickEmSeasonSlate {
+  week: number;
+  totalWeeks: number;
+  currentWeek: number;
+  games: NflPickEmSeasonGame[];
+}
+
+export type NflPickEmSeasonPickInputPicksItem = {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+};
+
+export interface NflPickEmSeasonPickInput {
+  /**
+     * @minimum 1
+     * @maximum 18
+     */
+  week: number;
+  picks: NflPickEmSeasonPickInputPicksItem[];
+}
+
+export type NflPickEmSeasonLeaderboardEntryWeeklyScores = {[key: string]: {
+  correct?: number;
+  total?: number;
+}};
+
+export interface NflPickEmSeasonLeaderboardEntry {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  seasonCorrect: number;
+  seasonTotal: number;
+  tiebreakerPrediction?: number | null;
+  weeklyScores: NflPickEmSeasonLeaderboardEntryWeeklyScores;
+}
+
+export interface NflPickEmSeasonLeaderboard {
+  currentWeek: number;
+  totalWeeks: number;
+  entries: NflPickEmSeasonLeaderboardEntry[];
+}
+
+export interface NflPickEmSeasonProcessResult {
+  graded: number;
+  week: number;
+  completedGames: number;
+  message?: string;
+}
+
 export interface GspTeam {
   name: string;
   abbr: string;
@@ -1165,6 +1262,20 @@ export type GetPickEmYesterdayWinnerParams = {
  * Date in YYYY-MM-DD format (ET)
  */
 date: string;
+};
+
+export type GetNflPickEmSeasonGamesParams = {
+/**
+ * NFL week number (1-18). Defaults to pool's currentWeek.
+ * @minimum 1
+ * @maximum 18
+ */
+week?: number;
+};
+
+export type ProcessNflPickEmSeasonResultsBody = {
+  /** NFL week to grade (defaults to pool's currentWeek) */
+  week?: number;
 };
 
 export type AdminProcessPickemResultsBody = {

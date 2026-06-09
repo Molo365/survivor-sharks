@@ -6,7 +6,8 @@ import { useJoinPool } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Trophy, AlertCircle, LogIn, UserPlus } from "lucide-react";
+import { Users, Trophy, AlertCircle, LogIn, UserPlus, Target } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface PoolPreview {
@@ -84,6 +85,7 @@ export default function JoinInvite() {
   const [pool, setPool] = useState<PoolPreview | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [tiebreakerPrediction, setTiebreakerPrediction] = useState("");
 
   const countdown = useCountdown(WC_KICKOFF);
   const isWc = pool?.sport === "worldcup";
@@ -114,8 +116,16 @@ export default function JoinInvite() {
       return;
     }
 
+    const tb = tiebreakerPrediction ? parseInt(tiebreakerPrediction, 10) : undefined;
     joinPool.mutate(
-      { data: { inviteCode } },
+      {
+        data: {
+          inviteCode,
+          ...(pool?.poolType === "pickem_season" && tb != null && !isNaN(tb)
+            ? { tiebreakerPrediction: tb }
+            : {}),
+        },
+      },
       {
         onSuccess: (data: any) => {
           toast({ title: "You're in! 🎉", description: `Successfully joined ${pool?.name ?? "the pool"}.` });
@@ -281,6 +291,38 @@ export default function JoinInvite() {
                 <p className="text-[11px] text-muted-foreground/40 text-center">
                   June 11, 2026 · World Cup 2026 Group Stage Opens
                 </p>
+              </div>
+            )}
+
+            {/* Tiebreaker input for Pick-Ems Season pools */}
+            {pool?.poolType === "pickem_season" && (
+              <div className="w-full space-y-2">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+                  <span className="h-px w-8 bg-border/40" />
+                  Tiebreaker
+                  <span className="h-px w-8 bg-border/40" />
+                </div>
+                <div className="bg-card/50 border border-border/30 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Target className="w-4 h-4 text-orange-400 shrink-0" />
+                    Predict the final NFL game's total score
+                  </div>
+                  <p className="text-xs text-muted-foreground/60 leading-relaxed">
+                    If players finish tied at season end, the one closest to the combined score of the final game wins. Enter your prediction to compete for the tiebreaker.
+                  </p>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={150}
+                    placeholder="e.g. 47"
+                    value={tiebreakerPrediction}
+                    onChange={(e) => setTiebreakerPrediction(e.target.value)}
+                    className="w-full bg-background/60 border-border/50 text-center font-bebas text-2xl tracking-wider h-14 placeholder:text-muted-foreground/30 placeholder:text-xl"
+                  />
+                  <p className="text-[10px] text-muted-foreground/40 text-center">
+                    Optional — you can still join without a prediction
+                  </p>
+                </div>
               </div>
             )}
 
