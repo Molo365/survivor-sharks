@@ -6,6 +6,7 @@ import {
   getGetGspLeaderboardQueryKey,
   useGetGspMemberPicks,
   getGetGspMemberPicksQueryKey,
+  useGetGspLiveStandings,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,8 @@ import {
   ShieldAlert,
   Copy,
   X,
+  Globe,
+  RefreshCw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -648,6 +651,164 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   );
 }
 
+// ── Live Standings tab ────────────────────────────────────────────────────────
+
+const QUAL_BG: Record<number, string> = {
+  1: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  2: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  3: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  4: "bg-transparent text-muted-foreground border-border/30",
+};
+
+function LiveStandingsTab({ poolId }: { poolId: number }) {
+  const { data: groups, isLoading, isFetching, refetch, dataUpdatedAt } = useGetGspLiveStandings(
+    poolId,
+    { query: { queryKey: ["gsp-live-standings", poolId], refetchInterval: 60_000, staleTime: 55_000 } },
+  );
+
+  const updatedLabel = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  const pretournament = groups?.every((g) => g.teams.every((t) => t.played === 0));
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <Skeleton key={i} className="h-44 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!groups?.length) {
+    return (
+      <div className="mt-10 text-center text-muted-foreground text-sm">
+        Standings unavailable — ESPN API may be unreachable. Try again shortly.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 mt-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5" />
+          <span>Live data from ESPN · auto-refreshes every 60 s</span>
+          {pretournament && (
+            <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 text-[10px] font-semibold tracking-wide uppercase">
+              Pre-tournament
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded-md border border-border/40 hover:border-border/70 hover:bg-muted/30 transition-colors",
+            isFetching && "opacity-60 pointer-events-none",
+          )}
+        >
+          <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+          {updatedLabel ? `Updated ${updatedLabel}` : "Refresh"}
+        </button>
+      </div>
+
+      {/* Group cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {groups.map((group) => (
+          <Card key={group.groupLetter} className="bg-card border-border/50 overflow-hidden">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="font-bebas text-xl tracking-wider text-foreground">
+                {group.displayName}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 pb-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-x-2 px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 border-b border-border/20">
+                <span className="w-5 text-center">#</span>
+                <span>Team</span>
+                <span className="w-6 text-center">MP</span>
+                <span className="w-7 text-center">GD</span>
+                <span className="w-7 text-center font-bold text-muted-foreground/70">Pts</span>
+              </div>
+              {/* Team rows */}
+              {group.teams.map((team, idx) => {
+                const pos = idx + 1;
+                const advances = pos <= 2;
+                const gdStr = team.gd > 0 ? `+${team.gd}` : String(team.gd);
+                return (
+                  <div
+                    key={team.id}
+                    className={cn(
+                      "grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-x-2 px-4 py-1.5",
+                      idx < group.teams.length - 1 && "border-b border-border/10",
+                    )}
+                  >
+                    {/* Position badge */}
+                    <span
+                      className={cn(
+                        "w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 border",
+                        QUAL_BG[pos] ?? QUAL_BG[4],
+                      )}
+                    >
+                      {pos}
+                    </span>
+                    {/* Flag + name */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {team.logo ? (
+                        <img
+                          src={team.logo}
+                          alt={team.abbreviation}
+                          className="w-5 h-4 object-cover rounded-[2px] shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      ) : (
+                        <span className="w-5 h-4 rounded-[2px] bg-muted/50 flex items-center justify-center text-[8px] text-muted-foreground font-bold shrink-0">
+                          {team.abbreviation.slice(0, 2)}
+                        </span>
+                      )}
+                      <span className={cn("text-sm truncate", advances ? "text-foreground font-medium" : "text-muted-foreground")}>
+                        {team.displayName}
+                      </span>
+                    </div>
+                    {/* MP */}
+                    <span className="w-6 text-center text-xs text-muted-foreground tabular-nums">
+                      {team.played}
+                    </span>
+                    {/* GD */}
+                    <span className={cn(
+                      "w-7 text-center text-xs tabular-nums",
+                      team.gd > 0 ? "text-emerald-400" : team.gd < 0 ? "text-red-400" : "text-muted-foreground",
+                    )}>
+                      {team.played > 0 ? gdStr : "—"}
+                    </span>
+                    {/* Points */}
+                    <span className={cn(
+                      "w-7 text-center text-sm font-bold tabular-nums",
+                      advances ? "text-foreground" : "text-muted-foreground",
+                    )}>
+                      {team.played > 0 ? team.points : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+              {/* Qualification key */}
+              <div className="flex items-center gap-3 px-4 pt-2 mt-1 border-t border-border/10">
+                <div className="flex items-center gap-1 text-[10px] text-emerald-400/70">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500/30" />
+                  Advance
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main view ────────────────────────────────────────────────────────────────
 
 export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: Props) {
@@ -672,6 +833,9 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
           <TabsTrigger value="leaderboard" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
             <Trophy className="w-4 h-4" /> Leaderboard
           </TabsTrigger>
+          <TabsTrigger value="standings" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
+            <Globe className="w-4 h-4" /> Live Standings
+          </TabsTrigger>
           {isCommissioner && (
             <TabsTrigger value="commissioner" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2 text-muted-foreground hover:text-foreground ml-auto">
               <ShieldAlert className="w-4 h-4" /> Commissioner
@@ -685,6 +849,10 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
 
         <TabsContent value="leaderboard">
           <LeaderboardTab poolId={poolId} />
+        </TabsContent>
+
+        <TabsContent value="standings">
+          <LiveStandingsTab poolId={poolId} />
         </TabsContent>
 
         {isCommissioner && inviteCode && (

@@ -985,6 +985,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/gsp/live-standings:
+    get:
+      operationId: getGspLiveStandings
+      tags: [gsp]
+      summary: Get live ESPN World Cup group standings for a GSP pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Live group standings (12 groups, 4 teams each)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GspLiveStandingsGroup"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -2491,3 +2518,48 @@ components:
                 type: integer
               hasResult:
                 type: boolean
+
+    GspLiveStandingsTeam:
+      type: object
+      required: [id, displayName, abbreviation, rank, played, wins, draws, losses, gf, ga, gd, points]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        abbreviation:
+          type: string
+        logo:
+          type: string
+          nullable: true
+        rank:
+          type: integer
+        played:
+          type: integer
+        wins:
+          type: integer
+        draws:
+          type: integer
+        losses:
+          type: integer
+        gf:
+          type: integer
+        ga:
+          type: integer
+        gd:
+          type: integer
+        points:
+          type: integer
+
+    GspLiveStandingsGroup:
+      type: object
+      required: [groupLetter, displayName, teams]
+      properties:
+        groupLetter:
+          type: string
+        displayName:
+          type: string
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/GspLiveStandingsTeam"

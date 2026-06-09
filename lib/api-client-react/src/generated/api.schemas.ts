@@ -1090,6 +1090,28 @@ export interface GspLeaderboardEntry {
   groupScores: GspLeaderboardEntryGroupScoresItem[];
 }
 
+export interface GspLiveStandingsTeam {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  logo?: string | null;
+  rank: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  points: number;
+}
+
+export interface GspLiveStandingsGroup {
+  groupLetter: string;
+  displayName: string;
+  teams: GspLiveStandingsTeam[];
+}
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

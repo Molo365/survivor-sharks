@@ -1301,6 +1301,35 @@ export const GetGspLeaderboardResponse = zod.array(GetGspLeaderboardResponseItem
 
 
 /**
+ * @summary Get live ESPN World Cup group standings for a GSP pool
+ */
+export const GetGspLiveStandingsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetGspLiveStandingsResponseItem = zod.object({
+  "groupLetter": zod.string(),
+  "displayName": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "abbreviation": zod.string(),
+  "logo": zod.string().nullish(),
+  "rank": zod.number(),
+  "played": zod.number(),
+  "wins": zod.number(),
+  "draws": zod.number(),
+  "losses": zod.number(),
+  "gf": zod.number(),
+  "ga": zod.number(),
+  "gd": zod.number(),
+  "points": zod.number()
+}))
+})
+export const GetGspLiveStandingsResponse = zod.array(GetGspLiveStandingsResponseItem)
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({

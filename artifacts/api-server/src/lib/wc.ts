@@ -469,9 +469,16 @@ interface EspnStandingsTeamRaw {
   logos?: { href: string }[];
 }
 
+interface EspnStatRaw {
+  name: string;
+  displayValue: string;
+  value?: number;
+}
+
 interface EspnStandingsEntryRaw {
   team: EspnStandingsTeamRaw;
   note?: { rank?: number };
+  stats?: EspnStatRaw[];
 }
 
 interface EspnStandingsGroupRaw {
@@ -489,6 +496,14 @@ export interface WcStandingsTeam {
   abbreviation: string;
   logo: string | null;
   rank: number; // 1–4 current standing position
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  points: number;
 }
 
 export interface WcStandingsGroup {
@@ -518,14 +533,34 @@ export async function fetchWcStandings(): Promise<WcStandingsGroup[]> {
     if (!res.ok) throw new Error(`ESPN standings HTTP ${res.status}`);
     const data = await res.json() as EspnStandingsResponseRaw;
 
+    const getStat = (stats: EspnStatRaw[] | undefined, ...names: string[]): number => {
+      if (!stats) return 0;
+      for (const name of names) {
+        const s = stats.find((s) => s.name === name);
+        if (s != null) return s.value ?? (parseInt(s.displayValue, 10) || 0);
+      }
+      return 0;
+    };
+
     const groups: WcStandingsGroup[] = (data.children ?? []).map((child) => {
-      const teams: WcStandingsTeam[] = child.standings.entries.map((e) => ({
-        id: e.team.id,
-        displayName: e.team.displayName,
-        abbreviation: e.team.abbreviation,
-        logo: e.team.logos?.[0]?.href ?? null,
-        rank: e.note?.rank ?? 99,
-      }));
+      const teams: WcStandingsTeam[] = child.standings.entries.map((e) => {
+        const st = e.stats;
+        return {
+          id: e.team.id,
+          displayName: e.team.displayName,
+          abbreviation: e.team.abbreviation,
+          logo: e.team.logos?.[0]?.href ?? null,
+          rank: e.note?.rank ?? 99,
+          played:  getStat(st, "gamesPlayed", "played"),
+          wins:    getStat(st, "wins"),
+          draws:   getStat(st, "ties", "draws"),
+          losses:  getStat(st, "losses"),
+          gf:      getStat(st, "pointsFor", "goalsFor"),
+          ga:      getStat(st, "pointsAgainst", "goalsAgainst"),
+          gd:      getStat(st, "pointDifferential", "goalDifference"),
+          points:  getStat(st, "points"),
+        };
+      });
       teams.sort((a, b) => a.rank - b.rank);
       const groupLetter = child.name.replace(/^Group\s+/, "");
       return { groupLetter, displayName: child.name, teams };

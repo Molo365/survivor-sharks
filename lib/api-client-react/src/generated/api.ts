@@ -39,6 +39,7 @@ import type {
   GspGroupResult,
   GspGroupWithPick,
   GspLeaderboardEntry,
+  GspLiveStandingsGroup,
   GspPick,
   GspPicksInput,
   GspResultsInput,
@@ -3006,6 +3007,83 @@ export function useGetGspLeaderboard<TData = Awaited<ReturnType<typeof getGspLea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetGspLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetGspLiveStandingsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/gsp/live-standings`
+}
+
+/**
+ * @summary Get live ESPN World Cup group standings for a GSP pool
+ */
+export const getGspLiveStandings = async (poolId: number, options?: RequestInit): Promise<GspLiveStandingsGroup[]> => {
+
+  return customFetch<GspLiveStandingsGroup[]>(getGetGspLiveStandingsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGspLiveStandingsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/gsp/live-standings`
+    ] as const;
+    }
+
+
+export const getGetGspLiveStandingsQueryOptions = <TData = Awaited<ReturnType<typeof getGspLiveStandings>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspLiveStandings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGspLiveStandingsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGspLiveStandings>>> = ({ signal }) => getGspLiveStandings(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGspLiveStandings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGspLiveStandingsQueryResult = NonNullable<Awaited<ReturnType<typeof getGspLiveStandings>>>
+export type GetGspLiveStandingsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get live ESPN World Cup group standings for a GSP pool
+ */
+
+export function useGetGspLiveStandings<TData = Awaited<ReturnType<typeof getGspLiveStandings>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGspLiveStandings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGspLiveStandingsQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

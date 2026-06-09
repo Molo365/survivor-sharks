@@ -451,4 +451,20 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json(ranked);
 });
 
+// GET /api/pools/:poolId/gsp/live-standings
+router.get("/live-standings", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = (req.session as { userId?: number }).userId!;
+
+  const [member] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!member) { res.status(403).json({ error: "Not a pool member" }); return; }
+
+  const groups = await fetchWcStandings();
+  res.json(groups);
+});
+
 export default router;
