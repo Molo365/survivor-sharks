@@ -6,12 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Plus, UserPlus, Info } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
+import underwaterBg from "@assets/Underwater_1781045385578.jpg";
 
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools();
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background">
+    <div className="min-h-[100dvh] flex flex-col">
+      {/* Fixed background: image + dark overlay */}
+      <div
+        style={{
+          backgroundImage: `url(${underwaterBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }}
+        className="fixed inset-0 -z-10"
+      />
+      <div className="fixed inset-0 -z-10 bg-black/65" />
       <NavBar />
       
       <main className="flex-1 container px-4 py-8 max-w-6xl mx-auto">
