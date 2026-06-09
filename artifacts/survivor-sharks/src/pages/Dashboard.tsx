@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Plus, UserPlus, Info } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
+import { OceanBackground } from "@/components/OceanBackground";
 
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools();
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background">
+    <div className="relative min-h-[100dvh] flex flex-col bg-background overflow-hidden">
+      <OceanBackground />
       <NavBar />
       
       <main className="flex-1 container px-4 py-8 max-w-6xl mx-auto">
