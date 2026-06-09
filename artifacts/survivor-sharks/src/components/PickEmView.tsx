@@ -1527,7 +1527,7 @@ function DayResultsModal({
                         <tr
                           key={player.userId}
                           className={cn(
-                            idx < entries.length - 1 && "[&>td]:border-b-2 [&>td]:border-white/20",
+                            idx < players.length - 1 && "[&>td]:border-b-2 [&>td]:border-white/20",
                             isMe
                               ? "bg-primary/5"
                               : idx % 2 === 0
