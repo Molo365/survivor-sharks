@@ -916,6 +916,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/pickem-season/week-results:
+    get:
+      tags: [pickem-season]
+      operationId: getNflPickEmSeasonWeekResults
+      summary: Get all players' picks for a given week with results
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: week
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 18
+      responses:
+        "200":
+          description: Week results grid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflPickEmSeasonWeekResults"
+        "403":
+          description: Not a member of this pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Group Stage Predictor ─────────────────────────────────────────────────
   /pools/{poolId}/gsp/groups:
     get:
@@ -2691,6 +2722,76 @@ components:
           type: integer
         message:
           type: string
+
+    NflPickEmSeasonWeekResultPlayer:
+      type: object
+      required: [rank, userId, username, correct, total, picks]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        correct:
+          type: integer
+        total:
+          type: integer
+        picks:
+          type: array
+          items:
+            type: object
+            required: [gameId, pickedTeamId, pickedTeamName]
+            properties:
+              gameId:
+                type: string
+              pickedTeamId:
+                type: string
+              pickedTeamName:
+                type: string
+              result:
+                type: string
+                nullable: true
+
+    NflPickEmSeasonWeekWinner:
+      type: object
+      required: [userId, username, correct, total]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        correct:
+          type: integer
+        total:
+          type: integer
+
+    NflPickEmSeasonWeekResults:
+      type: object
+      required: [week, games, players, winners, hasResults]
+      properties:
+        week:
+          type: integer
+        hasResults:
+          type: boolean
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonGame"
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonWeekResultPlayer"
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonWeekWinner"
 
     GspTeam:
       type: object

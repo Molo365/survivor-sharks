@@ -324,4 +324,123 @@ router.post("/process-results", requireAuth, async (req, res) => {
   res.json({ graded, week, completedGames: completedGameIds.length });
 });
 
+// GET /api/pools/:poolId/pickem-season/week-results?week=N
+router.get("/week-results", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
+  const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
+
+  const [games, allPicks] = await Promise.all([
+    fetchNflGamesByWeek(week),
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        gameId: pickemPicksTable.gameId,
+        pickedTeamId: pickemPicksTable.pickedTeamId,
+        pickedTeamName: pickemPicksTable.pickedTeamName,
+        result: pickemPicksTable.result,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week))),
+  ]);
+
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const picksByUser = new Map<number, { username: string; displayName: string | null; picks: typeof allPicks }>();
+  for (const pick of allPicks) {
+    if (!picksByUser.has(pick.userId)) {
+      picksByUser.set(pick.userId, { username: pick.username, displayName: pick.displayName ?? null, picks: [] });
+    }
+    picksByUser.get(pick.userId)!.picks.push(pick);
+  }
+
+  const hasResults = allPicks.some(p => p.result === "correct" || p.result === "incorrect");
+
+  const players = Array.from(picksByUser.entries()).map(([uid, data]) => {
+    const correct = data.picks.filter(p => p.result === "correct").length;
+    const total = data.picks.length;
+    return {
+      userId: uid,
+      username: data.username,
+      displayName: data.displayName,
+      correct,
+      total,
+      picks: data.picks.map(p => ({
+        gameId: p.gameId,
+        pickedTeamId: p.pickedTeamId,
+        pickedTeamName: p.pickedTeamName,
+        result: p.result ?? null,
+      })),
+    };
+  });
+
+  players.sort((a, b) => b.correct - a.correct || b.total - a.total);
+
+  let rank = 1;
+  const rankedPlayers = players.map((p, i) => {
+    if (i > 0 && p.correct < players[i - 1].correct) rank = i + 1;
+    return { ...p, rank };
+  });
+
+  const maxCorrect = rankedPlayers[0]?.correct ?? 0;
+  const winners =
+    hasResults && maxCorrect > 0
+      ? rankedPlayers
+          .filter(p => p.correct === maxCorrect)
+          .map(p => ({
+            userId: p.userId,
+            username: p.username,
+            displayName: p.displayName,
+            correct: p.correct,
+            total: p.total,
+          }))
+      : [];
+
+  const formattedGames = games.map(g => ({
+    id: g.id,
+    startTime: g.date,
+    status: g.status,
+    deadlinePassed: isGameLocked(g.date),
+    awayTeam: {
+      id: g.awayTeam.id,
+      name: g.awayTeam.displayName,
+      abbreviation: g.awayTeam.abbreviation,
+      logoUrl: g.awayTeam.logo ?? null,
+    },
+    homeTeam: {
+      id: g.homeTeam.id,
+      name: g.homeTeam.displayName,
+      abbreviation: g.homeTeam.abbreviation,
+      logoUrl: g.homeTeam.logo ?? null,
+    },
+    awayScore: g.awayScore ?? null,
+    homeScore: g.homeScore ?? null,
+    userPickTeamId: null,
+    userPickResult: null,
+    liveDetail: g.liveState?.shortDetail ?? null,
+    homeRecord: g.homeRecord ?? null,
+    awayRecord: g.awayRecord ?? null,
+  }));
+
+  res.json({ week, games: formattedGames, players: rankedPlayers, winners, hasResults });
+});
+
 export default router;

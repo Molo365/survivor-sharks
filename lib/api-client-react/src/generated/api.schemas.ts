@@ -1135,6 +1135,39 @@ export interface NflPickEmSeasonProcessResult {
   message?: string;
 }
 
+export type NflPickEmSeasonWeekResultPlayerPicksItem = {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  result?: string | null;
+};
+
+export interface NflPickEmSeasonWeekResultPlayer {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+  picks: NflPickEmSeasonWeekResultPlayerPicksItem[];
+}
+
+export interface NflPickEmSeasonWeekWinner {
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+}
+
+export interface NflPickEmSeasonWeekResults {
+  week: number;
+  hasResults: boolean;
+  games: NflPickEmSeasonGame[];
+  players: NflPickEmSeasonWeekResultPlayer[];
+  winners: NflPickEmSeasonWeekWinner[];
+}
+
 export interface GspTeam {
   name: string;
   abbr: string;
@@ -1276,6 +1309,14 @@ week?: number;
 export type ProcessNflPickEmSeasonResultsBody = {
   /** NFL week to grade (defaults to pool's currentWeek) */
   week?: number;
+};
+
+export type GetNflPickEmSeasonWeekResultsParams = {
+/**
+ * @minimum 1
+ * @maximum 18
+ */
+week?: number;
 };
 
 export type AdminProcessPickemResultsBody = {

@@ -1270,6 +1270,73 @@ export const ProcessNflPickEmSeasonResultsResponse = zod.object({
 
 
 /**
+ * @summary Get all players' picks for a given week with results
+ */
+export const GetNflPickEmSeasonWeekResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const getNflPickEmSeasonWeekResultsQueryWeekMax = 18;
+
+
+
+export const GetNflPickEmSeasonWeekResultsQueryParams = zod.object({
+  "week": zod.coerce.number().min(1).max(getNflPickEmSeasonWeekResultsQueryWeekMax).optional()
+})
+
+export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
+  "week": zod.number(),
+  "hasResults": zod.boolean(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.string(),
+  "deadlinePassed": zod.boolean(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickTeamId": zod.string().nullish(),
+  "userPickResult": zod.enum(['pending', 'correct', 'incorrect', 'postponed']).nullish(),
+  "liveDetail": zod.string().nullish(),
+  "homeRecord": zod.string().nullish(),
+  "awayRecord": zod.string().nullish()
+})),
+  "players": zod.array(zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "result": zod.string().nullish()
+}))
+})),
+  "winners": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
  * @summary Get WC 2026 group definitions with team info and the user's existing picks
  */
 export const GetGspGroupsParams = zod.object({

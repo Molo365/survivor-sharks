@@ -32,6 +32,7 @@ import type {
   Game,
   GetDailyScheduleParams,
   GetNflPickEmSeasonGamesParams,
+  GetNflPickEmSeasonWeekResultsParams,
   GetPickEmDailyPicksParams,
   GetPickEmDailyResultsParams,
   GetPickEmGamesParams,
@@ -52,6 +53,7 @@ import type {
   NflPickEmSeasonPickInput,
   NflPickEmSeasonProcessResult,
   NflPickEmSeasonSlate,
+  NflPickEmSeasonWeekResults,
   Pick,
   PickEmDailyPickDetail,
   PickEmDailyResults,
@@ -2877,6 +2879,95 @@ export const useProcessNflPickEmSeasonResults = <TError = ErrorType<ErrorRespons
       > => {
       return useMutation(getProcessNflPickEmSeasonResultsMutationOptions(options));
     }
+
+export const getGetNflPickEmSeasonWeekResultsUrl = (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem-season/week-results?${stringifiedParams}` : `/api/pools/${poolId}/pickem-season/week-results`
+}
+
+/**
+ * @summary Get all players' picks for a given week with results
+ */
+export const getNflPickEmSeasonWeekResults = async (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: RequestInit): Promise<NflPickEmSeasonWeekResults> => {
+
+  return customFetch<NflPickEmSeasonWeekResults>(getGetNflPickEmSeasonWeekResultsUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflPickEmSeasonWeekResultsQueryKey = (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams,) => {
+    return [
+    `/api/pools/${poolId}/pickem-season/week-results`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNflPickEmSeasonWeekResultsQueryOptions = <TData = Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflPickEmSeasonWeekResultsQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>> = ({ signal }) => getNflPickEmSeasonWeekResults(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflPickEmSeasonWeekResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>>
+export type GetNflPickEmSeasonWeekResultsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get all players' picks for a given week with results
+ */
+
+export function useGetNflPickEmSeasonWeekResults<TData = Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflPickEmSeasonWeekResultsQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetGspGroupsUrl = (poolId: number,) => {
 
