@@ -271,7 +271,7 @@ function WeekPicksTable({
     <div className="rounded-xl border border-border/40 overflow-hidden">
       <div className="overflow-x-auto">
         <table
-          className="w-full text-sm border-separate border-spacing-0"
+          className="w-full text-sm border-collapse"
           style={{ minWidth: `${minWidth}px` }}
         >
           <thead>
