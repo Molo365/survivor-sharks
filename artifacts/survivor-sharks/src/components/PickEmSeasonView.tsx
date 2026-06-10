@@ -282,7 +282,7 @@ function WeekPicksTable({
               {games.map((game) => (
                 <th
                   key={game.id}
-                  className="px-1 py-2 text-center border-b border-border/30 whitespace-nowrap"
+                  className="px-1 py-2 text-center border-b border-border/30 border-r border-border/20 whitespace-nowrap"
                   style={{ width: 60 }}
                 >
                   <div className="flex items-center justify-center gap-0.5">
@@ -371,7 +371,7 @@ function WeekPicksTable({
                     const pick = pickMap.get(game.id);
                     if (!pick) {
                       return (
-                        <td key={game.id} className="px-1 py-2.5 text-center">
+                        <td key={game.id} className="px-1 py-2.5 text-center border-r border-border/20" style={{ width: 60 }}>
                           <span className="text-muted-foreground/25 text-xs">—</span>
                         </td>
                       );
@@ -379,7 +379,7 @@ function WeekPicksTable({
                     const isCorrect = pick.result === "correct";
                     const isWrong = pick.result === "incorrect";
                     return (
-                      <td key={game.id} className="px-1 py-2 text-center">
+                      <td key={game.id} className="px-1 py-2 text-center border-r border-border/20" style={{ width: 60 }}>
                         <div className="flex items-center justify-center">
                           <div
                             className={cn(
