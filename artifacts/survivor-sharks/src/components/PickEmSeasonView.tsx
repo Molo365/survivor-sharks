@@ -32,8 +32,6 @@ import {
   LayoutGrid,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  XCircle,
   Clock,
   ShieldAlert,
   RefreshCw,
@@ -66,6 +64,15 @@ function formatGameTime(isoString: string): string {
   );
 }
 
+function formatTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+    hour12: true,
+  });
+}
+
 function GameCard({
   game,
   pickedTeamId,
@@ -78,114 +85,147 @@ function GameCard({
   pending?: boolean;
 }) {
   const locked = game.deadlinePassed;
-  const result = game.userPickResult ?? null;
-  const hasScore = game.awayScore != null && game.homeScore != null;
   const isLive = game.status === "in_progress";
-  const isPost = game.status === "final";
+  const isFinal = game.status === "final";
+  const result = game.userPickResult ?? null;
 
-  function teamButton(
-    team: { id: string; name: string; abbreviation: string; logoUrl?: string | null },
+  function teamBtn(
+    team: NflPickEmSeasonGame["awayTeam"],
+    side: "away" | "home",
     score: number | null | undefined,
     record: string | null | undefined,
   ) {
     const isPicked = pickedTeamId === team.id;
     const isCorrect = isPicked && result === "correct";
     const isWrong = isPicked && result === "incorrect";
-    const isLoser =
-      !isPicked &&
-      isPost &&
-      hasScore &&
-      (team.id === game.awayTeam.id
-        ? (game.awayScore ?? 0) < (game.homeScore ?? 0)
-        : (game.homeScore ?? 0) < (game.awayScore ?? 0));
+    const isHome = side === "home";
+
+    const logo = (
+      <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+        <img
+          src={team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/nfl/500/${team.abbreviation.toLowerCase()}.png`}
+          alt={team.name}
+          className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      </div>
+    );
+
+    const info = (
+      <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
+        <span className={cn("font-bebas tracking-wide text-base sm:text-lg leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
+          {team.name}
+        </span>
+        {record && (
+          <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
+            {record}
+          </span>
+        )}
+        {(isFinal || isLive) && score != null && (
+          <span className={cn(
+            "font-bebas text-3xl leading-none mt-0.5",
+            isLive ? "text-white"
+              : isPicked && isCorrect ? "text-green-400"
+              : isPicked && isWrong ? "text-destructive/70"
+              : "text-foreground/60",
+          )}>
+            {score}
+          </span>
+        )}
+        {isPicked && (
+          <div className={cn("flex items-center gap-1 mt-0.5", isHome && "justify-end")}>
+            {isCorrect ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Correct
+              </span>
+            ) : isWrong ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80">
+                ✗ Wrong
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Picked
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
 
     return (
       <button
         type="button"
         disabled={locked || pending}
-        onClick={() => !locked && onPick(team.id, team.name)}
+        onClick={() => !locked && !pending && onPick(team.id, team.name)}
         className={cn(
-          "flex-1 flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all min-w-0",
-          !locked && !pending && "cursor-pointer hover:border-primary/50 hover:bg-primary/5",
-          (locked || pending) && "cursor-default",
-          isPicked && !isCorrect && !isWrong && "border-primary/60 bg-primary/10",
-          isCorrect && "border-green-500/60 bg-green-500/10",
-          isWrong && "border-destructive/60 bg-destructive/10",
-          !isPicked && !isLoser && !locked && "border-border/40 bg-card/30",
-          !isPicked && !isLoser && locked && "border-border/30 bg-card/20 opacity-60",
-          isLoser && "border-border/20 bg-card/10 opacity-40",
+          "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
+          locked || pending ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+          isPicked && !isCorrect && !isWrong
+            ? "border-primary bg-primary/10 ring-2 ring-primary/40"
+            : isPicked && isCorrect
+              ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
+              : isPicked && isWrong
+                ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+                : "border-border/40 bg-card/60 hover:border-border",
+          isHome ? "flex-row-reverse" : "flex-row",
         )}
       >
-        {team.logoUrl && (
-          <img
-            src={team.logoUrl}
-            alt={team.abbreviation}
-            className="w-10 h-10 object-contain"
-          />
-        )}
-        <span
-          className={cn(
-            "font-bebas text-lg tracking-wider leading-none",
-            isPicked ? "text-foreground" : "text-muted-foreground",
-          )}
-        >
-          {team.abbreviation}
-        </span>
-        {record && (
-          <span className="text-[10px] text-muted-foreground/50 leading-none">{record}</span>
-        )}
-        {hasScore && score != null && (
-          <span
-            className={cn(
-              "font-bebas text-2xl leading-none mt-0.5",
-              isPost ? "text-foreground" : "text-primary/80",
-            )}
-          >
-            {score}
-          </span>
-        )}
-        {isCorrect && <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5" />}
-        {isWrong && <XCircle className="w-4 h-4 text-destructive/70 mt-0.5" />}
+        {logo}
+        {info}
       </button>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border p-4 transition-all",
-        result === "correct"
-          ? "border-green-500/20 bg-green-500/5"
-          : result === "incorrect"
-            ? "border-destructive/20 bg-destructive/5"
-            : "border-border/40 bg-card/50",
+    <div className={cn(
+      "shark-card rounded-xl border overflow-hidden relative",
+      isLive ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]" : "border-border/40",
+    )}>
+      {isLive && (
+        <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
       )}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] text-muted-foreground/60 font-medium uppercase tracking-wide">
-          {isLive ? "🔴 Live" : isPost ? "Final" : formatGameTime(game.startTime)}
+      {isLive && (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+          Live
         </span>
-        <div className="flex items-center gap-2">
-          {game.liveDetail && (
-            <span className="text-[11px] text-primary/60">{game.liveDetail}</span>
-          )}
-          {locked && !isPost && !isLive && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40">
-              <Clock className="w-3 h-3" /> Locked
-            </span>
-          )}
-        </div>
-      </div>
+      )}
+      <div className="flex items-stretch gap-0">
+        {teamBtn(game.awayTeam, "away", game.awayScore, game.awayRecord)}
 
-      <div className="flex gap-3">
-        {teamButton(game.awayTeam, game.awayScore, game.awayRecord)}
-        <div className="flex flex-col items-center justify-center gap-1 shrink-0 w-5">
-          <span className="text-xs text-muted-foreground/30 font-semibold">@</span>
-          {!pickedTeamId && !locked && (
-            <span className="text-[9px] text-muted-foreground/25 uppercase tracking-wide">Pick</span>
+        {/* Center divider */}
+        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[48px] sm:px-3 sm:min-w-[64px]">
+          {isLive ? (
+            <>
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
+                ● LIVE
+              </span>
+              {game.liveDetail && (
+                <span className="font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
+                  {game.liveDetail}
+                </span>
+              )}
+            </>
+          ) : isFinal ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
+              Final
+            </span>
+          ) : (
+            <>
+              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">
+                vs
+              </span>
+              <div className="flex items-center gap-0.5 mt-0.5">
+                <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
+                <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium whitespace-nowrap">
+                  {formatTime(game.startTime)}
+                </span>
+              </div>
+            </>
           )}
         </div>
-        {teamButton(game.homeTeam, game.homeScore, game.homeRecord)}
+
+        {teamBtn(game.homeTeam, "home", game.homeScore, game.homeRecord)}
       </div>
     </div>
   );
@@ -414,7 +454,7 @@ function WeekResultsModal({
 
 export function PickEmSeasonView({
   poolId,
-  poolName: _poolName,
+  poolName,
   commissionerId,
   currentWeek,
   inviteCode,
@@ -423,6 +463,15 @@ export function PickEmSeasonView({
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isCommissioner = user?.id === commissionerId || user?.role === "admin";
+
+  const welcomeKey = `pickem-season-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    try { return localStorage.getItem(welcomeKey) !== "1"; } catch { return false; }
+  });
+  function dismissWelcome() {
+    try { localStorage.setItem(welcomeKey, "1"); } catch { /* ignore */ }
+    setShowWelcome(false);
+  }
 
   const [displayWeek, setDisplayWeek] = useState(currentWeek);
   const [resultsModalWeek, setResultsModalWeek] = useState<number | null>(null);
@@ -726,6 +775,29 @@ export function PickEmSeasonView({
               </div>
             ) : (
               <div className="space-y-6">
+                {/* ── Welcome banner ── */}
+                {showWelcome && (
+                  <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+                    <span className="text-xl leading-none mt-0.5">🏈</span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-foreground leading-snug">
+                        Welcome to {poolName}!
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+                        Pick the winner of every NFL game each week. Picks accumulate all season — whoever has the most correct picks by Week 18 wins the prize pot. Each game locks at kickoff. Good luck! 🏈
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={dismissWelcome}
+                      className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+                      aria-label="Dismiss welcome message"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 {/* ── Previous week winner banner ── */}
                 {showPrevWinnerBanner && prevWeekResults && (
                   <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
@@ -780,7 +852,7 @@ export function PickEmSeasonView({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {slate.games.map((game) => (
                     <GameCard
                       key={game.id}
