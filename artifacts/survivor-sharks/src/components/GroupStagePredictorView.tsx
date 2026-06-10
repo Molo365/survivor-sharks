@@ -348,28 +348,37 @@ function CommissionerTab({ inviteCode }: { inviteCode: string }) {
 
   return (
     <div className="pt-4 max-w-xl space-y-6">
-      <Card className="bg-card border-border/50 overflow-hidden relative">
-        <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />
-        <CardHeader>
-          <CardTitle className="font-bebas text-3xl tracking-wide text-primary">Invite Code</CardTitle>
-          <CardDescription>Share this code or link to let sharks into the pool.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
+        <div className="absolute right-0 top-0 bottom-0 w-24 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.08),transparent)] pointer-events-none" />
+        <div className="p-6 space-y-4">
+          <div>
+            <h4 className="font-bebas text-2xl tracking-wide text-primary mb-0.5">
+              Invite Code
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Share this code to let players join the pool.
+            </p>
+          </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
               {inviteCode}
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
                 <Copy className="w-5 h-5 mr-2" /> Copy Code
               </Button>
-              <Button size="sm" variant="outline" onClick={copyLink} className="font-bebas tracking-wider text-sm">
-                <Copy className="w-4 h-4 mr-2" /> Copy Invite Link
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={copyLink}
+                className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+              >
+                <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
