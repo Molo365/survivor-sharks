@@ -240,16 +240,23 @@ function WeekPicksTable({
 }) {
   const { games, players } = data;
 
-  const teamAbbrMap = useMemo(() => {
-    const m = new Map<string, string>();
+  const teamInfoMap = useMemo(() => {
+    const m = new Map<string, { logoUrl: string | null; abbreviation: string }>();
     for (const g of games) {
-      m.set(g.awayTeam.id, g.awayTeam.abbreviation);
-      m.set(g.homeTeam.id, g.homeTeam.abbreviation);
+      m.set(g.awayTeam.id, { logoUrl: g.awayTeam.logoUrl ?? null, abbreviation: g.awayTeam.abbreviation });
+      m.set(g.homeTeam.id, { logoUrl: g.homeTeam.logoUrl ?? null, abbreviation: g.homeTeam.abbreviation });
     }
     return m;
   }, [games]);
 
-  const minWidth = Math.max(400, 220 + games.length * 76);
+  function teamLogoUrl(teamId: string, fallbackName?: string): string {
+    const info = teamInfoMap.get(teamId);
+    if (info?.logoUrl) return info.logoUrl;
+    const abbr = info?.abbreviation ?? (fallbackName ?? "").slice(0, 3);
+    return `https://a.espncdn.com/i/teamlogos/nfl/500/${abbr.toLowerCase()}.png`;
+  }
+
+  const minWidth = Math.max(400, 220 + games.length * 60);
 
   if (players.length === 0) {
     return (
@@ -275,10 +282,24 @@ function WeekPicksTable({
               {games.map((game) => (
                 <th
                   key={game.id}
-                  className="px-1 py-2 text-center border-b border-border/30 font-mono text-[10px] font-medium text-muted-foreground/60 whitespace-nowrap"
-                  style={{ width: 76 }}
+                  className="px-1 py-2 text-center border-b border-border/30 whitespace-nowrap"
+                  style={{ width: 60 }}
                 >
-                  <div>{game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}</div>
+                  <div className="flex items-center justify-center gap-0.5">
+                    <img
+                      src={teamLogoUrl(game.awayTeam.id)}
+                      alt={game.awayTeam.abbreviation}
+                      className="w-5 h-5 object-contain"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <span className="text-[8px] text-muted-foreground/30 font-bold">@</span>
+                    <img
+                      src={teamLogoUrl(game.homeTeam.id)}
+                      alt={game.homeTeam.abbreviation}
+                      className="w-5 h-5 object-contain"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
                   {game.awayScore != null && game.homeScore != null && (
                     <div className="text-[9px] text-muted-foreground/35 font-normal mt-0.5">
                       {game.awayScore}–{game.homeScore}
@@ -357,26 +378,27 @@ function WeekPicksTable({
                     }
                     const isCorrect = pick.result === "correct";
                     const isWrong = pick.result === "incorrect";
-                    const abbr =
-                      teamAbbrMap.get(pick.pickedTeamId) ?? pick.pickedTeamName.slice(0, 4);
                     return (
-                      <td key={game.id} className="px-1 py-2.5 text-center">
-                        <span
-                          className={cn(
-                            "inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tracking-wide",
-                            isCorrect &&
-                              "bg-green-500/10 text-green-400 border border-green-500/25",
-                            isWrong &&
-                              "bg-red-500/10 text-red-400 border border-red-500/25",
-                            !isCorrect &&
-                              !isWrong &&
-                              "bg-muted/10 text-muted-foreground/50 border border-border/20",
-                          )}
-                        >
-                          {isCorrect && <Check className="w-2.5 h-2.5" />}
-                          {isWrong && <X className="w-2.5 h-2.5" />}
-                          {abbr}
-                        </span>
+                      <td key={game.id} className="px-1 py-2 text-center">
+                        <div className="flex items-center justify-center">
+                          <div
+                            className={cn(
+                              "relative w-8 h-8 rounded-full p-1 ring-2 flex items-center justify-center",
+                              isCorrect
+                                ? "bg-green-500/20 ring-green-500/50"
+                                : isWrong
+                                  ? "bg-red-500/20 ring-red-500/50"
+                                  : "bg-white/8 ring-border/25",
+                            )}
+                          >
+                            <img
+                              src={teamLogoUrl(pick.pickedTeamId, pick.pickedTeamName)}
+                              alt={pick.pickedTeamName}
+                              className="w-full h-full object-contain"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
+                          </div>
+                        </div>
                       </td>
                     );
                   })}
