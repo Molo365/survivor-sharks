@@ -454,7 +454,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 // GET /api/pools/:poolId/gsp/live-standings
 router.get("/live-standings", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const userId = (req.session as { userId?: number }).userId!;
+  const userId = req.user!.id;
 
   const [member] = await db
     .select()
