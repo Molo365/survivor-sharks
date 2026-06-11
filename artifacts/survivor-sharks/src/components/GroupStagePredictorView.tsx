@@ -442,6 +442,9 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     setConfirmed((prev) => new Set([...prev, groupName]));
   }
 
+  // Tournament kicked off June 11 2026 — picks locked from that point on
+  const picksLocked = new Date() >= new Date("2026-06-11T12:00:00Z");
+
   const confirmedCount = confirmed.size;
   const totalGroups = groups?.length ?? 12;
   const allConfirmed = confirmedCount === totalGroups;
@@ -495,23 +498,33 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   return (
     <div className="space-y-6 pt-4">
-      {/* Progress bar */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 bg-card border border-border/50 rounded-full px-4 py-2 shadow-sm">
-          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-          <span className="font-bebas text-xl tracking-wider">
-            <span className={cn(allConfirmed ? "text-yellow-400" : "text-foreground")}>{confirmedCount}</span>
-            <span className="text-muted-foreground">/{totalGroups}</span>
-          </span>
-          <span className="text-xs text-muted-foreground uppercase tracking-wider hidden sm:block">groups predicted</span>
+      {/* Progress bar / locked banner */}
+      {picksLocked ? (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+          <span className="text-lg leading-none">🔒</span>
+          <div>
+            <p className="font-semibold text-sm text-amber-200 leading-snug">Picks Locked — Tournament has begun</p>
+            <p className="text-xs text-muted-foreground mt-0.5">The 2026 World Cup kicked off on June 11. All predictions are now final.</p>
+          </div>
         </div>
-        <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-          <div
-            className={cn("h-full rounded-full transition-all duration-500", allConfirmed ? "bg-yellow-400" : "bg-primary")}
-            style={{ width: `${(confirmedCount / totalGroups) * 100}%` }}
-          />
+      ) : (
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-card border border-border/50 rounded-full px-4 py-2 shadow-sm">
+            <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+            <span className="font-bebas text-xl tracking-wider">
+              <span className={cn(allConfirmed ? "text-yellow-400" : "text-foreground")}>{confirmedCount}</span>
+              <span className="text-muted-foreground">/{totalGroups}</span>
+            </span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider hidden sm:block">groups predicted</span>
+          </div>
+          <div className="flex-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", allConfirmed ? "bg-yellow-400" : "bg-primary")}
+              style={{ width: `${(confirmedCount / totalGroups) * 100}%` }}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Group cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -525,7 +538,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               key={group.name}
               className={cn(
                 "rounded-xl border-2 p-4 transition-all duration-200 flex flex-col gap-3",
-                isConfirmed
+                isConfirmed || picksLocked
                   ? "border-yellow-500/50 bg-yellow-500/5 shadow-[0_0_20px_rgba(234,179,8,0.06)]"
                   : "border-border/50 bg-card",
               )}
@@ -575,7 +588,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                         </div>
                       )}
                       <span className="flex-1 text-sm font-medium text-foreground truncate">{team?.name ?? teamName}</span>
-                      {!isConfirmed && (
+                      {!isConfirmed && !picksLocked && (
                         <div className="flex flex-col gap-0.5 shrink-0">
                           <button
                             type="button"
@@ -606,35 +619,37 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                 })}
               </div>
 
-              <div className="mt-auto pt-1">
-                {isConfirmed ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmed((prev) => { const n = new Set(prev); n.delete(group.name); return n; })}
-                    className="w-full text-xs text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/60 rounded-lg py-1.5 transition-colors"
-                  >
-                    Edit ranking
-                  </button>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => confirmGroup(group.name)}
-                    className="w-full bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:border-yellow-500/60"
-                    variant="outline"
-                  >
-                    <Circle className="w-3.5 h-3.5 mr-1.5" />
-                    Confirm Group {group.name}
-                  </Button>
-                )}
-              </div>
+              {!picksLocked && (
+                <div className="mt-auto pt-1">
+                  {isConfirmed ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmed((prev) => { const n = new Set(prev); n.delete(group.name); return n; })}
+                      className="w-full text-xs text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/60 rounded-lg py-1.5 transition-colors"
+                    >
+                      Edit ranking
+                    </button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => confirmGroup(group.name)}
+                      className="w-full bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:border-yellow-500/60"
+                      variant="outline"
+                    >
+                      <Circle className="w-3.5 h-3.5 mr-1.5" />
+                      Confirm Group {group.name}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Sticky submit bar — only visible when there are unsaved changes */}
-      {hasPendingChanges && (
+      {/* Sticky submit bar — only visible when there are unsaved changes and picks not locked */}
+      {!picksLocked && hasPendingChanges && (
         <div className="sticky bottom-4 flex justify-center pt-2">
           <div className="flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10">
             <div className="text-center sm:text-left">
