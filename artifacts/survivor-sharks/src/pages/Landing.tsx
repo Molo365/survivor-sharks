@@ -1,7 +1,6 @@
 import { Link, Redirect } from "wouter";
 import { Shield, Trophy, Users, UserPlus, Target, Medal, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
-import { NavBar } from "@/components/NavBar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import underwaterBg from "@assets/Underwater_1781045385578.jpg";
@@ -45,13 +44,10 @@ export default function Landing() {
       {/* Subtle blue radial */}
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_70%_45%_at_50%_30%,rgba(20,80,200,0.22),transparent)]" />
 
-      <NavBar />
-
       <main className="flex-1 flex flex-col">
 
         {/* ── Hero ───────────────────────────────────────────────────── */}
-        <section className="flex flex-col items-center justify-center text-center px-4 pt-4 pb-2 relative" style={{ minHeight: "calc(100dvh - 56px)" }}>
-          <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent top-1/2" />
+        <section className="flex flex-col items-center text-center px-4 pt-6 pb-2 relative">
 
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-primary uppercase mb-3 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
