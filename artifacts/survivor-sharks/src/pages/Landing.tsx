@@ -1,9 +1,12 @@
 import { Link, Redirect } from "wouter";
 import { Shield, Trophy, Users, UserPlus, Target, Medal, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
-import { AdSlot } from "@/components/AdSlot";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import underwaterBg from "@assets/Underwater_1781045385578.jpg";
+import nflLogoImg from "@assets/nfl-logo_1780704744525.png";
+import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
+import nhlLogoImg from "@assets/NHL-Logo_1780704736359.png";
+import nbaLogoImg from "@assets/Logo-NBA_1780704727332.png";
 
 function useCountdown(target: Date) {
   const [diff, setDiff] = useState(() => Math.max(0, target.getTime() - Date.now()));
@@ -87,9 +90,23 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── Ad slot ───────────────────────────────────────────── */}
-        <div className="px-6 pb-2">
-          <AdSlot />
+        {/* ── Sport logos + sponsor banners ─────────────────────── */}
+        <div className="px-6 pb-3">
+          {/* Sport logos row */}
+          <div className="flex items-center justify-center gap-8 mb-3">
+            {[nflLogoImg, mlbLogoImg, nhlLogoImg, nbaLogoImg].map((src, i) => (
+              <img key={i} src={src} alt="" className="object-contain opacity-70 hover:opacity-90 transition-opacity" style={{ height: 52, width: 52 }} />
+            ))}
+          </div>
+
+          {/* Sponsor banner placeholders */}
+          <div className="max-w-4xl mx-auto grid grid-cols-2 gap-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex items-center justify-center rounded-lg border border-dashed border-white/15 h-14 backdrop-blur-sm" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <span className="text-[10px] font-bold tracking-[0.3em] text-white/15 uppercase">AD</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────── */}
