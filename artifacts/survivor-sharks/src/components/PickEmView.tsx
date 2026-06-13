@@ -1351,7 +1351,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
                       {/* Sticky player cell */}
                       <td className={cn(
                         "sticky left-0 z-20 px-3 py-2.5 border-r border-border/20 min-w-[140px]",
-                        isMe ? "bg-[hsl(211_100%_48%_/_0.12)]" : "bg-card",
+                        isMe ? "bg-[hsl(215,50%,7%)]" : "bg-card",
                       )}>
                         <div className="flex items-center gap-2">
                           <span className={cn(
