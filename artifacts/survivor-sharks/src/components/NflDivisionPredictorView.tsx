@@ -114,7 +114,7 @@ function PlayerPicksModal({
                   >
                     <p className="font-bebas text-lg tracking-wider text-foreground mb-2 flex items-center gap-1.5">
                       <span className="text-yellow-400/70 text-sm">DIV</span>
-                      {div.shortName}
+                      {div.name}
                     </p>
 
                     {order ? (
@@ -520,7 +520,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-bebas text-xl tracking-wider text-foreground leading-tight">{div.shortName}</span>
+                  <span className="font-bebas text-xl tracking-wider text-foreground leading-tight">{div.name}</span>
                   {isConfirmed && <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />}
                 </div>
                 {!isConfirmed && (
@@ -616,7 +616,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                       variant="outline"
                     >
                       <Circle className="w-3 h-3 mr-1.5" />
-                      Confirm {div.shortName}
+                      Confirm {div.name}
                     </Button>
                   )}
                 </div>
