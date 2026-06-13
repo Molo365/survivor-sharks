@@ -95,8 +95,8 @@ export default function Landing() {
           {/* Sport logos row */}
           <div className="flex items-center justify-center gap-6 mb-3">
             {[nflLogoImg, mlbLogoImg, nhlLogoImg, nbaLogoImg].map((src, i) => (
-              <div key={i} className="flex items-center justify-center rounded-full shrink-0 opacity-75 hover:opacity-95 transition-opacity"
-                style={{ width: 80, height: 80, background: "rgba(6,8,16,0.90)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div key={i} className="flex items-center justify-center rounded-full shrink-0 opacity-85 hover:opacity-100 transition-opacity"
+                style={{ width: 80, height: 80, background: "rgba(235,238,245,0.95)", border: "1px solid rgba(255,255,255,0.18)" }}>
                 <img src={src} alt="" className="object-contain" style={{ width: 52, height: 52 }} />
               </div>
             ))}
