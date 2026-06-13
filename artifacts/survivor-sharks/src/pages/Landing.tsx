@@ -96,7 +96,7 @@ export default function Landing() {
           <div className="flex items-center justify-center gap-6 mb-3">
             {[nflLogoImg, mlbLogoImg, nhlLogoImg, nbaLogoImg].map((src, i) => (
               <div key={i} className="flex items-center justify-center rounded-full shrink-0 opacity-85 hover:opacity-100 transition-opacity"
-                style={{ width: 80, height: 80, background: "rgba(235,238,245,0.95)", border: "1px solid rgba(255,255,255,0.18)" }}>
+                style={{ width: 80, height: 80, background: "hsl(211,100%,48%)", border: "1px solid hsl(211,100%,62%)" }}>
                 <img src={src} alt="" className="object-contain" style={{ width: 52, height: 52 }} />
               </div>
             ))}
