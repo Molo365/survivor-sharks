@@ -1,5 +1,5 @@
 import { Link, Redirect } from "wouter";
-import { Shield, Trophy, Users, UserPlus, Target, Medal, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
+import { Shield, Trophy, Users, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import underwaterBg from "@assets/Underwater_1781045385578.jpg";
@@ -93,9 +93,12 @@ export default function Landing() {
         {/* ── Sport logos + sponsor banners ─────────────────────── */}
         <div className="px-6 pb-3">
           {/* Sport logos row */}
-          <div className="flex items-center justify-center gap-8 mb-3">
+          <div className="flex items-center justify-center gap-6 mb-3">
             {[nflLogoImg, mlbLogoImg, nhlLogoImg, nbaLogoImg].map((src, i) => (
-              <img key={i} src={src} alt="" className="object-contain opacity-70 hover:opacity-90 transition-opacity" style={{ height: 52, width: 52 }} />
+              <div key={i} className="flex items-center justify-center rounded-full shrink-0 opacity-75 hover:opacity-95 transition-opacity"
+                style={{ width: 80, height: 80, background: "rgba(6,8,16,0.90)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <img src={src} alt="" className="object-contain" style={{ width: 52, height: 52 }} />
+              </div>
             ))}
           </div>
 
@@ -108,31 +111,6 @@ export default function Landing() {
             ))}
           </div>
         </div>
-
-        {/* ── HOW IT WORKS ──────────────────────────────────────── */}
-        <section className="px-6 py-3 border-t border-white/5">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="font-bebas text-xl md:text-2xl tracking-widest text-center text-foreground mb-3">HOW IT WORKS</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[
-                { step: "01", icon: UserPlus, title: "Create or Join a Pool", desc: "Commissioner creates a pool and shares the invite link." },
-                { step: "02", icon: Target,   title: "Make Your Picks",       desc: "Pick winners, predict standings, or assign confidence points." },
-                { step: "03", icon: Medal,    title: "Win the Prize Pot",     desc: "Most correct picks at the end wins. Your crew sets the stakes." },
-              ].map(({ step, icon: Icon, title, desc }) => (
-                <div key={step} className="relative flex flex-col items-center text-center p-3 pt-4 rounded-xl bg-black/30 border border-white/[0.07] backdrop-blur-sm">
-                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-primary/20 border border-primary/30 text-[9px] font-bold tracking-widest text-primary uppercase">
-                    Step {step}
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-2">
-                    <Icon className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <h3 className="font-bebas text-base tracking-wider text-foreground mb-0.5">{title}</h3>
-                  <p className="text-[11px] text-muted-foreground/65 leading-snug">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
         {/* ── POOL TYPES ────────────────────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
