@@ -3,10 +3,6 @@ import { Shield, Trophy, Users, Grid3x3, Star, BarChart3, Timer } from "lucide-r
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import underwaterBg from "@assets/Underwater_1781045385578.jpg";
-import nflLogoImg from "@assets/nfl-logo_1780704744525.png";
-import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
-import nhlLogoImg from "@assets/NHL-Logo_1780704736359.png";
-import nbaLogoImg from "@assets/Logo-NBA_1780704727332.png";
 
 function useCountdown(target: Date) {
   const [diff, setDiff] = useState(() => Math.max(0, target.getTime() - Date.now()));
@@ -94,7 +90,12 @@ export default function Landing() {
         <div className="px-6 pb-3">
           {/* Sport logos row */}
           <div className="flex items-center justify-center gap-6 mb-3">
-            {[nflLogoImg, mlbLogoImg, nhlLogoImg, nbaLogoImg].map((src, i) => (
+            {[
+              "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png",
+              "https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png",
+              "https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png",
+              "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png",
+            ].map((src, i) => (
               <div key={i} className="flex items-center justify-center rounded-full shrink-0 opacity-85 hover:opacity-100 transition-opacity"
                 style={{ width: 80, height: 80, background: "hsl(211,100%,48%)", border: "1px solid hsl(211,100%,62%)" }}>
                 <img src={src} alt="" className="object-contain" style={{ width: 52, height: 52 }} />
