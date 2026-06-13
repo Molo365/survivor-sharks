@@ -1315,7 +1315,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
           >
             <thead>
               <tr className="bg-muted/[0.05]">
-                <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[140px]">
+                <th className="sticky left-0 z-20 bg-card px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[140px]">
                   Player
                 </th>
                 {days.map((date) => (
@@ -1350,8 +1350,8 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
                     <tr className={cn("border-b border-border/10", isPanelOpen && "border-b-0")}>
                       {/* Sticky player cell */}
                       <td className={cn(
-                        "sticky left-0 z-10 px-3 py-2.5 border-r border-border/20 min-w-[140px]",
-                        rowBg,
+                        "sticky left-0 z-20 px-3 py-2.5 border-r border-border/20 min-w-[140px]",
+                        isMe ? "bg-[hsl(211_100%_48%_/_0.12)]" : "bg-card",
                       )}>
                         <div className="flex items-center gap-2">
                           <span className={cn(
