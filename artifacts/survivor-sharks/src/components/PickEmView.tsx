@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Fragment } from "react";
 import {
   useGetPickEmDailyPicks,
   useGetPickEmGames,
@@ -1298,6 +1298,8 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
+  const minWidth = Math.max(380, 150 + days.length * 40 + 80);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -1306,113 +1308,134 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd 
       </div>
 
       <div className="rounded-xl border border-border/40 overflow-hidden">
-        {/* Day-of-week header */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/20 bg-muted/10">
-          <div className="flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Player</div>
-          <div className="flex gap-1">
-            {days.map((date) => (
-              <div key={date} className={cn("w-9 text-center text-[9px] font-bold uppercase tracking-wider shrink-0", date === todayEt ? "text-primary" : "text-muted-foreground/40")}>
-                {dayAbbrev(date)}
-              </div>
-            ))}
-          </div>
-          <div className="w-16 text-right text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 shrink-0">Total</div>
-        </div>
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm border-separate border-spacing-0"
+            style={{ minWidth: `${minWidth}px` }}
+          >
+            <thead>
+              <tr className="bg-muted/[0.05]">
+                <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[140px]">
+                  Player
+                </th>
+                {days.map((date) => (
+                  <th key={date} className={cn(
+                    "px-1 py-2 text-center border-b border-border/30 font-bold text-[9px] uppercase tracking-wider whitespace-nowrap",
+                    date === todayEt ? "text-primary" : "text-muted-foreground/40",
+                  )} style={{ width: 40 }}>
+                    {dayAbbrev(date)}
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.length === 0 ? (
+                <tr>
+                  <td colSpan={days.length + 2} className="py-10 text-center text-sm text-muted-foreground">
+                    No picks yet this week.
+                  </td>
+                </tr>
+              ) : entries.map((entry, idx) => {
+                const isMe = entry.userId === currentUserId;
+                const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
+                const pct = entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null;
+                const isPanelOpen = openCell?.userId === entry.userId;
+                const rowBg = isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]";
 
-        {entries.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">No picks yet this week.</div>
-        ) : entries.map((entry, idx) => {
-          const isMe = entry.userId === currentUserId;
-          const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
-          const pct = entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null;
-          const isPanelOpen = openCell?.userId === entry.userId;
-
-          return (
-            <div key={entry.userId} className="border-b border-border/10 last:border-0">
-              {/* Player row */}
-              <div className={cn(
-                "flex items-center gap-2 px-3 py-2.5",
-                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
-              )}>
-                {/* Rank + name */}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className={cn(
-                    "font-bebas text-base w-5 shrink-0 text-center",
-                    entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
-                  )}>
-                    {entry.rank}
-                  </span>
-                  <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
-                    {entry.displayName || entry.username}
-                    {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
-                  </span>
-                </div>
-
-                {/* Per-day cells */}
-                <div className="flex gap-1 shrink-0">
-                  {days.map((date) => {
-                    const day = breakdownMap.get(date);
-                    const isPast = date < todayEt;
-                    const isToday = date === todayEt;
-                    const isCellOpen = isPanelOpen && openCell?.date === date;
-
-                    if (day) {
-                      const allCorrect = day.correct === day.picked && day.picked > 0;
-                      return (
-                        <button
-                          key={date}
-                          type="button"
-                          title={`View ${dayAbbrev(date)} picks`}
-                          onClick={() => toggleCell(entry.userId, date)}
-                          className={cn(
-                            "w-9 h-9 flex flex-col items-center justify-center rounded-md border shrink-0 transition-all cursor-pointer",
-                            isCellOpen
-                              ? "ring-2 ring-primary/50 border-primary/50 bg-primary/10"
-                              : allCorrect
-                              ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
-                              : "bg-muted/20 border-border/30 hover:bg-muted/30",
-                          )}
-                        >
-                          <span className={cn("font-bebas text-sm leading-none", isCellOpen ? "text-primary" : allCorrect ? "text-green-400" : "text-foreground")}>
-                            {day.correct}
+                return (
+                  <Fragment key={entry.userId}>
+                    <tr className={cn("border-b border-border/10", isPanelOpen && "border-b-0")}>
+                      {/* Sticky player cell */}
+                      <td className={cn(
+                        "sticky left-0 z-10 px-3 py-2.5 border-r border-border/20 min-w-[140px]",
+                        rowBg,
+                      )}>
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "font-bebas text-base w-5 shrink-0 text-center",
+                            entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
+                          )}>
+                            {entry.rank}
                           </span>
-                          <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
-                        </button>
-                      );
-                    }
-                    if (isPast || isToday) {
-                      return (
-                        <div key={date} className={cn(
-                          "w-9 h-9 flex items-center justify-center rounded-md border shrink-0",
-                          isToday ? "border-primary/20 bg-primary/5" : "border-border/15 bg-transparent",
-                        )}>
-                          <span className={cn("text-xs", isToday ? "text-primary/30" : "text-muted-foreground/20")}>—</span>
+                          <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
+                            {entry.displayName || entry.username}
+                            {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                          </span>
                         </div>
-                      );
-                    }
-                    return (
-                      <div key={date} className="w-9 h-9 flex items-center justify-center rounded-md border border-border/10 bg-transparent shrink-0">
-                        <span className="text-[10px] text-muted-foreground/15">·</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                      </td>
 
-                {/* Weekly total */}
-                <div className="w-16 text-right shrink-0">
-                  <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
-                  <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
-                  {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
-                </div>
-              </div>
+                      {/* Per-day cells */}
+                      {days.map((date) => {
+                        const day = breakdownMap.get(date);
+                        const isPast = date < todayEt;
+                        const isToday = date === todayEt;
+                        const isCellOpen = isPanelOpen && openCell?.date === date;
 
-              {/* Expandable detail panel — shown when this player's cell is open */}
-              {isPanelOpen && openCell && (
-                <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
-              )}
-            </div>
-          );
-        })}
+                        return (
+                          <td key={date} className={cn("px-0.5 py-1.5 text-center", rowBg)}>
+                            {day ? (() => {
+                              const allCorrect = day.correct === day.picked && day.picked > 0;
+                              return (
+                                <button
+                                  type="button"
+                                  title={`View ${dayAbbrev(date)} picks`}
+                                  onClick={() => toggleCell(entry.userId, date)}
+                                  className={cn(
+                                    "w-9 h-9 flex flex-col items-center justify-center rounded-md border mx-auto transition-all cursor-pointer",
+                                    isCellOpen
+                                      ? "ring-2 ring-primary/50 border-primary/50 bg-primary/10"
+                                      : allCorrect
+                                      ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+                                      : "bg-muted/20 border-border/30 hover:bg-muted/30",
+                                  )}
+                                >
+                                  <span className={cn("font-bebas text-sm leading-none", isCellOpen ? "text-primary" : allCorrect ? "text-green-400" : "text-foreground")}>
+                                    {day.correct}
+                                  </span>
+                                  <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
+                                </button>
+                              );
+                            })() : (isPast || isToday) ? (
+                              <div className={cn(
+                                "w-9 h-9 flex items-center justify-center rounded-md border mx-auto",
+                                isToday ? "border-primary/20 bg-primary/5" : "border-border/15 bg-transparent",
+                              )}>
+                                <span className={cn("text-xs", isToday ? "text-primary/30" : "text-muted-foreground/20")}>—</span>
+                              </div>
+                            ) : (
+                              <div className="w-9 h-9 flex items-center justify-center rounded-md border border-border/10 bg-transparent mx-auto">
+                                <span className="text-[10px] text-muted-foreground/15">·</span>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      {/* Weekly total */}
+                      <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                        <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
+                        <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+                        {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                      </td>
+                    </tr>
+
+                    {/* Expandable detail panel */}
+                    {isPanelOpen && openCell && (
+                      <tr className="border-b border-border/10">
+                        <td colSpan={days.length + 2} className="p-0">
+                          <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
