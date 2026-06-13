@@ -20,6 +20,7 @@ tags:
   - name: pickem-season
     description: NFL Pick-Ems Season pools
   - name: gsp
+  - name: ndp
     description: Pick-em pools
   - name: teams
     description: Sports teams and schedules
@@ -1164,6 +1165,196 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ── NFL Division Predictor ───────────────────────────────────────────────
+  /pools/{poolId}/ndp/divisions:
+    get:
+      operationId: getNdpDivisions
+      tags: [ndp]
+      summary: Get NFL division definitions with team info and the user's existing picks
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All 8 NFL divisions with team metadata and current user picks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpDivisionWithPick"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/ndp/picks:
+    post:
+      operationId: submitNdpPicks
+      tags: [ndp]
+      summary: Upsert NFL division predictor picks (all divisions submitted at once)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdpPicksInput"
+      responses:
+        "200":
+          description: Saved picks for all submitted divisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpPick"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/ndp/results:
+    get:
+      operationId: getNdpResults
+      tags: [ndp]
+      summary: Get actual NFL division final standings entered by admin
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Actual results for all divisions (partial or empty if not yet entered)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpDivisionResult"
+    post:
+      operationId: submitNdpResults
+      tags: [ndp]
+      summary: Admin — enter or update actual NFL division final standings
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdpResultsInput"
+      responses:
+        "200":
+          description: Saved actual results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpDivisionResult"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/ndp/members/{userId}/picks:
+    get:
+      operationId: getNdpMemberPicks
+      tags: [ndp]
+      summary: Get a specific member's NFL division predictions (read-only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All 8 NFL divisions with that member's ranked teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpDivisionWithPick"
+        "403":
+          description: Not a member of the pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/ndp/leaderboard:
+    get:
+      operationId: getNdpLeaderboard
+      tags: [ndp]
+      summary: Get leaderboard for an NFL Division Predictor pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ranked leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpLeaderboardEntry"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -1391,7 +1582,7 @@ components:
           enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl]
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor]
           default: season
         startWeek:
           type: integer
@@ -1440,7 +1631,7 @@ components:
           type: boolean
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor]
         startWeek:
           type: integer
         doubleElimination:
@@ -1475,7 +1666,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -1528,7 +1719,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -2941,3 +3132,109 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GspLiveStandingsTeam"
+
+    NdpTeam:
+      type: object
+      required: [name, abbr, logoUrl]
+      properties:
+        name:
+          type: string
+        abbr:
+          type: string
+        logoUrl:
+          type: string
+
+    NdpPick:
+      type: object
+      required: [divisionName, pos1Team, pos2Team, pos3Team, pos4Team]
+      properties:
+        divisionName:
+          type: string
+        pos1Team:
+          type: string
+        pos2Team:
+          type: string
+        pos3Team:
+          type: string
+        pos4Team:
+          type: string
+
+    NdpDivisionWithPick:
+      type: object
+      required: [name, shortName, teams, myPick]
+      properties:
+        name:
+          type: string
+        shortName:
+          type: string
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/NdpTeam"
+        myPick:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/NdpPick"
+
+    NdpPicksInput:
+      type: object
+      required: [picks]
+      properties:
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/NdpPick"
+
+    NdpDivisionResult:
+      type: object
+      required: [divisionName, pos1Team, pos2Team, pos3Team, pos4Team]
+      properties:
+        divisionName:
+          type: string
+        pos1Team:
+          type: string
+        pos2Team:
+          type: string
+        pos3Team:
+          type: string
+        pos4Team:
+          type: string
+
+    NdpResultsInput:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/NdpDivisionResult"
+
+    NdpLeaderboardEntry:
+      type: object
+      required: [userId, username, displayName, totalScore, maxScore, rank, divisionScores]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        totalScore:
+          type: integer
+        maxScore:
+          type: integer
+        rank:
+          type: integer
+        divisionScores:
+          type: array
+          items:
+            type: object
+            required: [divisionName, score, hasResult]
+            properties:
+              divisionName:
+                type: string
+              score:
+                type: integer
+              hasResult:
+                type: boolean

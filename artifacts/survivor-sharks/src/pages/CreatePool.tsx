@@ -65,7 +65,7 @@ const SPORTS = [
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
-  [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season"],
+  [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
@@ -130,6 +130,18 @@ const POOL_TYPES = [
     cardClass:
       "border-orange-500/30 bg-[linear-gradient(145deg,rgba(249,115,22,0.06)_0%,transparent_100%)]",
   },
+  {
+    id: "nfl_division_predictor" as const,
+    label: "Division Predictor",
+    icon: ListOrdered,
+    tagline: "Rank Every Team in Every Division",
+    description:
+      "Predict the final standings of all 8 NFL divisions. 3 pts for exact position, 1 pt for getting a team's top-2 finish right. Max 96 pts — highest score wins.",
+    badge: "NFL",
+    badgeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    cardClass:
+      "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -141,7 +153,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -185,7 +197,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");

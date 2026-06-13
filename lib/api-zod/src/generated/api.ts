@@ -83,7 +83,7 @@ export const ListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -118,7 +118,7 @@ export const createPoolBodyPickFrequencyDefault = `weekly`;
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
   "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl']),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']).default(createPoolBodyPoolTypeDefault),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
@@ -147,7 +147,7 @@ export const JoinPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -182,7 +182,7 @@ export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -224,7 +224,7 @@ export const UpdatePoolBody = zod.object({
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "isActive": zod.boolean().optional(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']).optional(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']).optional(),
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
@@ -238,7 +238,7 @@ export const UpdatePoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -1511,13 +1511,160 @@ export const GetGspLiveStandingsResponse = zod.array(GetGspLiveStandingsResponse
 
 
 /**
+ * @summary Get NFL division definitions with team info and the user's existing picks
+ */
+export const GetNdpDivisionsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpDivisionsResponseItem = zod.object({
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "teams": zod.array(zod.object({
+  "name": zod.string(),
+  "abbr": zod.string(),
+  "logoUrl": zod.string()
+})),
+  "myPick": zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable()
+})
+export const GetNdpDivisionsResponse = zod.array(GetNdpDivisionsResponseItem)
+
+
+/**
+ * @summary Upsert NFL division predictor picks (all divisions submitted at once)
+ */
+export const SubmitNdpPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitNdpPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}))
+})
+
+export const SubmitNdpPicksResponseItem = zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const SubmitNdpPicksResponse = zod.array(SubmitNdpPicksResponseItem)
+
+
+/**
+ * @summary Get actual NFL division final standings entered by admin
+ */
+export const GetNdpResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpResultsResponseItem = zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const GetNdpResultsResponse = zod.array(GetNdpResultsResponseItem)
+
+
+/**
+ * @summary Admin — enter or update actual NFL division final standings
+ */
+export const SubmitNdpResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitNdpResultsBody = zod.object({
+  "results": zod.array(zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}))
+})
+
+export const SubmitNdpResultsResponseItem = zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+})
+export const SubmitNdpResultsResponse = zod.array(SubmitNdpResultsResponseItem)
+
+
+/**
+ * @summary Get a specific member's NFL division predictions (read-only)
+ */
+export const GetNdpMemberPicksParams = zod.object({
+  "poolId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const GetNdpMemberPicksResponseItem = zod.object({
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "teams": zod.array(zod.object({
+  "name": zod.string(),
+  "abbr": zod.string(),
+  "logoUrl": zod.string()
+})),
+  "myPick": zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable()
+})
+export const GetNdpMemberPicksResponse = zod.array(GetNdpMemberPicksResponseItem)
+
+
+/**
+ * @summary Get leaderboard for an NFL Division Predictor pool
+ */
+export const GetNdpLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpLeaderboardResponseItem = zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullable(),
+  "totalScore": zod.number(),
+  "maxScore": zod.number(),
+  "rank": zod.number(),
+  "divisionScores": zod.array(zod.object({
+  "divisionName": zod.string(),
+  "score": zod.number(),
+  "hasResult": zod.boolean()
+}))
+})
+export const GetNdpLeaderboardResponse = zod.array(GetNdpLeaderboardResponseItem)
+
+
+/**
  * @summary Admin — list all pools
  */
 export const AdminListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),

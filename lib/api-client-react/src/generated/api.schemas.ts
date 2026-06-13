@@ -85,6 +85,7 @@ export const PoolInputPoolType = {
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
+  nfl_division_predictor: 'nfl_division_predictor',
 } as const;
 
 /**
@@ -128,6 +129,7 @@ export const PoolUpdatePoolType = {
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
+  nfl_division_predictor: 'nfl_division_predictor',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -168,6 +170,7 @@ export const PoolPoolType = {
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
+  nfl_division_predictor: 'nfl_division_predictor',
 } as const;
 
 /**
@@ -221,6 +224,7 @@ export const PoolDetailPoolType = {
   pickem: 'pickem',
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
+  nfl_division_predictor: 'nfl_division_predictor',
 } as const;
 
 /**
@@ -1240,6 +1244,59 @@ export interface GspLiveStandingsGroup {
   groupLetter: string;
   displayName: string;
   teams: GspLiveStandingsTeam[];
+}
+
+export interface NdpTeam {
+  name: string;
+  abbr: string;
+  logoUrl: string;
+}
+
+export interface NdpPick {
+  divisionName: string;
+  pos1Team: string;
+  pos2Team: string;
+  pos3Team: string;
+  pos4Team: string;
+}
+
+export interface NdpDivisionWithPick {
+  name: string;
+  shortName: string;
+  teams: NdpTeam[];
+  myPick: NdpPick | null;
+}
+
+export interface NdpPicksInput {
+  picks: NdpPick[];
+}
+
+export interface NdpDivisionResult {
+  divisionName: string;
+  pos1Team: string;
+  pos2Team: string;
+  pos3Team: string;
+  pos4Team: string;
+}
+
+export interface NdpResultsInput {
+  results: NdpDivisionResult[];
+}
+
+export type NdpLeaderboardEntryDivisionScoresItem = {
+  divisionName: string;
+  score: number;
+  hasResult: boolean;
+};
+
+export interface NdpLeaderboardEntry {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  totalScore: number;
+  maxScore: number;
+  rank: number;
+  divisionScores: NdpLeaderboardEntryDivisionScoresItem[];
 }
 
 export type GetDailyScheduleParams = {

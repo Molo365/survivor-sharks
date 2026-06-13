@@ -1,2 +1,3 @@
 - [Daily pick frequency for MLB](daily-pick-frequency.md) — daily pools use `pool.pickFrequency === "daily"`: server derives week/pickDate; Game type uses `startTime` (not `date`) and `status === "final"` (not `isCompleted`).
 - [ESPN soccer slugs](espn-soccer-slugs.md) — correct slugs for international soccer; wrong slug silently returns HTML not JSON.
+- [Predictor pool type checklist](predictor-pool-type-checklist.md) — 7 touch points required when adding a new predictor pool type (GSP/NDP pattern).

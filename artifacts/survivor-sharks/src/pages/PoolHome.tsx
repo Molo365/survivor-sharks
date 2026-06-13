@@ -17,6 +17,7 @@ import { CommissionerPanel } from "@/components/CommissionerPanel";
 import { InjuriesTab } from "@/components/InjuriesTab";
 import { PickEmView } from "@/components/PickEmView";
 import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
+import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 
 export default function PoolHome() {
@@ -29,6 +30,7 @@ export default function PoolHome() {
 
   const isPickEm = (pool?.poolType as string) === "pickem";
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
+  const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
@@ -122,6 +124,11 @@ export default function PoolHome() {
                       <Target className="w-3 h-3" /> Pick-Ems Season
                     </span>
                   )}
+                  {isNdp && (
+                    <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
+                      <ListOrdered className="w-3 h-3" /> Division Predictor
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
@@ -178,6 +185,8 @@ export default function PoolHome() {
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />
             ) : isGsp ? (
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
+            ) : isNdp ? (
+              <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : isPickEmSeason ? (
               <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} />
             ) : (

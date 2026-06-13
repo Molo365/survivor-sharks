@@ -49,6 +49,12 @@ import type {
   JoinPoolInput,
   Leaderboard,
   LoginInput,
+  NdpDivisionResult,
+  NdpDivisionWithPick,
+  NdpLeaderboardEntry,
+  NdpPick,
+  NdpPicksInput,
+  NdpResultsInput,
   NflPickEmSeasonLeaderboard,
   NflPickEmSeasonPickInput,
   NflPickEmSeasonProcessResult,
@@ -3491,6 +3497,463 @@ export function useGetGspLiveStandings<TData = Awaited<ReturnType<typeof getGspL
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetGspLiveStandingsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNdpDivisionsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/divisions`
+}
+
+/**
+ * @summary Get NFL division definitions with team info and the user's existing picks
+ */
+export const getNdpDivisions = async (poolId: number, options?: RequestInit): Promise<NdpDivisionWithPick[]> => {
+
+  return customFetch<NdpDivisionWithPick[]>(getGetNdpDivisionsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpDivisionsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/divisions`
+    ] as const;
+    }
+
+
+export const getGetNdpDivisionsQueryOptions = <TData = Awaited<ReturnType<typeof getNdpDivisions>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpDivisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpDivisionsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpDivisions>>> = ({ signal }) => getNdpDivisions(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpDivisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpDivisionsQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpDivisions>>>
+export type GetNdpDivisionsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get NFL division definitions with team info and the user's existing picks
+ */
+
+export function useGetNdpDivisions<TData = Awaited<ReturnType<typeof getNdpDivisions>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpDivisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpDivisionsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitNdpPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/picks`
+}
+
+/**
+ * @summary Upsert NFL division predictor picks (all divisions submitted at once)
+ */
+export const submitNdpPicks = async (poolId: number,
+    ndpPicksInput: NdpPicksInput, options?: RequestInit): Promise<NdpPick[]> => {
+
+  return customFetch<NdpPick[]>(getSubmitNdpPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ndpPicksInput,)
+  }
+);}
+
+
+
+
+export const getSubmitNdpPicksMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext> => {
+
+const mutationKey = ['submitNdpPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitNdpPicks>>, {poolId: number;data: BodyType<NdpPicksInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitNdpPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitNdpPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitNdpPicks>>>
+    export type SubmitNdpPicksMutationBody = BodyType<NdpPicksInput>
+    export type SubmitNdpPicksMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Upsert NFL division predictor picks (all divisions submitted at once)
+ */
+export const useSubmitNdpPicks = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitNdpPicks>>,
+        TError,
+        {poolId: number;data: BodyType<NdpPicksInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitNdpPicksMutationOptions(options));
+    }
+
+export const getGetNdpResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/results`
+}
+
+/**
+ * @summary Get actual NFL division final standings entered by admin
+ */
+export const getNdpResults = async (poolId: number, options?: RequestInit): Promise<NdpDivisionResult[]> => {
+
+  return customFetch<NdpDivisionResult[]>(getGetNdpResultsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpResultsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/results`
+    ] as const;
+    }
+
+
+export const getGetNdpResultsQueryOptions = <TData = Awaited<ReturnType<typeof getNdpResults>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpResultsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpResults>>> = ({ signal }) => getNdpResults(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpResults>>>
+export type GetNdpResultsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get actual NFL division final standings entered by admin
+ */
+
+export function useGetNdpResults<TData = Awaited<ReturnType<typeof getNdpResults>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpResultsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitNdpResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/results`
+}
+
+/**
+ * @summary Admin — enter or update actual NFL division final standings
+ */
+export const submitNdpResults = async (poolId: number,
+    ndpResultsInput: NdpResultsInput, options?: RequestInit): Promise<NdpDivisionResult[]> => {
+
+  return customFetch<NdpDivisionResult[]>(getSubmitNdpResultsUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ndpResultsInput,)
+  }
+);}
+
+
+
+
+export const getSubmitNdpResultsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpResults>>, TError,{poolId: number;data: BodyType<NdpResultsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitNdpResults>>, TError,{poolId: number;data: BodyType<NdpResultsInput>}, TContext> => {
+
+const mutationKey = ['submitNdpResults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitNdpResults>>, {poolId: number;data: BodyType<NdpResultsInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitNdpResults(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitNdpResultsMutationResult = NonNullable<Awaited<ReturnType<typeof submitNdpResults>>>
+    export type SubmitNdpResultsMutationBody = BodyType<NdpResultsInput>
+    export type SubmitNdpResultsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Admin — enter or update actual NFL division final standings
+ */
+export const useSubmitNdpResults = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpResults>>, TError,{poolId: number;data: BodyType<NdpResultsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitNdpResults>>,
+        TError,
+        {poolId: number;data: BodyType<NdpResultsInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitNdpResultsMutationOptions(options));
+    }
+
+export const getGetNdpMemberPicksUrl = (poolId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/members/${userId}/picks`
+}
+
+/**
+ * @summary Get a specific member's NFL division predictions (read-only)
+ */
+export const getNdpMemberPicks = async (poolId: number,
+    userId: number, options?: RequestInit): Promise<NdpDivisionWithPick[]> => {
+
+  return customFetch<NdpDivisionWithPick[]>(getGetNdpMemberPicksUrl(poolId,userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpMemberPicksQueryKey = (poolId: number,
+    userId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/members/${userId}/picks`
+    ] as const;
+    }
+
+
+export const getGetNdpMemberPicksQueryOptions = <TData = Awaited<ReturnType<typeof getNdpMemberPicks>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpMemberPicksQueryKey(poolId,userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpMemberPicks>>> = ({ signal }) => getNdpMemberPicks(poolId,userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId && userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpMemberPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpMemberPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpMemberPicks>>>
+export type GetNdpMemberPicksQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a specific member's NFL division predictions (read-only)
+ */
+
+export function useGetNdpMemberPicks<TData = Awaited<ReturnType<typeof getNdpMemberPicks>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNdpLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/leaderboard`
+}
+
+/**
+ * @summary Get leaderboard for an NFL Division Predictor pool
+ */
+export const getNdpLeaderboard = async (poolId: number, options?: RequestInit): Promise<NdpLeaderboardEntry[]> => {
+
+  return customFetch<NdpLeaderboardEntry[]>(getGetNdpLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetNdpLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getNdpLeaderboard>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpLeaderboard>>> = ({ signal }) => getNdpLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpLeaderboard>>>
+export type GetNdpLeaderboardQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get leaderboard for an NFL Division Predictor pool
+ */
+
+export function useGetNdpLeaderboard<TData = Awaited<ReturnType<typeof getNdpLeaderboard>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpLeaderboardQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
