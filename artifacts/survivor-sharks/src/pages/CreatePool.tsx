@@ -27,6 +27,7 @@ import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
 import nflLogoImg from "@assets/nfl-logo_1780704744525.png";
 import nbaLogoImg from "@assets/Logo-NBA_1780704727332.png";
 import nhlLogoImg from "@assets/NHL-Logo_1780704736359.png";
+import sharkBg from "@assets/ocean_shark_bg.jpg";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -269,7 +270,18 @@ export default function CreatePool() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background">
+    <div className="min-h-[100dvh] flex flex-col">
+      {/* Fixed background: shark image + dark overlay */}
+      <div
+        style={{
+          backgroundImage: `url(${sharkBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }}
+        className="fixed inset-0 -z-10"
+      />
+      <div className="fixed inset-0 -z-10 bg-black/65" />
       <NavBar />
 
       <main className="flex-1 container px-4 py-8 max-w-3xl mx-auto">
