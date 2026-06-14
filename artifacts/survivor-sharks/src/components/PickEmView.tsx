@@ -6,10 +6,12 @@ import {
   useGetPickEmLeaderboard,
   useGetPickEmYesterdayWinner,
   useGetPickEmDailyResults,
+  useGetPickEmPrevWeekResults,
   getGetPickEmGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
   getGetPickEmYesterdayWinnerQueryKey,
   getGetPickEmDailyResultsQueryKey,
+  getGetPickEmPrevWeekResultsQueryKey,
 } from "@workspace/api-client-react";
 import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import {
@@ -1646,6 +1648,191 @@ function DayResultsModal({
   );
 }
 
+// ── Previous-week results modal ───────────────────────────────────────────────
+
+function PrevWeekResultsModal({
+  open,
+  onClose,
+  poolId,
+  weekStart,
+  weekEnd,
+  entries,
+  currentUserId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  poolId: number;
+  weekStart: string;
+  weekEnd: string;
+  entries: PickEmLeaderboardEntry[];
+  currentUserId: number | null;
+}) {
+  const days = generateWeekDays(weekStart);
+  const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
+
+  function toggleCell(userId: number, date: string) {
+    setOpenCell((prev) =>
+      prev?.userId === userId && prev.date === date ? null : { userId, date },
+    );
+  }
+
+  const fmtDate = (d: string) =>
+    new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+  const minWidth = Math.max(420, 150 + days.length * 44 + 80);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-[min(95vw,960px)] p-0 gap-0 flex flex-col overflow-hidden max-h-[90vh]">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/40 shrink-0">
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-400" />
+            Week of {fmtDate(weekStart)} – {fmtDate(weekEnd)} · Final Results
+          </DialogTitle>
+          <DialogDescription>
+            {entries.length} player{entries.length !== 1 ? "s" : ""} · Final standings
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="overflow-auto flex-1 p-4">
+          {entries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Trophy className="w-9 h-9 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">No picks recorded for this week.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border/40 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm border-separate border-spacing-0"
+                  style={{ minWidth: `${minWidth}px` }}
+                >
+                  <thead>
+                    <tr className="bg-muted/[0.05]">
+                      <th className="sticky left-0 z-20 bg-card px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[150px]">
+                        Player
+                      </th>
+                      {days.map((date) => (
+                        <th key={date} className="px-1 py-2 text-center border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 44 }}>
+                          {dayAbbrev(date)}
+                          <div className="text-[8px] font-normal normal-case text-muted-foreground/30">{fmtDate(date)}</div>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((entry, idx) => {
+                      const isMe = entry.userId === currentUserId;
+                      const isWinner = entry.rank === 1;
+                      const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
+                      const pct = entry.picked > 0 ? Math.round((entry.correct / entry.picked) * 100) : null;
+                      const isPanelOpen = openCell?.userId === entry.userId;
+                      const rowBg = isWinner
+                        ? "bg-yellow-500/5"
+                        : isMe
+                        ? "bg-primary/5"
+                        : idx % 2 === 0
+                        ? "bg-transparent"
+                        : "bg-muted/[0.03]";
+
+                      return (
+                        <Fragment key={entry.userId}>
+                          <tr className={cn("border-b border-border/10", isPanelOpen && "border-b-0")}>
+                            <td className={cn(
+                              "sticky left-0 z-20 px-3 py-2.5 border-r border-border/20 min-w-[150px]",
+                              isWinner ? "bg-[hsl(48,40%,5%)]" : isMe ? "bg-[hsl(215,50%,7%)]" : "bg-card",
+                            )}>
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "font-bebas text-base w-5 shrink-0 text-center",
+                                  isWinner ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
+                                )}>
+                                  {isWinner ? "🏆" : entry.rank}
+                                </span>
+                                <span className={cn("font-medium text-sm truncate", isWinner ? "text-yellow-200" : isMe ? "text-primary" : "text-foreground")}>
+                                  {entry.displayName || entry.username}
+                                  {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                                </span>
+                              </div>
+                            </td>
+
+                            {days.map((date) => {
+                              const day = breakdownMap.get(date);
+                              const isCellOpen = isPanelOpen && openCell?.date === date;
+
+                              if (!day) {
+                                return (
+                                  <td key={date} className={cn("px-0.5 py-1.5 text-center", rowBg)}>
+                                    <div className="w-9 h-9 flex items-center justify-center rounded-md border border-border/15 bg-transparent mx-auto">
+                                      <span className="text-xs text-muted-foreground/20">—</span>
+                                    </div>
+                                  </td>
+                                );
+                              }
+
+                              const allCorrect = day.correct === day.picked && day.picked > 0;
+                              const noneCorrect = day.correct === 0 && day.picked > 0;
+
+                              return (
+                                <td key={date} className={cn("px-0.5 py-1.5 text-center", rowBg)}>
+                                  <button
+                                    type="button"
+                                    title={`View ${dayAbbrev(date)} picks`}
+                                    onClick={() => toggleCell(entry.userId, date)}
+                                    className={cn(
+                                      "w-9 h-9 flex flex-col items-center justify-center rounded-md border mx-auto transition-all cursor-pointer",
+                                      isCellOpen
+                                        ? "ring-2 ring-primary/50 border-primary/50 bg-primary/10"
+                                        : allCorrect
+                                        ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+                                        : noneCorrect
+                                        ? "bg-red-500/8 border-red-500/20 hover:bg-red-500/15"
+                                        : "bg-muted/20 border-border/30 hover:bg-muted/30",
+                                    )}
+                                  >
+                                    <span className={cn(
+                                      "font-bebas text-sm leading-none",
+                                      isCellOpen ? "text-primary" : allCorrect ? "text-green-400" : noneCorrect ? "text-red-400/70" : "text-foreground",
+                                    )}>
+                                      {day.correct}
+                                    </span>
+                                    <span className="text-[8px] text-muted-foreground/50 leading-none">/{day.picked}</span>
+                                  </button>
+                                </td>
+                              );
+                            })}
+
+                            <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                              <span className={cn("font-bebas text-xl", isWinner ? "text-yellow-300" : "text-foreground")}>{entry.correct}</span>
+                              <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+                              {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                            </td>
+                          </tr>
+
+                          {isPanelOpen && openCell && (
+                            <tr className="border-b border-border/10">
+                              <td colSpan={days.length + 2} className="p-0">
+                                <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb", pickFrequency }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1672,6 +1859,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
   const yesterdayDate = useMemo(() => offsetDate(todayEt, -1), [todayEt]);
   const [resultsModalDate, setResultsModalDate] = useState<string | null>(null);
+  const [weekResultsOpen, setWeekResultsOpen] = useState(false);
 
   const yesterdayParams = { date: yesterdayDate };
   const { data: yesterdayWinner } = useGetPickEmYesterdayWinner(
@@ -1679,6 +1867,17 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
     yesterdayParams,
     { query: { queryKey: getGetPickEmYesterdayWinnerQueryKey(poolId, yesterdayParams), enabled: isToday && !isWc, staleTime: 5 * 60 * 1000 } },
   );
+
+  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, {
+    query: {
+      queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId),
+      enabled: isWeekly,
+      staleTime: 10 * 60 * 1000,
+    },
+  });
+  const prevWeekWinner = prevWeekResults?.hasResults && prevWeekResults.entries.length > 0
+    ? prevWeekResults.entries[0]
+    : null;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
@@ -1808,6 +2007,17 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
         currentUserId={user?.id ?? 0}
       />
     )}
+    {weekResultsOpen && prevWeekResults && (
+      <PrevWeekResultsModal
+        open={weekResultsOpen}
+        onClose={() => setWeekResultsOpen(false)}
+        poolId={poolId}
+        weekStart={prevWeekResults.weekStart}
+        weekEnd={prevWeekResults.weekEnd}
+        entries={prevWeekResults.entries}
+        currentUserId={user?.id ?? null}
+      />
+    )}
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
         <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1916,6 +2126,32 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             </div>
           ) : (
             <div className="space-y-6">
+
+              {/* Last Week's Winner banner (weekly pools only) */}
+              {isWeekly && prevWeekWinner && prevWeekResults && (
+                <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+                  <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-yellow-200">Last Week&apos;s Winner:</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinner.displayName || prevWeekWinner.username}</span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinner.correct}/{prevWeekWinner.picked} correct</span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-xs text-yellow-500/60">
+                      {new Date(prevWeekResults.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {" – "}
+                      {new Date(prevWeekResults.weekEnd + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWeekResultsOpen(true)}
+                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+                  >
+                    View Full Results →
+                  </button>
+                </div>
+              )}
 
               {/* Yesterday's Winner banner */}
               {isToday && yesterdayWinner?.hasResults && yesterdayWinner.winners.length > 0 && (

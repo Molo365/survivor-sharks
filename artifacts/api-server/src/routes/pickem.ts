@@ -615,6 +615,110 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
   res.json({ date, hasResults: true, winners });
 });
 
+// Helper: offset a YYYY-MM-DD string by N days
+function offsetDateStr(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+// GET /api/pools/:poolId/pickem/prev-week-results
+router.get("/prev-week-results", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a pick-em pool" }); return; }
+
+  const sport = pool.sport as string;
+  const isWeekly = pool.pickFrequency === "weekly" && sport !== "worldcup" && sport !== "intl";
+  if (!isWeekly) {
+    res.status(400).json({ error: "Pool is not a weekly pick-em pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const todayEt = getTodayEtDate();
+  const currentWeekBounds = getWeekBoundsEt(todayEt);
+
+  // Previous week: the day before current week's Monday is last Sunday
+  const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
+  const prevWeekBounds = getWeekBoundsEt(prevWeekSunday);
+
+  const picksWhere = and(
+    eq(pickemPicksTable.poolId, poolId),
+    gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
+    lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
+  );
+
+  const [aggregates, dailyAggregates] = await Promise.all([
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        picked: sql<string>`COUNT(*)`,
+        graded: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IN ('correct', 'incorrect', 'postponed'))`,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(picksWhere)
+      .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+      .orderBy(
+        sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+        sql`COUNT(*) DESC`,
+      ),
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        gameDate: pickemPicksTable.gameDate,
+        correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        picked: sql<string>`COUNT(*)`,
+      })
+      .from(pickemPicksTable)
+      .where(picksWhere)
+      .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
+      .orderBy(pickemPicksTable.gameDate),
+  ]);
+
+  const hasResults = aggregates.some((r) => Number(r.graded) > 0);
+
+  const dailyByUser = new Map<number, { date: string; correct: number; picked: number }[]>();
+  for (const row of dailyAggregates) {
+    if (!dailyByUser.has(row.userId)) dailyByUser.set(row.userId, []);
+    dailyByUser.get(row.userId)!.push({
+      date: row.gameDate,
+      correct: Number(row.correct),
+      picked: Number(row.picked),
+    });
+  }
+
+  const entries = aggregates.map((row, i) => ({
+    rank: i + 1,
+    userId: row.userId,
+    username: row.username,
+    displayName: row.displayName ?? null,
+    correct: Number(row.correct),
+    picked: Number(row.picked),
+    picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
+    dailyBreakdown: dailyByUser.get(row.userId) ?? [],
+  }));
+
+  res.json({
+    hasResults,
+    weekStart: prevWeekBounds.weekStart,
+    weekEnd: prevWeekBounds.weekEnd,
+    entries,
+  });
+});
+
 // GET /api/pools/:poolId/pickem/leaderboard
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));

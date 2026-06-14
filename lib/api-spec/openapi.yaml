@@ -798,6 +798,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/PickEmYesterdayWinner"
 
+  /pools/{poolId}/pickem/prev-week-results:
+    get:
+      operationId: getPickEmPrevWeekResults
+      tags: [pickem]
+      summary: Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Previous week standings with per-day breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickEmPrevWeekResults"
+
   # ── NFL Pick-Ems Season ───────────────────────────────────────────────────
   /pools/{poolId}/pickem-season/games:
     get:
@@ -2736,6 +2755,24 @@ components:
           type: integer
         total:
           type: integer
+
+    PickEmPrevWeekResults:
+      type: object
+      required: [hasResults, weekStart, weekEnd, entries]
+      properties:
+        hasResults:
+          type: boolean
+          description: True if at least one pick in the previous week has been graded
+        weekStart:
+          type: string
+          description: Previous week Monday (YYYY-MM-DD)
+        weekEnd:
+          type: string
+          description: Previous week Sunday (YYYY-MM-DD)
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmLeaderboardEntry"
 
     PickEmYesterdayWinner:
       type: object

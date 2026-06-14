@@ -1157,6 +1157,39 @@ export const GetPickEmYesterdayWinnerResponse = zod.object({
 
 
 /**
+ * @summary Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
+ */
+export const GetPickEmPrevWeekResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmPrevWeekResultsResponse = zod.object({
+  "hasResults": zod.boolean().describe('True if at least one pick in the previous week has been graded'),
+  "weekStart": zod.string().describe('Previous week Monday (YYYY-MM-DD)'),
+  "weekEnd": zod.string().describe('Previous week Sunday (YYYY-MM-DD)'),
+  "entries": zod.array(zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "picked": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed'])
+})),
+  "dailyBreakdown": zod.array(zod.object({
+  "date": zod.string().describe('YYYY-MM-DD date in ET'),
+  "correct": zod.number(),
+  "picked": zod.number()
+})).optional().describe('Per-day breakdown; present only for weekly pick-em pools')
+}))
+})
+
+
+/**
  * @summary Get NFL games for a specific week with the user's picks overlaid
  */
 export const GetNflPickEmSeasonGamesParams = zod.object({

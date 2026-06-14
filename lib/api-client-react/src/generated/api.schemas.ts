@@ -1035,6 +1035,16 @@ export interface PickEmDayWinnerEntry {
   total: number;
 }
 
+export interface PickEmPrevWeekResults {
+  /** True if at least one pick in the previous week has been graded */
+  hasResults: boolean;
+  /** Previous week Monday (YYYY-MM-DD) */
+  weekStart: string;
+  /** Previous week Sunday (YYYY-MM-DD) */
+  weekEnd: string;
+  entries: PickEmLeaderboardEntry[];
+}
+
 export interface PickEmYesterdayWinner {
   /** YYYY-MM-DD date queried */
   date: string;
