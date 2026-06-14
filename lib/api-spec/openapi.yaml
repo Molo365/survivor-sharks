@@ -134,6 +134,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  /dashboard/pickem-stats:
+    get:
+      operationId: getPickEmDashboardStats
+      tags: [dashboard]
+      summary: Pick-em stats for all user's pools (for dashboard cards)
+      responses:
+        "200":
+          description: Per-pool stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoolPickEmStat"
+
   # ── Pools ─────────────────────────────────────────────────────────────────
   /pools:
     get:
@@ -1672,6 +1688,41 @@ components:
         tiebreakerPrediction:
           type: integer
           description: "Predicted total combined points for the final NFL game of the season (for pickem_season pools)"
+
+    PoolPickEmStat:
+      type: object
+      required: [poolId, myStanding]
+      properties:
+        poolId:
+          type: integer
+        lastWinner:
+          type: object
+          nullable: true
+          required: [userId, username, displayName, correct, picked]
+          properties:
+            userId:
+              type: integer
+            username:
+              type: string
+            displayName:
+              type: string
+              nullable: true
+            correct:
+              type: integer
+            picked:
+              type: integer
+        myStanding:
+          type: object
+          required: [rank, correct, picked, hasPicks]
+          properties:
+            rank:
+              type: integer
+            correct:
+              type: integer
+            picked:
+              type: integer
+            hasPicks:
+              type: boolean
 
     Pool:
       type: object

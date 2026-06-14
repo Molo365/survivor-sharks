@@ -77,6 +77,28 @@ export const GetMeResponse = zod.object({
 
 
 /**
+ * @summary Pick-em stats for all user's pools (for dashboard cards)
+ */
+export const GetPickEmDashboardStatsResponseItem = zod.object({
+  "poolId": zod.number(),
+  "lastWinner": zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullable(),
+  "correct": zod.number(),
+  "picked": zod.number()
+}).nullish(),
+  "myStanding": zod.object({
+  "rank": zod.number(),
+  "correct": zod.number(),
+  "picked": zod.number(),
+  "hasPicks": zod.boolean()
+})
+})
+export const GetPickEmDashboardStatsResponse = zod.array(GetPickEmDashboardStatsResponseItem)
+
+
+/**
  * @summary List pools the current user belongs to
  */
 export const ListPoolsResponseItem = zod.object({

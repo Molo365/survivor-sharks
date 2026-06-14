@@ -160,6 +160,27 @@ export interface JoinPoolInput {
   tiebreakerPrediction?: number;
 }
 
+export type PoolPickEmStatLastWinner = {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  correct: number;
+  picked: number;
+} | null;
+
+export type PoolPickEmStatMyStanding = {
+  rank: number;
+  correct: number;
+  picked: number;
+  hasPicks: boolean;
+};
+
+export interface PoolPickEmStat {
+  poolId: number;
+  lastWinner?: PoolPickEmStatLastWinner;
+  myStanding: PoolPickEmStatMyStanding;
+}
+
 export type PoolPoolType = typeof PoolPoolType[keyof typeof PoolPoolType];
 
 

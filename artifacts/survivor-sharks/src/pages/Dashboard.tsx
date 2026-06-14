@@ -1,4 +1,4 @@
-import { useListPools } from "@workspace/api-client-react";
+import { useListPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { NavBar } from "@/components/NavBar";
 import { PoolCard } from "@/components/PoolCard";
@@ -10,6 +10,8 @@ import underwaterBg from "@assets/Underwater_1781045385578.jpg";
 
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools();
+  const { data: pickEmStats } = useGetPickEmDashboardStats({ query: { queryKey: getGetPickEmDashboardStatsQueryKey(), staleTime: 2 * 60 * 1000 } });
+  const pickEmStatMap = new Map((pickEmStats ?? []).map((s) => [s.poolId, s]));
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
@@ -70,7 +72,7 @@ export default function Dashboard() {
         ) : pools && pools.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {pools.map(pool => (
-              <PoolCard key={pool.id} pool={pool} />
+              <PoolCard key={pool.id} pool={pool} pickEmStat={pickEmStatMap.get(pool.id)} />
             ))}
           </div>
         ) : (

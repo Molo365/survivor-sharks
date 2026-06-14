@@ -1,14 +1,24 @@
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Calendar } from "lucide-react";
-import { Pool } from "@workspace/api-client-react";
+import { Pool, PoolPickEmStat } from "@workspace/api-client-react";
 import { Link } from "wouter";
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 
 interface PoolCardProps {
   pool: Pool;
+  pickEmStat?: PoolPickEmStat;
 }
 
-export function PoolCard({ pool }: PoolCardProps) {
+export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
+  const isWeekly = pool.pickFrequency === "weekly";
+  const periodLabel = isWeekly ? "this week" : "today";
+
   return (
     <Link href={`/pools/${pool.id}`} className="block h-full group" data-testid={`card-pool-${pool.id}`}>
       <Card className="shark-card h-full flex flex-col hover:border-primary transition-all duration-300">
@@ -38,6 +48,42 @@ export function PoolCard({ pool }: PoolCardProps) {
               <span>Week {pool.currentWeek}</span>
             </div>
           </div>
+
+          {pickEmStat && (
+            <div className="mt-3 space-y-1 border-t border-border/20 pt-3">
+              {pickEmStat.lastWinner && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span aria-hidden>🏆</span>
+                  <span>
+                    Last winner:{" "}
+                    <span className="text-foreground/70 font-medium">
+                      {pickEmStat.lastWinner.displayName || pickEmStat.lastWinner.username}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>{pickEmStat.lastWinner.correct}/{pickEmStat.lastWinner.picked} correct</span>
+                </div>
+              )}
+              {pickEmStat.myStanding.hasPicks ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span aria-hidden>📊</span>
+                  <span>
+                    You&apos;re{" "}
+                    <span className="text-foreground/70 font-medium">
+                      {ordinal(pickEmStat.myStanding.rank)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <span aria-hidden>⚠️</span>
+                  <span>No picks yet {periodLabel}</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
         {pool.prizePot && pool.prizePot > 0 && (
           <CardFooter className="pt-0 pb-4">

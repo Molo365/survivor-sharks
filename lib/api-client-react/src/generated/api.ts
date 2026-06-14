@@ -74,6 +74,7 @@ import type {
   Pool,
   PoolDetail,
   PoolInput,
+  PoolPickEmStat,
   PoolSchedule,
   PoolStats,
   PoolUpdate,
@@ -455,6 +456,83 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPickEmDashboardStatsUrl = () => {
+
+
+
+
+  return `/api/dashboard/pickem-stats`
+}
+
+/**
+ * @summary Pick-em stats for all user's pools (for dashboard cards)
+ */
+export const getPickEmDashboardStats = async ( options?: RequestInit): Promise<PoolPickEmStat[]> => {
+
+  return customFetch<PoolPickEmStat[]>(getGetPickEmDashboardStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmDashboardStatsQueryKey = () => {
+    return [
+    `/api/dashboard/pickem-stats`
+    ] as const;
+    }
+
+
+export const getGetPickEmDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmDashboardStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmDashboardStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmDashboardStats>>> = ({ signal }) => getPickEmDashboardStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmDashboardStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmDashboardStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmDashboardStats>>>
+export type GetPickEmDashboardStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Pick-em stats for all user's pools (for dashboard cards)
+ */
+
+export function useGetPickEmDashboardStats<TData = Awaited<ReturnType<typeof getPickEmDashboardStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmDashboardStatsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -16,6 +16,7 @@ import pickemRouter from "./pickem";
 import pickemSeasonRouter from "./pickem-season";
 import gspRouter from "./gsp";
 import ndpRouter from "./ndp";
+import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
 
@@ -32,6 +33,7 @@ router.use("/pools/:poolId/pickem", pickemRouter);
 router.use("/pools/:poolId/pickem-season", pickemSeasonRouter);
 router.use("/pools/:poolId/gsp", gspRouter);
 router.use("/pools/:poolId/ndp", ndpRouter);
+router.use("/dashboard", dashboardRouter);
 router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);
 router.use("/admin-auth", adminAuthRouter);
