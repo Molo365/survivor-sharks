@@ -851,7 +851,8 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
 
       <Tabs defaultValue="picks" className="w-full">
         <div className="relative">
-          <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
+          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1 gap-1 w-max md:w-full">
             <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
               <ListOrdered className="w-4 h-4" /> My Picks
             </TabsTrigger>
@@ -867,6 +868,7 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
               </TabsTrigger>
             )}
           </TabsList>
+          </div>
           <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
         </div>
 

@@ -746,7 +746,8 @@ export function PickEmSeasonView({
         {/* ── Tabs ── */}
         <Tabs defaultValue="picks">
           <div className="relative">
-            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
+            <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
               <TabsTrigger
                 value="picks"
                 className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
@@ -782,6 +783,7 @@ export function PickEmSeasonView({
                 </TabsTrigger>
               )}
             </TabsList>
+            </div>
             <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
           </div>
 
