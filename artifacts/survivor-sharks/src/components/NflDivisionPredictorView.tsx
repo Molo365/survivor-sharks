@@ -664,19 +664,22 @@ export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode }:
       </div>
 
       <Tabs defaultValue="picks" className="w-full">
-        <TabsList className="bg-card border border-border">
-          <TabsTrigger value="picks" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
-            <ListOrdered className="w-4 h-4" /> My Picks
-          </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2">
-            <Trophy className="w-4 h-4" /> Leaderboard
-          </TabsTrigger>
-          {isCommissioner && (
-            <TabsTrigger value="commissioner" className="font-bebas text-lg tracking-wider px-5 py-2.5 gap-2 text-muted-foreground hover:text-foreground ml-auto">
-              <ShieldAlert className="w-4 h-4" /> Commissioner
+        <div className="relative">
+          <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
+            <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+              <ListOrdered className="w-4 h-4" /> My Picks
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+              <Trophy className="w-4 h-4" /> Leaderboard
+            </TabsTrigger>
+            {isCommissioner && (
+              <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2 text-muted-foreground hover:text-foreground md:ml-auto">
+                <ShieldAlert className="w-4 h-4" /> Commissioner
+              </TabsTrigger>
+            )}
+          </TabsList>
+          <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+        </div>
 
         <TabsContent value="picks">
           <MyPicksTab poolId={poolId} />

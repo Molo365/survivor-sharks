@@ -1809,48 +1809,51 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       />
     )}
     <Tabs defaultValue="picks" className="w-full">
-      <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
-        <TabsTrigger
-          value="picks"
-          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
-        >
-          <Target className="w-5 h-5" /> Today's Picks
-        </TabsTrigger>
-        <TabsTrigger
-          value="leaderboard"
-          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
-        >
-          <Trophy className="w-5 h-5" /> Leaderboard
-        </TabsTrigger>
-        <TabsTrigger
-          value="grid"
-          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
-        >
-          <LayoutGrid className="w-5 h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
-        </TabsTrigger>
-        <TabsTrigger
-          value="stats"
-          className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
-        >
-          <BarChart2 className="w-5 h-5" /> Stats
-        </TabsTrigger>
-        {slateLocked && !isWc && (leaderboard?.entries.length ?? 0) > 0 && (
+      <div className="relative">
+        <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
           <TabsTrigger
-            value="snapshot"
-            className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+            value="picks"
+            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
           >
-            <Camera className="w-5 h-5" /> Snapshot
+            <Target className="w-4 h-4 md:w-5 md:h-5" /> Today's Picks
           </TabsTrigger>
-        )}
-        {isCommissioner && (
           <TabsTrigger
-            value="commissioner"
-            className="font-bebas text-xl tracking-wider px-5 py-2.5 text-muted-foreground hover:text-foreground ml-auto flex gap-2"
+            value="leaderboard"
+            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
           >
-            <ShieldAlert className="w-5 h-5" /> Commissioner
+            <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
           </TabsTrigger>
-        )}
-      </TabsList>
+          <TabsTrigger
+            value="grid"
+            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+          >
+            <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
+          </TabsTrigger>
+          <TabsTrigger
+            value="stats"
+            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
+          >
+            <BarChart2 className="w-4 h-4 md:w-5 md:h-5" /> Stats
+          </TabsTrigger>
+          {slateLocked && !isWc && (leaderboard?.entries.length ?? 0) > 0 && (
+            <TabsTrigger
+              value="snapshot"
+              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+            >
+              <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
+            </TabsTrigger>
+          )}
+          {isCommissioner && (
+            <TabsTrigger
+              value="commissioner"
+              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
+            >
+              <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+            </TabsTrigger>
+          )}
+        </TabsList>
+        <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+      </div>
 
       {slateLocked && (
         <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">

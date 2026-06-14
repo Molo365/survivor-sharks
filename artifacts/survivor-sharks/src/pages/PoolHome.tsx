@@ -88,11 +88,11 @@ export default function PoolHome() {
             <Skeleton className="h-[400px] w-full rounded-md" />
           </div>
         ) : (
-          <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/50">
-              <div>
-                <h1 className="font-bebas text-5xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-2">{pool.name}</h1>
-                <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground uppercase tracking-wider flex-wrap">
+          <div className="space-y-4 md:space-y-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-4 md:pb-6 border-b border-border/50">
+              <div className="min-w-0">
+                <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
+                <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
                   <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
                   {pool.poolType === "season" && (
                     <span className="flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded">
@@ -135,24 +135,24 @@ export default function PoolHome() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-4">
+              <div className="flex gap-2 md:gap-4 shrink-0">
                 {isPickEm ? (
-                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
-                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
+                  <div className="bg-card border border-border/50 px-3 md:px-5 py-2 md:py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-wider mb-0.5 md:mb-1 flex items-center justify-center gap-1">
                       <Target className="w-3 h-3" /> Players Picked
                     </div>
-                    <div className="font-bebas text-3xl text-green-400">
+                    <div className="font-bebas text-xl md:text-3xl text-green-400">
                       {pickemLeaderboard?.entries.length ?? 0}
-                      <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers} players</span>
+                      <span className="text-sm md:text-xl text-muted-foreground/60"> / {pool.totalMembers}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
-                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
+                  <div className="bg-card border border-border/50 px-3 md:px-5 py-2 md:py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-wider mb-0.5 md:mb-1 flex items-center justify-center gap-1">
                       <Users className="w-3 h-3" /> Alive
                     </div>
-                    <div className="font-bebas text-3xl text-accent">
-                      {pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
+                    <div className="font-bebas text-xl md:text-3xl text-accent">
+                      {pool.activeCount} <span className="text-sm md:text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
                     </div>
                   </div>
                 )}
@@ -191,31 +191,34 @@ export default function PoolHome() {
               <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
-              <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
-                <TabsTrigger value="pick" className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
-                  <Target className="w-5 h-5" /> Make Pick
+              <div className="relative">
+              <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
+                <TabsTrigger value="pick" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
+                  <Target className="w-4 h-4 md:w-5 md:h-5" /> Make Pick
                 </TabsTrigger>
-                <TabsTrigger value="leaderboard" className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
-                  <Activity className="w-5 h-5" /> Leaderboard
+                <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                  <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                 </TabsTrigger>
-                <TabsTrigger value="grid" className="font-bebas text-xl tracking-wider px-5 py-2.5 flex gap-2">
+                <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                   Grid
                 </TabsTrigger>
-                <TabsTrigger value="history" className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive flex gap-2">
-                  <Skull className="w-5 h-5" /> Kill History
+                <TabsTrigger value="history" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive flex gap-2">
+                  <Skull className="w-4 h-4 md:w-5 md:h-5" /> Kill History
                 </TabsTrigger>
-                <TabsTrigger value="stats" className="font-bebas text-xl tracking-wider px-5 py-2.5 flex gap-2">
+                <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                   Stats
                 </TabsTrigger>
-                <TabsTrigger value="injuries" className="font-bebas text-xl tracking-wider px-5 py-2.5 flex gap-2">
-                  <Bandage className="w-5 h-5" /> Injuries
+                <TabsTrigger value="injuries" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                  <Bandage className="w-4 h-4 md:w-5 md:h-5" /> Injuries
                 </TabsTrigger>
                 {isCommissioner && (
-                  <TabsTrigger value="commissioner" className="font-bebas text-xl tracking-wider px-5 py-2.5 text-muted-foreground hover:text-foreground ml-auto flex gap-2">
-                    <ShieldAlert className="w-5 h-5" /> Commissioner
+                  <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                    <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                   </TabsTrigger>
                 )}
               </TabsList>
+              <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+            </div>
 
               <div className="mt-8">
                 <TabsContent value="pick" className="m-0 focus-visible:outline-none">

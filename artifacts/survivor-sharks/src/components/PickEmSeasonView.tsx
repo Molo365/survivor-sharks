@@ -745,42 +745,45 @@ export function PickEmSeasonView({
 
         {/* ── Tabs ── */}
         <Tabs defaultValue="picks">
-          <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm">
-            <TabsTrigger
-              value="picks"
-              className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
-            >
-              <Target className="w-5 h-5" /> Week {displayWeek}
-              {myWeeklyScore != null && (
-                <Badge
-                  variant="outline"
-                  className="font-mono text-xs ml-1 text-green-400 border-green-500/30"
-                >
-                  {myWeeklyScore.correct}/{myWeeklyScore.total}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="leaderboard"
-              className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2 items-center"
-            >
-              <Trophy className="w-5 h-5" /> Leaderboard
-            </TabsTrigger>
-            <TabsTrigger
-              value="grid"
-              className="font-bebas text-xl tracking-wider px-5 py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
-            >
-              <LayoutGrid className="w-5 h-5" /> Weekly Grid
-            </TabsTrigger>
-            {isCommissioner && (
+          <div className="relative">
+            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full">
               <TabsTrigger
-                value="commissioner"
-                className="font-bebas text-xl tracking-wider px-5 py-2.5 text-muted-foreground hover:text-foreground ml-auto flex gap-2 items-center"
+                value="picks"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
               >
-                <ShieldAlert className="w-5 h-5" /> Commissioner
+                <Target className="w-4 h-4 md:w-5 md:h-5" /> Week {displayWeek}
+                {myWeeklyScore != null && (
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-xs ml-1 text-green-400 border-green-500/30"
+                  >
+                    {myWeeklyScore.correct}/{myWeeklyScore.total}
+                  </Badge>
+                )}
               </TabsTrigger>
-            )}
-          </TabsList>
+              <TabsTrigger
+                value="leaderboard"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2 items-center"
+              >
+                <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+              </TabsTrigger>
+              <TabsTrigger
+                value="grid"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
+              >
+                <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Weekly Grid
+              </TabsTrigger>
+              {isCommissioner && (
+                <TabsTrigger
+                  value="commissioner"
+                  className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2 items-center"
+                >
+                  <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                </TabsTrigger>
+              )}
+            </TabsList>
+            <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+          </div>
 
           {/* ─ Picks tab ─ */}
           <TabsContent value="picks" className="m-0 mt-6 focus-visible:outline-none">
