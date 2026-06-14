@@ -88,8 +88,8 @@ export default function PoolHome() {
             <Skeleton className="h-[400px] w-full rounded-md" />
           </div>
         ) : (
-          <div className="space-y-4 md:space-y-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-4 md:pb-6 border-b border-border/50">
+          <div className="space-y-2 md:space-y-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0">
                 <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
                 <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
@@ -133,26 +133,39 @@ export default function PoolHome() {
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
                   )}
+                  {/* Compact inline stat — mobile only */}
+                  <span className="md:hidden bg-card border border-border/50 px-2 py-1 rounded-lg text-center shadow-sm">
+                    {isPickEm ? (
+                      <span className="font-bebas text-sm text-green-400 leading-none">
+                        {pickemLeaderboard?.entries.length ?? 0}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
+                      </span>
+                    ) : (
+                      <span className="font-bebas text-sm text-accent leading-none">
+                        {pool.activeCount}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
-              <div className="flex gap-2 md:gap-4 shrink-0">
+              {/* Full stat boxes — desktop only */}
+              <div className="hidden md:flex gap-4 shrink-0">
                 {isPickEm ? (
-                  <div className="bg-card border border-border/50 px-3 md:px-5 py-2 md:py-3 rounded-lg text-center shadow-sm">
-                    <div className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-wider mb-0.5 md:mb-1 flex items-center justify-center gap-1">
+                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
                       <Target className="w-3 h-3" /> Players Picked
                     </div>
-                    <div className="font-bebas text-xl md:text-3xl text-green-400">
+                    <div className="font-bebas text-3xl text-green-400">
                       {pickemLeaderboard?.entries.length ?? 0}
-                      <span className="text-sm md:text-xl text-muted-foreground/60"> / {pool.totalMembers}</span>
+                      <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers} players</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-card border border-border/50 px-3 md:px-5 py-2 md:py-3 rounded-lg text-center shadow-sm">
-                    <div className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-wider mb-0.5 md:mb-1 flex items-center justify-center gap-1">
+                  <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
+                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
                       <Users className="w-3 h-3" /> Alive
                     </div>
-                    <div className="font-bebas text-xl md:text-3xl text-accent">
-                      {pool.activeCount} <span className="text-sm md:text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
+                    <div className="font-bebas text-3xl text-accent">
+                      {pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
                     </div>
                   </div>
                 )}
