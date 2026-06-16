@@ -21,6 +21,8 @@ import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView"
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
+import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
+import { CrazyEightsStats } from "@/components/CrazyEightsStats";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -241,13 +243,13 @@ export default function PoolHome() {
                     <CrazyEightsView poolId={pool.id} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                    <Leaderboard poolId={pool.id} pickFrequency="daily" />
+                    <CrazyEightsLeaderboard poolId={pool.id} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <CrazyEightsGrid poolId={pool.id} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <PoolStats poolId={pool.id} />
+                    <CrazyEightsStats poolId={pool.id} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
