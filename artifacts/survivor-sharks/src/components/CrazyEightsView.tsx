@@ -18,7 +18,7 @@ interface CrazyEightsViewProps {
 }
 
 function TeamLogo({ abbrev, name }: { abbrev: string; name: string }) {
-  const logoUrl = `https://a.espncdn.com/i/teamlogos/mlb/500/${abbrev.toLowerCase()}.png`;
+  const logoUrl = `https://a.espncdn.com/i/teamlogos/mlb/500/${String(abbrev ?? "").toLowerCase()}.png`;
   return (
     <img
       src={logoUrl}
