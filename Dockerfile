@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 RUN npm install -g pnpm
 RUN pnpm install --no-frozen-lockfile --ignore-scripts
-RUN pnpm add -w @rollup/rollup-linux-x64-musl
+RUN pnpm add -w @rollup/rollup-linux-x64-musl lightningcss-linux-x64-musl
 RUN pnpm rebuild esbuild sharp
 RUN pnpm --filter @workspace/survivor-sharks build
 RUN pnpm --filter @workspace/api-server build
