@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -203,7 +203,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -234,6 +234,8 @@ export default function CreatePool() {
       ? "WORLD CUP 2026 PICK-EMS"
       : selectedSport === PoolInputSport.mlb && selectedType === "dirty_dozen"
       ? "MLB DIRTY DOZEN"
+      : selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s"
+      ? "MLB CRAZY 8'S"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
@@ -241,6 +243,8 @@ export default function CreatePool() {
   const pageSubtitle =
     selectedType === "dirty_dozen"
       ? "12 curated games per week. Assign confidence points 1–12."
+      : selectedType === "crazy_8s"
+      ? "Pick any 8 games from today's slate. Assign confidence points 1–8."
       : selectedType === "pickem"
       ? "Pick every game, every day."
       : "Set the rules. Invite the sharks.";
@@ -492,6 +496,30 @@ export default function CreatePool() {
                               <p className="text-xs text-muted-foreground leading-snug">12 curated games per week. Assign confidence points 1–12. Highest total wins.</p>
                             </div>
                             <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "dirty_dozen" ? "border-blue-500 bg-blue-500" : "border-muted-foreground/30")} />
+                          </div>
+                        </button>
+                        {/* Crazy 8's */}
+                        <button
+                          type="button"
+                          onClick={() => form.setValue("poolType", "crazy_8s", { shouldValidate: true })}
+                          data-testid="pickem-freq-crazy_8s"
+                          className={cn(
+                            "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            selectedType === "crazy_8s"
+                              ? "border-purple-500/60 bg-purple-500/5 ring-2 ring-offset-1 ring-offset-background"
+                              : "border-border/40 hover:border-border bg-card/50",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <Dice5 className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "crazy_8s" ? "text-purple-400" : "text-muted-foreground")} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "crazy_8s" ? "text-foreground" : "text-muted-foreground")}>Crazy 8's</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-purple-500/20 text-purple-400 border-purple-500/30">MLB</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-snug">Pick any 8 games from today's slate. Assign confidence points 1–8. Highest total wins.</p>
+                            </div>
+                            <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "crazy_8s" ? "border-purple-500 bg-purple-500" : "border-muted-foreground/30")} />
                           </div>
                         </button>
                       </div>

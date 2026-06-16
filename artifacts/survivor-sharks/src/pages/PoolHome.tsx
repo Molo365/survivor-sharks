@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -19,6 +19,7 @@ import { PickEmView } from "@/components/PickEmView";
 import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
 import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
+import { CrazyEightsView } from "@/components/CrazyEightsView";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -32,6 +33,7 @@ export default function PoolHome() {
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
   const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
+  const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -129,6 +131,11 @@ export default function PoolHome() {
                       <ListOrdered className="w-3 h-3" /> Division Predictor
                     </span>
                   )}
+                  {isCrazyEights && (
+                    <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
+                      <Dice5 className="w-3 h-3" /> Crazy 8's
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
@@ -202,6 +209,8 @@ export default function PoolHome() {
               <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : isPickEmSeason ? (
               <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} />
+            ) : isCrazyEights ? (
+              <CrazyEightsView poolId={pool.id} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <div className="relative">
