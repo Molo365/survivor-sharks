@@ -59,7 +59,7 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["pickem"],
+  [PoolInputSport.mlb]: ["pickem", "dirty_dozen"],
   [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
@@ -137,6 +137,18 @@ const POOL_TYPES = [
     cardClass:
       "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
   },
+  {
+    id: "dirty_dozen" as const,
+    label: "Dirty Dozen",
+    icon: ShieldCheck,
+    tagline: "12 Games. 12 Confidence Points.",
+    description:
+      "12 curated games per week. Assign confidence points 1–12. Highest total wins.",
+    badge: "MLB",
+    badgeClass: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    cardClass:
+      "border-blue-500/30 bg-[linear-gradient(145deg,rgba(59,130,246,0.06)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -148,7 +160,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -192,7 +204,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -221,12 +233,16 @@ export default function CreatePool() {
   const pageTitle =
     selectedSport === PoolInputSport.worldcup
       ? "WORLD CUP 2026 PICK-EMS"
+      : selectedSport === PoolInputSport.mlb && selectedType === "dirty_dozen"
+      ? "MLB DIRTY DOZEN"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
 
   const pageSubtitle =
-    selectedType === "pickem"
+    selectedType === "dirty_dozen"
+      ? "12 curated games per week. Assign confidence points 1–12."
+      : selectedType === "pickem"
       ? "Pick every game, every day."
       : "Set the rules. Invite the sharks.";
 
