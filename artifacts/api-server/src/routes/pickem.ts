@@ -44,7 +44,7 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "crazy_8s") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
