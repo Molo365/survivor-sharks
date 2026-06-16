@@ -1,11 +1,100 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, entriesTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, entriesTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate, formatDateEt } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
+
+// GET /api/pools/:poolId/crazy-eights/grid?date=YYYY-MM-DD
+router.get("/grid", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const date = String(req.query.date ?? getTodayEtDate());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const espnDate = date.replace(/-/g, "");
+
+  const [games, allPicks] = await Promise.all([
+    fetchGamesForDate("mlb", espnDate),
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        gameId: pickemPicksTable.gameId,
+        pickedTeamId: pickemPicksTable.pickedTeamId,
+        pickedTeamName: pickemPicksTable.pickedTeamName,
+        confidencePoints: (pickemPicksTable as any).confidencePoints,
+        result: pickemPicksTable.result,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, date))),
+  ]);
+
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const gameMap = new Map(games.map((g) => [g.id, g]));
+
+  const userMap = new Map<number, {
+    userId: number; username: string; displayName: string | null;
+    picks: Map<string, { pickedTeamId: string; pickedTeamName: string; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+  }>();
+
+  for (const pick of allPicks) {
+    if (!userMap.has(pick.userId)) {
+      userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
+    }
+    const game = gameMap.get(pick.gameId);
+    const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+    userMap.get(pick.userId)!.picks.set(pick.gameId, {
+      pickedTeamId: pick.pickedTeamId,
+      pickedTeamName: pick.pickedTeamName,
+      pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
+      confidencePoints: (pick as any).confidencePoints ?? null,
+      result: pick.result ?? null,
+    });
+  }
+
+  const [y, mo, d] = date.split("-").map(Number);
+  const dateLabel = new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+  });
+
+  const gamesSummary = games.map((g) => ({
+    id: g.id,
+    awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+    homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+    startTime: g.date,
+    status: g.status,
+    awayScore: g.awayScore ?? null,
+    homeScore: g.homeScore ?? null,
+  }));
+
+  const players = Array.from(userMap.values()).map((u) => ({
+    userId: u.userId,
+    username: u.username,
+    displayName: u.displayName,
+    picks: Object.fromEntries(u.picks.entries()),
+  }));
+
+  res.json({ date, dateLabel, games: gamesSummary, players });
+});
 
 // GET /api/pools/:poolId/crazy-eights/picks
 router.get("/picks", requireAuth, async (req, res) => {

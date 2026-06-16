@@ -20,6 +20,7 @@ import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
 import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
+import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -243,7 +244,7 @@ export default function PoolHome() {
                     <Leaderboard poolId={pool.id} pickFrequency="daily" />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
-                    <DailyPickGrid poolId={pool.id} />
+                    <CrazyEightsGrid poolId={pool.id} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                     <PoolStats poolId={pool.id} />
