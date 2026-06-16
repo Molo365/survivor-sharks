@@ -17,18 +17,24 @@ interface CrazyEightsViewProps {
   poolId: number;
 }
 
-function TeamLogo({ abbrev, name }: { abbrev: string; name: string }) {
-  const logoUrl = `https://a.espncdn.com/i/teamlogos/mlb/500/${String(abbrev ?? "").toLowerCase()}.png`;
-  return (
-    <img
-      src={logoUrl}
-      alt={name}
-      className="w-8 h-8 object-contain"
-      onError={(e) => {
-        (e.target as HTMLImageElement).style.display = "none";
-      }}
-    />
-  );
+function teamLogoSrc(team: { logoUrl?: string | null; abbreviation: string }) {
+  return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/mlb/500/${String(team.abbreviation ?? "").toLowerCase()}.png`;
+}
+
+function formatTimeEt(iso: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(iso));
+}
+
+function pitcherLine(pitcher: PickEmGame["awayPitcher"]) {
+  if (!pitcher?.name) return null;
+  const rec = pitcher.wins != null && pitcher.losses != null ? `(${pitcher.wins}-${pitcher.losses})` : null;
+  const era = pitcher.era != null ? `${pitcher.era} ERA` : null;
+  return [pitcher.name, rec, era].filter(Boolean).join(" ");
 }
 
 function GameCard({
@@ -37,99 +43,208 @@ function GameCard({
   isLocked,
   confidence,
   usedPoints,
+  pickedTeam,
   onToggle,
   onAssignConfidence,
+  onPickTeam,
 }: {
   game: PickEmGame;
   isSelected: boolean;
   isLocked: boolean;
   confidence: number | undefined;
   usedPoints: Set<number>;
+  pickedTeam: string | null;
   onToggle: () => void;
   onAssignConfidence: (pts: number) => void;
+  onPickTeam: (teamId: string) => void;
 }) {
-  const startTime = new Date(game.startTime);
-  const timeStr = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const gameStarted = new Date() >= startTime;
+  const isFinal = game.status === "final";
+  const isLive = game.status === "in_progress";
+  const isPostponed = game.status === "postponed";
+
+  const awayPitcher = pitcherLine(game.awayPitcher);
+  const homePitcher = pitcherLine(game.homePitcher);
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border-2 p-3 transition-all",
-        isSelected
+    <div className={cn(
+      "rounded-lg border-2 transition-all overflow-hidden",
+      isLive
+        ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+        : isSelected
           ? "border-purple-500/60 bg-purple-500/5"
           : "border-border/40 bg-card/50 hover:border-border",
-        isLocked && !isSelected && "opacity-50 cursor-not-allowed",
+      isLocked && !isSelected && !isLive && "opacity-50 cursor-not-allowed",
+    )}>
+      {/* LIVE banner */}
+      {isLive && (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 border-b border-red-500/30">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">
+            LIVE{game.liveDetail ? ` · ${game.liveDetail}` : ""}
+          </span>
+        </div>
       )}
-    >
-      {/* Game row */}
+
+      {/* Game header row — click to toggle selection */}
       <button
         type="button"
         onClick={onToggle}
-        disabled={isLocked}
-        className="w-full text-left"
+        disabled={isLocked && !isSelected}
+        className="w-full text-left p-3"
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <TeamLogo abbrev={game.awayTeam.abbreviation} name={game.awayTeam.name} />
+        <div className="flex items-center gap-2">
+          {/* Away team */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
+              <img
+                src={teamLogoSrc(game.awayTeam)}
+                alt={game.awayTeam.name}
+                className="w-8 h-8 object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
             <div className="min-w-0">
               <div className="font-bebas text-base tracking-wide leading-none truncate">{game.awayTeam.name}</div>
-              <div className="text-[10px] text-muted-foreground">Away</div>
+              {(isFinal || isLive) && game.awayScore != null ? (
+                <div className="font-bebas text-2xl leading-none">{game.awayScore}</div>
+              ) : (
+                <>
+                  <div className="text-[10px] text-muted-foreground">Away</div>
+                  {awayPitcher && (
+                    <div className="text-[9px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] truncate">
+                      {awayPitcher}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
-          <div className="text-xs text-muted-foreground font-bold shrink-0">vs</div>
-          <div className="flex items-center gap-2 min-w-0 flex-row-reverse">
-            <TeamLogo abbrev={game.homeTeam.abbreviation} name={game.homeTeam.name} />
-            <div className="min-w-0 text-right">
-              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.homeTeam.name}</div>
-              <div className="text-[10px] text-muted-foreground">Home</div>
-            </div>
-          </div>
-          <div className="ml-auto flex flex-col items-end shrink-0 gap-0.5">
-            {gameStarted ? (
-              <span className="flex items-center gap-1 text-[10px] text-destructive font-semibold">
-                <Lock className="w-3 h-3" /> Started
+
+          {/* Center: status + select indicator */}
+          <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
+            {isFinal ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
+                Final
               </span>
+            ) : isPostponed ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
+                PPD
+              </span>
+            ) : isLive ? (
+              <span className="text-[10px] font-bold text-red-400">vs</span>
             ) : (
-              <span className="text-[10px] text-muted-foreground">{timeStr}</span>
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {formatTimeEt(game.startTime)}
+              </span>
             )}
             {isSelected ? (
-              <CheckCircle2 className="w-5 h-5 text-purple-400" />
+              <CheckCircle2 className="w-5 h-5 text-purple-400 mt-0.5" />
             ) : (
-              <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />
+              <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 mt-0.5" />
             )}
+          </div>
+
+          {/* Home team */}
+          <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+            <div className="min-w-0 text-right">
+              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.homeTeam.name}</div>
+              {(isFinal || isLive) && game.homeScore != null ? (
+                <div className="font-bebas text-2xl leading-none">{game.homeScore}</div>
+              ) : (
+                <>
+                  <div className="text-[10px] text-muted-foreground">Home</div>
+                  {homePitcher && (
+                    <div className="text-[9px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] truncate text-right">
+                      {homePitcher}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
+              <img
+                src={teamLogoSrc(game.homeTeam)}
+                alt={game.homeTeam.name}
+                className="w-8 h-8 object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
           </div>
         </div>
       </button>
 
-      {/* Confidence row — only when game is selected */}
+      {/* Expanded section — winner pick + confidence — only when selected */}
       {isSelected && (
-        <div className="mt-2 pt-2 border-t border-border/40">
-          <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
-            Confidence points
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
-              const taken = usedPoints.has(pts) && confidence !== pts;
-              return (
-                <button
-                  key={pts}
-                  type="button"
-                  disabled={isLocked || taken}
-                  onClick={() => onAssignConfidence(pts)}
-                  className={cn(
-                    "w-8 h-8 rounded-md text-sm font-bold border-2 transition-all",
-                    confidence === pts
-                      ? "bg-purple-500 border-purple-400 text-white"
-                      : taken
-                      ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
-                      : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
-                  )}
-                >
-                  {pts}
-                </button>
-              );
-            })}
+        <div className="px-3 pb-3 space-y-2.5 border-t border-purple-500/20 pt-2.5">
+          {/* Pick the winner */}
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+              Pick the winner
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[game.awayTeam, game.homeTeam].map((team) => {
+                const isPicked = pickedTeam === team.id;
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    disabled={isLocked}
+                    onClick={() => !isLocked && onPickTeam(team.id)}
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded-lg border-2 transition-all select-none text-left",
+                      isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+                      isPicked
+                        ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/40"
+                        : "border-border/40 bg-card/60 hover:border-purple-500/30",
+                    )}
+                  >
+                    <img
+                      src={teamLogoSrc(team)}
+                      alt={team.name}
+                      className="w-5 h-5 object-contain shrink-0"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <span className={cn(
+                      "font-bebas text-sm tracking-wide truncate",
+                      isPicked ? "text-purple-300" : "text-muted-foreground",
+                    )}>
+                      {team.name}
+                    </span>
+                    {isPicked && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 ml-auto shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Confidence points */}
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+              Confidence points
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
+                const taken = usedPoints.has(pts) && confidence !== pts;
+                return (
+                  <button
+                    key={pts}
+                    type="button"
+                    disabled={isLocked || taken}
+                    onClick={() => onAssignConfidence(pts)}
+                    className={cn(
+                      "w-8 h-8 rounded-md text-sm font-bold border-2 transition-all",
+                      confidence === pts
+                        ? "bg-purple-500 border-purple-400 text-white"
+                        : taken
+                          ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
+                          : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
+                    )}
+                  >
+                    {pts}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -143,6 +258,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confidence, setConfidence] = useState<Record<string, number>>({});
+  const [pickedTeams, setPickedTeams] = useState<Record<string, string>>({});
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [tbRuns, setTbRuns] = useState("");
   const [tbStrikeouts, setTbStrikeouts] = useState("");
@@ -150,7 +266,10 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   const [submitted, setSubmitted] = useState(false);
 
   const { data: slate, isLoading, error } = useGetPickEmGames(poolId, undefined, {
-    query: { queryKey: getGetPickEmGamesQueryKey(poolId) },
+    query: {
+      queryKey: getGetPickEmGamesQueryKey(poolId, undefined),
+      refetchInterval: 30_000,
+    },
   });
 
   const games: PickEmGame[] = slate?.games ?? [];
@@ -175,26 +294,20 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     [confidence],
   );
 
-  const allPointsAssigned =
+  const allReady =
     selectedIds.length === MAX_PICKS &&
-    selectedIds.every((id) => confidence[id] !== undefined);
+    selectedIds.every((id) => confidence[id] !== undefined) &&
+    selectedIds.every((id) => pickedTeams[id] !== undefined);
 
   function toggleGame(gameId: string) {
     if (submitted || isLocked) return;
     if (selectedIds.includes(gameId)) {
       setSelectedIds((prev) => prev.filter((id) => id !== gameId));
-      setConfidence((prev) => {
-        const c = { ...prev };
-        delete c[gameId];
-        return c;
-      });
+      setConfidence((prev) => { const c = { ...prev }; delete c[gameId]; return c; });
+      setPickedTeams((prev) => { const p = { ...prev }; delete p[gameId]; return p; });
     } else {
       if (selectedIds.length >= MAX_PICKS) {
-        toast({
-          title: "8 games max",
-          description: "Deselect a game before adding another.",
-          variant: "destructive",
-        });
+        toast({ title: "8 games max", description: "Deselect a game before adding another.", variant: "destructive" });
         return;
       }
       setSelectedIds((prev) => [...prev, gameId]);
@@ -212,12 +325,21 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     });
   }
 
+  function pickTeam(gameId: string, teamId: string) {
+    if (submitted || isLocked) return;
+    setPickedTeams((prev) => ({ ...prev, [gameId]: teamId }));
+  }
+
   function handleSubmitClick() {
     if (selectedIds.length < MAX_PICKS) {
       toast({ title: "Select 8 games", description: "You must choose exactly 8 games.", variant: "destructive" });
       return;
     }
-    if (!allPointsAssigned) {
+    if (!selectedIds.every((id) => pickedTeams[id])) {
+      toast({ title: "Pick a winner", description: "Choose a winning team for each selected game.", variant: "destructive" });
+      return;
+    }
+    if (!allReady) {
       toast({ title: "Assign all confidence points", description: "Each selected game needs a point value 1–8.", variant: "destructive" });
       return;
     }
@@ -233,7 +355,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     try {
       const picks = selectedIds.map((id) => ({
         gameId: id,
-        pickedTeam: "",
+        pickedTeam: pickedTeams[id] ?? "",
         confidencePoints: confidence[id],
       }));
       const res = await fetch(`/api/pools/${poolId}/crazy-eights/picks`, {
@@ -248,7 +370,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message || "Submission failed");
+        throw new Error((err as any).error || "Submission failed");
       }
       setShowTiebreaker(false);
       setSubmitted(true);
@@ -280,6 +402,9 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     );
   }
 
+  const missingWinner = selectedIds.some((id) => !pickedTeams[id]);
+  const missingPoints = selectedIds.length === MAX_PICKS && !selectedIds.every((id) => confidence[id] !== undefined);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -290,7 +415,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
             Crazy 8's — Today's Slate
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Select exactly 8 games and assign confidence points 1–8 (each used once).
+            Select 8 games, pick a winner for each, and assign confidence points 1–8.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -331,8 +456,10 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
             isLocked={isLocked || submitted}
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
+            pickedTeam={pickedTeams[game.id] ?? null}
             onToggle={() => toggleGame(game.id)}
             onAssignConfidence={(pts) => assignConfidence(game.id, pts)}
+            onPickTeam={(teamId) => pickTeam(game.id, teamId)}
           />
         ))}
       </div>
@@ -341,14 +468,16 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
       {!submitted && (
         <Button
           onClick={handleSubmitClick}
-          disabled={isLocked || selectedIds.length < MAX_PICKS || !allPointsAssigned}
+          disabled={isLocked || selectedIds.length < MAX_PICKS || !allReady}
           className="w-full font-bebas text-xl tracking-wider h-12 bg-purple-600 hover:bg-purple-500 text-white"
         >
           {selectedIds.length < MAX_PICKS
             ? `Select ${MAX_PICKS - selectedIds.length} more game${MAX_PICKS - selectedIds.length === 1 ? "" : "s"}`
-            : !allPointsAssigned
-            ? "Assign all confidence points"
-            : "Submit Picks"}
+            : missingWinner
+              ? "Pick a winner for each game"
+              : missingPoints
+                ? "Assign all confidence points"
+                : "Submit Picks"}
         </Button>
       )}
 
