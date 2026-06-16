@@ -2,7 +2,6 @@ import { Link, Redirect } from "wouter";
 import { Shield, Trophy, Users, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import underwaterBg from "@assets/Underwater_1781045385578.jpg";
 
 function useCountdown(target: Date) {
   const [diff, setDiff] = useState(() => Math.max(0, target.getTime() - Date.now()));
@@ -27,7 +26,7 @@ export default function Landing() {
   return (
     <div className="min-h-[100dvh] flex flex-col">
       {/* Fixed background */}
-      <div className="fixed inset-0 -z-20" style={{ backgroundImage: `url(${underwaterBg})`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }} />
+      <div className="fixed inset-0 -z-20" style={{ backgroundImage: `url('/ocean_shark_bg.jpg')`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }} />
       <div className="fixed inset-0 -z-10 bg-[#060810]/82" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_70%_45%_at_50%_30%,rgba(20,80,200,0.22),transparent)]" />
 

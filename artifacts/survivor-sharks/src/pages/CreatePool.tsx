@@ -22,12 +22,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
-import wcLogoImg from "@assets/WorldCup2026_1780690496803.png";
-import mlbLogoImg from "@assets/mlb_logo_1780704756126.jpg";
-import nflLogoImg from "@assets/nfl-logo_1780704744525.png";
-import nbaLogoImg from "@assets/Logo-NBA_1780704727332.png";
-import nhlLogoImg from "@assets/NHL-Logo_1780704736359.png";
-import sharkBg from "@assets/ocean_shark_bg.jpg";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -36,31 +30,31 @@ const SPORTS = [
     id: PoolInputSport.mlb,
     label: "MLB",
     sublabel: "Baseball",
-    logoImg: mlbLogoImg,
+    logoImg: '/ocean_shark_bg.jpg',
   },
   {
     id: PoolInputSport.nfl,
     label: "NFL",
     sublabel: "Football",
-    logoImg: nflLogoImg,
+    logoImg: '/ocean_shark_bg.jpg',
   },
   {
     id: PoolInputSport.nba,
     label: "NBA",
     sublabel: "Basketball",
-    logoImg: nbaLogoImg,
+    logoImg: '/ocean_shark_bg.jpg',
   },
   {
     id: PoolInputSport.nhl,
     label: "NHL",
     sublabel: "Hockey",
-    logoImg: nhlLogoImg,
+    logoImg: '/ocean_shark_bg.jpg',
   },
   {
     id: PoolInputSport.worldcup,
     label: "WC",
     sublabel: "World Cup",
-    logoImg: wcLogoImg,
+    logoImg: '/ocean_shark_bg.jpg',
   },
 ] as const;
 
@@ -274,7 +268,7 @@ export default function CreatePool() {
       {/* Fixed background: shark image + dark overlay */}
       <div
         style={{
-          backgroundImage: `url(${sharkBg})`,
+          backgroundImage: `url('/ocean_shark_bg.jpg')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundAttachment: "fixed",

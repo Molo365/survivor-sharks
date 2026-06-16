@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import wcTrophyImg from "@assets/WorldCup2026_1780690496803.png";
+
 import { useParams, useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJoinPool } from "@workspace/api-client-react";
@@ -217,7 +217,7 @@ export default function JoinInvite() {
             {/* WC trophy image */}
             {isWc && (
               <img
-                src={wcTrophyImg}
+                src="/ocean_shark_bg.jpg"
                 alt="FIFA World Cup 2026"
                 className="w-36 sm:w-44 object-contain drop-shadow-[0_0_40px_rgba(212,175,55,0.25)] select-none pointer-events-none"
               />
