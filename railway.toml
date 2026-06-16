@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "cd artifacts/api-server && npm install && npm run build"
 
 [deploy]
-startCommand = "node artifacts/api-server/dist/index.js"
+startCommand = "node artifacts/api-server/dist/index.mjs"
 
 [build.nixpacksPlan.phases.install]
 cmds = ["pnpm install --no-frozen-lockfile"]
