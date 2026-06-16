@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, pgEnum, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, pgEnum, unique, smallint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -18,6 +18,7 @@ export const pickemPicksTable = pgTable(
     pickedTeamId: text("picked_team_id").notNull(),
     pickedTeamName: text("picked_team_name").notNull(),
     result: pickemResultEnum("result").notNull().default("pending"),
+    confidencePoints: smallint("confidence_points"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

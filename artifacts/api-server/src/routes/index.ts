@@ -17,6 +17,7 @@ import pickemSeasonRouter from "./pickem-season";
 import gspRouter from "./gsp";
 import ndpRouter from "./ndp";
 import dashboardRouter from "./dashboard";
+import crazyEightsRouter from "./crazy-eights";
 
 const router: IRouter = Router();
 
@@ -33,6 +34,7 @@ router.use("/pools/:poolId/pickem", pickemRouter);
 router.use("/pools/:poolId/pickem-season", pickemSeasonRouter);
 router.use("/pools/:poolId/gsp", gspRouter);
 router.use("/pools/:poolId/ndp", ndpRouter);
+router.use("/pools/:poolId/crazy-eights", crazyEightsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);

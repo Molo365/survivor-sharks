@@ -233,6 +233,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     try {
       const picks = selectedIds.map((id) => ({
         gameId: id,
+        pickedTeam: "",
         confidencePoints: confidence[id],
       }));
       const res = await fetch(`/api/pools/${poolId}/crazy-eights/picks`, {
@@ -241,11 +242,8 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         credentials: "include",
         body: JSON.stringify({
           picks,
-          tiebreaker: {
-            totalRuns: parseInt(tbRuns, 10),
-            totalStrikeouts: parseInt(tbStrikeouts, 10),
-            gameId: lastGame?.id,
-          },
+          tiebreakerRuns: parseInt(tbRuns, 10),
+          tiebreakerStrikeouts: parseInt(tbStrikeouts, 10),
         }),
       });
       if (!res.ok) {
