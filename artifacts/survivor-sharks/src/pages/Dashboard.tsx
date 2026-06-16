@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, UserPlus, Info } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
-import underwaterBg from "@assets/Underwater_1781045385578.jpg";
 
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools();
@@ -18,7 +17,7 @@ export default function Dashboard() {
       {/* Fixed background: image + dark overlay */}
       <div
         style={{
-          backgroundImage: `url(${underwaterBg})`,
+          backgroundImage: `url('/ocean_shark_bg.jpg')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundAttachment: "fixed",
