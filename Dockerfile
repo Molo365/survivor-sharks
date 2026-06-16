@@ -1,5 +1,6 @@
 FROM node:22-slim
 WORKDIR /app
+ENV PORT=3000
 COPY . .
 RUN npm install -g pnpm
 RUN pnpm install --no-frozen-lockfile --ignore-scripts && pnpm rebuild esbuild sharp
