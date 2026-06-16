@@ -4,3 +4,6 @@ buildCommand = "pnpm install --no-frozen-lockfile && cd artifacts/api-server && 
 
 [deploy]
 startCommand = "node artifacts/api-server/dist/index.js"
+
+[build.nixpacksPlan.phases.install]
+cmds = ["pnpm install --no-frozen-lockfile"]
