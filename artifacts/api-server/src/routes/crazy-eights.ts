@@ -7,6 +7,69 @@ import { fetchGamesForDate, getTodayEtDate, formatDateEt } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
+// GET /api/pools/:poolId/crazy-eights/picks
+router.get("/picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const todayEt = getTodayEtDate();
+  const todayEspn = formatDateEt(new Date());
+
+  const [picks, games] = await Promise.all([
+    db.select().from(pickemPicksTable).where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.userId, userId),
+        eq(pickemPicksTable.gameDate, todayEt),
+      ),
+    ),
+    fetchGamesForDate("mlb", todayEspn),
+  ]);
+
+  const gameMap = new Map(games.map((g) => [g.id, g]));
+
+  const details = picks.map((pick) => {
+    const game = gameMap.get(pick.gameId);
+    const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+    return {
+      gameId: pick.gameId,
+      pickedTeamId: pick.pickedTeamId,
+      pickedTeamName: pick.pickedTeamName,
+      pickedTeamLogoUrl: game
+        ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
+        : null,
+      confidencePoints: (pick as any).confidencePoints ?? null,
+      result: pick.result,
+      homeTeam: game
+        ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      awayTeam: game
+        ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      homeScore: game?.homeScore ?? null,
+      awayScore: game?.awayScore ?? null,
+      startTime: game?.date ?? "",
+      status: (game?.status ?? "unknown") as string,
+    };
+  });
+
+  res.json({
+    picks: details,
+    tiebreakerRuns: (entry as any).tiebreakerRuns ?? null,
+    tiebreakerStrikeouts: (entry as any).tiebreakerStrikeouts ?? null,
+  });
+});
+
 // POST /api/pools/:poolId/crazy-eights/picks
 router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -17,8 +80,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerRuns: number;
     tiebreakerStrikeouts: number;
   };
-
-  // ── Basic shape validation ───────────────────────────────────────────────────
 
   if (!Array.isArray(picks) || picks.length !== 8) {
     res.status(400).json({ error: "Exactly 8 picks are required" });
@@ -32,7 +93,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   }
 
-  // Confidence points 1-8, each used exactly once
   const cpSorted = picks.map((p) => p.confidencePoints).sort((a, b) => a - b);
   if (!cpSorted.every((v, i) => v === i + 1)) {
     res.status(400).json({ error: "Confidence points 1-8 must each be used exactly once" });
@@ -44,8 +104,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  // ── Pool validation ──────────────────────────────────────────────────────────
-
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
@@ -56,8 +114,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  // ── Membership check ────────────────────────────────────────────────────────
-
   const [entry] = await db
     .select()
     .from(entriesTable)
@@ -67,8 +123,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(403).json({ error: "You are not a member of this pool" });
     return;
   }
-
-  // ── Game validation against today's MLB slate ────────────────────────────────
 
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -82,16 +136,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   }
 
-  // ── Lock check: earliest selected game must not have started ─────────────────
-
   const selectedGames = picks.map((p) => gameMap.get(p.gameId)!);
   const earliestStartMs = Math.min(...selectedGames.map((g) => new Date(g.date).getTime()));
   if (Date.now() >= earliestStartMs) {
     res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
     return;
   }
-
-  // ── Upsert picks ─────────────────────────────────────────────────────────────
 
   let saved = 0;
   for (const pick of picks) {
@@ -108,7 +158,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         pickedTeamName: teamLabel,
         confidencePoints: pick.confidencePoints,
         result: "pending",
-      })
+      } as any)
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
@@ -117,19 +167,17 @@ router.post("/picks", requireAuth, async (req, res) => {
           confidencePoints: pick.confidencePoints,
           result: "pending",
           updatedAt: new Date(),
-        },
+        } as any,
       });
     saved++;
   }
-
-  // ── Save tiebreaker on pool entry ────────────────────────────────────────────
 
   await db
     .update(entriesTable)
     .set({
       tiebreakerRuns,
       tiebreakerStrikeouts,
-    })
+    } as any)
     .where(eq(entriesTable.id, entry.id));
 
   res.status(201).json({ ok: true, saved, message: "Crazy 8's picks submitted successfully" });

@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGetPickEmGames, getGetPickEmGamesQueryKey } from "@workspace/api-client-react";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +15,34 @@ import { Lock, Dice5, CheckCircle2, AlertCircle, Trophy } from "lucide-react";
 
 const MAX_PICKS = 8;
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
 interface CrazyEightsViewProps {
   poolId: number;
 }
+
+interface SubmittedPick {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  pickedTeamLogoUrl: string | null;
+  confidencePoints: number | null;
+  result: string;
+  homeTeam: { id: string; abbreviation: string; name: string; logoUrl: string | null };
+  awayTeam: { id: string; abbreviation: string; name: string; logoUrl: string | null };
+  homeScore: number | null;
+  awayScore: number | null;
+  startTime: string;
+  status: string;
+}
+
+interface SubmittedPicksResponse {
+  picks: SubmittedPick[];
+  tiebreakerRuns: number | null;
+  tiebreakerStrikeouts: number | null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function teamLogoSrc(team: { logoUrl?: string | null; abbreviation: string }) {
   return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/mlb/500/${String(team.abbreviation ?? "").toLowerCase()}.png`;
@@ -36,6 +63,170 @@ function pitcherLine(pitcher: PickEmGame["awayPitcher"]) {
   const era = pitcher.era != null ? `${pitcher.era} ERA` : null;
   return [pitcher.name, rec, era].filter(Boolean).join(" ");
 }
+
+function authedFetch<T>(url: string): Promise<T> {
+  const token = localStorage.getItem("auth_token");
+  return fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  }).then((r) => {
+    if (!r.ok) throw new Error("Request failed");
+    return r.json() as Promise<T>;
+  });
+}
+
+// ── Locked picks view ────────────────────────────────────────────────────────
+
+function LockedPickRow({ pick }: { pick: SubmittedPick }) {
+  const isFinal = pick.status === "final";
+  const isLive = pick.status === "in_progress";
+  const pickedIsAway = pick.pickedTeamId === pick.awayTeam.id;
+  const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
+
+  const resultColor =
+    pick.result === "win" ? "text-green-400" :
+    pick.result === "loss" ? "text-red-400" :
+    "text-muted-foreground";
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 p-3 md:p-4">
+      {/* Confidence badge */}
+      <div className={cn(
+        "shrink-0 w-9 h-9 md:w-11 md:h-11 rounded-lg flex items-center justify-center font-bebas text-lg md:text-xl border-2",
+        "bg-purple-500/10 border-purple-500/40 text-purple-300",
+      )}>
+        {pick.confidencePoints ?? "—"}
+      </div>
+
+      {/* Game info */}
+      <div className="flex-1 min-w-0">
+        {/* Teams */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Away */}
+          <span className={cn(
+            "flex items-center gap-1 font-bebas text-sm md:text-base tracking-wide",
+            pickedIsAway ? "text-purple-300" : "text-muted-foreground",
+          )}>
+            <img
+              src={teamLogoSrc(pick.awayTeam)}
+              alt={pick.awayTeam.name}
+              className="w-4 h-4 md:w-5 md:h-5 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+            {pick.awayTeam.abbreviation}
+            {(isFinal || isLive) && pick.awayScore != null && (
+              <span className="font-bebas text-base md:text-lg">{pick.awayScore}</span>
+            )}
+            {pickedIsAway && <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />}
+          </span>
+
+          <span className="text-[10px] text-muted-foreground/50 font-bold">@</span>
+
+          {/* Home */}
+          <span className={cn(
+            "flex items-center gap-1 font-bebas text-sm md:text-base tracking-wide",
+            pickedIsHome ? "text-purple-300" : "text-muted-foreground",
+          )}>
+            <img
+              src={teamLogoSrc(pick.homeTeam)}
+              alt={pick.homeTeam.name}
+              className="w-4 h-4 md:w-5 md:h-5 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+            {pick.homeTeam.abbreviation}
+            {(isFinal || isLive) && pick.homeScore != null && (
+              <span className="font-bebas text-base md:text-lg">{pick.homeScore}</span>
+            )}
+            {pickedIsHome && <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />}
+          </span>
+        </div>
+
+        {/* Status / time */}
+        <p className={cn("text-[10px] md:text-xs mt-0.5", resultColor)}>
+          {isFinal
+            ? pick.result === "win" ? "Final · Win" : pick.result === "loss" ? "Final · Loss" : "Final"
+            : isLive
+              ? "🔴 Live"
+              : pick.startTime ? formatTimeEt(pick.startTime) + " ET" : ""}
+        </p>
+      </div>
+
+      {/* Result badge */}
+      {pick.result === "win" && (
+        <Badge className="shrink-0 bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">W</Badge>
+      )}
+      {pick.result === "loss" && (
+        <Badge className="shrink-0 bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">L</Badge>
+      )}
+    </div>
+  );
+}
+
+function LockedPicksView({ picks, tiebreakerRuns, tiebreakerStrikeouts }: {
+  picks: SubmittedPick[];
+  tiebreakerRuns: number | null;
+  tiebreakerStrikeouts: number | null;
+}) {
+  const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Lock className="w-5 h-5 text-purple-400" />
+            Your Crazy 8's Picks
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Today's picks are submitted and locked.</p>
+        </div>
+        <span className="flex items-center gap-1 text-xs text-purple-400 font-semibold bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-full">
+          <Lock className="w-3 h-3" /> Locked
+        </span>
+      </div>
+
+      {/* Submitted banner */}
+      <div className="flex items-center gap-3 rounded-lg border border-purple-500/30 bg-purple-500/5 p-4">
+        <Trophy className="w-5 h-5 text-purple-400 shrink-0" />
+        <div>
+          <p className="font-semibold text-sm">Picks submitted!</p>
+          <p className="text-xs text-muted-foreground">Your Crazy 8's picks are locked in. Good luck!</p>
+        </div>
+      </div>
+
+      {/* Picks list */}
+      <div>
+        <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">
+          8 Picks · Sorted by confidence
+        </p>
+        <div className="space-y-2">
+          {sorted.map((pick) => (
+            <LockedPickRow key={pick.gameId} pick={pick} />
+          ))}
+        </div>
+      </div>
+
+      {/* Tiebreaker */}
+      <div className="rounded-lg border border-border/40 bg-card/50 p-4">
+        <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">
+          Tiebreaker Answers
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total combined runs</p>
+            <p className="font-bebas text-2xl text-purple-300">{tiebreakerRuns ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total strikeouts</p>
+            <p className="font-bebas text-2xl text-purple-300">{tiebreakerStrikeouts ?? "—"}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── GameCard (selection UI) ──────────────────────────────────────────────────
 
 function GameCard({
   game,
@@ -252,9 +443,12 @@ function GameCard({
   );
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confidence, setConfidence] = useState<Record<string, number>>({});
@@ -263,9 +457,18 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   const [tbRuns, setTbRuns] = useState("");
   const [tbStrikeouts, setTbStrikeouts] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
-  const { data: slate, isLoading, error } = useGetPickEmGames(poolId, undefined, {
+  const myPicksKey = ["crazy-eights-picks", poolId];
+
+  const { data: myPicksData, isLoading: picksLoading } = useQuery<SubmittedPicksResponse>({
+    queryKey: myPicksKey,
+    queryFn: () => authedFetch<SubmittedPicksResponse>(`/api/pools/${poolId}/crazy-eights/picks`),
+    retry: false,
+    staleTime: 30_000,
+    enabled: !!user,
+  });
+
+  const { data: slate, isLoading: slateLoading } = useGetPickEmGames(poolId, undefined, {
     query: {
       queryKey: getGetPickEmGamesQueryKey(poolId, undefined),
       refetchInterval: 30_000,
@@ -274,18 +477,14 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
 
   const games: PickEmGame[] = slate?.games ?? [];
 
+  const existingPicks = myPicksData?.picks ?? [];
+  const hasPicks = existingPicks.length > 0;
+
   const earliestSelectedStart = useMemo(() => {
     const selected = games.filter((g) => selectedIds.includes(g.id));
     if (selected.length === 0) return Infinity;
     return Math.min(...selected.map((g) => new Date(g.startTime).getTime()));
   }, [games, selectedIds]);
-
-  const lastGame = useMemo(() => {
-    if (games.length === 0) return null;
-    return [...games].sort(
-      (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
-    )[0];
-  }, [games]);
 
   const isLocked = Date.now() >= earliestSelectedStart;
 
@@ -300,7 +499,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     selectedIds.every((id) => pickedTeams[id] !== undefined);
 
   function toggleGame(gameId: string) {
-    if (submitted || isLocked) return;
+    if (isLocked) return;
     if (selectedIds.includes(gameId)) {
       setSelectedIds((prev) => prev.filter((id) => id !== gameId));
       setConfidence((prev) => { const c = { ...prev }; delete c[gameId]; return c; });
@@ -315,7 +514,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   }
 
   function assignConfidence(gameId: string, pts: number) {
-    if (submitted || isLocked) return;
+    if (isLocked) return;
     setConfidence((prev) => {
       const c = { ...prev };
       const prevHolder = Object.keys(c).find((k) => c[k] === pts && k !== gameId);
@@ -326,7 +525,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   }
 
   function pickTeam(gameId: string, teamId: string) {
-    if (submitted || isLocked) return;
+    if (isLocked) return;
     setPickedTeams((prev) => ({ ...prev, [gameId]: teamId }));
   }
 
@@ -377,8 +576,8 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         throw new Error((err as any).error || "Submission failed");
       }
       setShowTiebreaker(false);
-      setSubmitted(true);
       toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
+      await queryClient.invalidateQueries({ queryKey: myPicksKey });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -386,7 +585,9 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     }
   }
 
-  if (isLoading) {
+  // ── Loading state ──────────────────────────────────────────────────────────
+
+  if (picksLoading || slateLoading) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -396,7 +597,21 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     );
   }
 
-  if (error || games.length === 0) {
+  // ── Locked view — picks already submitted ──────────────────────────────────
+
+  if (hasPicks) {
+    return (
+      <LockedPicksView
+        picks={existingPicks}
+        tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
+        tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
+      />
+    );
+  }
+
+  // ── No games ───────────────────────────────────────────────────────────────
+
+  if (games.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -405,6 +620,8 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
       </div>
     );
   }
+
+  // ── Open selection UI ──────────────────────────────────────────────────────
 
   const missingWinner = selectedIds.some((id) => !pickedTeams[id]);
   const missingPoints = selectedIds.length === MAX_PICKS && !selectedIds.every((id) => confidence[id] !== undefined);
@@ -439,17 +656,6 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         </div>
       </div>
 
-      {/* Submitted banner */}
-      {submitted && (
-        <div className="flex items-center gap-3 rounded-lg border border-purple-500/30 bg-purple-500/5 p-4">
-          <Trophy className="w-5 h-5 text-purple-400 shrink-0" />
-          <div>
-            <p className="font-semibold text-sm">Picks submitted!</p>
-            <p className="text-xs text-muted-foreground">Your Crazy 8's picks are locked in. Good luck!</p>
-          </div>
-        </div>
-      )}
-
       {/* Game list */}
       <div className="space-y-3">
         {games.map((game) => (
@@ -457,7 +663,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
             key={game.id}
             game={game}
             isSelected={selectedIds.includes(game.id)}
-            isLocked={isLocked || submitted}
+            isLocked={isLocked}
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
@@ -469,21 +675,19 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
       </div>
 
       {/* Submit button */}
-      {!submitted && (
-        <Button
-          onClick={handleSubmitClick}
-          disabled={isLocked || selectedIds.length < MAX_PICKS || !allReady}
-          className="w-full font-bebas text-xl tracking-wider h-12 bg-purple-600 hover:bg-purple-500 text-white"
-        >
-          {selectedIds.length < MAX_PICKS
-            ? `Select ${MAX_PICKS - selectedIds.length} more game${MAX_PICKS - selectedIds.length === 1 ? "" : "s"}`
-            : missingWinner
-              ? "Pick a winner for each game"
-              : missingPoints
-                ? "Assign all confidence points"
-                : "Submit Picks"}
-        </Button>
-      )}
+      <Button
+        onClick={handleSubmitClick}
+        disabled={isLocked || selectedIds.length < MAX_PICKS || !allReady}
+        className="w-full font-bebas text-xl tracking-wider h-12 bg-purple-600 hover:bg-purple-500 text-white"
+      >
+        {selectedIds.length < MAX_PICKS
+          ? `Select ${MAX_PICKS - selectedIds.length} more game${MAX_PICKS - selectedIds.length === 1 ? "" : "s"}`
+          : missingWinner
+            ? "Pick a winner for each game"
+            : missingPoints
+              ? "Assign all confidence points"
+              : "Submit Picks"}
+      </Button>
 
       {/* Tiebreaker dialog */}
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
