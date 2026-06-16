@@ -358,9 +358,13 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         pickedTeam: pickedTeams[id] ?? "",
         confidencePoints: confidence[id],
       }));
+      const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/pools/${poolId}/crazy-eights/picks`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({
           picks,
