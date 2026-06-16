@@ -210,7 +210,51 @@ export default function PoolHome() {
             ) : isPickEmSeason ? (
               <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} />
             ) : isCrazyEights ? (
-              <CrazyEightsView poolId={pool.id} />
+              <Tabs defaultValue="picks" className="w-full">
+                <div className="relative">
+                  <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
+                        <Dice5 className="w-4 h-4 md:w-5 md:h-5" /> Today's Picks
+                      </TabsTrigger>
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                        <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+                      </TabsTrigger>
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Daily Grid
+                      </TabsTrigger>
+                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Stats
+                      </TabsTrigger>
+                      {isCommissioner && (
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                          <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                  </div>
+                  <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+                </div>
+                <div className="mt-8">
+                  <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+                    <CrazyEightsView poolId={pool.id} />
+                  </TabsContent>
+                  <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                    <Leaderboard poolId={pool.id} pickFrequency="daily" />
+                  </TabsContent>
+                  <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                    <DailyPickGrid poolId={pool.id} />
+                  </TabsContent>
+                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
+                    <PoolStats poolId={pool.id} />
+                  </TabsContent>
+                  {isCommissioner && (
+                    <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
+                      <CommissionerPanel poolId={pool.id} />
+                    </TabsContent>
+                  )}
+                </div>
+              </Tabs>
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <div className="relative">
