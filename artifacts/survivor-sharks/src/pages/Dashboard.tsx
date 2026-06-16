@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { NavBar } from "@/components/NavBar";
 import { PoolCard } from "@/components/PoolCard";
 import { Button } from "@/components/ui/button";
-import { Plus, UserPlus, Info } from "lucide-react";
+import { Plus, UserPlus, Info, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -53,9 +53,9 @@ export default function Dashboard() {
             Failed to load pools. Please try again later.
           </div>
         ) : isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 md:overflow-visible md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:mx-0 md:px-0">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-48 rounded-lg border border-border/50 bg-card/50 p-6 space-y-4">
+              <div key={i} className="shrink-0 snap-start w-[85vw] md:w-auto h-48 rounded-lg border border-border/50 bg-card/50 p-6 space-y-4">
                 <div className="flex justify-between">
                   <Skeleton className="h-8 w-3/4" />
                   <Skeleton className="h-6 w-16" />
@@ -69,10 +69,18 @@ export default function Dashboard() {
             ))}
           </div>
         ) : pools && pools.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pools.map(pool => (
-              <PoolCard key={pool.id} pool={pool} pickEmStat={pickEmStatMap.get(pool.id)} />
-            ))}
+          <div className="relative">
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 md:overflow-visible md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:mx-0 md:px-0">
+              {pools.map(pool => (
+                <div key={pool.id} className="shrink-0 snap-start w-[85vw] md:w-auto">
+                  <PoolCard pool={pool} pickEmStat={pickEmStatMap.get(pool.id)} />
+                </div>
+              ))}
+            </div>
+            {/* Peek chevron — mobile only */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-black/50 to-transparent flex items-center justify-end pr-1 md:hidden">
+              <ChevronRight className="w-5 h-5 text-white/60" />
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-12 text-center border border-border/50 rounded-lg bg-card/30">
