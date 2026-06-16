@@ -30,31 +30,32 @@ const SPORTS = [
     id: PoolInputSport.mlb,
     label: "MLB",
     sublabel: "Baseball",
-    logoImg: '/ocean_shark_bg.jpg',
+    logoImg: '/MLB-Logo.png',
   },
   {
     id: PoolInputSport.nfl,
     label: "NFL",
     sublabel: "Football",
-    logoImg: '/ocean_shark_bg.jpg',
+    logoImg: '/NFL-Logo.png',
   },
   {
     id: PoolInputSport.nba,
     label: "NBA",
     sublabel: "Basketball",
-    logoImg: '/ocean_shark_bg.jpg',
+    logoImg: '/NBA-Logo.png',
   },
   {
     id: PoolInputSport.nhl,
     label: "NHL",
     sublabel: "Hockey",
-    logoImg: '/ocean_shark_bg.jpg',
+    logoImg: '/NHL-Logo.png',
   },
   {
     id: PoolInputSport.worldcup,
     label: "WC",
     sublabel: "World Cup",
-    logoImg: '/ocean_shark_bg.jpg',
+    logoImg: 'https://a.espncdn.com/i/teamlogos/soccer/500/FIFA.png',
+    logoFallback: '/logo.png',
   },
 ] as const;
 
@@ -339,6 +340,12 @@ export default function CreatePool() {
                                 src={sport.logoImg}
                                 alt={sport.label}
                                 className="w-12 h-12 object-contain"
+                                onError={(e) => {
+                                  const fallback = (sport as { logoFallback?: string }).logoFallback;
+                                  if (fallback && e.currentTarget.src !== fallback) {
+                                    e.currentTarget.src = fallback;
+                                  }
+                                }}
                               />
                             </div>
                             <div className="text-center leading-tight">
