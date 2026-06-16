@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
 import { loadUser } from "./middlewares/auth";
 import router from "./routes";
 import adminHtmlRouter from "./routes/admin-html";
@@ -29,5 +30,11 @@ app.use(loadUser);
 
 app.use("/api", router);
 app.use("/api/admin-html", adminHtmlRouter);
+
+const frontendDist = path.resolve(process.cwd(), "artifacts/survivor-sharks/dist");
+app.use(express.static(frontendDist));
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
 
 export default app;
