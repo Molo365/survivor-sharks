@@ -32,7 +32,9 @@ export default function Landing() {
 
       <main className="flex-1 flex flex-col">
 
-        {/* ── Hero ──────────────────────────────────────────────── */}
+        {/* ── 1. Hero — image + tagline ──────────────────────────── */}
+        {/* ── 2. GET STARTED / SIGN IN buttons ──────────────────── */}
+        {/* ── 3. NFL countdown timer ────────────────────────────── */}
         <section className="flex flex-col items-center text-center px-4 pt-5 pb-2">
           <div className="relative w-full max-w-[820px] mb-1">
             <img src="/hero-banner-clean.jpg" alt="Survivor Sharks" className="w-full object-contain block" style={{ maxHeight: "min(200px, 28vh)" }} />
@@ -89,28 +91,7 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── Feature cards ─────────────────────────────────────── */}
-        <section className="px-6 py-3 border-t border-white/5">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[
-              { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
-              { icon: Trophy, color: "accent",  title: "Multi-Sport",       desc: "NFL, NBA, MLB, and NHL in one place." },
-              { icon: Users,  color: "primary", title: "Private & Secure",  desc: "Invite-only pools with full commissioner tools." },
-            ].map(({ icon: Icon, color, title, desc }) => (
-              <div key={title} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-black/30 border border-white/[0.08] backdrop-blur-sm">
-                <div className={`w-7 h-7 rounded-full bg-${color}/15 border border-${color}/20 flex items-center justify-center shrink-0`}>
-                  <Icon className={`w-3.5 h-3.5 text-${color}`} />
-                </div>
-                <div className="text-left min-w-0">
-                  <h3 className="font-bebas text-sm tracking-wide text-foreground/90 leading-tight">{title}</h3>
-                  <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Sport logos + sponsor banners ─────────────────────── */}
+        {/* ── 4. Sport logos ────────────────────────────────────── */}
         <div className="px-6 pb-3">
           {/* Sport logos row */}
           <div className="flex items-center justify-center gap-6 mb-3">
@@ -138,7 +119,7 @@ export default function Landing() {
           */}
         </div>
 
-        {/* ── POOL TYPES ────────────────────────────────────────── */}
+        {/* ── 5. Pool Types ─────────────────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
             <h2 className="font-bebas text-xl md:text-2xl tracking-widest text-center text-foreground mb-2">POOL TYPES</h2>
@@ -163,7 +144,7 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── FREE TO PLAY ──────────────────────────────────────── */}
+        {/* ── 6. No Entry Fees. Ever. ───────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
 
@@ -196,7 +177,28 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── Footer ────────────────────────────────────────────── */}
+        {/* ── 7. Automated Results / Multi-Sport / Private & Secure ─ */}
+        <section className="px-6 py-3 border-t border-white/5">
+          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-2">
+            {[
+              { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
+              { icon: Trophy, color: "accent",  title: "Multi-Sport",       desc: "NFL, NBA, MLB, and NHL in one place." },
+              { icon: Users,  color: "primary", title: "Private & Secure",  desc: "Invite-only pools with full commissioner tools." },
+            ].map(({ icon: Icon, color, title, desc }) => (
+              <div key={title} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-black/30 border border-white/[0.08] backdrop-blur-sm">
+                <div className={`w-7 h-7 rounded-full bg-${color}/15 border border-${color}/20 flex items-center justify-center shrink-0`}>
+                  <Icon className={`w-3.5 h-3.5 text-${color}`} />
+                </div>
+                <div className="text-left min-w-0">
+                  <h3 className="font-bebas text-sm tracking-wide text-foreground/90 leading-tight">{title}</h3>
+                  <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 8. Footer ─────────────────────────────────────────── */}
         <div className="py-3 border-t border-white/5 text-center text-[10px] tracking-wider text-muted-foreground/25 uppercase">
           © 2026 Survivor Sharks — Free to play. Always.
         </div>
