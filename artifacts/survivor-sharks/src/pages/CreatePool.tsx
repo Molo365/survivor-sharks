@@ -59,7 +59,7 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["pickem", "dirty_dozen"],
+  [PoolInputSport.mlb]: ["pickem"],
   [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
@@ -197,8 +197,7 @@ export default function CreatePool() {
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
   const isPickemOnly = availableTypes.length === 1 && availableTypes[0] === "pickem";
-  const showCompStyleSelector =
-    selectedType === "pickem" && selectedSport === PoolInputSport.mlb;
+  const showCompStyleSelector = selectedSport === PoolInputSport.mlb;
 
   // When sport changes: enforce valid pool type and set sensible defaults
   useEffect(() => {
@@ -415,7 +414,7 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* ── Competition style: MLB Pick-Ems only ── */}
+              {/* ── Competition style: MLB only ── */}
               {showCompStyleSelector && (
                 <FormField
                   control={form.control}
@@ -423,60 +422,78 @@ export default function CreatePool() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="font-bebas text-xl tracking-wide">Competition Style</FormLabel>
-                      <div className="grid grid-cols-2 gap-3 mt-2">
-                        {([
-                          {
-                            id: "daily" as const,
-                            label: "Daily",
-                            icon: Calendar,
-                            desc: "Leaderboard shows today's picks only — fresh competition every day.",
-                          },
-                          {
-                            id: "weekly" as const,
-                            label: "Weekly",
-                            icon: Clock,
-                            desc: "Picks accumulate Monday–Sunday. Leaderboard shows the full week with per-day breakdown.",
-                            badge: "New",
-                          },
-                        ] as const).map((opt) => {
-                          const Icon = opt.icon;
-                          const isSelected = field.value === opt.id;
-                          return (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => field.onChange(opt.id)}
-                              data-testid={`pickem-freq-${opt.id}`}
-                              className={cn(
-                                "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                isSelected
-                                  ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
-                                  : "border-border/40 hover:border-border bg-card/50",
-                              )}
-                            >
-                              <div className="flex items-start gap-3">
-                                <Icon className={cn("w-5 h-5 mt-0.5 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className={cn("font-bebas text-lg tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
-                                      {opt.label}
-                                    </span>
-                                    {"badge" in opt && (
-                                      <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">
-                                        {opt.badge}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground leading-snug">{opt.desc}</p>
-                                </div>
-                                <div className={cn(
-                                  "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
-                                  isSelected ? "border-primary bg-primary" : "border-muted-foreground/30",
-                                )} />
+                      <div className="grid grid-cols-1 gap-3 mt-2">
+                        {/* Daily pick-em */}
+                        <button
+                          type="button"
+                          onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("daily"); }}
+                          data-testid="pickem-freq-daily"
+                          className={cn(
+                            "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            selectedType === "pickem" && field.value === "daily"
+                              ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
+                              : "border-border/40 hover:border-border bg-card/50",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <Calendar className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "pickem" && field.value === "daily" ? "text-primary" : "text-muted-foreground")} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "daily" ? "text-foreground" : "text-muted-foreground")}>Daily</span>
                               </div>
-                            </button>
-                          );
-                        })}
+                              <p className="text-xs text-muted-foreground leading-snug">Leaderboard shows today's picks only — fresh competition every day.</p>
+                            </div>
+                            <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "daily" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
+                          </div>
+                        </button>
+                        {/* Weekly pick-em */}
+                        <button
+                          type="button"
+                          onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("weekly"); }}
+                          data-testid="pickem-freq-weekly"
+                          className={cn(
+                            "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            selectedType === "pickem" && field.value === "weekly"
+                              ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
+                              : "border-border/40 hover:border-border bg-card/50",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <Clock className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "pickem" && field.value === "weekly" ? "text-primary" : "text-muted-foreground")} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "weekly" ? "text-foreground" : "text-muted-foreground")}>Weekly</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">New</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-snug">Picks accumulate Monday–Sunday. Leaderboard shows the full week with per-day breakdown.</p>
+                            </div>
+                            <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "weekly" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
+                          </div>
+                        </button>
+                        {/* Dirty Dozen */}
+                        <button
+                          type="button"
+                          onClick={() => form.setValue("poolType", "dirty_dozen", { shouldValidate: true })}
+                          data-testid="pickem-freq-dirty_dozen"
+                          className={cn(
+                            "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            selectedType === "dirty_dozen"
+                              ? "border-blue-500/60 bg-blue-500/5 ring-2 ring-offset-1 ring-offset-background"
+                              : "border-border/40 hover:border-border bg-card/50",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <ShieldCheck className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "dirty_dozen" ? "text-blue-400" : "text-muted-foreground")} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "dirty_dozen" ? "text-foreground" : "text-muted-foreground")}>Dirty Dozen</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-blue-500/20 text-blue-400 border-blue-500/30">MLB</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-snug">12 curated games per week. Assign confidence points 1–12. Highest total wins.</p>
+                            </div>
+                            <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "dirty_dozen" ? "border-blue-500 bg-blue-500" : "border-muted-foreground/30")} />
+                          </div>
+                        </button>
                       </div>
                       <FormMessage />
                     </FormItem>
