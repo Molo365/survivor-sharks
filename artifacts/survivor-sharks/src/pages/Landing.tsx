@@ -34,11 +34,6 @@ export default function Landing() {
 
         {/* ── Hero ──────────────────────────────────────────────── */}
         <section className="flex flex-col items-center text-center px-4 pt-5 pb-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-primary uppercase mb-2 backdrop-blur-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            The 2026 Season is Here
-          </div>
-
           <div className="relative w-full max-w-[820px] mb-1">
             <img src="/hero-banner-clean.jpg" alt="Survivor Sharks" className="w-full object-contain block" style={{ maxHeight: "min(200px, 28vh)" }} />
             <div className="absolute inset-y-0 left-0 w-[12%] pointer-events-none" style={{ background: "linear-gradient(to right, rgba(6,8,16,0.82), transparent)" }} />
@@ -50,7 +45,7 @@ export default function Landing() {
             ELITE POOLS. RUTHLESS COMPETITION.
           </p>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-4">
             <Link href="/register" className="inline-flex items-center justify-center rounded-md px-7 py-2 text-sm font-bold tracking-widest text-white uppercase transition-all hover:scale-[1.03]"
               style={{ background: "linear-gradient(135deg, hsl(211,100%,48%), hsl(211,100%,38%))", boxShadow: "0 0 20px rgba(30,144,255,0.45), 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)" }}
               data-testid="link-get-started-hero">
@@ -62,6 +57,36 @@ export default function Landing() {
               Sign In
             </Link>
           </div>
+
+          {/* ── NFL Season Countdown ── */}
+          <div className="w-full max-w-sm rounded-xl px-4 py-3 border flex flex-col items-center backdrop-blur-sm"
+            style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Timer className="w-3 h-3 text-primary" />
+              <span className="text-[9px] font-bold tracking-[0.25em] text-primary uppercase">NFL Season Kickoff · September 9, 2026</span>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              {[
+                { val: countdown.days,  label: "Days" },
+                { val: countdown.hours, label: "Hrs" },
+                { val: countdown.mins,  label: "Min" },
+                { val: countdown.secs,  label: "Sec" },
+              ].map(({ val, label }, i) => (
+                <div key={label} className="flex items-center gap-2">
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center border"
+                      style={{ background: "rgba(30,144,255,0.09)", borderColor: "rgba(30,144,255,0.20)" }}>
+                      <span className="font-bebas text-xl tracking-wider text-primary leading-none">
+                        {String(val).padStart(2, "0")}
+                      </span>
+                    </div>
+                    <span className="text-[9px] tracking-[0.15em] text-muted-foreground/40 uppercase mt-1">{label}</span>
+                  </div>
+                  {i < 3 && <span className="font-bebas text-lg text-primary/30 mb-4">:</span>}
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* ── Feature cards ─────────────────────────────────────── */}
@@ -69,7 +94,7 @@ export default function Landing() {
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-2">
             {[
               { icon: Shield, color: "primary", title: "Automated Results", desc: "Games graded automatically — no spreadsheets." },
-              { icon: Trophy, color: "accent",  title: "Multi-Sport",       desc: "NFL, NBA, MLB, NHL, and soccer in one place." },
+              { icon: Trophy, color: "accent",  title: "Multi-Sport",       desc: "NFL, NBA, MLB, and NHL in one place." },
               { icon: Users,  color: "primary", title: "Private & Secure",  desc: "Invite-only pools with full commissioner tools." },
             ].map(({ icon: Icon, color, title, desc }) => (
               <div key={title} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-black/30 border border-white/[0.08] backdrop-blur-sm">
@@ -102,7 +127,7 @@ export default function Landing() {
             ))}
           </div>
 
-          {/* Sponsor banner placeholders */}
+          {/* AD SLOTS REMOVED — restore the grid below when ready:
           <div className="max-w-4xl mx-auto grid grid-cols-2 gap-3">
             {[0, 1].map((i) => (
               <div key={i} className="flex items-center justify-center rounded-lg border border-dashed border-white/15 h-14 backdrop-blur-sm" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -110,6 +135,7 @@ export default function Landing() {
               </div>
             ))}
           </div>
+          */}
         </div>
 
         {/* ── POOL TYPES ────────────────────────────────────────── */}
@@ -137,11 +163,11 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── FREE TO PLAY + NFL COUNTDOWN ──────────────────────── */}
+        {/* ── FREE TO PLAY ──────────────────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="max-w-4xl mx-auto">
 
-            {/* Free to play */}
+            {/* Free to play — full width now that countdown moved to hero */}
             <div className="rounded-xl px-4 py-4 border relative overflow-hidden flex flex-col items-center text-center backdrop-blur-sm"
               style={{ background: "linear-gradient(135deg, rgba(30,144,255,0.10), rgba(20,60,160,0.06))", borderColor: "rgba(30,144,255,0.18)" }}>
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-40 h-20 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
@@ -165,42 +191,7 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* NFL Countdown */}
-            <div className="rounded-xl px-4 py-4 border flex flex-col items-center text-center backdrop-blur-sm"
-              style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <Timer className="w-3 h-3 text-primary" />
-                <span className="text-[9px] font-bold tracking-[0.25em] text-primary uppercase">NFL Season Kickoff</span>
-              </div>
-              <h2 className="font-bebas text-xl tracking-widest text-foreground mb-3">SEPTEMBER 9, 2026</h2>
-              <div className="flex items-center gap-2 mb-3">
-                {[
-                  { val: countdown.days,  label: "Days" },
-                  { val: countdown.hours, label: "Hrs" },
-                  { val: countdown.mins,  label: "Min" },
-                  { val: countdown.secs,  label: "Sec" },
-                ].map(({ val, label }, i) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center border"
-                        style={{ background: "rgba(30,144,255,0.09)", borderColor: "rgba(30,144,255,0.20)" }}>
-                        <span className="font-bebas text-xl tracking-wider text-primary leading-none">
-                          {String(val).padStart(2, "0")}
-                        </span>
-                      </div>
-                      <span className="text-[9px] tracking-[0.15em] text-muted-foreground/40 uppercase mt-1">{label}</span>
-                    </div>
-                    {i < 3 && <span className="font-bebas text-lg text-primary/30 mb-4">:</span>}
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground/45 mb-2.5">Get your pool set up before Week 1 kicks off.</p>
-              <Link href="/register"
-                className="inline-flex items-center justify-center rounded-md border px-5 py-1.5 text-[11px] font-bold tracking-widest uppercase transition-all hover:border-primary/60 hover:text-primary hover:bg-primary/5"
-                style={{ borderColor: "rgba(30,144,255,0.28)", color: "rgba(180,200,230,0.85)" }}>
-                Get Ready for Week 1
-              </Link>
-            </div>
+            {/* NFL COUNTDOWN REMOVED FROM HERE — moved to hero section above */}
 
           </div>
         </section>
