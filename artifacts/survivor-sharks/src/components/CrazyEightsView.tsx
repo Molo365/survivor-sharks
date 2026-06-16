@@ -90,7 +90,7 @@ function GameCard({
         type="button"
         onClick={onToggle}
         disabled={isLocked && !isSelected}
-        className="w-full text-left p-3"
+        className="w-full text-left p-3 md:p-5"
       >
         <div className="flex items-center gap-2">
           {/* Away team */}
@@ -99,19 +99,19 @@ function GameCard({
               <img
                 src={teamLogoSrc(game.awayTeam)}
                 alt={game.awayTeam.name}
-                className="w-8 h-8 object-contain"
+                className="w-8 h-8 md:w-10 md:h-10 object-contain"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
             </div>
             <div className="min-w-0">
-              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.awayTeam.name}</div>
+              <div className="font-bebas text-base md:text-xl tracking-wide leading-none truncate">{game.awayTeam.name}</div>
               {(isFinal || isLive) && game.awayScore != null ? (
                 <div className="font-bebas text-2xl leading-none">{game.awayScore}</div>
               ) : (
                 <>
-                  <div className="text-[10px] text-muted-foreground">Away</div>
+                  <div className="text-[10px] md:text-xs text-muted-foreground">Away</div>
                   {awayPitcher && (
-                    <div className="text-[9px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] truncate">
+                    <div className="text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] md:max-w-none truncate">
                       {awayPitcher}
                     </div>
                   )}
@@ -147,14 +147,14 @@ function GameCard({
           {/* Home team */}
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
             <div className="min-w-0 text-right">
-              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.homeTeam.name}</div>
+              <div className="font-bebas text-base md:text-xl tracking-wide leading-none truncate">{game.homeTeam.name}</div>
               {(isFinal || isLive) && game.homeScore != null ? (
                 <div className="font-bebas text-2xl leading-none">{game.homeScore}</div>
               ) : (
                 <>
-                  <div className="text-[10px] text-muted-foreground">Home</div>
+                  <div className="text-[10px] md:text-xs text-muted-foreground">Home</div>
                   {homePitcher && (
-                    <div className="text-[9px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] truncate text-right">
+                    <div className="text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] md:max-w-none truncate text-right">
                       {homePitcher}
                     </div>
                   )}
@@ -165,7 +165,7 @@ function GameCard({
               <img
                 src={teamLogoSrc(game.homeTeam)}
                 alt={game.homeTeam.name}
-                className="w-8 h-8 object-contain"
+                className="w-8 h-8 md:w-10 md:h-10 object-contain"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
             </div>
@@ -175,10 +175,10 @@ function GameCard({
 
       {/* Expanded section — winner pick + confidence — only when selected */}
       {isSelected && (
-        <div className="px-3 pb-3 space-y-2.5 border-t border-purple-500/20 pt-2.5">
+        <div className="px-3 pb-3 md:px-5 md:pb-5 space-y-2.5 border-t border-purple-500/20 pt-2.5">
           {/* Pick the winner */}
           <div>
-            <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
               Pick the winner
             </p>
             <div className="grid grid-cols-2 gap-1.5">
@@ -191,7 +191,7 @@ function GameCard({
                     disabled={isLocked}
                     onClick={() => !isLocked && onPickTeam(team.id)}
                     className={cn(
-                      "flex items-center gap-2 p-2 rounded-lg border-2 transition-all select-none text-left",
+                      "flex items-center gap-2 p-2 md:p-3 rounded-lg border-2 transition-all select-none text-left",
                       isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
                       isPicked
                         ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/40"
@@ -201,11 +201,11 @@ function GameCard({
                     <img
                       src={teamLogoSrc(team)}
                       alt={team.name}
-                      className="w-5 h-5 object-contain shrink-0"
+                      className="w-5 h-5 md:w-7 md:h-7 object-contain shrink-0"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                     <span className={cn(
-                      "font-bebas text-sm tracking-wide truncate",
+                      "font-bebas text-sm md:text-base tracking-wide truncate",
                       isPicked ? "text-purple-300" : "text-muted-foreground",
                     )}>
                       {team.name}
@@ -219,7 +219,7 @@ function GameCard({
 
           {/* Confidence points */}
           <div>
-            <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
               Confidence points
             </p>
             <div className="flex flex-wrap gap-1">
@@ -232,7 +232,7 @@ function GameCard({
                     disabled={isLocked || taken}
                     onClick={() => onAssignConfidence(pts)}
                     className={cn(
-                      "w-8 h-8 rounded-md text-sm font-bold border-2 transition-all",
+                      "w-8 h-8 md:w-10 md:h-10 rounded-md text-sm md:text-base font-bold border-2 transition-all",
                       confidence === pts
                         ? "bg-purple-500 border-purple-400 text-white"
                         : taken
@@ -487,8 +487,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
           <DialogHeader>
             <DialogTitle className="font-bebas text-2xl tracking-wide">Tiebreaker</DialogTitle>
             <DialogDescription>
-              For the last game of the day
-              {lastGame ? ` (${lastGame.awayTeam.name} @ ${lastGame.homeTeam.name})` : ""}, predict:
+              In case of a tie, your answers below will be used to determine the winner. The player closest to the actual number wins. Both answers are locked with your picks.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
