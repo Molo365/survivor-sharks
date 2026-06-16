@@ -71,17 +71,17 @@ function GameCard({
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <TeamLogo abbrev={(game as any).awayTeamAbbrev ?? game.awayTeam} name={game.awayTeam} />
+            <TeamLogo abbrev={game.awayTeam.abbreviation} name={game.awayTeam.name} />
             <div className="min-w-0">
-              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.awayTeam}</div>
+              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.awayTeam.name}</div>
               <div className="text-[10px] text-muted-foreground">Away</div>
             </div>
           </div>
           <div className="text-xs text-muted-foreground font-bold shrink-0">vs</div>
           <div className="flex items-center gap-2 min-w-0 flex-row-reverse">
-            <TeamLogo abbrev={(game as any).homeTeamAbbrev ?? game.homeTeam} name={game.homeTeam} />
+            <TeamLogo abbrev={game.homeTeam.abbreviation} name={game.homeTeam.name} />
             <div className="min-w-0 text-right">
-              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.homeTeam}</div>
+              <div className="font-bebas text-base tracking-wide leading-none truncate">{game.homeTeam.name}</div>
               <div className="text-[10px] text-muted-foreground">Home</div>
             </div>
           </div>
@@ -359,7 +359,7 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
             <DialogTitle className="font-bebas text-2xl tracking-wide">Tiebreaker</DialogTitle>
             <DialogDescription>
               For the last game of the day
-              {lastGame ? ` (${lastGame.awayTeam} @ ${lastGame.homeTeam})` : ""}, predict:
+              {lastGame ? ` (${lastGame.awayTeam.name} @ ${lastGame.homeTeam.name})` : ""}, predict:
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
