@@ -31,7 +31,7 @@ app.use(loadUser);
 app.use("/api", router);
 app.use("/api/admin-html", adminHtmlRouter);
 
-const frontendDist = path.resolve(process.cwd(), "artifacts/survivor-sharks/dist");
+const frontendDist = path.resolve(process.cwd(), "artifacts/survivor-sharks/dist/public");
 app.use(express.static(frontendDist));
 app.get("*splat", (_req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
