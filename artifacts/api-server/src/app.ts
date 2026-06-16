@@ -3,11 +3,14 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
 import { loadUser } from "./middlewares/auth";
+import { sessionMiddleware } from "./lib/session";
 import router from "./routes";
 import adminHtmlRouter from "./routes/admin-html";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -26,6 +29,7 @@ app.use(
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(sessionMiddleware);
 app.use(loadUser);
 
 app.use("/api", router);
