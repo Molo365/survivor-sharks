@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { fetchGamesForDate, getTodayEtDate, formatDateEt } from "../lib/espn";
+import { fetchGamesForDate, getTodayEtDate } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -112,7 +112,7 @@ router.get("/picks", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const todayEspn = formatDateEt(new Date());
+  const todayEspn = todayEt.replace(/-/g, "");
 
   const [picks, games] = await Promise.all([
     db.select().from(pickemPicksTable).where(
@@ -213,8 +213,8 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
+  const todayEspn = todayEt.replace(/-/g, "");
   const games = await fetchGamesForDate("mlb", todayEspn);
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
