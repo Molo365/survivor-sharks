@@ -1,0 +1,15 @@
+Add a Sandbox Mode flag to NFL Confidence pools. This allows testing with the 2025 NFL season schedule and known results without waiting for live games.
+Step 1 — Database
+In lib/db/src/schema/pools.ts add a boolean column sandbox_mode (default false) to the pools table. Run after:
+pnpm --filter @workspace/db run push-force
+Step 2 — Pool Creation
+In artifacts/survivor-sharks/src/pages/CreatePool.tsx, when the selected pool type is nfl_confidence, show a toggle below the pool settings labeled "Sandbox Mode" with subtext "Use 2025 NFL schedule for testing. Results are simulated." Default off.
+Step 3 — Hardcoded 2025 Schedule
+Create artifacts/api-server/src/lib/nfl2025Schedule.ts — a hardcoded array of all 18 weeks of the 2025 NFL regular season. Each game entry has: week, homeTeam, awayTeam, gameTime, homeScore, awayScore, status: "final". Include all games and real final scores from the 2025 season.
+Step 4 — Backend schedule endpoint
+In the NFL Confidence Picks schedule endpoint, check if the pool has sandbox_mode: true. If yes, serve games from nfl2025Schedule.ts filtered by the pool's current sandbox week instead of calling the ESPN API. If no, call ESPN as normal.
+Step 5 — Commissioner Panel
+In NflConfidenceView.tsx Commissioner tab, when sandbox_mode is true show a week selector (Week 1 through 18) labeled "Sandbox Week" that lets the Commissioner manually set which week is active. Changing the week reloads the game slate from the hardcoded schedule. Also show a "Simulate Grading" button that triggers the auto-grader against the hardcoded results for that week.
+Step 6 — Admin Panel
+In the Super Admin dashboard (artifacts/survivor-sharks/src/pages/AdminDashboard.tsx or equivalent), in the pool management section, add a Sandbox Mode toggle next to each nfl_confidence pool. Super Admin can flip sandbox on or off for any pool at any time. When sandbox is on, display a yellow SANDBOX badge next to the pool name throughout the admin panel so it's clearly identifiable.
+Push to GitHub when done.

@@ -176,6 +176,7 @@ const formSchema = z.object({
   poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
+  sandboxMode: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
@@ -276,6 +277,7 @@ export default function CreatePool() {
           ...values,
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
+          ...(values.poolType === "nfl_confidence" && { sandboxMode: values.sandboxMode }),
         } as any,
       },
       {
@@ -573,6 +575,38 @@ export default function CreatePool() {
                             checked={field.value}
                             onCheckedChange={field.onChange}
                             data-testid="toggle-double-elimination"
+                          />
+                        </FormControl>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* ── Sandbox Mode — NFL Confidence only ── */}
+              {selectedType === "nfl_confidence" && (
+                <FormField
+                  control={form.control}
+                  name="sandboxMode"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <Zap className="w-5 h-5 text-yellow-400 mt-0.5 shrink-0" />
+                          <div>
+                            <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer text-yellow-300">
+                              Sandbox Mode
+                            </FormLabel>
+                            <FormDescription className="text-xs mt-0.5">
+                              Use the hardcoded 2025 NFL schedule with pre-set scores. Great for testing or running a demo season.
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="toggle-sandbox-mode"
                           />
                         </FormControl>
                       </div>

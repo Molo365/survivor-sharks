@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, poolsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { verifyToken } from "../lib/jwt";
 
@@ -40,6 +40,36 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.user || req.user.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+  next();
+}
+
+export async function requireCommissioner(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  if (req.user.role === "admin") {
+    next();
+    return;
+  }
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) {
+    res.status(400).json({ error: "Invalid pool ID" });
+    return;
+  }
+  const [pool] = await db
+    .select({ commissionerId: poolsTable.commissionerId })
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (pool.commissionerId !== req.user.id) {
+    res.status(403).json({ error: "Commissioner access required" });
     return;
   }
   next();

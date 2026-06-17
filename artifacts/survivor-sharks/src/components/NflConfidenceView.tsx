@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useGetPickEmGames, getGetPickEmGamesQueryKey } from "@workspace/api-client-react";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -506,11 +505,11 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     enabled: !!user,
   });
 
-  const { data: slate, isLoading: slateLoading } = useGetPickEmGames(poolId, undefined, {
-    query: {
-      queryKey: getGetPickEmGamesQueryKey(poolId, undefined),
-      refetchInterval: 30_000,
-    },
+  const { data: slate, isLoading: slateLoading } = useQuery<{ week: number; games: PickEmGame[]; sandboxMode: boolean }>({
+    queryKey: ["nfl-confidence-games", poolId],
+    queryFn: () => authedFetch<{ week: number; games: PickEmGame[]; sandboxMode: boolean }>(`/api/pools/${poolId}/nfl-confidence/games`),
+    refetchInterval: 30_000,
+    enabled: !!user,
   });
 
   const games: PickEmGame[] = slate?.games ?? [];
@@ -590,11 +589,16 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     }
     setSubmitting(true);
     try {
-      const picks = games.map((g) => ({
-        gameId: g.id,
-        pickedTeam: pickedTeams[g.id] ?? "",
-        confidencePoints: confidence[g.id],
-      }));
+      const picks = games.map((g) => {
+        const pickedTeamId = pickedTeams[g.id] ?? "";
+        const pickedTeam = pickedTeamId === g.homeTeam.id ? g.homeTeam : g.awayTeam;
+        return {
+          gameId: g.id,
+          pickedTeamId,
+          pickedTeamName: pickedTeam?.name ?? pickedTeamId,
+          confidencePoints: confidence[g.id],
+        };
+      });
       const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/pools/${poolId}/nfl-confidence/picks`, {
         method: "POST",

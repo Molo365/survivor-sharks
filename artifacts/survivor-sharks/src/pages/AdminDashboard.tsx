@@ -3,12 +3,13 @@ import { useAdminListPools, useAdminListUsers, useAdminUpdateUser, useAdminDelet
 import { NavBar } from "@/components/NavBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2, Shield, User, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Trash2, Shield, User, RefreshCw, CheckCircle2, Zap } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,6 +90,22 @@ export default function AdminDashboard() {
   };
 
   const pickemPools = (pools ?? []).filter((p) => p.poolType === "pickem" && p.isActive);
+
+  const handleToggleSandbox = async (poolId: number, sandboxMode: boolean) => {
+    try {
+      const res = await fetch(`/api/admin/pools/${poolId}/sandbox-mode`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sandboxMode }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: `Sandbox mode ${sandboxMode ? "enabled" : "disabled"}`, description: `Pool #${poolId}` });
+      queryClient.invalidateQueries({ queryKey: getAdminListPoolsQueryKey() });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to toggle sandbox mode" });
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -204,12 +221,33 @@ export default function AdminDashboard() {
                     pools?.map(pool => (
                       <TableRow key={pool.id} className="border-border/50">
                         <TableCell className="font-mono text-xs">{pool.id}</TableCell>
-                        <TableCell className="font-medium">{pool.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{pool.name}</span>
+                            {(pool as any).sandboxMode && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                                <Zap className="w-2.5 h-2.5" /> SANDBOX
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="uppercase">{pool.sport}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pool.isActive ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'}`}>
-                            {pool.isActive ? 'Active' : 'Finished'}
-                          </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pool.isActive ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'}`}>
+                              {pool.isActive ? 'Active' : 'Finished'}
+                            </span>
+                            {(pool.poolType as string) === "nfl_confidence" && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Zap className="w-3 h-3 text-yellow-400/70" />
+                                <Switch
+                                  checked={(pool as any).sandboxMode ?? false}
+                                  onCheckedChange={(v) => handleToggleSandbox(pool.id, v)}
+                                  className="scale-75"
+                                />
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <AlertDialog>

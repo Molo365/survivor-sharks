@@ -25,6 +25,7 @@ export const poolsTable = pgTable("pools", {
   prizeStructure: jsonb("prize_structure").$type<Array<{ place: number; amount: number }>>(),
   doubleElimination: boolean("double_elimination").notNull().default(false),
   pickFrequency: pickFrequencyEnum("pick_frequency").notNull().default("weekly"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

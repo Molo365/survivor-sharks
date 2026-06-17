@@ -27,6 +27,7 @@ router.get("/pools", requireAuth, requireAdmin, async (_req, res) => {
       currentWeek: pool.currentWeek,
       season: pool.season,
       isActive: pool.isActive,
+      sandboxMode: (pool as any).sandboxMode ?? false,
       memberCount: Number(total),
       activeCount: Number(active),
       commissionerId: pool.commissionerId,
@@ -39,6 +40,25 @@ router.get("/pools", requireAuth, requireAdmin, async (_req, res) => {
   }));
 
   res.json(result);
+});
+
+// PATCH /api/admin/pools/:poolId/sandbox-mode
+router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireAdmin, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
+  const { sandboxMode } = req.body as { sandboxMode: boolean };
+  if (typeof sandboxMode !== "boolean") {
+    res.status(400).json({ error: "sandboxMode must be a boolean" });
+    return;
+  }
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nfl_confidence") {
+    res.status(400).json({ error: "Sandbox mode is only available for NFL Confidence pools" });
+    return;
+  }
+  await db.update(poolsTable).set({ sandboxMode } as any).where(eq(poolsTable.id, poolId));
+  res.json({ ok: true, poolId, sandboxMode });
 });
 
 // DELETE /api/admin/pools/:poolId

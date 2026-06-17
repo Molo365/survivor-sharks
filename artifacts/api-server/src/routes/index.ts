@@ -18,6 +18,7 @@ import gspRouter from "./gsp";
 import ndpRouter from "./ndp";
 import dashboardRouter from "./dashboard";
 import crazyEightsRouter from "./crazy-eights";
+import nflConfidenceRouter from "./nfl-confidence";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,7 @@ router.use("/pools/:poolId/pickem-season", pickemSeasonRouter);
 router.use("/pools/:poolId/gsp", gspRouter);
 router.use("/pools/:poolId/ndp", ndpRouter);
 router.use("/pools/:poolId/crazy-eights", crazyEightsRouter);
+router.use("/pools/:poolId/nfl-confidence", nflConfidenceRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);
