@@ -149,6 +149,11 @@ export default function PoolHome() {
                       <Zap className="w-3 h-3" /> Confidence Picks
                     </span>
                   )}
+                  {isNflConfidence && (pool as any).sandboxMode && (
+                    <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
+                      <Zap className="w-2.5 h-2.5" /> Sandbox
+                    </span>
+                  )}
                   <span>Season {pool.season}</span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
@@ -315,6 +320,9 @@ export default function PoolHome() {
                         poolName={pool.name}
                         poolDescription={(pool as any).description ?? null}
                         currentWeek={pool.currentWeek}
+                        sandboxMode={(pool as any).sandboxMode ?? false}
+                        sandboxWeek={(pool as any).sandboxWeek ?? 1}
+                        isSuperAdmin={user?.role === "admin"}
                       />
                     </TabsContent>
                   )}
