@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Lock, Dice5, CheckCircle2, AlertCircle, Trophy } from "lucide-react";
+import { Lock, Dice5, AlertCircle, Trophy, Check, X } from "lucide-react";
 
 const MAX_PICKS = 8;
 
@@ -80,84 +80,133 @@ function authedFetch<T>(url: string): Promise<T> {
 function LockedPickRow({ pick }: { pick: SubmittedPick }) {
   const isFinal = pick.status === "final";
   const isLive = pick.status === "in_progress";
+  const isPending = !isFinal && !isLive;
+  const isWin = pick.result === "win";
+  const isLoss = pick.result === "loss";
   const pickedIsAway = pick.pickedTeamId === pick.awayTeam.id;
   const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
-
-  const resultColor =
-    pick.result === "win" ? "text-green-400" :
-    pick.result === "loss" ? "text-red-400" :
-    "text-muted-foreground";
+  const pickedTeam = pickedIsAway ? pick.awayTeam : pick.homeTeam;
+  const otherTeam = pickedIsAway ? pick.homeTeam : pick.awayTeam;
+  const pickedScore = pickedIsAway ? pick.awayScore : pick.homeScore;
+  const otherScore = pickedIsAway ? pick.homeScore : pick.awayScore;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 p-3 md:p-4">
-      {/* Confidence badge */}
+    <div className={cn(
+      "relative rounded-xl border p-3 md:p-4 transition-all overflow-hidden",
+      isWin  ? "border-green-500/40 bg-green-500/8 shadow-[0_0_16px_rgba(34,197,94,0.08)]"  : "",
+      isLoss ? "border-red-500/40   bg-red-500/8   shadow-[0_0_16px_rgba(239,68,68,0.08)]"    : "",
+      isPending && !isLive ? "border-purple-500/25 bg-purple-500/5" : "",
+      isLive  ? "border-yellow-500/30 bg-yellow-500/5" : "",
+    )}>
+      {/* Colored left-edge accent bar */}
       <div className={cn(
-        "shrink-0 w-9 h-9 md:w-11 md:h-11 rounded-lg flex items-center justify-center font-bebas text-lg md:text-xl border-2",
-        "bg-purple-500/10 border-purple-500/40 text-purple-300",
-      )}>
-        {pick.confidencePoints ?? "—"}
-      </div>
+        "absolute left-0 inset-y-0 w-1 rounded-l-xl",
+        isWin ? "bg-green-500/60" : isLoss ? "bg-red-500/60" : isLive ? "bg-yellow-400/50" : "bg-purple-500/30",
+      )} />
 
-      {/* Game info */}
-      <div className="flex-1 min-w-0">
-        {/* Teams */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Away */}
-          <span className={cn(
-            "flex items-center gap-1 font-bebas text-sm md:text-base tracking-wide",
-            pickedIsAway ? "text-purple-300" : "text-muted-foreground",
-          )}>
-            <img
-              src={teamLogoSrc(pick.awayTeam)}
-              alt={pick.awayTeam.name}
-              className="w-4 h-4 md:w-5 md:h-5 object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
-            {pick.awayTeam.abbreviation}
-            {(isFinal || isLive) && pick.awayScore != null && (
-              <span className="font-bebas text-base md:text-lg">{pick.awayScore}</span>
-            )}
-            {pickedIsAway && <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />}
-          </span>
-
-          <span className="text-[10px] text-muted-foreground/50 font-bold">@</span>
-
-          {/* Home */}
-          <span className={cn(
-            "flex items-center gap-1 font-bebas text-sm md:text-base tracking-wide",
-            pickedIsHome ? "text-purple-300" : "text-muted-foreground",
-          )}>
-            <img
-              src={teamLogoSrc(pick.homeTeam)}
-              alt={pick.homeTeam.name}
-              className="w-4 h-4 md:w-5 md:h-5 object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
-            {pick.homeTeam.abbreviation}
-            {(isFinal || isLive) && pick.homeScore != null && (
-              <span className="font-bebas text-base md:text-lg">{pick.homeScore}</span>
-            )}
-            {pickedIsHome && <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />}
-          </span>
+      <div className="flex items-center gap-3 pl-2">
+        {/* Confidence badge */}
+        <div className={cn(
+          "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
+          isWin  ? "bg-green-500/15 border-green-500/40 text-green-300" :
+          isLoss ? "bg-red-500/15   border-red-500/40   text-red-300"   :
+                   "bg-purple-500/15 border-purple-500/40 text-purple-300",
+        )}>
+          {pick.confidencePoints ?? "—"}
         </div>
 
-        {/* Status / time */}
-        <p className={cn("text-[10px] md:text-xs mt-0.5", resultColor)}>
-          {isFinal
-            ? pick.result === "win" ? "Final · Win" : pick.result === "loss" ? "Final · Loss" : "Final"
-            : isLive
-              ? "🔴 Live"
-              : pick.startTime ? formatTimeEt(pick.startTime) + " ET" : ""}
-        </p>
-      </div>
+        {/* Game matchup */}
+        <div className="flex-1 min-w-0">
+          {/* Picked team — hero row */}
+          <div className="flex items-center gap-2 mb-1">
+            <img
+              src={teamLogoSrc(pickedTeam)}
+              alt={pickedTeam.name}
+              className="w-7 h-7 md:w-8 md:h-8 object-contain shrink-0"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+            <span className={cn(
+              "font-bebas text-xl md:text-2xl tracking-wide leading-none",
+              isWin ? "text-green-300" : isLoss ? "text-red-300" : "text-purple-200",
+            )}>
+              {pickedTeam.abbreviation}
+            </span>
+            {(isFinal || isLive) && pickedScore != null && (
+              <span className={cn(
+                "font-bebas text-2xl md:text-3xl leading-none",
+                isWin ? "text-green-200" : isLoss ? "text-red-200" : "text-foreground",
+              )}>
+                {pickedScore}
+              </span>
+            )}
+            <span className={cn(
+              "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ml-1",
+              isWin  ? "bg-purple-500/20 text-purple-300" :
+              isLoss ? "bg-purple-500/20 text-purple-300" :
+                       "bg-purple-500/15 text-purple-400",
+            )}>
+              MY PICK
+            </span>
+          </div>
 
-      {/* Result badge */}
-      {pick.result === "win" && (
-        <Badge className="shrink-0 bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">W</Badge>
-      )}
-      {pick.result === "loss" && (
-        <Badge className="shrink-0 bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">L</Badge>
-      )}
+          {/* Opponent team — dimmed secondary row */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground/40 font-semibold uppercase tracking-wider w-7 md:w-8 text-center shrink-0">
+              vs
+            </span>
+            <img
+              src={teamLogoSrc(otherTeam)}
+              alt={otherTeam.name}
+              className="w-4 h-4 object-contain shrink-0 opacity-50"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+            <span className="font-bebas text-sm md:text-base tracking-wide text-muted-foreground/50 leading-none">
+              {otherTeam.abbreviation}
+            </span>
+            {(isFinal || isLive) && otherScore != null && (
+              <span className="font-bebas text-base md:text-lg text-muted-foreground/50 leading-none">
+                {otherScore}
+              </span>
+            )}
+          </div>
+
+          {/* Status line */}
+          <p className={cn(
+            "text-[10px] mt-1",
+            isWin ? "text-green-400/70" : isLoss ? "text-red-400/70" : "text-muted-foreground/50",
+          )}>
+            {isFinal ? "Final" : isLive ? "🔴 Live" : pick.startTime ? formatTimeEt(pick.startTime) + " ET" : ""}
+          </p>
+        </div>
+
+        {/* CORRECT / WRONG result label */}
+        {isWin && (
+          <div className="shrink-0 flex flex-col items-center gap-1">
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-green-500/20 border-2 border-green-500/50 flex items-center justify-center">
+              <Check className="w-5 h-5 text-green-400" strokeWidth={3} />
+            </div>
+            <span className="text-[9px] font-bold tracking-widest text-green-400 uppercase">Correct</span>
+          </div>
+        )}
+        {isLoss && (
+          <div className="shrink-0 flex flex-col items-center gap-1">
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center">
+              <X className="w-5 h-5 text-red-400" strokeWidth={3} />
+            </div>
+            <span className="text-[9px] font-bold tracking-widest text-red-400 uppercase">Wrong</span>
+          </div>
+        )}
+        {!isFinal && !isLoss && !isWin && (
+          <div className="shrink-0 flex flex-col items-center gap-1">
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-purple-500/10 border-2 border-purple-500/20 flex items-center justify-center">
+              <span className="font-bebas text-purple-400 text-lg leading-none">?</span>
+            </div>
+            <span className="text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
+              {isLive ? "Live" : "Pending"}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -329,7 +378,7 @@ function GameCard({
               </span>
             )}
             {isSelected ? (
-              <CheckCircle2 className="w-5 h-5 text-purple-400 mt-0.5" />
+              <Check className="w-5 h-5 text-purple-400 mt-0.5" />
             ) : (
               <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 mt-0.5" />
             )}
@@ -401,7 +450,7 @@ function GameCard({
                     )}>
                       {team.name}
                     </span>
-                    {isPicked && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 ml-auto shrink-0" />}
+                    {isPicked && <Check className="w-3.5 h-3.5 text-purple-400 ml-auto shrink-0" />}
                   </button>
                 );
               })}
