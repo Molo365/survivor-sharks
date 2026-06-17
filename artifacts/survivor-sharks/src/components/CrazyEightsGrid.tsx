@@ -137,8 +137,8 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
     );
   }
 
-  const isWin = pick.result === "win";
-  const isLoss = pick.result === "loss";
+  const isWin = pick.result === "correct";
+  const isLoss = pick.result === "incorrect";
   const pickedIsHome = pick.pickedTeamId === game.homeTeam.id;
   const team = pickedIsHome ? game.homeTeam : game.awayTeam;
 
@@ -251,9 +251,7 @@ export function CrazyEightsGrid({ poolId }: { poolId: number }) {
                   Player
                 </th>
                 {displayGames.map((game) => (
-                  <th key={game.id} className="px-1 py-2 font-normal border-r border-border/20 last:border-r-0">
-                    <GameHeader game={game} />
-                  </th>
+                  <th key={game.id} className="px-1 py-0 border-r border-border/20 last:border-r-0" />
                 ))}
               </tr>
             </thead>
