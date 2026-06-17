@@ -339,12 +339,14 @@ function GameCard({
   return (
     <div className={cn(
       "rounded-lg border-2 transition-all overflow-hidden",
-      isLive
-        ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
-        : isSelected
-          ? "border-purple-500/60 bg-purple-500/5"
-          : "border-border/40 bg-card/50 hover:border-border",
-      isLocked && !isSelected && !isLive && "opacity-50 cursor-not-allowed",
+      isSuspended
+        ? "border-border/30 bg-card/30 opacity-50 cursor-not-allowed"
+        : isLive
+          ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+          : isSelected
+            ? "border-purple-500/60 bg-purple-500/5"
+            : "border-border/40 bg-card/50 hover:border-border",
+      !isSuspended && isLocked && !isSelected && !isLive && "opacity-50 cursor-not-allowed",
     )}>
       {/* LIVE banner */}
       {isLive && (
@@ -360,7 +362,7 @@ function GameCard({
       <button
         type="button"
         onClick={onToggle}
-        disabled={isLocked && !isSelected}
+        disabled={isSuspended || (isLocked && !isSelected)}
         className="w-full text-left p-3 md:p-5"
       >
         <div className="flex items-center gap-2">

@@ -64,10 +64,11 @@ router.get("/games", requireAuth, async (req, res) => {
   const requestedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayEt;
   const espnDate = requestedDate.replace(/-/g, "");
 
-  const games = isIntl
+  const allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
     : await fetchGamesForDate(sport, espnDate);
-  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const games = allGames.filter((g) => g.status !== "suspended");
 
   const existingPicks = await db
     .select()
