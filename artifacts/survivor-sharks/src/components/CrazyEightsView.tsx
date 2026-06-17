@@ -330,9 +330,8 @@ function GameCard({
   confidence,
   usedPoints,
   pickedTeam,
-  onToggle,
+  onTeamClick,
   onAssignConfidence,
-  onPickTeam,
 }: {
   game: PickEmGame;
   isSelected: boolean;
@@ -340,29 +339,105 @@ function GameCard({
   confidence: number | undefined;
   usedPoints: Set<number>;
   pickedTeam: string | null;
-  onToggle: () => void;
+  onTeamClick: (teamId: string) => void;
   onAssignConfidence: (pts: number) => void;
-  onPickTeam: (teamId: string) => void;
 }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
   const isPostponed = game.status === "postponed";
   const isSuspended = game.status === "suspended";
+  const isDisabled = isSuspended || (isLocked && !isSelected);
 
   const awayPitcher = pitcherLine(game.awayPitcher);
   const homePitcher = pitcherLine(game.homePitcher);
+
+  function teamSide(team: PickEmGame["awayTeam"], side: "away" | "home") {
+    const isHome = side === "home";
+    const isPicked = pickedTeam === team.id;
+    const score = isHome ? game.homeScore : game.awayScore;
+    const pitcher = isHome ? homePitcher : awayPitcher;
+
+    return (
+      <button
+        type="button"
+        disabled={isDisabled}
+        onClick={() => onTeamClick(team.id)}
+        className={cn(
+          "flex-1 flex items-center gap-2 p-3 md:p-4 transition-all select-none min-w-0",
+          isHome ? "flex-row-reverse" : "",
+          isPicked
+            ? "bg-purple-500/12"
+            : !isDisabled ? "hover:bg-muted/20 active:bg-muted/30" : "",
+          isDisabled ? "cursor-default" : "cursor-pointer",
+        )}
+      >
+        {/* Logo */}
+        <div className={cn(
+          "shrink-0 rounded-full p-1 shadow-sm transition-all",
+          isPicked ? "bg-white ring-2 ring-purple-400/60" : "bg-white/90",
+        )}>
+          <img
+            src={teamLogoSrc(team)}
+            alt={team.name}
+            className="w-8 h-8 md:w-10 md:h-10 object-contain"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
+
+        {/* Name + pitcher / score */}
+        <div className={cn("min-w-0 flex-1", isHome ? "text-right" : "text-left")}>
+          <div className={cn(
+            "font-bebas text-base md:text-xl tracking-wide leading-none truncate transition-colors",
+            isPicked ? "text-purple-200" : "text-foreground",
+          )}>
+            {team.name}
+          </div>
+          {(isFinal || isLive) && score != null ? (
+            <div className={cn(
+              "font-bebas text-2xl leading-none",
+              isPicked ? "text-purple-300" : "text-foreground/70",
+            )}>
+              {score}
+            </div>
+          ) : (
+            <>
+              <div className="text-[10px] md:text-xs text-muted-foreground">
+                {isHome ? "Home" : "Away"}
+              </div>
+              {pitcher && (
+                <div className={cn(
+                  "text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 truncate",
+                  isHome ? "max-w-[120px] md:max-w-none" : "max-w-[120px] md:max-w-none",
+                )}>
+                  {pitcher}
+                </div>
+              )}
+            </>
+          )}
+          {isPicked && (
+            <div className={cn(
+              "text-[9px] font-bold uppercase tracking-widest text-purple-400 flex items-center gap-0.5 mt-0.5",
+              isHome ? "justify-end" : "",
+            )}>
+              <Check className="w-2.5 h-2.5" /> My Pick
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
 
   return (
     <div className={cn(
       "rounded-lg border-2 transition-all overflow-hidden",
       isSuspended
-        ? "border-border/30 bg-card/30 opacity-50 cursor-not-allowed"
+        ? "border-border/30 bg-card/30 opacity-50"
         : isLive
           ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
           : isSelected
             ? "border-purple-500/60 bg-purple-500/5"
-            : "border-border/40 bg-card/50 hover:border-border",
-      !isSuspended && isLocked && !isSelected && !isLive && "opacity-50 cursor-not-allowed",
+            : "border-border/40 bg-card/50",
+      !isSuspended && isLocked && !isSelected && !isLive && "opacity-50",
     )}>
       {/* LIVE banner */}
       {isLive && (
@@ -374,170 +449,71 @@ function GameCard({
         </div>
       )}
 
-      {/* Game header row — click to toggle selection */}
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={isSuspended || (isLocked && !isSelected)}
-        className="w-full text-left p-3 md:p-5"
-      >
-        <div className="flex items-center gap-2">
-          {/* Away team */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
-              <img
-                src={teamLogoSrc(game.awayTeam)}
-                alt={game.awayTeam.name}
-                className="w-8 h-8 md:w-10 md:h-10 object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="font-bebas text-base md:text-xl tracking-wide leading-none truncate">{game.awayTeam.name}</div>
-              {(isFinal || isLive) && game.awayScore != null ? (
-                <div className="font-bebas text-2xl leading-none">{game.awayScore}</div>
-              ) : (
-                <>
-                  <div className="text-[10px] md:text-xs text-muted-foreground">Away</div>
-                  {awayPitcher && (
-                    <div className="text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] md:max-w-none truncate">
-                      {awayPitcher}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+      {/* Team pick row — away | status | home */}
+      <div className="flex items-stretch divide-x divide-border/20">
+        {teamSide(game.awayTeam, "away")}
 
-          {/* Center: status + select indicator */}
-          <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
-            {isFinal ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
-                Final
-              </span>
-            ) : isSuspended ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-orange-500/20 text-orange-400 border-orange-500/40 leading-none">
-                SUSP
-              </span>
-            ) : isPostponed ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
-                PPD
-              </span>
-            ) : isLive ? (
-              <span className="text-[10px] font-bold text-red-400">vs</span>
-            ) : (
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {formatTimeEt(game.startTime)}
-              </span>
-            )}
-            {isSelected ? (
-              <Check className="w-5 h-5 text-purple-400 mt-0.5" />
-            ) : (
-              <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 mt-0.5" />
-            )}
-          </div>
-
-          {/* Home team */}
-          <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
-            <div className="min-w-0 text-right">
-              <div className="font-bebas text-base md:text-xl tracking-wide leading-none truncate">{game.homeTeam.name}</div>
-              {(isFinal || isLive) && game.homeScore != null ? (
-                <div className="font-bebas text-2xl leading-none">{game.homeScore}</div>
-              ) : (
-                <>
-                  <div className="text-[10px] md:text-xs text-muted-foreground">Home</div>
-                  {homePitcher && (
-                    <div className="text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 max-w-[130px] md:max-w-none truncate text-right">
-                      {homePitcher}
-                    </div>
-                  )}
-                </>
-              )}
+        {/* Center: status + selection indicator */}
+        <div className="flex flex-col items-center justify-center gap-1.5 px-2 py-3 shrink-0 min-w-[52px] md:min-w-[60px]">
+          {isFinal ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none text-center">
+              Final
+            </span>
+          ) : isSuspended ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-orange-500/20 text-orange-400 border-orange-500/40 leading-none">
+              SUSP
+            </span>
+          ) : isPostponed ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
+              PPD
+            </span>
+          ) : isLive ? (
+            <span className="text-[10px] font-bold text-red-400">vs</span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap text-center leading-tight">
+              {formatTimeEt(game.startTime)}
+            </span>
+          )}
+          {isSelected ? (
+            <div className="w-5 h-5 rounded-full bg-purple-500/20 border-2 border-purple-400 flex items-center justify-center">
+              <Check className="w-3 h-3 text-purple-300" />
             </div>
-            <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
-              <img
-                src={teamLogoSrc(game.homeTeam)}
-                alt={game.homeTeam.name}
-                className="w-8 h-8 md:w-10 md:h-10 object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            </div>
-          </div>
+          ) : (
+            <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />
+          )}
         </div>
-      </button>
 
-      {/* Expanded section — confidence + winner pick — only when selected */}
+        {teamSide(game.homeTeam, "home")}
+      </div>
+
+      {/* Expanded: confidence points only (team already chosen above) */}
       {isSelected && (
-        <div className="px-3 pb-3 md:px-5 md:pb-5 space-y-2.5 border-t border-purple-500/20 pt-2.5">
-          {/* Confidence points — shown first so they're immediately visible */}
-          <div>
-            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
-              Confidence points
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
-                const taken = usedPoints.has(pts) && confidence !== pts;
-                return (
-                  <button
-                    key={pts}
-                    type="button"
-                    disabled={isLocked || taken}
-                    onClick={() => onAssignConfidence(pts)}
-                    className={cn(
-                      "w-8 h-8 md:w-10 md:h-10 rounded-md text-sm md:text-base font-bold border-2 transition-all",
-                      confidence === pts
-                        ? "bg-purple-500 border-purple-400 text-white"
-                        : taken
-                          ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
-                          : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
-                    )}
-                  >
-                    {pts}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Pick the winner */}
-          <div>
-            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
-              Pick the winner
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[game.awayTeam, game.homeTeam].map((team) => {
-                const isPicked = pickedTeam === team.id;
-                return (
-                  <button
-                    key={team.id}
-                    type="button"
-                    disabled={isLocked}
-                    onClick={() => !isLocked && onPickTeam(team.id)}
-                    className={cn(
-                      "flex items-center gap-2 p-2 md:p-3 rounded-lg border-2 transition-all select-none text-left",
-                      isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-                      isPicked
-                        ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/40"
-                        : "border-border/40 bg-card/60 hover:border-purple-500/30",
-                    )}
-                  >
-                    <img
-                      src={teamLogoSrc(team)}
-                      alt={team.name}
-                      className="w-5 h-5 md:w-7 md:h-7 object-contain shrink-0"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                    <span className={cn(
-                      "font-bebas text-sm md:text-base tracking-wide truncate",
-                      isPicked ? "text-purple-300" : "text-muted-foreground",
-                    )}>
-                      {team.name}
-                    </span>
-                    {isPicked && <Check className="w-3.5 h-3.5 text-purple-400 ml-auto shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="px-3 pb-3 md:px-5 md:pb-4 border-t border-purple-500/20 pt-2.5">
+          <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+            Confidence points
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
+              const taken = usedPoints.has(pts) && confidence !== pts;
+              return (
+                <button
+                  key={pts}
+                  type="button"
+                  disabled={isLocked || taken}
+                  onClick={() => onAssignConfidence(pts)}
+                  className={cn(
+                    "w-8 h-8 md:w-10 md:h-10 rounded-md text-sm md:text-base font-bold border-2 transition-all",
+                    confidence === pts
+                      ? "bg-purple-500 border-purple-400 text-white"
+                      : taken
+                        ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
+                        : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
+                  )}
+                >
+                  {pts}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -613,18 +589,25 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
     selectedIds.every((id) => confidence[id] !== undefined) &&
     selectedIds.every((id) => pickedTeams[id] !== undefined);
 
-  function toggleGame(gameId: string) {
+  function handleTeamClick(gameId: string, teamId: string) {
     if (isLocked) return;
     if (selectedIds.includes(gameId)) {
-      setSelectedIds((prev) => prev.filter((id) => id !== gameId));
-      setConfidence((prev) => { const c = { ...prev }; delete c[gameId]; return c; });
-      setPickedTeams((prev) => { const p = { ...prev }; delete p[gameId]; return p; });
+      if (pickedTeams[gameId] === teamId) {
+        // Re-click own pick → deselect
+        setSelectedIds((prev) => prev.filter((id) => id !== gameId));
+        setConfidence((prev) => { const c = { ...prev }; delete c[gameId]; return c; });
+        setPickedTeams((prev) => { const p = { ...prev }; delete p[gameId]; return p; });
+      } else {
+        // Switch team
+        setPickedTeams((prev) => ({ ...prev, [gameId]: teamId }));
+      }
     } else {
       if (selectedIds.length >= MAX_PICKS) {
         toast({ title: "8 games max", description: "Deselect a game before adding another.", variant: "destructive" });
         return;
       }
       setSelectedIds((prev) => [...prev, gameId]);
+      setPickedTeams((prev) => ({ ...prev, [gameId]: teamId }));
     }
   }
 
@@ -637,11 +620,6 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
       c[gameId] = pts;
       return c;
     });
-  }
-
-  function pickTeam(gameId: string, teamId: string) {
-    if (isLocked) return;
-    setPickedTeams((prev) => ({ ...prev, [gameId]: teamId }));
   }
 
   function handleSubmitClick() {
@@ -808,9 +786,8 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
-            onToggle={() => toggleGame(game.id)}
+            onTeamClick={(teamId) => handleTeamClick(game.id, teamId)}
             onAssignConfidence={(pts) => assignConfidence(game.id, pts)}
-            onPickTeam={(teamId) => pickTeam(game.id, teamId)}
           />
         ))}
       </div>
