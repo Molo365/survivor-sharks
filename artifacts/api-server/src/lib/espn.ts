@@ -345,10 +345,14 @@ export function getMlbProcessingTrigger(poolCreatedAt: Date, weekNumber: number)
 }
 
 /**
- * Return today's date as YYYY-MM-DD in ET (America/New_York using fixed EDT offset).
+ * Return the "current slate date" as YYYY-MM-DD in ET (America/New_York).
+ * The slate rolls over at 5 AM ET, not midnight, so that games finishing
+ * after midnight still belong to the previous day's slate.
  */
 export function getTodayEtDate(): string {
-  return formatDateEtDash(new Date());
+  const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+  const shifted = new Date(Date.now() - FIVE_HOURS_MS);
+  return shifted.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 /**

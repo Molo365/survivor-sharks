@@ -49,7 +49,8 @@ interface GridResponse {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getTodayEt(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+  return new Date(Date.now() - FIVE_HOURS_MS).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 function offsetDate(dateStr: string, days: number): string {
