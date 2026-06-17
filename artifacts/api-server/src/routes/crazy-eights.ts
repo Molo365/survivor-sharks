@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate } from "../lib/espn";
 
@@ -270,6 +270,67 @@ router.post("/picks", requireAuth, async (req, res) => {
     .where(eq(entriesTable.id, entry.id));
 
   res.status(201).json({ ok: true, saved, message: "Crazy 8's picks submitted successfully" });
+});
+
+// GET /api/pools/:poolId/crazy-eights/yesterday-winner?date=YYYY-MM-DD
+router.get("/yesterday-winner", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+  const date = String(req.query.date ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const rows = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      confidencePoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+      total: sql<string>`COUNT(*)`,
+      graded: sql<string>`COUNT(*) FILTER (WHERE pickem_picks.result != 'pending')`,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, date)))
+    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+    .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+
+  const hasResults = rows.some((r) => Number(r.graded) > 0);
+  if (!hasResults) {
+    res.json({ date, hasResults: false, winners: [] });
+    return;
+  }
+
+  const allGraded = rows.every((r) => Number(r.graded) === Number(r.total));
+  if (!allGraded) {
+    res.json({ date, hasResults: false, winners: [] });
+    return;
+  }
+
+  const maxPts = Math.max(...rows.map((r) => Number(r.confidencePoints)));
+  const winners = rows
+    .filter((r) => Number(r.confidencePoints) === maxPts)
+    .map((r) => ({
+      userId: r.userId,
+      username: r.username,
+      displayName: r.displayName ?? null,
+      confidencePoints: Number(r.confidencePoints),
+    }));
+
+  res.json({ date, hasResults: true, winners });
 });
 
 export default router;

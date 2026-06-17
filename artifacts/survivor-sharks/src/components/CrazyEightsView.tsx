@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock } from "lucide-react";
+import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 
 const MAX_PICKS = 8;
 
@@ -69,6 +70,21 @@ function pitcherLine(pitcher: PickEmGame["awayPitcher"]) {
   const rec = pitcher.wins != null && pitcher.losses != null ? `(${pitcher.wins}-${pitcher.losses})` : null;
   const era = pitcher.era != null ? `${pitcher.era} ERA` : null;
   return [pitcher.name, rec, era].filter(Boolean).join(" ");
+}
+
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+function getTodayEt(): string {
+  return new Date(Date.now() - FIVE_HOURS_MS).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function offsetDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+interface YesterdayWinnerResponse {
+  date: string;
+  hasResults: boolean;
+  winners: { userId: number; username: string; displayName: string | null; confidencePoints: number }[];
 }
 
 function authedFetch<T>(url: string): Promise<T> {
@@ -543,6 +559,16 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   const [tbRuns, setTbRuns] = useState("");
   const [tbStrikeouts, setTbStrikeouts] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [resultsDate, setResultsDate] = useState<string | null>(null);
+
+  const yesterdayDate = useMemo(() => offsetDate(getTodayEt(), -1), []);
+
+  const { data: yesterdayWinner } = useQuery<YesterdayWinnerResponse>({
+    queryKey: ["crazy-eights-yesterday-winner", poolId, yesterdayDate],
+    queryFn: () => authedFetch<YesterdayWinnerResponse>(`/api/pools/${poolId}/crazy-eights/yesterday-winner?date=${yesterdayDate}`),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const myPicksKey = ["crazy-eights-picks", poolId];
 
@@ -745,6 +771,32 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         </div>
       </div>
 
+      {/* Yesterday's Winner banner */}
+      {yesterdayWinner?.hasResults && yesterdayWinner.winners.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+          <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-yellow-200">
+              Yesterday&apos;s Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
+            </span>
+            <span className="text-sm text-yellow-300">
+              {yesterdayWinner.winners.map((w) => w.displayName || w.username).join(" & ")}
+            </span>
+            <span className="text-yellow-500/50 text-xs">·</span>
+            <span className="text-sm text-yellow-400/70">
+              {yesterdayWinner.winners[0].confidencePoints} pts
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResultsDate(yesterdayDate)}
+            className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+          >
+            View Results →
+          </button>
+        </div>
+      )}
+
       {/* Game list */}
       <div className="space-y-3">
         {games.map((game) => (
@@ -823,6 +875,17 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
               {submitting ? "Submitting…" : "Lock In Picks"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Yesterday's Results modal */}
+      <Dialog open={!!resultsDate} onOpenChange={(open) => { if (!open) setResultsDate(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-2xl tracking-wide">Yesterday&apos;s Grid</DialogTitle>
+            <DialogDescription>Pick results for {resultsDate ?? ""}</DialogDescription>
+          </DialogHeader>
+          {resultsDate && <CrazyEightsGrid poolId={poolId} initialDate={resultsDate} />}
         </DialogContent>
       </Dialog>
     </div>

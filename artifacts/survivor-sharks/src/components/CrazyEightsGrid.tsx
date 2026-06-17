@@ -173,9 +173,9 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsGrid({ poolId }: { poolId: number }) {
+export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initialDate?: string }) {
   const { user } = useAuth();
-  const [date, setDate] = useState(getTodayEt);
+  const [date, setDate] = useState(() => initialDate ?? getTodayEt());
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, date],
