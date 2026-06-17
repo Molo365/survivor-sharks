@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5 } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ const SPORTS = [
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
-  [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor"],
+  [PoolInputSport.nfl]: ["season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor", "nfl_confidence"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
@@ -150,6 +150,18 @@ const POOL_TYPES = [
     cardClass:
       "border-blue-500/30 bg-[linear-gradient(145deg,rgba(59,130,246,0.06)_0%,transparent_100%)]",
   },
+  {
+    id: "nfl_confidence" as const,
+    label: "Confidence Picks",
+    icon: Zap,
+    tagline: "Pick Every Game. Back Your Calls.",
+    description:
+      "Pick all 16 NFL games. Assign confidence points 1–16. Highest total wins.",
+    badge: "NFL",
+    badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    cardClass:
+      "border-purple-500/60 bg-[linear-gradient(145deg,rgba(168,85,247,0.08)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -161,7 +173,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   description: z.string().max(500).optional(),
@@ -204,7 +216,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");

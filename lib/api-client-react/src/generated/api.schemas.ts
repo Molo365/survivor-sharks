@@ -79,6 +79,7 @@ export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputP
 
 
 export const PoolInputPoolType = {
+  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -125,6 +126,7 @@ export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpda
 
 
 export const PoolUpdatePoolType = {
+  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -189,6 +191,7 @@ export type PoolPoolType = typeof PoolPoolType[keyof typeof PoolPoolType];
 
 
 export const PoolPoolType = {
+  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -245,6 +248,7 @@ export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDeta
 
 
 export const PoolDetailPoolType = {
+  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',

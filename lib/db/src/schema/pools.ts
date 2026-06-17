@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { usersTable } from "./users";
 
 export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa", "worldcup", "intl"]);
-export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s"]);
+export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence"]);
 export const pickFrequencyEnum = pgEnum("pick_frequency", ["weekly", "daily"]);
 
 export const poolsTable = pgTable("pools", {
