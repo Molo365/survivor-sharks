@@ -926,6 +926,136 @@ export async function processPickEmResults(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// Crazy 8's auto-grading (MLB daily confidence-pick pools)
+// ---------------------------------------------------------------------------
+//
+// Grades pickemPicksTable rows for poolType = "crazy_8s".
+// Logic mirrors the MLB block of processPickEmResults():
+//  - Compare pickedTeamId against the ESPN winning teamId
+//  - Mark "correct" / "incorrect" / "postponed"
+//  - No elimination — Crazy 8's is a scoring game, not a survival game
+// ---------------------------------------------------------------------------
+
+export async function processCrazyEightsResults(): Promise<{
+  picksGraded: number;
+}> {
+  let picksGraded = 0;
+
+  const crazyPools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(eq(poolsTable.poolType, "crazy_8s"), eq(poolsTable.isActive, true)));
+
+  if (crazyPools.length === 0) return { picksGraded };
+
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const todayEspn = formatDateEt(now);
+  const todayEt = getTodayEtDate();
+  const yesterdayEspn = formatDateEt(yesterday);
+  const yesterdayEt = formatDateEtDash(yesterday);
+
+  // Both dates so West Coast games finishing after midnight ET are still graded
+  const datesToCheck = [todayEt, yesterdayEt];
+
+  const [todayGames, yesterdayGames] = await Promise.all([
+    fetchGamesForDate("mlb", todayEspn),
+    fetchGamesForDate("mlb", yesterdayEspn),
+  ]);
+  const allGames = [...todayGames, ...yesterdayGames];
+
+  // Build gameId → winning teamId for all completed, non-tied games
+  const winnerByGameId = new Map<string, string>();
+  for (const game of allGames) {
+    if (
+      game.isCompleted &&
+      game.homeScore != null &&
+      game.awayScore != null &&
+      game.homeScore !== game.awayScore
+    ) {
+      const winningTeamId =
+        game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
+      winnerByGameId.set(game.id, winningTeamId);
+      logger.info(
+        {
+          gameId: game.id,
+          winner: winningTeamId,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
+        },
+        "Crazy 8's: completed game found",
+      );
+    }
+  }
+
+  const postponedIds = allGames.filter((g) => g.isPostponed).map((g) => g.id);
+
+  for (const pool of crazyPools) {
+    // Grade correct / incorrect
+    for (const [gameId, winningTeamId] of winnerByGameId) {
+      const gamePicks = await db
+        .select()
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, gameId),
+            inArray(pickemPicksTable.gameDate, datesToCheck),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        );
+
+      for (const pick of gamePicks) {
+        const result: "correct" | "incorrect" =
+          pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+
+        await db
+          .update(pickemPicksTable)
+          .set({ result, updatedAt: new Date() })
+          .where(eq(pickemPicksTable.id, pick.id));
+
+        picksGraded++;
+        logger.info(
+          {
+            poolId: pool.id,
+            userId: pick.userId,
+            gameId,
+            pickedTeamId: pick.pickedTeamId,
+            winningTeamId,
+            result,
+          },
+          "Crazy 8's: auto-graded pick",
+        );
+      }
+    }
+
+    // Mark postponed picks
+    for (const gameId of postponedIds) {
+      const updated = await db
+        .update(pickemPicksTable)
+        .set({ result: "postponed", updatedAt: new Date() })
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, gameId),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        )
+        .returning({ id: pickemPicksTable.id });
+
+      if (updated.length > 0) {
+        logger.info(
+          { poolId: pool.id, gameId, count: updated.length },
+          "Crazy 8's: marked picks as postponed",
+        );
+      }
+    }
+  }
+
+  return { picksGraded };
+}
+
+// ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
 
@@ -937,11 +1067,12 @@ export function startAutoEliminator(): void {
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
-    const [nonMlb, mlbWeekly, mlbDaily, pickEm] = await Promise.all([
+    const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
       processMlbDailyResults(),
       processPickEmResults(),
+      processCrazyEightsResults(),
     ]);
     return {
       ...nonMlb,
@@ -950,6 +1081,7 @@ export function startAutoEliminator(): void {
       mlbPlayersRevived: mlbWeekly.playersRevived + mlbDaily.playersRevived,
       mlbDaysProcessed: mlbDaily.daysProcessed,
       pickEmPicksGraded: pickEm.picksGraded,
+      crazyEightsPicksGraded: crazyEights.picksGraded,
     };
   }
 
