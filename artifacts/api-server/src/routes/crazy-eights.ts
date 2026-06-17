@@ -125,7 +125,9 @@ router.get("/picks", requireAuth, async (req, res) => {
     fetchGamesForDate("mlb", todayEspn),
   ]);
 
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const gameMap = new Map(games.map((g) => [g.id, g]));
+  const lastGame = games.at(-1);
 
   const details = picks.map((pick) => {
     const game = gameMap.get(pick.gameId);
@@ -156,6 +158,13 @@ router.get("/picks", requireAuth, async (req, res) => {
     picks: details,
     tiebreakerRuns: (entry as any).tiebreakerRuns ?? null,
     tiebreakerStrikeouts: (entry as any).tiebreakerStrikeouts ?? null,
+    tiebreakerGame: lastGame
+      ? {
+          awayTeam: { abbreviation: lastGame.awayTeam.abbreviation, name: lastGame.awayTeam.displayName },
+          homeTeam: { abbreviation: lastGame.homeTeam.abbreviation, name: lastGame.homeTeam.displayName },
+          startTime: lastGame.date,
+        }
+      : null,
   });
 });
 

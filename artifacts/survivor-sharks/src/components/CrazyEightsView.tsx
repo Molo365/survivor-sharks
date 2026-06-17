@@ -37,10 +37,17 @@ interface SubmittedPick {
   status: string;
 }
 
+interface TiebreakerGame {
+  awayTeam: { abbreviation: string; name: string };
+  homeTeam: { abbreviation: string; name: string };
+  startTime: string;
+}
+
 interface SubmittedPicksResponse {
   picks: SubmittedPick[];
   tiebreakerRuns: number | null;
   tiebreakerStrikeouts: number | null;
+  tiebreakerGame: TiebreakerGame | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -812,9 +819,40 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-bebas text-2xl tracking-wide">Tiebreaker</DialogTitle>
-            <DialogDescription>
-              In case of a tie, your answers below will be used to determine the winner. The player closest to the actual number wins. Both answers are locked with your picks.
-            </DialogDescription>
+            {(() => {
+              const tbGame: TiebreakerGame | null =
+                myPicksData?.tiebreakerGame ??
+                (games.length > 0
+                  ? {
+                      awayTeam: { abbreviation: games.at(-1)!.awayTeam.abbreviation, name: games.at(-1)!.awayTeam.name },
+                      homeTeam: { abbreviation: games.at(-1)!.homeTeam.abbreviation, name: games.at(-1)!.homeTeam.name },
+                      startTime: games.at(-1)!.startTime,
+                    }
+                  : null);
+              const gameTime = tbGame?.startTime
+                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "America/New_York",
+                    hour12: true,
+                  }) + " ET"
+                : null;
+              return (
+                <DialogDescription className="space-y-1">
+                  {tbGame && (
+                    <span className="block text-sm font-semibold text-foreground">
+                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
+                      {gameTime && (
+                        <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>
+                      )}
+                    </span>
+                  )}
+                  <span className="block">
+                    In case of a tie, your answers below will be used to determine the winner. The player closest to the actual number wins. Both answers are locked with your picks.
+                  </span>
+                </DialogDescription>
+              );
+            })()}
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
