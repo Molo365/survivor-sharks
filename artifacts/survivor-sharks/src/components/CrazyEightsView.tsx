@@ -48,13 +48,20 @@ function teamLogoSrc(team: { logoUrl?: string | null; abbreviation: string }) {
   return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/mlb/500/${String(team.abbreviation ?? "").toLowerCase()}.png`;
 }
 
-function formatTimeEt(iso: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(iso));
+function formatTimeEt(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  } catch {
+    return "—";
+  }
 }
 
 function pitcherLine(pitcher: PickEmGame["awayPitcher"]) {
@@ -555,7 +562,10 @@ export function CrazyEightsView({ poolId }: CrazyEightsViewProps) {
   const earliestSelectedStart = useMemo(() => {
     const selected = games.filter((g) => selectedIds.includes(g.id));
     if (selected.length === 0) return Infinity;
-    return Math.min(...selected.map((g) => new Date(g.startTime).getTime()));
+    const times = selected
+      .map((g) => new Date(g.startTime).getTime())
+      .filter((t) => !isNaN(t));
+    return times.length > 0 ? Math.min(...times) : Infinity;
   }, [games, selectedIds]);
 
   const isLocked = Date.now() >= earliestSelectedStart;
