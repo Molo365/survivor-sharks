@@ -601,6 +601,14 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
     return;
   }
 
+  // Only declare a winner once every pick has been graded.
+  // If any player still has ungraded picks, at least one game is still live.
+  const allGraded = rows.every((r) => Number(r.graded) === Number(r.total));
+  if (!allGraded) {
+    res.json({ date, hasResults: false, winners: [] });
+    return;
+  }
+
   const maxCorrect = Math.max(...rows.map((r) => Number(r.correct)));
   const winners = rows
     .filter((r) => Number(r.correct) === maxCorrect)
