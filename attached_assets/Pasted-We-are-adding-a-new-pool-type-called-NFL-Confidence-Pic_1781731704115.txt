@@ -1,0 +1,66 @@
+We are adding a new pool type called NFL Confidence Picks to the Survivor Sharks platform. Use the existing MLB Crazy 8's implementation as the template — same engine, same UI patterns, tuned for NFL weekly play. Follow these exact specifications:
+
+1. DATABASE — Add pool type to enum
+In lib/db/src/schema/, add nfl_confidence_picks to the pool type enum alongside the existing values. After the schema change, run in Railway Console:
+pnpm --filter @workspace/db run push-force
+
+2. POOL CREATION FLOW
+In the Create Pool flow, when a user selects NFL as the sport, add NFL Confidence Picks as a selectable pool type card alongside the existing NFL options (Classic Survivor, Double Elimination, Pick-Ems Season, Division Predictor).
+
+Label: NFL Confidence Picks
+Description on card: Pick every game on the weekly slate. Assign unique confidence points 1 through N. Most points at week's end wins.
+Use the same purple accent styling used for Crazy 8's
+
+
+3. PICKS UI — NflConfidencePicks.tsx
+Create artifacts/survivor-sharks/src/components/NflConfidencePicks.tsx modelled on the Crazy 8's picks component with these differences:
+
+All games on the slate are shown — not a subset. The player must pick every game. The confidence range is 1 through N where N = total games that week (dynamic — could be 12, 14, 16, etc. depending on bye weeks).
+Weekly cadence — picks lock at kickoff of the first game of the week (Thursday night if there is one, otherwise Sunday 1 PM ET). Each game locks individually at its own kickoff time.
+Tiebreaker — the last game on the weekly slate (loosely Monday Night Football) is always the tiebreaker game. It is not chosen by the commissioner — it is always automatically the final scheduled game of that week.
+Show the tiebreaker game with a distinct badge (e.g. gold "TIEBREAKER" label) so players know.
+Tiebreaker inputs (shown below the game slate, only visible once the user has made all their picks):
+
+TB1: Total passing yards by both QBs combined in the tiebreaker game
+TB2: Total rushing yards by both teams combined in the tiebreaker game
+
+
+Use the same one-click team selection → confidence point assignment UX as Crazy 8's.
+Use NFL team colors and ESPN CDN logos (same pattern as NFL Division Predictor).
+
+
+4. SCORING & AUTO-GRADER
+In artifacts/api-server/src/lib/auto-eliminator.ts, add a grading branch for nfl_confidence_picks:
+
+Correct pick = confidence points assigned to that game earned
+Wrong pick = 0 points for that game
+Grading triggers weekly after all games on the slate are final
+Tiebreaker resolution order if players are tied at week's end:
+
+Closest guess to actual combined passing yards (TB1) — no over/under, pure closest wins
+If still tied: closest guess to actual combined rushing yards (TB2)
+If still tied: split pot
+
+
+
+
+5. LEADERBOARD & TABS
+Reuse the Crazy 8's tab structure — Today's Picks → This Week's Picks, Leaderboard, Weekly Grid, Stats, Commissioner. Rename "Daily" references to "Weekly" throughout this component only.
+
+6. COMMISSIONER PANEL
+Create a dedicated Commissioner panel for NFL Confidence Picks (do not reuse the survivor-style panel). Include:
+
+Invite code display
+Pool settings summary
+Current week number and game count
+Note showing which game is the automatic tiebreaker (last game of week)
+Manual week advance button (for sandbox/testing — grayed out with a "Live mode" label in production, but functional)
+
+
+7. ESPN API
+Use the existing ESPN API utility at artifacts/api-server/src/lib/espn.ts to fetch the NFL weekly schedule. Games are identified by week number and season year. Fetch all games for the current NFL week — the count is whatever ESPN returns (do not hardcode 16).
+
+8. ROUTING
+Add the route for NFL Confidence Picks pools in the backend and frontend router, following the same pattern used for Crazy 8's pool routing.
+
+Push to GitHub when done.
