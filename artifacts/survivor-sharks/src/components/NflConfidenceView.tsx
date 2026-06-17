@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
+import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock } from "lucide-react";
+import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2 } from "lucide-react";
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -476,6 +479,151 @@ function GameCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Commissioner Panel ────────────────────────────────────────────────────────
+
+interface NflConfidenceCommissionerPanelProps {
+  poolId: number;
+  inviteCode: string | null;
+  poolName: string;
+  poolDescription: string | null;
+  currentWeek: number;
+}
+
+export function NflConfidenceCommissionerPanel({
+  poolId,
+  inviteCode,
+  poolName,
+  poolDescription,
+  currentWeek,
+}: NflConfidenceCommissionerPanelProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(poolName);
+  const [desc, setDesc] = useState(poolDescription ?? "");
+  const [copied, setCopied] = useState(false);
+
+  const updatePool = useUpdatePool({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+        toast({ title: "Settings saved" });
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to save settings" });
+      },
+    },
+  });
+
+  function handleCopy() {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(inviteCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Invite Code */}
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-primary" /> Invite Code
+          </CardTitle>
+          <CardDescription>Share this code so players can join your pool.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {inviteCode ? (
+            <div className="flex items-center gap-3">
+              <code className="flex-1 rounded-lg border border-border/50 bg-muted/30 px-4 py-3 font-mono text-xl tracking-widest text-primary select-all">
+                {inviteCode}
+              </code>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleCopy}
+                className="shrink-0 h-12 w-12 border-border/50"
+              >
+                {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No invite code set.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pool Settings */}
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Settings2 className="w-5 h-5 text-primary" /> Pool Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label className="font-bebas text-lg tracking-wide">Pool Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="bg-background/50"
+              placeholder="Pool name"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label className="font-bebas text-lg tracking-wide">Description</Label>
+            <Textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              className="bg-background/50 resize-none"
+              rows={3}
+              placeholder="Optional description"
+            />
+          </div>
+          <Button
+            onClick={() => updatePool.mutate({ poolId, data: { name, description: desc } } as any)}
+            disabled={updatePool.isPending}
+            className="font-bebas text-lg tracking-wider"
+          >
+            {updatePool.isPending ? "Saving…" : "Save Settings"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Current Week (read-only) */}
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Zap className="w-5 h-5 text-purple-400" /> Season Progress
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="rounded-lg border border-purple-500/30 bg-purple-500/5 px-6 py-4 text-center min-w-[96px]">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-0.5">Current Week</p>
+              <p className="font-bebas text-4xl text-purple-300 leading-none">{currentWeek}</p>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Week advances automatically when all games on the slate have final scores.
+              No manual action is required.
+            </p>
+          </div>
+
+          {/* Tiebreaker note */}
+          <div className="flex items-start gap-3 rounded-lg border border-yellow-500/25 bg-yellow-500/5 px-4 py-3">
+            <Trophy className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-yellow-300/80 leading-relaxed">
+              <span className="font-semibold text-yellow-300">Tiebreaker:</span>{" "}
+              The last game on the weekly slate (Monday Night Football). If players are tied on
+              total confidence points, the closest prediction of combined QB passing yards wins.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

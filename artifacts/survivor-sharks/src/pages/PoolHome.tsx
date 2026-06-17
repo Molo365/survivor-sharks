@@ -23,7 +23,7 @@ import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
 import { CrazyEightsStats } from "@/components/CrazyEightsStats";
-import { NflConfidenceView } from "@/components/NflConfidenceView";
+import { NflConfidenceView, NflConfidenceCommissionerPanel } from "@/components/NflConfidenceView";
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
 import { NflConfidenceLeaderboard } from "@/components/NflConfidenceLeaderboard";
 import { NflConfidenceStats } from "@/components/NflConfidenceStats";
@@ -309,7 +309,13 @@ export default function PoolHome() {
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
-                      <CommissionerPanel poolId={pool.id} />
+                      <NflConfidenceCommissionerPanel
+                        poolId={pool.id}
+                        inviteCode={pool.inviteCode ?? null}
+                        poolName={pool.name}
+                        poolDescription={(pool as any).description ?? null}
+                        currentWeek={pool.currentWeek}
+                      />
                     </TabsContent>
                   )}
                 </div>
