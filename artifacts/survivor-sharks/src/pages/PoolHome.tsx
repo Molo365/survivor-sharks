@@ -23,6 +23,10 @@ import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
 import { CrazyEightsStats } from "@/components/CrazyEightsStats";
+import { NflConfidenceView } from "@/components/NflConfidenceView";
+import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
+import { NflConfidenceLeaderboard } from "@/components/NflConfidenceLeaderboard";
+import { NflConfidenceStats } from "@/components/NflConfidenceStats";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -37,6 +41,7 @@ export default function PoolHome() {
   const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
+  const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -137,6 +142,11 @@ export default function PoolHome() {
                   {isCrazyEights && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
                       <Dice5 className="w-3 h-3" /> Crazy 8's
+                    </span>
+                  )}
+                  {isNflConfidence && (
+                    <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
+                      <Zap className="w-3 h-3" /> Confidence Picks
                     </span>
                   )}
                   <span>Season {pool.season}</span>
@@ -250,6 +260,52 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                     <CrazyEightsStats poolId={pool.id} />
+                  </TabsContent>
+                  {isCommissioner && (
+                    <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
+                      <CommissionerPanel poolId={pool.id} />
+                    </TabsContent>
+                  )}
+                </div>
+              </Tabs>
+            ) : isNflConfidence ? (
+              <Tabs defaultValue="picks" className="w-full">
+                <div className="relative">
+                  <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
+                        <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
+                      </TabsTrigger>
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                        <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+                      </TabsTrigger>
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Weekly Grid
+                      </TabsTrigger>
+                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Stats
+                      </TabsTrigger>
+                      {isCommissioner && (
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                          <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                  </div>
+                  <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+                </div>
+                <div className="mt-8">
+                  <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceView poolId={pool.id} currentWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceLeaderboard poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceGrid poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceStats poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
