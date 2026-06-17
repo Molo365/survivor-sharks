@@ -93,8 +93,8 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
 
   function teamSide(team: TeamShape, side: "away" | "home", score: number | null) {
     const isPicked = pick.pickedTeamId === team.id;
-    const isCorrect = isPicked && pick.result === "win";
-    const isWrong = isPicked && pick.result === "loss";
+    const isCorrect = isPicked && pick.result === "correct";
+    const isWrong = isPicked && pick.result === "incorrect";
     const isHome = side === "home";
 
     const logo = (
@@ -176,8 +176,8 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
       {/* Confidence badge */}
       <div className={cn(
         "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
-        pick.result === "win"  ? "bg-green-500/15 border-green-500/40 text-green-300" :
-        pick.result === "loss" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
+        pick.result === "correct"   ? "bg-green-500/15 border-green-500/40 text-green-300" :
+        pick.result === "incorrect" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
                                  "bg-purple-500/15 border-purple-500/40 text-purple-300",
       )}>
         {pick.confidencePoints ?? "—"}
