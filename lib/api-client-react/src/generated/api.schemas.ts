@@ -689,6 +689,7 @@ export const PickEmGameStatus = {
   in_progress: 'in_progress',
   final: 'final',
   postponed: 'postponed',
+  suspended: 'suspended',
 } as const;
 
 /**
@@ -803,6 +804,7 @@ export const WcScheduleGameStatus = {
   in_progress: 'in_progress',
   final: 'final',
   postponed: 'postponed',
+  suspended: 'suspended',
 } as const;
 
 /**

@@ -890,7 +890,7 @@ export const GetPickEmGamesResponse = zod.object({
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
-  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed']),
+  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed', 'suspended']),
   "deadlinePassed": zod.boolean(),
   "awayTeam": zod.object({
   "id": zod.string(),
@@ -952,7 +952,7 @@ export const GetWcScheduleResponse = zod.object({
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
-  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed']),
+  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed', 'suspended']),
   "deadlinePassed": zod.boolean(),
   "isPickable": zod.boolean().describe('True when the game is within the 24-hour pick window and has not yet started'),
   "group": zod.string().nullish().describe('Group label e.g. \'Group A\''),

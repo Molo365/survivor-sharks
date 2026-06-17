@@ -2391,7 +2391,7 @@ components:
           type: string
         status:
           type: string
-          enum: [scheduled, in_progress, final, postponed]
+          enum: [scheduled, in_progress, final, postponed, suspended]
         deadlinePassed:
           type: boolean
         awayTeam:
@@ -2496,7 +2496,7 @@ components:
           type: string
         status:
           type: string
-          enum: [scheduled, in_progress, final, postponed]
+          enum: [scheduled, in_progress, final, postponed, suspended]
         deadlinePassed:
           type: boolean
         isPickable:

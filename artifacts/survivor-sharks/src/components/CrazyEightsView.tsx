@@ -331,6 +331,7 @@ function GameCard({
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
   const isPostponed = game.status === "postponed";
+  const isSuspended = game.status === "suspended";
 
   const awayPitcher = pitcherLine(game.awayPitcher);
   const homePitcher = pitcherLine(game.homePitcher);
@@ -396,6 +397,10 @@ function GameCard({
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
                 Final
               </span>
+            ) : isSuspended ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-orange-500/20 text-orange-400 border-orange-500/40 leading-none">
+                SUSP
+              </span>
             ) : isPostponed ? (
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
                 PPD
@@ -443,9 +448,39 @@ function GameCard({
         </div>
       </button>
 
-      {/* Expanded section — winner pick + confidence — only when selected */}
+      {/* Expanded section — confidence + winner pick — only when selected */}
       {isSelected && (
         <div className="px-3 pb-3 md:px-5 md:pb-5 space-y-2.5 border-t border-purple-500/20 pt-2.5">
+          {/* Confidence points — shown first so they're immediately visible */}
+          <div>
+            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
+              Confidence points
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
+                const taken = usedPoints.has(pts) && confidence !== pts;
+                return (
+                  <button
+                    key={pts}
+                    type="button"
+                    disabled={isLocked || taken}
+                    onClick={() => onAssignConfidence(pts)}
+                    className={cn(
+                      "w-8 h-8 md:w-10 md:h-10 rounded-md text-sm md:text-base font-bold border-2 transition-all",
+                      confidence === pts
+                        ? "bg-purple-500 border-purple-400 text-white"
+                        : taken
+                          ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
+                          : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
+                    )}
+                  >
+                    {pts}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Pick the winner */}
           <div>
             <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
@@ -481,36 +516,6 @@ function GameCard({
                       {team.name}
                     </span>
                     {isPicked && <Check className="w-3.5 h-3.5 text-purple-400 ml-auto shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Confidence points */}
-          <div>
-            <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
-              Confidence points
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
-                const taken = usedPoints.has(pts) && confidence !== pts;
-                return (
-                  <button
-                    key={pts}
-                    type="button"
-                    disabled={isLocked || taken}
-                    onClick={() => onAssignConfidence(pts)}
-                    className={cn(
-                      "w-8 h-8 md:w-10 md:h-10 rounded-md text-sm md:text-base font-bold border-2 transition-all",
-                      confidence === pts
-                        ? "bg-purple-500 border-purple-400 text-white"
-                        : taken
-                          ? "border-border/30 text-muted-foreground/30 cursor-not-allowed"
-                          : "border-border/50 text-muted-foreground hover:border-purple-500/50 hover:text-purple-400",
-                    )}
-                  >
-                    {pts}
                   </button>
                 );
               })}
