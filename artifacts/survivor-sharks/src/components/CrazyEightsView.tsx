@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Lock, Dice5, AlertCircle, Trophy, Check, X } from "lucide-react";
+import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock } from "lucide-react";
 
 const MAX_PICKS = 8;
 
@@ -80,132 +80,155 @@ function authedFetch<T>(url: string): Promise<T> {
 function LockedPickRow({ pick }: { pick: SubmittedPick }) {
   const isFinal = pick.status === "final";
   const isLive = pick.status === "in_progress";
-  const isPending = !isFinal && !isLive;
-  const isWin = pick.result === "win";
-  const isLoss = pick.result === "loss";
-  const pickedIsAway = pick.pickedTeamId === pick.awayTeam.id;
-  const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
-  const pickedTeam = pickedIsAway ? pick.awayTeam : pick.homeTeam;
-  const otherTeam = pickedIsAway ? pick.homeTeam : pick.awayTeam;
-  const pickedScore = pickedIsAway ? pick.awayScore : pick.homeScore;
-  const otherScore = pickedIsAway ? pick.homeScore : pick.awayScore;
+  const isPostponed = pick.status === "postponed";
+
+  type TeamShape = SubmittedPick["homeTeam"];
+
+  function teamSide(team: TeamShape, side: "away" | "home", score: number | null) {
+    const isPicked = pick.pickedTeamId === team.id;
+    const isCorrect = isPicked && pick.result === "win";
+    const isWrong = isPicked && pick.result === "loss";
+    const isHome = side === "home";
+
+    const logo = (
+      <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+        <img
+          src={teamLogoSrc(team)}
+          alt={team.name}
+          className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      </div>
+    );
+
+    const info = (
+      <div className={cn(
+        "flex-1 flex flex-col gap-0.5 min-w-0",
+        isHome ? "items-end text-right" : "items-start text-left",
+      )}>
+        <span className={cn(
+          "font-bebas tracking-wide text-base sm:text-lg leading-tight",
+          isPicked ? "text-foreground" : "text-muted-foreground",
+        )}>
+          {team.name}
+        </span>
+        {(isFinal || isLive) && score != null && (
+          <span className={cn(
+            "font-bebas text-3xl leading-none mt-0.5",
+            isLive
+              ? "text-white"
+              : isPicked && isCorrect
+                ? "text-green-400"
+                : isPicked && isWrong
+                  ? "text-destructive/70"
+                  : "text-foreground/60",
+          )}>
+            {score}
+          </span>
+        )}
+        {isPicked && (
+          <div className="flex items-center gap-1 mt-0.5">
+            {isCorrect ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Correct · My Pick
+              </span>
+            ) : isWrong ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80 flex items-center gap-0.5">
+                <X className="w-3 h-3" /> Wrong · My Pick
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> My Pick
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <div className={cn(
+        "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2",
+        isPicked && !isCorrect && !isWrong
+          ? "border-primary bg-primary/10 ring-2 ring-primary/40"
+          : isPicked && isCorrect
+            ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
+            : isPicked && isWrong
+              ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+              : "border-border/40 bg-card/60",
+        isHome ? "flex-row-reverse" : "flex-row",
+      )}>
+        {logo}
+        {info}
+      </div>
+    );
+  }
 
   return (
-    <div className={cn(
-      "relative rounded-xl border p-3 md:p-4 transition-all overflow-hidden",
-      isWin  ? "border-green-500/40 bg-green-500/8 shadow-[0_0_16px_rgba(34,197,94,0.08)]"  : "",
-      isLoss ? "border-red-500/40   bg-red-500/8   shadow-[0_0_16px_rgba(239,68,68,0.08)]"    : "",
-      isPending && !isLive ? "border-purple-500/25 bg-purple-500/5" : "",
-      isLive  ? "border-yellow-500/30 bg-yellow-500/5" : "",
-    )}>
-      {/* Colored left-edge accent bar */}
+    <div className="flex items-center gap-2 sm:gap-3">
+      {/* Confidence badge */}
       <div className={cn(
-        "absolute left-0 inset-y-0 w-1 rounded-l-xl",
-        isWin ? "bg-green-500/60" : isLoss ? "bg-red-500/60" : isLive ? "bg-yellow-400/50" : "bg-purple-500/30",
-      )} />
+        "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
+        pick.result === "win"  ? "bg-green-500/15 border-green-500/40 text-green-300" :
+        pick.result === "loss" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
+                                 "bg-purple-500/15 border-purple-500/40 text-purple-300",
+      )}>
+        {pick.confidencePoints ?? "—"}
+      </div>
 
-      <div className="flex items-center gap-3 pl-2">
-        {/* Confidence badge */}
-        <div className={cn(
-          "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
-          isWin  ? "bg-green-500/15 border-green-500/40 text-green-300" :
-          isLoss ? "bg-red-500/15   border-red-500/40   text-red-300"   :
-                   "bg-purple-500/15 border-purple-500/40 text-purple-300",
-        )}>
-          {pick.confidencePoints ?? "—"}
-        </div>
+      {/* Game card — mirrors PickEmView GameCard */}
+      <div className={cn(
+        "flex-1 shark-card rounded-xl border overflow-hidden relative",
+        isLive
+          ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]"
+          : "border-border/40",
+      )}>
+        {/* Pulsing live border overlay */}
+        {isLive && (
+          <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
+        )}
+        {/* LIVE badge */}
+        {isLive && (
+          <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
+            <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+            Live
+          </span>
+        )}
 
-        {/* Game matchup */}
-        <div className="flex-1 min-w-0">
-          {/* Picked team — hero row */}
-          <div className="flex items-center gap-2 mb-1">
-            <img
-              src={teamLogoSrc(pickedTeam)}
-              alt={pickedTeam.name}
-              className="w-7 h-7 md:w-8 md:h-8 object-contain shrink-0"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
-            <span className={cn(
-              "font-bebas text-xl md:text-2xl tracking-wide leading-none",
-              isWin ? "text-green-300" : isLoss ? "text-red-300" : "text-purple-200",
-            )}>
-              {pickedTeam.abbreviation}
-            </span>
-            {(isFinal || isLive) && pickedScore != null && (
-              <span className={cn(
-                "font-bebas text-2xl md:text-3xl leading-none",
-                isWin ? "text-green-200" : isLoss ? "text-red-200" : "text-foreground",
-              )}>
-                {pickedScore}
+        <div className="flex items-stretch gap-0">
+          {teamSide(pick.awayTeam, "away", pick.awayScore)}
+
+          {/* Center divider */}
+          <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[48px] sm:px-3 sm:min-w-[64px]">
+            {isLive ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
+                ● LIVE
               </span>
-            )}
-            <span className={cn(
-              "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ml-1",
-              isWin  ? "bg-purple-500/20 text-purple-300" :
-              isLoss ? "bg-purple-500/20 text-purple-300" :
-                       "bg-purple-500/15 text-purple-400",
-            )}>
-              MY PICK
-            </span>
-          </div>
-
-          {/* Opponent team — dimmed secondary row */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground/40 font-semibold uppercase tracking-wider w-7 md:w-8 text-center shrink-0">
-              vs
-            </span>
-            <img
-              src={teamLogoSrc(otherTeam)}
-              alt={otherTeam.name}
-              className="w-4 h-4 object-contain shrink-0 opacity-50"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
-            <span className="font-bebas text-sm md:text-base tracking-wide text-muted-foreground/50 leading-none">
-              {otherTeam.abbreviation}
-            </span>
-            {(isFinal || isLive) && otherScore != null && (
-              <span className="font-bebas text-base md:text-lg text-muted-foreground/50 leading-none">
-                {otherScore}
+            ) : isFinal ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
+                Final
               </span>
+            ) : isPostponed ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
+                PPD
+              </span>
+            ) : (
+              <>
+                <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">
+                  vs
+                </span>
+                <div className="flex items-center gap-0.5 mt-0.5">
+                  <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
+                  <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium whitespace-nowrap">
+                    {formatTimeEt(pick.startTime)}
+                  </span>
+                </div>
+              </>
             )}
           </div>
 
-          {/* Status line */}
-          <p className={cn(
-            "text-[10px] mt-1",
-            isWin ? "text-green-400/70" : isLoss ? "text-red-400/70" : "text-muted-foreground/50",
-          )}>
-            {isFinal ? "Final" : isLive ? "🔴 Live" : pick.startTime ? formatTimeEt(pick.startTime) + " ET" : ""}
-          </p>
+          {teamSide(pick.homeTeam, "home", pick.homeScore)}
         </div>
-
-        {/* CORRECT / WRONG result label */}
-        {isWin && (
-          <div className="shrink-0 flex flex-col items-center gap-1">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-green-500/20 border-2 border-green-500/50 flex items-center justify-center">
-              <Check className="w-5 h-5 text-green-400" strokeWidth={3} />
-            </div>
-            <span className="text-[9px] font-bold tracking-widest text-green-400 uppercase">Correct</span>
-          </div>
-        )}
-        {isLoss && (
-          <div className="shrink-0 flex flex-col items-center gap-1">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center">
-              <X className="w-5 h-5 text-red-400" strokeWidth={3} />
-            </div>
-            <span className="text-[9px] font-bold tracking-widest text-red-400 uppercase">Wrong</span>
-          </div>
-        )}
-        {!isFinal && !isLoss && !isWin && (
-          <div className="shrink-0 flex flex-col items-center gap-1">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-purple-500/10 border-2 border-purple-500/20 flex items-center justify-center">
-              <span className="font-bebas text-purple-400 text-lg leading-none">?</span>
-            </div>
-            <span className="text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
-              {isLive ? "Live" : "Pending"}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
