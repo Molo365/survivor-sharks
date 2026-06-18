@@ -53,11 +53,12 @@ router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireAdmin, async (re
   }
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if ((pool.poolType as string) !== "nfl_confidence") {
-    res.status(400).json({ error: "Sandbox mode is only available for NFL Confidence pools" });
+  const sandboxCapable = ["nfl_confidence", "season", "weekly", "mid_season", "pickem_season", "nfl_division_predictor"];
+  if (!sandboxCapable.includes(pool.poolType as string)) {
+    res.status(400).json({ error: "Sandbox mode is not available for this pool type" });
     return;
   }
-  await db.update(poolsTable).set({ sandboxMode } as any).where(eq(poolsTable.id, poolId));
+  await db.update(poolsTable).set({ sandboxMode }).where(eq(poolsTable.id, poolId));
   res.json({ ok: true, poolId, sandboxMode });
 });
 

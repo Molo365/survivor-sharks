@@ -572,7 +572,7 @@ export function PickEmSeasonView({
     setTogglingMode(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/pools/${poolId}`, {
+      const res = await fetch(`/api/admin/pools/${poolId}/sandbox-mode`, {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sandboxMode: enabled }),
