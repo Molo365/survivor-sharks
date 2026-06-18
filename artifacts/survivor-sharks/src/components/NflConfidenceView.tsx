@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
@@ -518,6 +518,9 @@ export function NflConfidenceCommissionerPanel({
   const [copied, setCopied] = useState(false);
   const [localSandboxMode, setLocalSandboxMode] = useState(sandboxMode);
   const [localSandboxWeek, setLocalSandboxWeek] = useState(initialSandboxWeek);
+
+  useEffect(() => { setLocalSandboxMode(sandboxMode); }, [sandboxMode]);
+  useEffect(() => { setLocalSandboxWeek(initialSandboxWeek); }, [initialSandboxWeek]);
   const [togglingsandbox, setTogglingSandbox] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);

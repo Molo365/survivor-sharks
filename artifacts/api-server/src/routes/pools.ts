@@ -232,6 +232,8 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
+    sandboxMode: (pool as any).sandboxMode ?? false,
+    sandboxWeek: (pool as any).sandboxWeek ?? 1,
     totalMembers: members.length,
     activeCount: members.filter(m => m.status === "alive").length,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
