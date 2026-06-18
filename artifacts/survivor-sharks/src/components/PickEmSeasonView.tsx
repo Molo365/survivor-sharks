@@ -287,33 +287,12 @@ function WeekPicksTable({
               <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40">
                 Player
               </th>
-              {games.map((game) => (
+              {games.map((_, i) => (
                 <th
-                  key={game.id}
-                  className="px-1 py-2 text-center border-b border-border/30 border-r border-border/20 whitespace-nowrap"
+                  key={i}
+                  className="border-b border-border/30 border-r border-border/20"
                   style={{ width: 60 }}
-                >
-                  <div className="flex items-center justify-center gap-0.5">
-                    <img
-                      src={teamLogoUrl(game.awayTeam.id)}
-                      alt={game.awayTeam.abbreviation}
-                      className="w-5 h-5 object-contain"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                    <span className="text-[8px] text-muted-foreground/30 font-bold">@</span>
-                    <img
-                      src={teamLogoUrl(game.homeTeam.id)}
-                      alt={game.homeTeam.abbreviation}
-                      className="w-5 h-5 object-contain"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                  </div>
-                  {game.awayScore != null && game.homeScore != null && (
-                    <div className="text-[9px] text-muted-foreground/35 font-normal mt-0.5">
-                      {game.awayScore}–{game.homeScore}
-                    </div>
-                  )}
-                </th>
+                />
               ))}
               <th className="px-3 py-2 text-right border-b border-border/30 font-bebas text-xs text-muted-foreground/40 whitespace-nowrap">
                 Score

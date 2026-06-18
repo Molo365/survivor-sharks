@@ -387,8 +387,10 @@ router.get("/week-results", requireAuth, async (req, res) => {
   const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
 
-  const [games, allPicks] = await Promise.all([
-    fetchNflGamesByWeek(week),
+  const [rawGames, allPicks] = await Promise.all([
+    pool.sandboxMode
+      ? Promise.resolve(getSandboxGamesForWeek(pool.sandboxWeek ?? week).map(sandboxGameToPickEmShape))
+      : fetchNflGamesByWeek(week).then(gs => gs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())),
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -404,7 +406,21 @@ router.get("/week-results", requireAuth, async (req, res) => {
       .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week))),
   ]);
 
-  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // normalise to a common shape: { id, date, status, awayTeam, homeTeam, awayScore, homeScore }
+  type GameRow = { id: string; date: string; status: string; awayTeam: { id: string; displayName: string; abbreviation: string; logo?: string | null }; homeTeam: { id: string; displayName: string; abbreviation: string; logo?: string | null }; awayScore?: number | null; homeScore?: number | null; homeRecord?: string | null; awayRecord?: string | null; liveState?: { shortDetail: string | null } | null };
+  const games: GameRow[] = pool.sandboxMode
+    ? (rawGames as ReturnType<typeof sandboxGameToPickEmShape>[]).map(g => ({
+        id: g.id,
+        date: g.startTime,
+        status: g.status,
+        awayTeam: { id: g.awayTeam.id, displayName: g.awayTeam.name, abbreviation: g.awayTeam.abbreviation, logo: g.awayTeam.logoUrl },
+        homeTeam: { id: g.homeTeam.id, displayName: g.homeTeam.name, abbreviation: g.homeTeam.abbreviation, logo: g.homeTeam.logoUrl },
+        awayScore: null,
+        homeScore: null,
+        homeRecord: null,
+        awayRecord: null,
+      }))
+    : (rawGames as Awaited<ReturnType<typeof fetchNflGamesByWeek>>);
 
   const picksByUser = new Map<number, { username: string; displayName: string | null; picks: typeof allPicks }>();
   for (const pick of allPicks) {
