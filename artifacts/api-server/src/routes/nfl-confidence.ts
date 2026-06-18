@@ -371,6 +371,28 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
 
   const gameMap = new Map(sandboxGames.map(g => [g.id, g]));
 
+  // Generate random realistic NFL scores for every game in this week.
+  // Scores are ephemeral — not persisted — generated fresh each call.
+  function randomNflScore(): number {
+    const tds = Math.floor(Math.random() * 5) + 1; // 1–5 touchdowns (7 pts each)
+    const fgs = Math.floor(Math.random() * 4);      // 0–3 field goals (3 pts each)
+    const twoPt = Math.random() < 0.25 ? 2 : 0;    // occasional 2-pt conversion
+    return Math.max(10, Math.min(45, tds * 7 + fgs * 3 + twoPt));
+  }
+
+  // Build a winner map keyed by gameId; re-roll until scores differ (no ties)
+  const gameWinners = new Map<string, string>();
+  const gameScores = new Map<string, { homeScore: number; awayScore: number }>();
+  for (const [gameId, game] of gameMap) {
+    let homeScore: number, awayScore: number;
+    do {
+      homeScore = randomNflScore();
+      awayScore = randomNflScore();
+    } while (homeScore === awayScore);
+    gameWinners.set(gameId, homeScore > awayScore ? game.homeTeamId : game.awayTeamId);
+    gameScores.set(gameId, { homeScore, awayScore });
+  }
+
   const pendingPicks = await db
     .select()
     .from(pickemPicksTable)
@@ -384,14 +406,9 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
   const summary: { userId: number; gameId: string; pickedTeamId: string; result: "correct" | "incorrect" }[] = [];
 
   for (const pick of pendingPicks) {
-    const game = gameMap.get(pick.gameId);
-    if (!game) continue;
+    const winnerId = gameWinners.get(pick.gameId);
+    if (!winnerId) continue;
 
-    // Sandbox games have no scores — skip until results are entered manually
-    const homeScore = (game as any).homeScore as number | null | undefined;
-    const awayScore = (game as any).awayScore as number | null | undefined;
-    if (homeScore == null || awayScore == null) continue;
-    const winnerId = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     const result: "correct" | "incorrect" = pick.pickedTeamId === winnerId ? "correct" : "incorrect";
 
     await db
