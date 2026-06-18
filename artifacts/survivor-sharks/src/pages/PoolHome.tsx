@@ -27,6 +27,10 @@ import { NflConfidenceView, NflConfidenceCommissionerPanel } from "@/components/
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
 import { NflConfidenceLeaderboard } from "@/components/NflConfidenceLeaderboard";
 import { NflConfidenceStats } from "@/components/NflConfidenceStats";
+import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel } from "@/components/NflConfidenceWeeklyView";
+import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
+import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
+import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -42,6 +46,7 @@ export default function PoolHome() {
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
+  const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -146,7 +151,17 @@ export default function PoolHome() {
                   )}
                   {isNflConfidence && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
-                      <Zap className="w-3 h-3" /> Confidence Picks
+                      <Zap className="w-3 h-3" /> Confidence — Season
+                    </span>
+                  )}
+                  {isNflConfidenceWeekly && (
+                    <span className="flex items-center gap-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-1 rounded">
+                      <Zap className="w-3 h-3" /> Confidence — Weekly
+                    </span>
+                  )}
+                  {isNflConfidenceWeekly && (pool as any).sandboxMode && (
+                    <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
+                      <Zap className="w-2.5 h-2.5" /> Sandbox
                     </span>
                   )}
                   {isNflConfidence && (pool as any).sandboxMode && (
@@ -284,6 +299,61 @@ export default function PoolHome() {
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
                       <CommissionerPanel poolId={pool.id} isSuperAdmin={user?.role === "admin"} />
+                    </TabsContent>
+                  )}
+                </div>
+              </Tabs>
+            ) : isNflConfidenceWeekly ? (
+              <Tabs defaultValue="picks" className="w-full">
+                <div className="relative">
+                  <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400 flex gap-2">
+                        <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
+                      </TabsTrigger>
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                        <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+                      </TabsTrigger>
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Weekly Grid
+                      </TabsTrigger>
+                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        Stats
+                      </TabsTrigger>
+                      {isCommissioner && (
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                          <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                  </div>
+                  <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+                </div>
+                <div className="mt-8">
+                  <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceWeeklyView poolId={pool.id} currentWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceWeeklyLeaderboard poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceWeeklyGrid poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceWeeklyStats poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  {isCommissioner && (
+                    <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
+                      <NflConfidenceWeeklyCommissionerPanel
+                        poolId={pool.id}
+                        inviteCode={pool.inviteCode ?? null}
+                        poolName={pool.name}
+                        poolDescription={(pool as any).description ?? null}
+                        currentWeek={pool.currentWeek}
+                        sandboxMode={(pool as any).sandboxMode ?? false}
+                        sandboxWeek={(pool as any).sandboxWeek ?? 1}
+                        isSuperAdmin={user?.role === "admin"}
+                      />
                     </TabsContent>
                   )}
                 </div>

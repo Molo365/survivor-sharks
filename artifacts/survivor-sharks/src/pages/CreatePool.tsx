@@ -61,7 +61,7 @@ const SPORTS = [
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
-  [PoolInputSport.nfl]: ["season", "mid_season", "pickem_season", "nfl_division_predictor", "nfl_confidence"],
+  [PoolInputSport.nfl]: ["season", "mid_season", "pickem_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
@@ -152,11 +152,23 @@ const POOL_TYPES = [
   },
   {
     id: "nfl_confidence" as const,
-    label: "Confidence Picks",
+    label: "Confidence Picks — Season",
     icon: Zap,
-    tagline: "Pick Every Game. Back Your Calls.",
+    tagline: "18 Weeks. Points Stack. Season Champion.",
     description:
-      "Pick all 16 NFL games. Assign confidence points 1–16. Highest total wins.",
+      "Pick every game every week. Assign confidence points 1–N. Points accumulate all 18 weeks. Season champion wins the pot.",
+    badge: "NFL",
+    badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    cardClass:
+      "border-purple-500/60 bg-[linear-gradient(145deg,rgba(168,85,247,0.08)_0%,transparent_100%)]",
+  },
+  {
+    id: "nfl_confidence_weekly" as const,
+    label: "Confidence Picks — Weekly",
+    icon: Zap,
+    tagline: "Pick Every Game. Win The Week.",
+    description:
+      "Pick every game on the weekly NFL slate. Assign confidence points 1–N. Highest weekly total wins. Fresh start every week.",
     badge: "NFL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
@@ -173,7 +185,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   sandboxMode: z.boolean().default(false),
@@ -217,7 +229,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "pickem_season" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -233,12 +245,8 @@ export default function CreatePool() {
 
   // Ensure prize slots match the pool type's fixed structure
   useEffect(() => {
-    if (selectedType === "nfl_confidence") {
-      setPrizes(p => {
-        const weekly = p[0] ?? { amount: "" };
-        const season = p[1] ?? { amount: "" };
-        return [weekly, season];
-      });
+    if (selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly") {
+      setPrizes(p => [p[0] ?? { amount: "" }]);
     } else {
       setPrizes(p => (p.length === 2 && p[1].amount === "" ? [p[0] ?? { amount: "" }] : p));
     }
@@ -290,7 +298,7 @@ export default function CreatePool() {
           ...values,
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
-          ...(values.poolType === "nfl_confidence" && { sandboxMode: values.sandboxMode }),
+          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly") && { sandboxMode: values.sandboxMode }),
         } as any,
       },
       {
@@ -597,7 +605,7 @@ export default function CreatePool() {
               )}
 
               {/* ── Sandbox Mode — NFL Confidence only ── */}
-              {selectedType === "nfl_confidence" && (
+              {(selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly") && (
                 <FormField
                   control={form.control}
                   name="sandboxMode"
@@ -719,49 +727,38 @@ export default function CreatePool() {
                 </div>
 
                 {/* ── Prize structure ── */}
-                {selectedType === "nfl_confidence" ? (
+                {selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" ? (
                   <div className="space-y-3">
                     <div>
                       <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Set prizes for weekly and season winners (display only)</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {selectedType === "nfl_confidence_weekly"
+                          ? "Set a prize for each weekly winner (display only)"
+                          : "Set a prize for the season champion (display only)"}
+                      </p>
                     </div>
-                    <div className="space-y-4">
-                      {/* Weekly Prize — prizes[0] */}
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground">Weekly Prize ($)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="e.g. 100"
-                            value={prizes[0]?.amount ?? ""}
-                            onChange={(e) => updatePrize(0, e.target.value)}
-                            data-testid="input-prize-weekly"
-                            className="pl-7 bg-background/50 border-primary/20"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Paid to the weekly winner each week</p>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">
+                        {selectedType === "nfl_confidence_weekly" ? "Weekly Prize ($)" : "Season Prize ($)"}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder={selectedType === "nfl_confidence_weekly" ? "e.g. 100" : "e.g. 500"}
+                          value={prizes[0]?.amount ?? ""}
+                          onChange={(e) => updatePrize(0, e.target.value)}
+                          data-testid="input-prize-confidence"
+                          className="pl-7 bg-background/50 border-primary/20"
+                        />
                       </div>
-                      {/* Season Prize — prizes[1] */}
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground">Season Prize ($)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="e.g. 500"
-                            value={prizes[1]?.amount ?? ""}
-                            onChange={(e) => updatePrize(1, e.target.value)}
-                            data-testid="input-prize-season"
-                            className="pl-7 bg-background/50 border-primary/20"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Paid to the season champion after Week 18</p>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedType === "nfl_confidence_weekly"
+                          ? "Paid to the highest weekly scorer each week"
+                          : "Paid to the season champion after Week 18"}
+                      </p>
                     </div>
                     {totalPrize > 0 && (
                       <p className="text-xs text-muted-foreground">

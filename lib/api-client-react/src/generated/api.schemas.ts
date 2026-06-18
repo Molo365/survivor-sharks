@@ -89,6 +89,7 @@ export const PoolInputPoolType = {
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
+  nfl_confidence_weekly: 'nfl_confidence_weekly',
 } as const;
 
 /**
@@ -136,6 +137,7 @@ export const PoolUpdatePoolType = {
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
+  nfl_confidence_weekly: 'nfl_confidence_weekly',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -206,6 +208,7 @@ export const PoolPoolType = {
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
+  nfl_confidence_weekly: 'nfl_confidence_weekly',
 } as const;
 
 /**
@@ -263,6 +266,7 @@ export const PoolDetailPoolType = {
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
+  nfl_confidence_weekly: 'nfl_confidence_weekly',
 } as const;
 
 /**

@@ -1,0 +1,42 @@
+IMPORTANT: The core logic for NFL Confidence Picks already exists in artifacts/api-server/src/routes/nfl-confidence.ts and the four components NflConfidenceView.tsx, NflConfidenceLeaderboard.tsx, NflConfidenceGrid.tsx, and NflConfidenceStats.tsx. Copy and adapt these existing files — do not rewrite from scratch.
+Add a new pool type called nfl_confidence_weekly to the system. This is identical to nfl_confidence but resets every week — each week stands alone with its own winner, no season accumulation.
+Step 1 — Register the new pool type
+Add nfl_confidence_weekly to:
+
+poolTypeEnum in lib/db/src/schema/pools.ts
+All 4 enum locations in lib/api-spec/openapi.yaml
+Generated files lib/api-client-react/src/generated/api.schemas.ts and lib/api-zod/src/generated/api.ts
+
+Run after schema change:
+pnpm --filter @workspace/db run push-force
+Step 2 — Create Pool UI
+In artifacts/survivor-sharks/src/pages/CreatePool.tsx, add a new card under NFL:
+
+Label: Confidence Picks — Weekly
+Badge: NFL (purple)
+Subtitle: PICK EVERY GAME. WIN THE WEEK.
+Description: Pick every game on the weekly NFL slate. Assign confidence points 1–N. Highest weekly total wins. Fresh start every week.
+Single prize field: Weekly Prize ($)
+Use same purple/lightning bolt styling as nfl_confidence
+
+Rename the existing nfl_confidence card to Confidence Picks — Season with description: Pick every game every week. Points accumulate all 18 weeks. Season champion wins the pot. Single prize field: Season Prize ($). Remove the dual prize fields from nfl_confidence — it now has one prize only.
+Step 3 — Backend routes
+Create artifacts/api-server/src/routes/nfl-confidence-weekly.ts by copying nfl-confidence.ts with these differences:
+
+Pool type check uses nfl_confidence_weekly
+Leaderboard endpoint returns current week scores only — no season accumulation
+Tiebreaker actuals stored per week only, no season results table needed
+Simulate grading works identically — random scores, TB1/TB2 tiebreaker resolution, current week only
+After each week is graded, picks reset for the next week — existing picks marked as archived, new week begins fresh
+
+Register the new routes in the main router following the same pattern as nfl-confidence.
+Step 4 — Frontend components
+Copy the four existing NFL Confidence components and adapt for weekly reset:
+
+NflConfidenceWeeklyView.tsx — from NflConfidenceView.tsx, remove season total references, leaderboard shows this week only
+NflConfidenceWeeklyLeaderboard.tsx — from NflConfidenceLeaderboard.tsx, weekly standings only, no W1/W2/TOTAL grid
+NflConfidenceWeeklyGrid.tsx — from NflConfidenceGrid.tsx, current week only
+NflConfidenceWeeklyStats.tsx — from NflConfidenceStats.tsx, weekly stats only
+
+In PoolHome.tsx, add routing for nfl_confidence_weekly to render NflConfidenceWeeklyView.tsx, with a "Confidence Picks — Weekly" badge chip in teal/cyan color to distinguish it from the season version.
+Push to GitHub when done.
