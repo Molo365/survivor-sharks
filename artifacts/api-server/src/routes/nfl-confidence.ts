@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, entriesTable, usersTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
@@ -420,12 +420,25 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     graded++;
   }
 
-  req.log.info({ poolId, week, graded }, "NFL Confidence sandbox grading complete");
-  res.json({ ok: true, week, graded, summary });
+  // Generate actual tiebreaker values and persist them so the leaderboard
+  // always resolves ties against the same numbers.
+  const actualPassingYards = Math.floor(Math.random() * (650 - 400 + 1)) + 400;
+  const actualRushingYards = Math.floor(Math.random() * (200 - 80 + 1)) + 80;
+
+  await db
+    .insert(nflConfidenceResultsTable)
+    .values({ poolId, week, actualPassingYards, actualRushingYards })
+    .onConflictDoUpdate({
+      target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
+      set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
+    });
+
+  req.log.info({ poolId, week, graded, actualPassingYards, actualRushingYards }, "NFL Confidence sandbox grading complete");
+  res.json({ ok: true, week, graded, summary, actualPassingYards, actualRushingYards });
 });
 
 // GET /api/pools/:poolId/nfl-confidence/leaderboard?week=W
-// Returns ranked leaderboard for the given week
+// Returns ranked leaderboard with tiebreaker resolution for the given week
 router.get("/leaderboard", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -443,32 +456,141 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const weekParam = req.query.week ? parseInt(String(req.query.week)) : pool.currentWeek;
   const week = isNaN(weekParam) ? pool.currentWeek : weekParam;
 
-  const rows = await db
-    .select({
-      userId: pickemPicksTable.userId,
-      username: usersTable.username,
-      displayName: usersTable.displayName,
-      correctPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
-      totalPicks: sql<string>`COUNT(*)`,
-      gradedPicks: sql<string>`COUNT(*) FILTER (WHERE pickem_picks.result != 'pending')`,
-    })
-    .from(pickemPicksTable)
-    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)))
-    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-    .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+  // Fetch picks rows, actual tiebreaker values, and all member entries in parallel
+  const [rows, [actualResult], memberEntries] = await Promise.all([
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        correctPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+        totalPicks: sql<string>`COUNT(*)`,
+        gradedPicks: sql<string>`COUNT(*) FILTER (WHERE pickem_picks.result != 'pending')`,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)))
+      .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+      .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+    db
+      .select()
+      .from(nflConfidenceResultsTable)
+      .where(and(eq(nflConfidenceResultsTable.poolId, poolId), eq(nflConfidenceResultsTable.week, week)))
+      .limit(1),
+    db
+      .select({
+        userId: entriesTable.userId,
+        tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
+        tiebreakerRushingYards: entriesTable.tiebreakerRushingYards,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId)),
+  ]);
 
-  const players = rows.map((r, i) => ({
-    rank: i + 1,
-    userId: r.userId,
-    username: r.username,
-    displayName: r.displayName ?? null,
-    correctPoints: Number(r.correctPoints),
-    totalPicks: Number(r.totalPicks),
-    gradedPicks: Number(r.gradedPicks),
-  }));
+  const actualPassingYards = actualResult?.actualPassingYards ?? null;
+  const actualRushingYards = actualResult?.actualRushingYards ?? null;
+  const guessMap = new Map(memberEntries.map((e) => [e.userId, e]));
 
-  res.json({ week, players });
+  // Helper: absolute distance; null guess treated as Infinity (loses all ties)
+  function tbDiff(guess: number | null, actual: number | null): number {
+    if (guess == null || actual == null) return Infinity;
+    return Math.abs(guess - actual);
+  }
+
+  // Build base player objects sorted by correctPoints DESC (already ordered by SQL)
+  type BasePlayer = {
+    userId: number; username: string; displayName: string | null;
+    correctPoints: number; totalPicks: number; gradedPicks: number;
+    tbPassingGuess: number | null; tbRushingGuess: number | null;
+  };
+
+  const basePlayers: BasePlayer[] = rows.map((r) => {
+    const guesses = guessMap.get(r.userId);
+    return {
+      userId: r.userId,
+      username: r.username,
+      displayName: r.displayName ?? null,
+      correctPoints: Number(r.correctPoints),
+      totalPicks: Number(r.totalPicks),
+      gradedPicks: Number(r.gradedPicks),
+      tbPassingGuess: guesses?.tiebreakerPassingYards ?? null,
+      tbRushingGuess: guesses?.tiebreakerRushingYards ?? null,
+    };
+  });
+
+  // Group by correctPoints and resolve ties via TB1 → TB2 → potSplit
+  const groups = new Map<number, BasePlayer[]>();
+  for (const p of basePlayers) {
+    if (!groups.has(p.correctPoints)) groups.set(p.correctPoints, []);
+    groups.get(p.correctPoints)!.push(p);
+  }
+
+  const players: Array<{
+    rank: number; userId: number; username: string; displayName: string | null;
+    correctPoints: number; totalPicks: number; gradedPicks: number;
+    tiebreakerPassingYardsGuess: number | null; tiebreakerRushingYardsGuess: number | null;
+    tiebreakerDiff1: number | null; tiebreakerDiff2: number | null;
+    potSplit: boolean;
+  }> = [];
+
+  let currentRank = 1;
+  for (const [, group] of [...groups.entries()].sort((a, b) => b[0] - a[0])) {
+    if (group.length === 1 || actualPassingYards == null) {
+      // Single player, or actuals not available yet — no tiebreaker to apply
+      for (const p of group) {
+        players.push({
+          rank: currentRank,
+          ...p,
+          tiebreakerPassingYardsGuess: p.tbPassingGuess,
+          tiebreakerRushingYardsGuess: p.tbRushingGuess,
+          tiebreakerDiff1: actualPassingYards != null ? tbDiff(p.tbPassingGuess, actualPassingYards) : null,
+          tiebreakerDiff2: actualRushingYards != null ? tbDiff(p.tbRushingGuess, actualRushingYards) : null,
+          potSplit: group.length > 1,
+        });
+      }
+      currentRank += group.length;
+      continue;
+    }
+
+    // Sort within the tied group: TB1 first, TB2 second
+    group.sort((a, b) => {
+      const d1Diff = tbDiff(a.tbPassingGuess, actualPassingYards) - tbDiff(b.tbPassingGuess, actualPassingYards);
+      if (d1Diff !== 0) return d1Diff;
+      return tbDiff(a.tbRushingGuess, actualRushingYards) - tbDiff(b.tbRushingGuess, actualRushingYards);
+    });
+
+    // Assign sub-ranks, flagging groups that remain tied after both tiebreakers
+    let i = 0;
+    while (i < group.length) {
+      const p = group[i];
+      const d1p = tbDiff(p.tbPassingGuess, actualPassingYards);
+      const d2p = tbDiff(p.tbRushingGuess, actualRushingYards);
+      let j = i + 1;
+      while (j < group.length) {
+        const q = group[j];
+        if (tbDiff(q.tbPassingGuess, actualPassingYards) !== d1p ||
+            tbDiff(q.tbRushingGuess, actualRushingYards) !== d2p) break;
+        j++;
+      }
+      const subGroup = group.slice(i, j);
+      const potSplit = subGroup.length > 1;
+      for (const sp of subGroup) {
+        players.push({
+          rank: currentRank + i,
+          ...sp,
+          tiebreakerPassingYardsGuess: sp.tbPassingGuess,
+          tiebreakerRushingYardsGuess: sp.tbRushingGuess,
+          tiebreakerDiff1: isFinite(tbDiff(sp.tbPassingGuess, actualPassingYards)) ? tbDiff(sp.tbPassingGuess, actualPassingYards) : null,
+          tiebreakerDiff2: isFinite(tbDiff(sp.tbRushingGuess, actualRushingYards)) ? tbDiff(sp.tbRushingGuess, actualRushingYards) : null,
+          potSplit,
+        });
+      }
+      i = j;
+    }
+    currentRank += group.length;
+  }
+
+  res.json({ week, players, actualPassingYards, actualRushingYards });
 });
 
 export default router;
