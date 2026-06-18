@@ -42,18 +42,26 @@ router.get("/divisions", requireAuth, async (req, res) => {
     return;
   }
 
-  const existingPicks = await db
-    .select()
-    .from(nflDivisionPredictorPicksTable)
-    .where(and(
-      eq(nflDivisionPredictorPicksTable.poolId, poolId),
-      eq(nflDivisionPredictorPicksTable.userId, userId),
-    ));
+  const [existingPicks, actualResults] = await Promise.all([
+    db
+      .select()
+      .from(nflDivisionPredictorPicksTable)
+      .where(and(
+        eq(nflDivisionPredictorPicksTable.poolId, poolId),
+        eq(nflDivisionPredictorPicksTable.userId, userId),
+      )),
+    db
+      .select()
+      .from(nflDivisionResultsTable)
+      .where(eq(nflDivisionResultsTable.poolId, poolId)),
+  ]);
 
   const picksByDivision = new Map(existingPicks.map((p) => [p.divisionName, p]));
+  const resultsByDivision = new Map(actualResults.map((r) => [r.divisionName, r]));
 
   const divisions = NFL_DIVISIONS.map((div) => {
     const pick = picksByDivision.get(div.name) ?? null;
+    const result = resultsByDivision.get(div.name) ?? null;
     return {
       name: div.name,
       shortName: div.shortName,
@@ -69,6 +77,15 @@ router.get("/divisions", requireAuth, async (req, res) => {
             pos2Team: pick.pos2Team,
             pos3Team: pick.pos3Team,
             pos4Team: pick.pos4Team,
+          }
+        : null,
+      actualResult: result
+        ? {
+            divisionName: result.divisionName,
+            pos1Team: result.pos1Team,
+            pos2Team: result.pos2Team,
+            pos3Team: result.pos3Team,
+            pos4Team: result.pos4Team,
           }
         : null,
     };

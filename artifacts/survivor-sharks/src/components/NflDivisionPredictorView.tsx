@@ -637,6 +637,9 @@ function MyPicksTab({ poolId }: { poolId: number }) {
           const isConfirmed = confirmed.has(div.name);
           const order = orders[div.name] ?? (div.teams.map((t) => t.name) as TeamOrder);
           const teamByName = new Map(div.teams.map((t) => [t.name, t]));
+          const actual = div.actualResult
+            ? [div.actualResult.pos1Team, div.actualResult.pos2Team, div.actualResult.pos3Team, div.actualResult.pos4Team] as [string, string, string, string]
+            : null;
 
           return (
             <div
@@ -666,13 +669,17 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                   const pos = POSITION_STYLES[idx];
                   const isFirst = idx === 0;
                   const isLast = idx === order.length - 1;
+                  const grade = actual ? getPickGrade(teamName, idx, actual) : null;
+                  const pts = grade ? GRADE_PTS[grade] : null;
 
                   return (
                     <div
                       key={teamName}
                       className={cn(
                         "flex items-center gap-2 rounded-lg px-2.5 py-2 border transition-colors",
-                        isConfirmed
+                        grade
+                          ? GRADE_ROW[grade]
+                          : isConfirmed
                           ? "bg-background/50 border-border/30"
                           : "bg-background/30 border-border/20 hover:border-border/50",
                       )}
@@ -695,8 +702,21 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                           <span className="text-[8px] text-muted-foreground font-bold">{team?.abbr?.slice(0, 3)}</span>
                         </div>
                       )}
-                      <span className="flex-1 text-xs font-medium text-foreground truncate leading-tight">{team?.name ?? teamName}</span>
-                      {!isConfirmed && !picksLocked && (
+                      <span className={cn(
+                        "flex-1 text-xs font-medium truncate leading-tight",
+                        grade ? GRADE_NAME[grade] : "text-foreground",
+                      )}>
+                        {team?.name ?? teamName}
+                      </span>
+                      {pts && (
+                        <span className={cn(
+                          "text-[10px] font-bold shrink-0",
+                          grade === "correct" ? "text-green-400" : "text-amber-400",
+                        )}>
+                          {pts}
+                        </span>
+                      )}
+                      {!actual && !isConfirmed && !picksLocked && (
                         <div className="flex flex-col gap-0.5 shrink-0">
                           <button
                             type="button"
