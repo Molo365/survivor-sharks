@@ -1591,7 +1591,14 @@ export const GetNdpDivisionsResponseItem = zod.object({
   "pos2Team": zod.string(),
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
-}).nullable()
+}).nullable(),
+  "actualResult": zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullish()
 })
 export const GetNdpDivisionsResponse = zod.array(GetNdpDivisionsResponseItem)
 
@@ -1689,7 +1696,14 @@ export const GetNdpMemberPicksResponseItem = zod.object({
   "pos2Team": zod.string(),
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
-}).nullable()
+}).nullable(),
+  "actualResult": zod.object({
+  "divisionName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullish()
 })
 export const GetNdpMemberPicksResponse = zod.array(GetNdpMemberPicksResponseItem)
 

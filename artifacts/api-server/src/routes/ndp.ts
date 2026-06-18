@@ -291,18 +291,26 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
     .limit(1);
   if (!requesterEntry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const targetPicks = await db
-    .select()
-    .from(nflDivisionPredictorPicksTable)
-    .where(and(
-      eq(nflDivisionPredictorPicksTable.poolId, poolId),
-      eq(nflDivisionPredictorPicksTable.userId, targetUserId),
-    ));
+  const [targetPicks, actualResults] = await Promise.all([
+    db
+      .select()
+      .from(nflDivisionPredictorPicksTable)
+      .where(and(
+        eq(nflDivisionPredictorPicksTable.poolId, poolId),
+        eq(nflDivisionPredictorPicksTable.userId, targetUserId),
+      )),
+    db
+      .select()
+      .from(nflDivisionResultsTable)
+      .where(eq(nflDivisionResultsTable.poolId, poolId)),
+  ]);
 
   const picksByDivision = new Map(targetPicks.map((p) => [p.divisionName, p]));
+  const resultsByDivision = new Map(actualResults.map((r) => [r.divisionName, r]));
 
   const divisions = NFL_DIVISIONS.map((div) => {
     const pick = picksByDivision.get(div.name) ?? null;
+    const result = resultsByDivision.get(div.name) ?? null;
     return {
       name: div.name,
       shortName: div.shortName,
@@ -318,6 +326,15 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
             pos2Team: pick.pos2Team,
             pos3Team: pick.pos3Team,
             pos4Team: pick.pos4Team,
+          }
+        : null,
+      actualResult: result
+        ? {
+            divisionName: result.divisionName,
+            pos1Team: result.pos1Team,
+            pos2Team: result.pos2Team,
+            pos3Team: result.pos3Team,
+            pos4Team: result.pos4Team,
           }
         : null,
     };

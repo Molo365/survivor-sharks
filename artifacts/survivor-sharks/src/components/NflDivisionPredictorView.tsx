@@ -44,6 +44,32 @@ interface Props {
 
 type TeamOrder = [string, string, string, string];
 
+type PickGrade = "correct" | "partial" | "wrong";
+
+function getPickGrade(teamName: string, idx: number, actual: [string, string, string, string]): PickGrade {
+  if (actual[idx] === teamName) return "correct";
+  if (idx < 2 && actual.indexOf(teamName) >= 0 && actual.indexOf(teamName) < 2) return "partial";
+  return "wrong";
+}
+
+const GRADE_ROW: Record<PickGrade, string> = {
+  correct: "bg-green-500/10 border-green-500/30",
+  partial: "bg-amber-500/10 border-amber-500/30",
+  wrong: "bg-background/30 border-border/10 opacity-60",
+};
+
+const GRADE_NAME: Record<PickGrade, string> = {
+  correct: "text-green-400",
+  partial: "text-amber-400",
+  wrong: "text-muted-foreground",
+};
+
+const GRADE_PTS: Record<PickGrade, string | null> = {
+  correct: "+3",
+  partial: "+1",
+  wrong: null,
+};
+
 const POSITION_STYLES = [
   { label: "1st", bg: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" },
   { label: "2nd", bg: "bg-slate-400/20 text-slate-300 border-slate-400/40" },
@@ -110,6 +136,9 @@ function PlayerPicksModal({
                 const order = div.myPick
                   ? [div.myPick.pos1Team, div.myPick.pos2Team, div.myPick.pos3Team, div.myPick.pos4Team]
                   : null;
+                const actual = div.actualResult
+                  ? [div.actualResult.pos1Team, div.actualResult.pos2Team, div.actualResult.pos3Team, div.actualResult.pos4Team] as [string, string, string, string]
+                  : null;
 
                 return (
                   <div
@@ -129,10 +158,15 @@ function PlayerPicksModal({
                         {order.map((teamName, idx) => {
                           const team = teamByName.get(teamName);
                           const pos = POSITION_STYLES[idx];
+                          const grade = actual ? getPickGrade(teamName, idx, actual) : null;
+                          const pts = grade ? GRADE_PTS[grade] : null;
                           return (
                             <div
                               key={teamName}
-                              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-background/50 border border-border/20"
+                              className={cn(
+                                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 border",
+                                grade ? GRADE_ROW[grade] : "bg-background/50 border-border/20",
+                              )}
                             >
                               <span className={cn(
                                 "text-[10px] font-bold uppercase tracking-wider border rounded-full px-1.5 py-0.5 w-9 text-center shrink-0",
@@ -154,9 +188,20 @@ function PlayerPicksModal({
                                   </span>
                                 </div>
                               )}
-                              <span className="flex-1 text-sm font-medium text-foreground truncate">
+                              <span className={cn(
+                                "flex-1 text-sm font-medium truncate",
+                                grade ? GRADE_NAME[grade] : "text-foreground",
+                              )}>
                                 {team?.name ?? teamName}
                               </span>
+                              {pts && (
+                                <span className={cn(
+                                  "text-[10px] font-bold shrink-0",
+                                  grade === "correct" ? "text-green-400" : "text-amber-400",
+                                )}>
+                                  {pts}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
@@ -736,6 +781,8 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode, sandboxMode = false, isSuperAdmin = false }: Props) {
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+
   return (
     <div className="space-y-6">
       <div>

@@ -1310,23 +1310,24 @@ export interface NdpPick {
   pos4Team: string;
 }
 
-export interface NdpDivisionWithPick {
-  name: string;
-  shortName: string;
-  teams: NdpTeam[];
-  myPick: NdpPick | null;
-}
-
-export interface NdpPicksInput {
-  picks: NdpPick[];
-}
-
 export interface NdpDivisionResult {
   divisionName: string;
   pos1Team: string;
   pos2Team: string;
   pos3Team: string;
   pos4Team: string;
+}
+
+export interface NdpDivisionWithPick {
+  name: string;
+  shortName: string;
+  teams: NdpTeam[];
+  myPick: NdpPick | null;
+  actualResult?: NdpDivisionResult | null;
+}
+
+export interface NdpPicksInput {
+  picks: NdpPick[];
 }
 
 export interface NdpResultsInput {
