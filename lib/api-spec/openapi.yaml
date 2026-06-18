@@ -1691,10 +1691,12 @@ components:
 
     PoolPickEmStat:
       type: object
-      required: [poolId, myStanding]
+      required: [poolId, poolType, myStanding]
       properties:
         poolId:
           type: integer
+        poolType:
+          type: string
         lastWinner:
           type: object
           nullable: true
@@ -1723,6 +1725,18 @@ components:
               type: integer
             hasPicks:
               type: boolean
+            status:
+              type: string
+              nullable: true
+            eliminatedWeek:
+              type: integer
+              nullable: true
+            score:
+              type: integer
+              nullable: true
+            maxScore:
+              type: integer
+              nullable: true
 
     Pool:
       type: object

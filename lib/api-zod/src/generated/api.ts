@@ -81,6 +81,7 @@ export const GetMeResponse = zod.object({
  */
 export const GetPickEmDashboardStatsResponseItem = zod.object({
   "poolId": zod.number(),
+  "poolType": zod.string(),
   "lastWinner": zod.object({
   "userId": zod.number(),
   "username": zod.string(),
@@ -92,7 +93,11 @@ export const GetPickEmDashboardStatsResponseItem = zod.object({
   "rank": zod.number(),
   "correct": zod.number(),
   "picked": zod.number(),
-  "hasPicks": zod.boolean()
+  "hasPicks": zod.boolean(),
+  "status": zod.string().nullish(),
+  "eliminatedWeek": zod.number().nullish(),
+  "score": zod.number().nullish(),
+  "maxScore": zod.number().nullish()
 })
 })
 export const GetPickEmDashboardStatsResponse = zod.array(GetPickEmDashboardStatsResponseItem)

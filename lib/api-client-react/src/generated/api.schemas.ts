@@ -79,7 +79,6 @@ export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputP
 
 
 export const PoolInputPoolType = {
-  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -89,6 +88,7 @@ export const PoolInputPoolType = {
   nfl_division_predictor: 'nfl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
+  nfl_confidence: 'nfl_confidence',
 } as const;
 
 /**
@@ -126,7 +126,6 @@ export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpda
 
 
 export const PoolUpdatePoolType = {
-  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -136,6 +135,7 @@ export const PoolUpdatePoolType = {
   nfl_division_predictor: 'nfl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
+  nfl_confidence: 'nfl_confidence',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -179,10 +179,15 @@ export type PoolPickEmStatMyStanding = {
   correct: number;
   picked: number;
   hasPicks: boolean;
+  status?: string | null;
+  eliminatedWeek?: number | null;
+  score?: number | null;
+  maxScore?: number | null;
 };
 
 export interface PoolPickEmStat {
   poolId: number;
+  poolType: string;
   lastWinner?: PoolPickEmStatLastWinner;
   myStanding: PoolPickEmStatMyStanding;
 }
@@ -191,7 +196,6 @@ export type PoolPoolType = typeof PoolPoolType[keyof typeof PoolPoolType];
 
 
 export const PoolPoolType = {
-  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -201,6 +205,7 @@ export const PoolPoolType = {
   nfl_division_predictor: 'nfl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
+  nfl_confidence: 'nfl_confidence',
 } as const;
 
 /**
@@ -248,7 +253,6 @@ export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDeta
 
 
 export const PoolDetailPoolType = {
-  nfl_confidence: 'nfl_confidence',
   season: 'season',
   weekly: 'weekly',
   mid_season: 'mid_season',
@@ -258,6 +262,7 @@ export const PoolDetailPoolType = {
   nfl_division_predictor: 'nfl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
+  nfl_confidence: 'nfl_confidence',
 } as const;
 
 /**

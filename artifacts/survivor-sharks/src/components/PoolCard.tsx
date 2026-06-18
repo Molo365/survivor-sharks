@@ -15,9 +15,12 @@ interface PoolCardProps {
   pickEmStat?: PoolPickEmStat;
 }
 
+const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
+
 export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const isWeekly = pool.pickFrequency === "weekly";
   const periodLabel = isWeekly ? "this week" : "today";
+  const pt = pool.poolType as string;
 
   return (
     <Link href={`/pools/${pool.id}`} className="block h-full group" data-testid={`card-pool-${pool.id}`}>
@@ -51,6 +54,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
 
           {pickEmStat && (
             <div className="mt-3 space-y-1 border-t border-border/20 pt-3">
+              {/* Last winner — only for MLB / World Cup pickem */}
               {pickEmStat.lastWinner && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span aria-hidden>🏆</span>
@@ -64,23 +68,89 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   <span>{pickEmStat.lastWinner.correct}/{pickEmStat.lastWinner.picked} correct</span>
                 </div>
               )}
-              {pickEmStat.myStanding.hasPicks ? (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span aria-hidden>📊</span>
-                  <span>
-                    You&apos;re{" "}
-                    <span className="text-foreground/70 font-medium">
-                      {ordinal(pickEmStat.myStanding.rank)}
+
+              {/* My standing — pool-type-specific */}
+              {SURVIVOR_TYPES.has(pt) ? (
+                pickEmStat.myStanding.status === "alive" ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>💪</span>
+                    <span className="text-foreground/70 font-medium">You&apos;re alive</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pool.activeCount ?? 0} alive</span>
+                  </div>
+                ) : pickEmStat.myStanding.status === "eliminated" ? (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>💀</span>
+                    <span>
+                      Eliminated{pickEmStat.myStanding.eliminatedWeek
+                        ? ` · week ${pickEmStat.myStanding.eliminatedWeek}`
+                        : ""}
                     </span>
-                  </span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No picks yet {periodLabel}</span>
+                  </div>
+                )
+              ) : pt === "nfl_confidence" ? (
+                pickEmStat.myStanding.hasPicks ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>📊</span>
+                    <span>
+                      You&apos;re{" "}
+                      <span className="text-foreground/70 font-medium">
+                        {ordinal(pickEmStat.myStanding.rank)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pickEmStat.myStanding.score ?? 0} pts</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No picks yet {periodLabel}</span>
+                  </div>
+                )
+              ) : pt === "nfl_division_predictor" ? (
+                pickEmStat.myStanding.hasPicks ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>📊</span>
+                    <span>
+                      You&apos;re{" "}
+                      <span className="text-foreground/70 font-medium">
+                        {ordinal(pickEmStat.myStanding.rank)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pickEmStat.myStanding.score ?? 0}/{pickEmStat.myStanding.maxScore ?? 96} pts</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No picks yet</span>
+                  </div>
+                )
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
-                  <span aria-hidden>⚠️</span>
-                  <span>No picks yet {periodLabel}</span>
-                </div>
+                /* pickem (MLB/WC) and pickem_season — "X/Y correct" style */
+                pickEmStat.myStanding.hasPicks ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>📊</span>
+                    <span>
+                      You&apos;re{" "}
+                      <span className="text-foreground/70 font-medium">
+                        {ordinal(pickEmStat.myStanding.rank)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No picks yet {periodLabel}</span>
+                  </div>
+                )
               )}
             </div>
           )}
