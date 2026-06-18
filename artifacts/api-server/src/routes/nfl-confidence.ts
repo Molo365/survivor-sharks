@@ -615,4 +615,64 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json({ week, players, actualPassingYards, actualRushingYards });
 });
 
+// GET /api/pools/:poolId/nfl-confidence/season-standings
+// Returns per-player, per-week confidence points for the full season grid
+router.get("/season-standings", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  // Graded picks grouped by (userId, week) — one row per player per week
+  const weeklyRows = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      week: pickemPicksTable.week,
+      weekPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(and(eq(pickemPicksTable.poolId, poolId), sql`pickem_picks.result != 'pending'`))
+    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName, pickemPicksTable.week);
+
+  // Aggregate into per-player map
+  type PlayerAgg = {
+    userId: number; username: string; displayName: string | null;
+    weeklyPoints: Record<number, number>; seasonPoints: number;
+  };
+  const playerMap = new Map<number, PlayerAgg>();
+  for (const row of weeklyRows) {
+    if (!playerMap.has(row.userId)) {
+      playerMap.set(row.userId, {
+        userId: row.userId, username: row.username, displayName: row.displayName ?? null,
+        weeklyPoints: {}, seasonPoints: 0,
+      });
+    }
+    const p = playerMap.get(row.userId)!;
+    const pts = Number(row.weekPoints);
+    p.weeklyPoints[row.week] = pts;
+    p.seasonPoints += pts;
+  }
+
+  // Sort by seasonPoints DESC and assign ranks
+  const sorted = [...playerMap.values()].sort((a, b) => b.seasonPoints - a.seasonPoints);
+  let rank = 1;
+  const players = sorted.map((p, i) => {
+    if (i > 0 && p.seasonPoints < sorted[i - 1].seasonPoints) rank = i + 1;
+    return { rank, ...p };
+  });
+
+  res.json({ currentWeek: pool.currentWeek, totalWeeks: 18, players });
+});
+
 export default router;
