@@ -231,6 +231,19 @@ export default function CreatePool() {
     }
   }, [selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ensure prize slots match the pool type's fixed structure
+  useEffect(() => {
+    if (selectedType === "nfl_confidence") {
+      setPrizes(p => {
+        const weekly = p[0] ?? { amount: "" };
+        const season = p[1] ?? { amount: "" };
+        return [weekly, season];
+      });
+    } else {
+      setPrizes(p => (p.length === 2 && p[1].amount === "" ? [p[0] ?? { amount: "" }] : p));
+    }
+  }, [selectedType]);
+
   // Prize structure helpers
   function addPrize() {
     if (prizes.length < 10) setPrizes(p => [...p, { amount: "" }]);
@@ -706,65 +719,118 @@ export default function CreatePool() {
                 </div>
 
                 {/* ── Prize structure ── */}
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
-                  </div>
-                  <div className="space-y-2">
-                    {prizes.map((prize, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
-                          {ORDINALS[i]}
-                        </span>
-                        <div className="relative flex-1">
+                {selectedType === "nfl_confidence" ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Set prizes for weekly and season winners (display only)</p>
+                    </div>
+                    <div className="space-y-4">
+                      {/* Weekly Prize — prizes[0] */}
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground">Weekly Prize ($)</label>
+                        <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            placeholder={i === 0 ? "e.g. 500" : "0.00"}
-                            value={prize.amount}
-                            onChange={(e) => updatePrize(i, e.target.value)}
-                            data-testid={`input-prize-place-${i + 1}`}
+                            placeholder="e.g. 100"
+                            value={prizes[0]?.amount ?? ""}
+                            onChange={(e) => updatePrize(0, e.target.value)}
+                            data-testid="input-prize-weekly"
                             className="pl-7 bg-background/50 border-primary/20"
                           />
                         </div>
-                        {i > 0 ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removePrize(i)}
-                            className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        ) : (
-                          <div className="w-9 shrink-0" />
-                        )}
+                        <p className="text-xs text-muted-foreground">Paid to the weekly winner each week</p>
                       </div>
-                    ))}
+                      {/* Season Prize — prizes[1] */}
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground">Season Prize ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="e.g. 500"
+                            value={prizes[1]?.amount ?? ""}
+                            onChange={(e) => updatePrize(1, e.target.value)}
+                            data-testid="input-prize-season"
+                            className="pl-7 bg-background/50 border-primary/20"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Paid to the season champion after Week 18</p>
+                      </div>
+                    </div>
+                    {totalPrize > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Total prize pot:{" "}
+                        <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
+                      </p>
+                    )}
                   </div>
-                  {prizes.length < 10 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={addPrize}
-                      className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
-                      data-testid="button-add-prize-place"
-                    >
-                      + Add {ORDINALS[prizes.length]} Place Prize
-                    </Button>
-                  )}
-                  {totalPrize > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Total prize pot:{" "}
-                      <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
-                    </p>
-                  )}
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
+                    </div>
+                    <div className="space-y-2">
+                      {prizes.map((prize, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
+                            {ORDINALS[i]}
+                          </span>
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder={i === 0 ? "e.g. 500" : "0.00"}
+                              value={prize.amount}
+                              onChange={(e) => updatePrize(i, e.target.value)}
+                              data-testid={`input-prize-place-${i + 1}`}
+                              className="pl-7 bg-background/50 border-primary/20"
+                            />
+                          </div>
+                          {i > 0 ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removePrize(i)}
+                              className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <div className="w-9 shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {prizes.length < 10 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={addPrize}
+                        className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
+                        data-testid="button-add-prize-place"
+                      >
+                        + Add {ORDINALS[prizes.length]} Place Prize
+                      </Button>
+                    )}
+                    {totalPrize > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Total prize pot:{" "}
+                        <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="pt-6 flex justify-end">
