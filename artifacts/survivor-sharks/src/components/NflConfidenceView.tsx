@@ -510,6 +510,7 @@ export function NflConfidenceCommissionerPanel({
 }: NflConfidenceCommissionerPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const token = localStorage.getItem("auth_token");
   const [name, setName] = useState(poolName);
   const [desc, setDesc] = useState(poolDescription ?? "");
   const [copied, setCopied] = useState(false);
@@ -525,7 +526,7 @@ export function NflConfidenceCommissionerPanel({
       const res = await fetch(`/api/admin/pools/${poolId}/sandbox-mode`, {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sandboxMode: enabled }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
@@ -545,7 +546,7 @@ export function NflConfidenceCommissionerPanel({
       const res = await fetch(`/api/pools/${poolId}/nfl-confidence/sandbox-week`, {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ week: localSandboxWeek }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
@@ -564,7 +565,7 @@ export function NflConfidenceCommissionerPanel({
       const res = await fetch(`/api/pools/${poolId}/nfl-confidence/simulate-grading`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ week: localSandboxWeek }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
