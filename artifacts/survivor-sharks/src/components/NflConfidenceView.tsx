@@ -826,7 +826,7 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     return times.length > 0 ? Math.min(...times) : Infinity;
   }, [games]);
 
-  const isLocked = Date.now() >= firstGameStart;
+  const isLocked = !slate?.sandboxMode && Date.now() >= firstGameStart;
 
   const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
 
