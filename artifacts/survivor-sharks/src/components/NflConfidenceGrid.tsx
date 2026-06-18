@@ -53,15 +53,6 @@ function teamLogoSrc(team: TeamInfo) {
   return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/nfl/500/${team.abbreviation.toLowerCase()}.png`;
 }
 
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(iso));
-}
-
 function authedFetch<T>(url: string): Promise<T> {
   const token = localStorage.getItem("auth_token");
   return fetch(url, {
@@ -71,49 +62,6 @@ function authedFetch<T>(url: string): Promise<T> {
     if (!r.ok) throw new Error("Request failed");
     return r.json() as Promise<T>;
   });
-}
-
-// ── Game column header ────────────────────────────────────────────────────────
-
-function GameHeader({ game }: { game: GameSummary }) {
-  const isFinal = game.status === "final";
-  const isLive = game.status === "in_progress";
-
-  return (
-    <div className="flex flex-col items-center gap-1 px-1 min-w-[76px]">
-      <div className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground/70 leading-none">
-        <img
-          src={teamLogoSrc(game.awayTeam)}
-          alt={game.awayTeam.abbreviation}
-          className="w-4 h-4 object-contain"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-        <span>{game.awayTeam.abbreviation}</span>
-        <span className="text-muted-foreground/40 mx-0.5">@</span>
-        <img
-          src={teamLogoSrc(game.homeTeam)}
-          alt={game.homeTeam.abbreviation}
-          className="w-4 h-4 object-contain"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-        <span>{game.homeTeam.abbreviation}</span>
-      </div>
-      {isFinal ? (
-        <span className="text-[9px] text-muted-foreground/50 font-semibold">
-          Final {game.awayScore}–{game.homeScore}
-        </span>
-      ) : isLive ? (
-        <span className="flex items-center gap-1 text-[9px] font-bold text-red-400">
-          <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
-          LIVE
-        </span>
-      ) : (
-        <span className="text-[9px] text-muted-foreground/50">
-          {game.startTime ? formatTime(game.startTime) : "—"}
-        </span>
-      )}
-    </div>
-  );
 }
 
 // ── Pick cell ─────────────────────────────────────────────────────────────────
@@ -231,21 +179,6 @@ export function NflConfidenceGrid({ poolId, initialWeek }: { poolId: number; ini
       ) : (
         <div className="overflow-x-auto [scrollbar-width:thin] rounded-lg border border-border/40">
           <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border/40 bg-muted/30">
-                <th className="sticky left-0 z-10 bg-muted/60 backdrop-blur-sm text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap min-w-[130px] border-r border-border/40">
-                  Player
-                </th>
-                {displayGames.map((game) => (
-                  <th key={game.id} className="px-0 py-1 border-r border-border/20 last:border-r-0">
-                    <GameHeader game={game} />
-                  </th>
-                ))}
-                <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
-                  Pts
-                </th>
-              </tr>
-            </thead>
             <tbody>
               {(data?.players ?? [])
                 .slice()
