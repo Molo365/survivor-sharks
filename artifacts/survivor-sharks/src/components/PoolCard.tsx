@@ -94,7 +94,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   </div>
                 )
               ) : pt === "nfl_confidence" ? (
-                pickEmStat.myStanding.hasPicks ? (
+                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden>📊</span>
                     <span>
@@ -113,7 +113,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   </div>
                 )
               ) : pt === "nfl_division_predictor" ? (
-                pickEmStat.myStanding.hasPicks ? (
+                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden>📊</span>
                     <span>
@@ -133,7 +133,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : (
                 /* pickem (MLB/WC) and pickem_season — "X/Y correct" style */
-                pickEmStat.myStanding.hasPicks ? (
+                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden>📊</span>
                     <span>
