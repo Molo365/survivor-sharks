@@ -28,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Trophy,
-  Target,
   LayoutGrid,
   ChevronLeft,
   ChevronRight,
@@ -151,8 +150,8 @@ function GameCard({
                 ✗ Wrong
               </span>
             ) : (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
-                <Check className="w-3 h-3" /> Picked
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60 flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> My Pick
               </span>
             )}
           </div>
@@ -257,6 +256,31 @@ function WeekPicksTable({
     return m;
   }, [games]);
 
+  // Derive column game IDs from players' actual picks, not from the games list.
+  // In sandbox mode the pool's sandboxWeek may differ from the week being viewed,
+  // which causes game IDs returned with the schedule to differ from the game IDs
+  // stored in picks — producing all-dashes. Using pick-derived IDs fixes this
+  // because team IDs (used for logos) are stable across weeks.
+  const columnGameIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const p of players) {
+      for (const pick of p.picks) {
+        if (!seen.has(pick.gameId)) {
+          seen.add(pick.gameId);
+          ids.push(pick.gameId);
+        }
+      }
+    }
+    // Fall back to game-list IDs when there are no picks (e.g. grid before anyone submits)
+    if (ids.length === 0) {
+      for (const g of games) {
+        if (!seen.has(g.id)) { seen.add(g.id); ids.push(g.id); }
+      }
+    }
+    return ids;
+  }, [players, games]);
+
   function teamLogoUrl(teamId: string, fallbackName?: string): string {
     const info = teamInfoMap.get(teamId);
     if (info?.logoUrl) return info.logoUrl;
@@ -264,7 +288,7 @@ function WeekPicksTable({
     return `https://a.espncdn.com/i/teamlogos/nfl/500/${abbr.toLowerCase()}.png`;
   }
 
-  const minWidth = Math.max(400, 220 + games.length * 60);
+  const minWidth = Math.max(400, 220 + columnGameIds.length * 60);
 
   if (players.length === 0) {
     return (
@@ -287,9 +311,9 @@ function WeekPicksTable({
               <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40">
                 Player
               </th>
-              {games.map((_, i) => (
+              {columnGameIds.map((id) => (
                 <th
-                  key={i}
+                  key={id}
                   className="border-b border-border/30 border-r border-border/20"
                   style={{ width: 60 }}
                 />
@@ -354,11 +378,11 @@ function WeekPicksTable({
                     </div>
                   </td>
 
-                  {games.map((game) => {
-                    const pick = pickMap.get(game.id);
+                  {columnGameIds.map((gameId) => {
+                    const pick = pickMap.get(gameId);
                     if (!pick) {
                       return (
-                        <td key={game.id} className="px-1 py-2.5 text-center border-r border-border/20" style={{ width: 60 }}>
+                        <td key={gameId} className="px-1 py-2.5 text-center border-r border-border/20" style={{ width: 60 }}>
                           <span className="text-muted-foreground/25 text-xs">—</span>
                         </td>
                       );
@@ -366,7 +390,7 @@ function WeekPicksTable({
                     const isCorrect = pick.result === "correct";
                     const isWrong = pick.result === "incorrect";
                     return (
-                      <td key={game.id} className="px-1 py-2 text-center border-r border-border/20" style={{ width: 60 }}>
+                      <td key={gameId} className="px-1 py-2 text-center border-r border-border/20" style={{ width: 60 }}>
                         <div className="flex items-center justify-center">
                           <div
                             className={cn(
@@ -734,70 +758,69 @@ export function PickEmSeasonView({
         />
       )}
 
-      <div className="space-y-6">
-        {/* ── Week navigator ── */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDisplayWeek((w) => Math.max(1, w - 1))}
-            disabled={displayWeek === 1}
-            className="h-9 w-9 shrink-0"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+      {/* ── Week navigator ── */}
+      <div className="flex items-center gap-2 mb-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDisplayWeek((w) => Math.max(1, w - 1))}
+          disabled={displayWeek === 1}
+          className="h-9 w-9 shrink-0"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
 
-          <div className="flex-1 overflow-x-auto no-scrollbar">
-            <div className="flex gap-1 min-w-max">
-              {Array.from({ length: NFL_TOTAL_WEEKS }, (_, i) => i + 1).map((week) => {
-                const weekScore = myEntry?.weeklyScores?.[String(week)];
-                const isCurrent = week === currentWeek;
-                const isSelected = week === displayWeek;
-                return (
-                  <button
-                    key={week}
-                    onClick={() => setDisplayWeek(week)}
-                    className={cn(
-                      "flex flex-col items-center justify-center w-10 h-12 rounded-lg text-xs font-bold transition-all shrink-0",
-                      isSelected
-                        ? "bg-primary text-primary-foreground shadow-[0_0_12px_rgba(30,144,255,0.4)]"
-                        : isCurrent
-                          ? "bg-primary/20 text-primary border border-primary/30"
-                          : weekScore
-                            ? "bg-card border border-border/50 text-foreground"
-                            : "bg-card/30 border border-border/20 text-muted-foreground/50",
-                    )}
-                  >
-                    <span className="font-bebas text-base leading-none">{week}</span>
-                    {weekScore && (
-                      <span
-                        className={cn(
-                          "text-[9px] leading-none mt-0.5 tabular-nums",
-                          isSelected ? "text-primary-foreground/70" : "text-green-400/80",
-                        )}
-                      >
-                        {weekScore.correct}/{weekScore.total}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="flex-1 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1 min-w-max">
+            {Array.from({ length: NFL_TOTAL_WEEKS }, (_, i) => i + 1).map((week) => {
+              const weekScore = myEntry?.weeklyScores?.[String(week)];
+              const isCurrent = week === currentWeek;
+              const isSelected = week === displayWeek;
+              return (
+                <button
+                  key={week}
+                  onClick={() => setDisplayWeek(week)}
+                  className={cn(
+                    "flex flex-col items-center justify-center w-10 h-12 rounded-lg text-xs font-bold transition-all shrink-0",
+                    isSelected
+                      ? "bg-primary text-primary-foreground shadow-[0_0_12px_rgba(30,144,255,0.4)]"
+                      : isCurrent
+                        ? "bg-primary/20 text-primary border border-primary/30"
+                        : weekScore
+                          ? "bg-card border border-border/50 text-foreground"
+                          : "bg-card/30 border border-border/20 text-muted-foreground/50",
+                  )}
+                >
+                  <span className="font-bebas text-base leading-none">{week}</span>
+                  {weekScore && (
+                    <span
+                      className={cn(
+                        "text-[9px] leading-none mt-0.5 tabular-nums",
+                        isSelected ? "text-primary-foreground/70" : "text-green-400/80",
+                      )}
+                    >
+                      {weekScore.correct}/{weekScore.total}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDisplayWeek((w) => Math.min(NFL_TOTAL_WEEKS, w + 1))}
-            disabled={displayWeek === NFL_TOTAL_WEEKS}
-            className="h-9 w-9 shrink-0"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
         </div>
 
-        {/* ── Tabs ── */}
-        <Tabs defaultValue="picks">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDisplayWeek((w) => Math.min(NFL_TOTAL_WEEKS, w + 1))}
+          disabled={displayWeek === NFL_TOTAL_WEEKS}
+          className="h-9 w-9 shrink-0"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* ── Tabs ── */}
+      <Tabs defaultValue="picks">
           <div className="relative">
             <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
@@ -805,15 +828,7 @@ export function PickEmSeasonView({
                 value="picks"
                 className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
               >
-                <Target className="w-4 h-4 md:w-5 md:h-5" /> Week {displayWeek}
-                {myWeeklyScore != null && (
-                  <Badge
-                    variant="outline"
-                    className="font-mono text-xs ml-1 text-green-400 border-green-500/30"
-                  >
-                    {myWeeklyScore.correct}/{myWeeklyScore.total}
-                  </Badge>
-                )}
+                <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
               </TabsTrigger>
               <TabsTrigger
                 value="leaderboard"
@@ -826,6 +841,12 @@ export function PickEmSeasonView({
                 className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
               >
                 <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Weekly Grid
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2 items-center"
+              >
+                <BarChart3 className="w-4 h-4 md:w-5 md:h-5" /> Stats
               </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
@@ -1090,6 +1111,89 @@ export function PickEmSeasonView({
             </div>
           </TabsContent>
 
+          {/* ─ Stats tab ─ */}
+          <TabsContent value="stats" className="m-0 mt-6 focus-visible:outline-none">
+            {lbLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-border/40 bg-card/60 p-4 flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground/60 font-semibold uppercase tracking-wider">Players</span>
+                    <span className="font-bebas text-3xl text-foreground">{leaderboard?.entries.length ?? 0}</span>
+                  </div>
+                  <div className="rounded-xl border border-border/40 bg-card/60 p-4 flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground/60 font-semibold uppercase tracking-wider">Current Week</span>
+                    <span className="font-bebas text-3xl text-foreground">{displayWeek}</span>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 rounded-xl border border-border/40 bg-card/60 p-4 flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground/60 font-semibold uppercase tracking-wider">Season Leader</span>
+                    <span className="font-bebas text-xl text-foreground truncate">
+                      {leaderboard?.entries[0]
+                        ? (leaderboard.entries[0].displayName || leaderboard.entries[0].username)
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Season standings table */}
+                {(leaderboard?.entries.length ?? 0) > 0 && (
+                  <div className="rounded-xl border border-border/40 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border/30 bg-muted/[0.04]">
+                      <h3 className="font-bebas text-lg tracking-wide text-foreground">Season Standings — Week {displayWeek}</h3>
+                    </div>
+                    <div className="divide-y divide-border/20">
+                      {leaderboard!.entries.slice(0, 10).map((entry) => {
+                        const weekScore = entry.weeklyScores?.[String(displayWeek)];
+                        const seasonCorrect = entry.seasonCorrect ?? 0;
+                        const seasonTotal = entry.seasonTotal ?? 0;
+                        const pct = seasonTotal > 0 ? Math.round((seasonCorrect / seasonTotal) * 100) : null;
+                        const isMe = entry.userId === user?.id;
+                        return (
+                          <div
+                            key={entry.userId}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2.5",
+                              isMe ? "bg-primary/5" : "bg-transparent",
+                            )}
+                          >
+                            <span className={cn(
+                              "font-bebas text-sm w-5 text-center shrink-0",
+                              entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-zinc-300" : entry.rank === 3 ? "text-amber-600" : "text-muted-foreground/40",
+                            )}>
+                              {entry.rank === 1 ? "🥇" : entry.rank}
+                            </span>
+                            <span className={cn("flex-1 font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
+                              {entry.displayName || entry.username}
+                              {isMe && <span className="ml-1.5 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                            </span>
+                            {weekScore != null && (
+                              <span className="text-xs text-muted-foreground/60 tabular-nums shrink-0">
+                                Wk {weekScore.correct}/{weekScore.total}
+                              </span>
+                            )}
+                            <span className="font-bebas text-base text-foreground tabular-nums shrink-0 w-16 text-right">
+                              {seasonCorrect}
+                              <span className="text-muted-foreground/40">/{seasonTotal}</span>
+                              {pct != null && (
+                                <span className="ml-1 text-[10px] text-green-400/70">({pct}%)</span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
           {/* ─ Commissioner tab ─ */}
           {isCommissioner && (
             <TabsContent value="commissioner" className="m-0 mt-6 focus-visible:outline-none">
@@ -1217,7 +1321,6 @@ export function PickEmSeasonView({
             </TabsContent>
           )}
         </Tabs>
-      </div>
     </>
   );
 }
