@@ -456,27 +456,29 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const weekParam = req.query.week ? parseInt(String(req.query.week)) : pool.currentWeek;
   const week = isNaN(weekParam) ? pool.currentWeek : weekParam;
 
-  // Fetch picks rows, actual tiebreaker values, and all member entries in parallel
-  const [rows, [actualResult], memberEntries] = await Promise.all([
+  // Fetch: week picks, actual TB values, member entries (guesses), season totals — all in parallel
+  const [rows, [actualResult], memberEntries, seasonRows] = await Promise.all([
+    // This week's picks per player
     db
       .select({
         userId: pickemPicksTable.userId,
         username: usersTable.username,
         displayName: usersTable.displayName,
-        correctPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+        weekPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
         totalPicks: sql<string>`COUNT(*)`,
         gradedPicks: sql<string>`COUNT(*) FILTER (WHERE pickem_picks.result != 'pending')`,
       })
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
       .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)))
-      .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-      .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+      .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName),
+    // Actual tiebreaker values for this week
     db
       .select()
       .from(nflConfidenceResultsTable)
       .where(and(eq(nflConfidenceResultsTable.poolId, poolId), eq(nflConfidenceResultsTable.week, week)))
       .limit(1),
+    // Member entries (tiebreaker guesses)
     db
       .select({
         userId: entriesTable.userId,
@@ -485,11 +487,21 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       })
       .from(entriesTable)
       .where(eq(entriesTable.poolId, poolId)),
+    // Season cumulative correct points across all graded weeks
+    db
+      .select({
+        userId: pickemPicksTable.userId,
+        seasonPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+      })
+      .from(pickemPicksTable)
+      .where(eq(pickemPicksTable.poolId, poolId))
+      .groupBy(pickemPicksTable.userId),
   ]);
 
   const actualPassingYards = actualResult?.actualPassingYards ?? null;
   const actualRushingYards = actualResult?.actualRushingYards ?? null;
   const guessMap = new Map(memberEntries.map((e) => [e.userId, e]));
+  const seasonMap = new Map(seasonRows.map((r) => [r.userId, Number(r.seasonPoints)]));
 
   // Helper: absolute distance; null guess treated as Infinity (loses all ties)
   function tbDiff(guess: number | null, actual: number | null): number {
@@ -497,10 +509,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     return Math.abs(guess - actual);
   }
 
-  // Build base player objects sorted by correctPoints DESC (already ordered by SQL)
+  // Build base player objects
   type BasePlayer = {
     userId: number; username: string; displayName: string | null;
-    correctPoints: number; totalPicks: number; gradedPicks: number;
+    weekPoints: number; seasonPoints: number; totalPicks: number; gradedPicks: number;
     tbPassingGuess: number | null; tbRushingGuess: number | null;
   };
 
@@ -510,7 +522,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       userId: r.userId,
       username: r.username,
       displayName: r.displayName ?? null,
-      correctPoints: Number(r.correctPoints),
+      weekPoints: Number(r.weekPoints),
+      seasonPoints: seasonMap.get(r.userId) ?? 0,
       totalPicks: Number(r.totalPicks),
       gradedPicks: Number(r.gradedPicks),
       tbPassingGuess: guesses?.tiebreakerPassingYards ?? null,
@@ -518,23 +531,32 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
-  // Group by correctPoints and resolve ties via TB1 → TB2 → potSplit
-  const groups = new Map<number, BasePlayer[]>();
+  // Primary sort: seasonPoints DESC; secondary: weekPoints DESC
+  // Group players that are tied on BOTH to apply TB1 → TB2 → potSplit
+  type TieKey = string; // `${seasonPoints}:${weekPoints}`
+  const groups = new Map<TieKey, BasePlayer[]>();
   for (const p of basePlayers) {
-    if (!groups.has(p.correctPoints)) groups.set(p.correctPoints, []);
-    groups.get(p.correctPoints)!.push(p);
+    const key: TieKey = `${p.seasonPoints}:${p.weekPoints}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
   }
 
   const players: Array<{
     rank: number; userId: number; username: string; displayName: string | null;
-    correctPoints: number; totalPicks: number; gradedPicks: number;
+    weekPoints: number; seasonPoints: number; totalPicks: number; gradedPicks: number;
     tiebreakerPassingYardsGuess: number | null; tiebreakerRushingYardsGuess: number | null;
     tiebreakerDiff1: number | null; tiebreakerDiff2: number | null;
     potSplit: boolean;
   }> = [];
 
   let currentRank = 1;
-  for (const [, group] of [...groups.entries()].sort((a, b) => b[0] - a[0])) {
+  const sortedGroups = [...groups.entries()].sort((a, b) => {
+    const [aSeason, aWeek] = a[0].split(":").map(Number);
+    const [bSeason, bWeek] = b[0].split(":").map(Number);
+    return bSeason - aSeason || bWeek - aWeek;
+  });
+
+  for (const [, group] of sortedGroups) {
     if (group.length === 1 || actualPassingYards == null) {
       // Single player, or actuals not available yet — no tiebreaker to apply
       for (const p of group) {
