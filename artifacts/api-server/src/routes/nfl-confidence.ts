@@ -387,7 +387,11 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     const game = gameMap.get(pick.gameId);
     if (!game) continue;
 
-    const winnerId = game.homeScore > game.awayScore ? game.homeTeamId : game.awayTeamId;
+    // Sandbox games have no scores — skip until results are entered manually
+    const homeScore = (game as any).homeScore as number | null | undefined;
+    const awayScore = (game as any).awayScore as number | null | undefined;
+    if (homeScore == null || awayScore == null) continue;
+    const winnerId = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     const result: "correct" | "incorrect" = pick.pickedTeamId === winnerId ? "correct" : "incorrect";
 
     await db
