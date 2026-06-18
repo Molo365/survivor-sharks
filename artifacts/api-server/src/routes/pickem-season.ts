@@ -4,6 +4,7 @@ import { pickemPicksTable, poolsTable, usersTable, entriesTable } from "@workspa
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek } from "../lib/espn";
+import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -34,19 +35,32 @@ router.get("/games", requireAuth, async (req, res) => {
   const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
 
-  const [games, existingPicks] = await Promise.all([
-    fetchNflGamesByWeek(week),
-    db.select().from(pickemPicksTable).where(
-      and(
-        eq(pickemPicksTable.poolId, poolId),
-        eq(pickemPicksTable.userId, userId),
-        eq(pickemPicksTable.week, week),
-      )
-    ),
-  ]);
-
-  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const existingPicks = await db.select().from(pickemPicksTable).where(
+    and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.userId, userId), eq(pickemPicksTable.week, week))
+  );
   const pickMap = new Map(existingPicks.map(p => [p.gameId, p]));
+
+  // ── Sandbox path ────────────────────────────────────────────────────────────
+  if (pool.sandboxMode) {
+    const sandboxGames = getSandboxGamesForWeek(week);
+    const formattedGames = sandboxGames.map(g => {
+      const shaped = sandboxGameToPickEmShape(g);
+      const existing = pickMap.get(g.id);
+      return {
+        ...shaped,
+        deadlinePassed: false,
+        userPickTeamId: existing?.pickedTeamId ?? null,
+        userPickResult: existing?.result ?? null,
+        homeRecord: null,
+        awayRecord: null,
+      };
+    });
+    res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames });
+    return;
+  }
+
+  const games = await fetchNflGamesByWeek(week);
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const formattedGames = games.map(g => {
     const existing = pickMap.get(g.id);
@@ -115,6 +129,34 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const numWeek = Number(week);
+
+  // ── Sandbox path — skip lock validation ────────────────────────────────────
+  if (pool.sandboxMode) {
+    const sandboxGames = getSandboxGamesForWeek(numWeek);
+    const validGameIds = new Set(sandboxGames.map(g => g.id));
+    const unknownSandboxIds = picks.filter(p => !validGameIds.has(p.gameId)).map(p => p.gameId);
+    if (unknownSandboxIds.length > 0) {
+      res.status(400).json({ error: `Unknown sandbox game IDs: ${unknownSandboxIds.join(", ")}` }); return;
+    }
+    const sandboxGameMap = new Map(sandboxGames.map(g => [g.id, g]));
+    let saved = 0;
+    for (const pick of picks) {
+      const g = sandboxGameMap.get(pick.gameId)!;
+      await db.insert(pickemPicksTable).values({
+        poolId, userId, gameId: pick.gameId,
+        gameDate: g.gameTime.slice(0, 10),
+        week: numWeek, pickedTeamId: pick.pickedTeamId,
+        pickedTeamName: pick.pickedTeamName, result: "pending",
+      }).onConflictDoUpdate({
+        target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+        set: { pickedTeamId: pick.pickedTeamId, pickedTeamName: pick.pickedTeamName, result: "pending", updatedAt: new Date() },
+      });
+      saved++;
+    }
+    res.status(201).json({ saved, skipped: 0 });
+    return;
+  }
+
   const games = await fetchNflGamesByWeek(numWeek);
   const gameMap = new Map(games.map(g => [g.id, g]));
 
@@ -441,6 +483,76 @@ router.get("/week-results", requireAuth, async (req, res) => {
   }));
 
   res.json({ week, games: formattedGames, players: rankedPlayers, winners, hasResults });
+});
+
+// PATCH /api/pools/:poolId/pickem-season/sandbox-week
+router.patch("/sandbox-week", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, parseInt(String(req.body.week)) || 1));
+  await db.update(poolsTable).set({ sandboxWeek: week }).where(eq(poolsTable.id, poolId));
+  res.json({ week });
+});
+
+// POST /api/pools/:poolId/pickem-season/simulate-grading
+router.post("/simulate-grading", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
+  }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const week = pool.sandboxWeek ?? pool.currentWeek;
+  const games = getSandboxGamesForWeek(week);
+
+  // Random NFL-realistic scores (10–45, no ties)
+  const winnerByTeamId = new Map<string, string>();
+  for (const game of games) {
+    let homeScore = 10 + Math.floor(Math.random() * 36);
+    let awayScore = 10 + Math.floor(Math.random() * 36);
+    if (homeScore === awayScore) homeScore += 3;
+    const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
+    winnerByTeamId.set(game.homeTeamId, winner);
+    winnerByTeamId.set(game.awayTeamId, winner);
+  }
+
+  const completedGameIds = Array.from(new Set(games.map(g => g.id)));
+  const pendingPicks = await db.select().from(pickemPicksTable).where(
+    and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.week, week),
+      eq(pickemPicksTable.result, "pending"),
+      inArray(pickemPicksTable.gameId, completedGameIds),
+    )
+  );
+
+  let graded = 0;
+  for (const pick of pendingPicks) {
+    const winner = winnerByTeamId.get(pick.pickedTeamId);
+    if (winner === undefined) continue;
+    const result: "correct" | "incorrect" = pick.pickedTeamId === winner ? "correct" : "incorrect";
+    await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+    graded++;
+  }
+
+  res.json({ graded, week });
 });
 
 export default router;

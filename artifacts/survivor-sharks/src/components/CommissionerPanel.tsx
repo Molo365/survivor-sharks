@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
@@ -19,7 +20,7 @@ interface ProcessDebug {
   forfeits: number[];
 }
 
-export function CommissionerPanel({ poolId }: { poolId: number }) {
+export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: number; isSuperAdmin?: boolean }) {
   const { data: pool, isLoading: loadingPool } = useGetPool(poolId, {
     query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) },
   });
@@ -45,6 +46,8 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
 
   // Sandbox controls state
   const [sandboxWeek, setSandboxWeek] = useState<number>(1);
+  const [localSandboxMode, setLocalSandboxMode] = useState(false);
+  const [togglingMode, setTogglingMode] = useState(false);
   const [loadingWeek, setLoadingWeek] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);
@@ -58,15 +61,38 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
       setDesc(pool.description || "");
       setWeek(pool.currentWeek);
       setProcessingWeek(pool.currentWeek);
-      setSandboxWeek(pool.currentWeek);
+      const sw = (pool as any).sandboxWeek ?? pool.currentWeek;
+      setSandboxWeek(sw);
+      setLocalSandboxMode((pool as any).sandboxMode ?? false);
     }
   }, [pool]);
+
+  const handleToggleSandbox = async (enabled: boolean) => {
+    setTogglingMode(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ sandboxMode: enabled }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      setLocalSandboxMode(enabled);
+      toast({ title: enabled ? "Sandbox enabled" : "Sandbox disabled", description: enabled ? "Picks now use the 2025 NFL schedule." : "Picks now use live schedule." });
+      queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to toggle sandbox", description: (err as Error).message });
+    } finally {
+      setTogglingMode(false);
+    }
+  };
 
   const handleLoadSandboxWeek = async () => {
     setLoadingWeek(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/pools/${poolId}/nfl-confidence/sandbox-week`, {
+      const res = await fetch(`/api/pools/${poolId}/schedule/sandbox-week`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -75,7 +101,6 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       toast({ title: `Week ${sandboxWeek} loaded`, description: "Game slate updated for sandbox week." });
       queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
-      queryClient.invalidateQueries({ queryKey: ["nfl-confidence-games", poolId] });
     } catch (err) {
       toast({ variant: "destructive", title: "Failed to load week", description: (err as Error).message });
     } finally {
@@ -88,7 +113,7 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
     setSimResult(null);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/pools/${poolId}/nfl-confidence/simulate-grading`, {
+      const res = await fetch(`/api/pools/${poolId}/picks/simulate-grading`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -98,7 +123,8 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
       const data = await res.json();
       setSimResult({ week: data.week, graded: data.graded });
       toast({ title: "Grading complete", description: `${data.graded} picks graded for week ${data.week}.` });
-      queryClient.invalidateQueries({ queryKey: ["nfl-confidence-picks", poolId] });
+      queryClient.invalidateQueries({ queryKey: getGetResultsQueryKey(poolId) });
+      queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
     } catch (err) {
       toast({ variant: "destructive", title: "Simulation failed", description: (err as Error).message });
     } finally {
@@ -295,62 +321,71 @@ export function CommissionerPanel({ poolId }: { poolId: number }) {
         </Card>
       </div>
 
-      {/* Sandbox Controls — NFL Confidence pools in sandbox mode only */}
-      {(pool.poolType as string) === "nfl_confidence" && (pool as any).sandboxMode === true && (
+      {/* Sandbox Mode — NFL survivor pools, super admin only */}
+      {pool.sport === "nfl" && ["season", "weekly", "mid_season"].includes(pool.poolType) && isSuperAdmin && (
         <Card className="border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)]">
           <CardHeader>
             <CardTitle className="font-bebas text-2xl tracking-wide text-yellow-400 flex items-center gap-2">
-              <Zap className="w-5 h-5" /> Sandbox Controls
+              <Zap className="w-5 h-5" /> Sandbox Mode
             </CardTitle>
             <CardDescription className="text-muted-foreground/80">
-              Load a week from the 2025 sandbox schedule, then simulate grading against pre-set scores.
+              Use the 2025 NFL schedule for testing — picks are always unlocked in sandbox.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="flex items-end gap-3">
-              <div className="grid gap-2 flex-1 max-w-[160px]">
-                <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">Week (1–18)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={18}
-                  value={sandboxWeek}
-                  onChange={e => setSandboxWeek(Math.min(18, Math.max(1, parseInt(e.target.value) || 1)))}
-                  className="bg-background/50 border-yellow-500/20 w-full"
-                />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-sm text-foreground">Enable Sandbox</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Serve 2025 NFL games instead of live schedule</p>
               </div>
-              <Button
-                onClick={handleLoadSandboxWeek}
-                disabled={loadingWeek}
-                className="h-10 font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black shrink-0"
-              >
-                <Play className="w-4 h-4 mr-1.5" />
-                {loadingWeek ? "Loading…" : "Load Week"}
-              </Button>
+              <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
             </div>
-
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleSimulateGrading}
-                disabled={simulating}
-                variant="outline"
-                className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
-              >
-                <BarChart3 className="w-4 h-4 mr-1.5" />
-                {simulating ? "Grading…" : "Simulate Grading"}
-              </Button>
-              {simResult && (
-                <span className="text-xs text-yellow-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {simResult.graded} picks graded for week {simResult.week}
-                </span>
-              )}
-            </div>
-
-            <p className="text-xs text-muted-foreground/60 leading-relaxed">
-              "Load Week" updates the pool's current week so picks target that week's games.
-              "Simulate Grading" scores all pending picks against the sandbox schedule's final results.
-            </p>
+            {localSandboxMode && (
+              <>
+                <div className="flex items-end gap-3">
+                  <div className="grid gap-2 flex-1 max-w-[160px]">
+                    <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">Week (1–18)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={18}
+                      value={sandboxWeek}
+                      onChange={e => setSandboxWeek(Math.min(18, Math.max(1, parseInt(e.target.value) || 1)))}
+                      className="bg-background/50 border-yellow-500/20 w-full"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleLoadSandboxWeek}
+                    disabled={loadingWeek}
+                    className="h-10 font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black shrink-0"
+                  >
+                    <Play className="w-4 h-4 mr-1.5" />
+                    {loadingWeek ? "Loading…" : "Load Week"}
+                  </Button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handleSimulateGrading}
+                    disabled={simulating}
+                    variant="outline"
+                    className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-1.5" />
+                    {simulating ? "Grading…" : "Simulate Grading"}
+                  </Button>
+                  {simResult && (
+                    <span className="text-xs text-yellow-400 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {simResult.graded} picks graded for week {simResult.week}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground/60 leading-relaxed">
+                  "Load Week" updates the pool's current week so picks target that week's games.
+                  "Simulate Grading" scores all pending picks against the sandbox schedule's final results.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

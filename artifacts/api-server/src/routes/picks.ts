@@ -12,6 +12,7 @@ import {
   fetchGamesForDate,
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
+import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -172,7 +173,8 @@ router.post("/", requireAuth, async (req, res) => {
 
   const existingPick = previousPicks.find(p => p.week === week);
 
-  // ── Lock checks ─────────────────────────────────────────────────────────
+  // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
+  if (!pool.sandboxMode) {
   if (pool.sport === "mlb") {
     // MLB weekly: entire week locks on Monday 10 PM ET
     if (isMlbPickDeadlinePassed(pool.createdAt, pool.currentWeek)) {
@@ -200,6 +202,7 @@ router.post("/", requireAuth, async (req, res) => {
       return;
     }
   }
+  } // end !pool.sandboxMode
 
   // Team re-use rules depend on pool type
   if (pool.poolType !== "weekly") {
@@ -237,6 +240,58 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   res.status(201).json(formatPick(pick, req.user!.username));
+});
+
+// POST /api/pools/:poolId/picks/simulate-grading — sandbox grading for Classic/Weekly Survivor
+router.post("/simulate-grading", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+  if (pool.sport !== "nfl") {
+    res.status(400).json({ error: "Simulate grading is only available for NFL pools" }); return;
+  }
+
+  const week = pool.sandboxWeek ?? pool.currentWeek;
+  const games = getSandboxGamesForWeek(week);
+
+  // Random NFL-realistic scores (10–45, no ties)
+  const winnerByTeamId = new Map<string, string>();
+  for (const game of games) {
+    let homeScore = 10 + Math.floor(Math.random() * 36);
+    let awayScore = 10 + Math.floor(Math.random() * 36);
+    if (homeScore === awayScore) homeScore += 3;
+    const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
+    winnerByTeamId.set(game.homeTeamId, winner);
+    winnerByTeamId.set(game.awayTeamId, winner);
+  }
+
+  const pendingPicks = await db.select().from(picksTable)
+    .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week), eq(picksTable.result, "pending")));
+
+  let graded = 0;
+  const lostEntryIds = new Set<number>();
+
+  for (const pick of pendingPicks) {
+    const winner = winnerByTeamId.get(pick.teamId);
+    if (winner === undefined) continue;
+    const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
+    await db.update(picksTable).set({ result }).where(eq(picksTable.id, pick.id));
+    if (result === "loss") lostEntryIds.add(pick.entryId);
+    graded++;
+  }
+
+  for (const entryId of lostEntryIds) {
+    await db.update(entriesTable).set({ status: "eliminated" }).where(eq(entriesTable.id, entryId));
+  }
+
+  res.json({ graded, week, eliminated: lostEntryIds.size });
 });
 
 export default router;

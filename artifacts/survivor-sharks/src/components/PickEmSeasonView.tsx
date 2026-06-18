@@ -38,7 +38,12 @@ import {
   Check,
   X,
   Copy,
+  Zap,
+  Play,
+  BarChart3,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -48,6 +53,9 @@ interface PickEmSeasonViewProps {
   commissionerId: number;
   currentWeek: number;
   inviteCode: string;
+  sandboxMode?: boolean;
+  sandboxWeek?: number;
+  isSuperAdmin?: boolean;
 }
 
 function formatGameTime(isoString: string): string {
@@ -480,6 +488,9 @@ export function PickEmSeasonView({
   commissionerId,
   currentWeek,
   inviteCode,
+  sandboxMode = false,
+  sandboxWeek: propSandboxWeek,
+  isSuperAdmin = false,
 }: PickEmSeasonViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -548,6 +559,69 @@ export function PickEmSeasonView({
 
   const submitPicks = useSubmitNflPickEmSeasonPicks();
   const processResults = useProcessNflPickEmSeasonResults();
+
+  // Sandbox controls state
+  const [localSandboxMode, setLocalSandboxMode] = useState(sandboxMode);
+  const [localSandboxWeek, setLocalSandboxWeek] = useState(propSandboxWeek ?? currentWeek);
+  const [togglingMode, setTogglingMode] = useState(false);
+  const [sbLoadingWeek, setSbLoadingWeek] = useState(false);
+  const [sbSimulating, setSbSimulating] = useState(false);
+  const [sbSimResult, setSbSimResult] = useState<{ week: number; graded: number } | null>(null);
+
+  const handleToggleSandbox = async (enabled: boolean) => {
+    setTogglingMode(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ sandboxMode: enabled }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      setLocalSandboxMode(enabled);
+      toast({ title: enabled ? "Sandbox enabled" : "Sandbox disabled" });
+      queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId, { week: displayWeek }) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed", description: (err as Error).message });
+    } finally { setTogglingMode(false); }
+  };
+
+  const handleLoadSandboxWeek = async () => {
+    setSbLoadingWeek(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}/pickem-season/sandbox-week`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ week: localSandboxWeek }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast({ title: `Week ${localSandboxWeek} loaded` });
+      queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId, { week: displayWeek }) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to load week", description: (err as Error).message });
+    } finally { setSbLoadingWeek(false); }
+  };
+
+  const handleSimulateGrading = async () => {
+    setSbSimulating(true);
+    setSbSimResult(null);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}/pickem-season/simulate-grading`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data = await res.json();
+      setSbSimResult({ week: data.week, graded: data.graded });
+      toast({ title: "Grading complete", description: `${data.graded} picks graded for week ${data.week}.` });
+      queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId, { week: displayWeek }) });
+      queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonLeaderboardQueryKey(poolId) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Simulation failed", description: (err as Error).message });
+    } finally { setSbSimulating(false); }
+  };
 
   useEffect(() => {
     if (!slate?.games) return;
@@ -1049,6 +1123,61 @@ export function PickEmSeasonView({
                     Grade Week {displayWeek} picks once all games are final.
                   </p>
                 </div>
+
+                {isSuperAdmin && (
+                  <div className="rounded-xl border border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)] p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bebas text-xl tracking-wide text-yellow-400 flex items-center gap-2">
+                          <Zap className="w-4 h-4" /> Sandbox Mode
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">Use 2025 NFL schedule for testing — picks always unlocked</p>
+                      </div>
+                      <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
+                    </div>
+                    {localSandboxMode && (
+                      <>
+                        <div className="flex items-end gap-3">
+                          <div className="grid gap-2 flex-1 max-w-[140px]">
+                            <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">Week (1–18)</Label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={18}
+                              value={localSandboxWeek}
+                              onChange={e => setLocalSandboxWeek(Math.min(18, Math.max(1, parseInt(e.target.value) || 1)))}
+                              className="h-9 w-full rounded-md border border-yellow-500/20 bg-background/50 px-3 text-sm text-foreground"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleLoadSandboxWeek}
+                            disabled={sbLoadingWeek}
+                            className="h-9 font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black shrink-0"
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            {sbLoadingWeek ? "Loading…" : "Load Week"}
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={handleSimulateGrading}
+                            disabled={sbSimulating}
+                            variant="outline"
+                            className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
+                          >
+                            <BarChart3 className="w-4 h-4 mr-1.5" />
+                            {sbSimulating ? "Grading…" : "Simulate Grading"}
+                          </Button>
+                          {sbSimResult && (
+                            <span className="text-xs text-yellow-400 font-semibold">
+                              {sbSimResult.graded} picks graded — week {sbSimResult.week}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <Button
                   onClick={handleProcessResults}

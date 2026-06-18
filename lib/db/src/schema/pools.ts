@@ -26,6 +26,7 @@ export const poolsTable = pgTable("pools", {
   doubleElimination: boolean("double_elimination").notNull().default(false),
   pickFrequency: pickFrequencyEnum("pick_frequency").notNull().default("weekly"),
   sandboxMode: boolean("sandbox_mode").notNull().default(false),
+  sandboxWeek: integer("sandbox_week").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

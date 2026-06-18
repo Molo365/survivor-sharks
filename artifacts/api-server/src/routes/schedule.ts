@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable } from "@workspace/db";
+import { poolsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
@@ -13,6 +13,7 @@ import {
   isDailyPickDeadlinePassed,
   type EspnGame,
 } from "../lib/espn";
+import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -77,6 +78,78 @@ router.get("/", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+
+  // ── NFL Sandbox path ─────────────────────────────────────────────────────
+  if (pool.sport === "nfl" && pool.sandboxMode) {
+    const week = pool.sandboxWeek ?? pool.currentWeek;
+    const sandboxGames = getSandboxGamesForWeek(week);
+    const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
+
+    // Group by date
+    const byDate = new Map<string, typeof sandboxGames>();
+    for (const g of sandboxGames) {
+      const date = g.gameTime.slice(0, 10);
+      if (!byDate.has(date)) byDate.set(date, []);
+      byDate.get(date)!.push(g);
+    }
+    const sortedDates = Array.from(byDate.keys()).sort();
+
+    const days = sortedDates.map(dateStr => {
+      const [yr, mo, dy] = dateStr.split("-").map(Number);
+      const dtForLabel = new Date(Date.UTC(yr, mo - 1, dy, 17, 0, 0));
+      const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" });
+      return {
+        date: dateStr,
+        label: fmt.format(dtForLabel),
+        games: byDate.get(dateStr)!.map(g => {
+          const awayInfo = NFL_TEAM_INFO[g.awayAbbr];
+          const homeInfo = NFL_TEAM_INFO[g.homeAbbr];
+          return {
+            id: g.id,
+            sport: "nfl",
+            awayTeam: { id: g.awayTeamId, name: awayInfo?.displayName ?? g.awayAbbr, abbreviation: g.awayAbbr, sport: "nfl", logoUrl: `${LOGO_BASE}/${g.awayAbbr.toLowerCase()}.png`, location: null, conference: null, division: null, flagUrl: null },
+            homeTeam: { id: g.homeTeamId, name: homeInfo?.displayName ?? g.homeAbbr, abbreviation: g.homeAbbr, sport: "nfl", logoUrl: `${LOGO_BASE}/${g.homeAbbr.toLowerCase()}.png`, location: null, conference: null, division: null, flagUrl: null },
+            startTime: g.gameTime,
+            week,
+            season: pool.season,
+            status: "scheduled",
+            hasStarted: false,
+            homeScore: null,
+            awayScore: null,
+            homeRecord: null,
+            awayRecord: null,
+            odds: null,
+            awayMoneyline: null,
+            homeMoneyline: null,
+            awayPrimaryColor: null,
+            homePrimaryColor: null,
+            awayAlternateColor: null,
+            homeAlternateColor: null,
+            weather: null,
+            liveState: null,
+            awayPitcher: null,
+            homePitcher: null,
+            awayInjuries: [],
+            homeInjuries: [],
+            awayForm: [],
+            homeForm: [],
+          };
+        }),
+      };
+    });
+
+    const farFuture = "2099-01-01T00:00:00.000Z";
+    res.json({
+      weekLabel: `Week ${week} — Sandbox`,
+      weekStart: sortedDates[0] ? `${sortedDates[0]}T00:00:00.000Z` : farFuture,
+      weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
+      deadline: farFuture,
+      deadlinePassed: false,
+      currentWeek: week,
+      days,
+    });
     return;
   }
 
@@ -191,6 +264,24 @@ router.get("/daily", requireAuth, async (req, res) => {
     currentDay: pool.currentWeek,
     games: games.map(g => formatGame(g, pool.sport, pool.currentWeek, pool.season)),
   });
+});
+
+// PATCH /api/pools/:poolId/schedule/sandbox-week — set sandbox week (admin/commissioner only)
+router.patch("/sandbox-week", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const week = Math.max(1, Math.min(18, parseInt(String(req.body.week)) || 1));
+  await db.update(poolsTable).set({ sandboxWeek: week }).where(eq(poolsTable.id, poolId));
+  res.json({ week });
 });
 
 export default router;

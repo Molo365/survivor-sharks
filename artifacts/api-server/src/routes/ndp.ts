@@ -405,4 +405,58 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json(ranked);
 });
 
+// POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random division orderings
+router.post("/simulate-standings", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nfl_division_predictor") {
+    res.status(400).json({ error: "Not an NFL Division Predictor pool" }); return;
+  }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  function shuffle<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  const values = NFL_DIVISIONS.map(div => {
+    const shuffled = shuffle(div.teams.map(t => t.name));
+    return {
+      poolId,
+      divisionName: div.name,
+      pos1Team: shuffled[0],
+      pos2Team: shuffled[1],
+      pos3Team: shuffled[2],
+      pos4Team: shuffled[3],
+      enteredByUserId: userId,
+    };
+  });
+
+  await db.insert(nflDivisionResultsTable).values(values).onConflictDoUpdate({
+    target: [nflDivisionResultsTable.poolId, nflDivisionResultsTable.divisionName],
+    set: {
+      pos1Team: sql`excluded.pos1_team`,
+      pos2Team: sql`excluded.pos2_team`,
+      pos3Team: sql`excluded.pos3_team`,
+      pos4Team: sql`excluded.pos4_team`,
+      enteredAt: sql`now()`,
+      enteredByUserId: userId,
+    },
+  });
+
+  req.log.info({ poolId, divisions: values.length }, "Simulated NDP standings for sandbox");
+  res.json({ simulated: values.length, divisions: values.map(v => ({ divisionName: v.divisionName, pos1Team: v.pos1Team, pos2Team: v.pos2Team, pos3Team: v.pos3Team, pos4Team: v.pos4Team })) });
+});
+
 export default router;

@@ -11,6 +11,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -18,6 +21,8 @@ import {
   ChevronUp,
   ChevronDown,
   CheckCircle2,
+  Zap,
+  BarChart3,
   Circle,
   ListOrdered,
   Send,
@@ -33,6 +38,8 @@ interface Props {
   poolId: number;
   isCommissioner?: boolean;
   inviteCode?: string | null;
+  sandboxMode?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 type TeamOrder = [string, string, string, string];
@@ -318,8 +325,54 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
 
 // ── Commissioner tab ──────────────────────────────────────────────────────────
 
-function CommissionerTab({ inviteCode }: { inviteCode: string }) {
+function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = false, isSuperAdmin = false }: {
+  poolId: number;
+  inviteCode: string;
+  sandboxMode?: boolean;
+  isSuperAdmin?: boolean;
+}) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [localSandboxMode, setLocalSandboxMode] = useState(initSandboxMode);
+  const [togglingMode, setTogglingMode] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [simResult, setSimResult] = useState<{ simulated: number } | null>(null);
+
+  const handleToggleSandbox = async (enabled: boolean) => {
+    setTogglingMode(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ sandboxMode: enabled }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      setLocalSandboxMode(enabled);
+      toast({ title: enabled ? "Sandbox enabled" : "Sandbox disabled" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed", description: (err as Error).message });
+    } finally { setTogglingMode(false); }
+  };
+
+  const handleSimulateStandings = async () => {
+    setSimulating(true);
+    setSimResult(null);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/${poolId}/ndp/simulate-standings`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data = await res.json();
+      setSimResult({ simulated: data.simulated });
+      toast({ title: "Standings simulated", description: `${data.simulated} divisions randomized.` });
+      queryClient.invalidateQueries({ queryKey: ["ndp-leaderboard", poolId] });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Simulation failed", description: (err as Error).message });
+    } finally { setSimulating(false); }
+  };
 
   const copyInvite = () => {
     navigator.clipboard.writeText(inviteCode);
@@ -334,6 +387,38 @@ function CommissionerTab({ inviteCode }: { inviteCode: string }) {
 
   return (
     <div className="pt-4 max-w-xl space-y-6">
+      {isSuperAdmin && (
+        <div className="rounded-xl border border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)] p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-bebas text-xl tracking-wide text-yellow-400 flex items-center gap-2">
+                <Zap className="w-4 h-4" /> Sandbox Mode
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5">Randomly simulate final division standings</p>
+            </div>
+            <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
+          </div>
+          {localSandboxMode && (
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSimulateStandings}
+                disabled={simulating}
+                variant="outline"
+                className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
+              >
+                <BarChart3 className="w-4 h-4 mr-1.5" />
+                {simulating ? "Simulating…" : "Simulate Standings"}
+              </Button>
+              {simResult && (
+                <span className="text-xs text-yellow-400 font-semibold">
+                  {simResult.simulated} divisions randomized
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.08),transparent)] pointer-events-none" />
         <div className="p-6 space-y-4">
@@ -650,7 +735,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
-export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode }: Props) {
+export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode, sandboxMode = false, isSuperAdmin = false }: Props) {
   return (
     <div className="space-y-6">
       <div>
@@ -693,7 +778,7 @@ export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode }:
 
         {isCommissioner && inviteCode && (
           <TabsContent value="commissioner">
-            <CommissionerTab inviteCode={inviteCode} />
+            <CommissionerTab poolId={poolId} inviteCode={inviteCode} sandboxMode={sandboxMode} isSuperAdmin={isSuperAdmin} />
           </TabsContent>
         )}
       </Tabs>
