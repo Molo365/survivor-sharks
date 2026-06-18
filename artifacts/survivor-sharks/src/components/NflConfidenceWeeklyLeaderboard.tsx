@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Trophy } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,8 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const players = data?.players ?? [];
   const isCurrentWeek = week === (initialWeek ?? 1);
   const isGraded = players.some((p) => p.gradedPicks > 0);
+  const isFullyGraded = data?.actualPassingYards != null;
+  const weekWinner = isFullyGraded && players.length > 0 ? players[0] : null;
 
   if (isLoading) {
     return (
@@ -101,6 +103,28 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Winner banner — shown when the week is fully graded */}
+      {weekWinner && (
+        <div className="rounded-lg border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-amber-600/5 px-4 py-3.5 flex items-center gap-3">
+          <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-0.5">
+              🏆 Week {week} Winner
+            </p>
+            <p className="font-bebas text-lg tracking-wide leading-none text-foreground truncate">
+              {weekWinner.displayName ?? weekWinner.username}
+              {weekWinner.potSplit && (
+                <span className="text-muted-foreground/60 text-base ml-1.5 font-sans font-normal">(split pot)</span>
+              )}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="font-bebas text-2xl text-yellow-400 leading-none">{weekWinner.weekPoints}</p>
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts</p>
+          </div>
+        </div>
+      )}
 
       {players.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">

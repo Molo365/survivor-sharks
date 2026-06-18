@@ -174,6 +174,7 @@ export type PoolPickEmStatLastWinner = {
   displayName: string | null;
   correct: number;
   picked: number;
+  score?: number | null;
 } | null;
 
 export type PoolPickEmStatMyStanding = {

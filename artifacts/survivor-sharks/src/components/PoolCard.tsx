@@ -65,7 +65,10 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     </span>
                   </span>
                   <span className="text-muted-foreground/40">·</span>
-                  <span>{pickEmStat.lastWinner.correct}/{pickEmStat.lastWinner.picked} correct</span>
+                  {pickEmStat.lastWinner.score != null
+                    ? <span>{pickEmStat.lastWinner.score} pts</span>
+                    : <span>{pickEmStat.lastWinner.correct}/{pickEmStat.lastWinner.picked} correct</span>
+                  }
                 </div>
               )}
 
@@ -110,6 +113,25 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
                     <span>No picks yet {periodLabel}</span>
+                  </div>
+                )
+              ) : pt === "nfl_confidence_weekly" ? (
+                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>📊</span>
+                    <span>
+                      You&apos;re{" "}
+                      <span className="text-foreground/70 font-medium">
+                        {ordinal(pickEmStat.myStanding.rank)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pickEmStat.myStanding.score ?? 0} pts this week</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No picks yet this week</span>
                   </div>
                 )
               ) : pt === "nfl_division_predictor" ? (

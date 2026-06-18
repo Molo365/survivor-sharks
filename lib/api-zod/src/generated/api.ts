@@ -87,7 +87,8 @@ export const GetPickEmDashboardStatsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string().nullable(),
   "correct": zod.number(),
-  "picked": zod.number()
+  "picked": zod.number(),
+  "score": zod.number().nullish()
 }).nullish(),
   "myStanding": zod.object({
   "rank": zod.number(),

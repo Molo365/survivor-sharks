@@ -1713,6 +1713,9 @@ components:
               type: integer
             picked:
               type: integer
+            score:
+              type: integer
+              nullable: true
         myStanding:
           type: object
           required: [rank, correct, picked, hasPicks]

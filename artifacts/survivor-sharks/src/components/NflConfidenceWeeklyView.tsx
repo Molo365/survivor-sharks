@@ -53,6 +53,23 @@ interface SubmittedPicksResponse {
   tiebreakerGame: TiebreakerGame | null;
 }
 
+interface LeaderboardPlayer {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName: string | null;
+  weekPoints: number;
+  gradedPicks: number;
+  totalPicks: number;
+  potSplit: boolean;
+}
+
+interface WeeklyLeaderboardResponse {
+  week: number;
+  players: LeaderboardPlayer[];
+  actualPassingYards: number | null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function teamLogoSrc(team: { logoUrl?: string | null; abbreviation: string }) {
@@ -786,6 +803,18 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
     enabled: !!user,
   });
 
+  const { data: leaderboardData } = useQuery<WeeklyLeaderboardResponse>({
+    queryKey: ["nfl-confidence-weekly-leaderboard", poolId, currentWeek ?? 1],
+    queryFn: () => authedFetch<WeeklyLeaderboardResponse>(`/api/pools/${poolId}/nfl-confidence-weekly/leaderboard?week=${currentWeek ?? 1}`),
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const leaderboardPlayers = leaderboardData?.players ?? [];
+  const isWeekFullyGraded = leaderboardData?.actualPassingYards != null;
+  const weekWinner = isWeekFullyGraded && leaderboardPlayers.length > 0 ? leaderboardPlayers[0] : null;
+
   const games: PickEmGame[] = slate?.games ?? [];
   const maxConfidence = games.length;
 
@@ -887,11 +916,33 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
 
   if (hasPicks) {
     return (
-      <LockedPicksView
-        picks={myPicksData!.picks}
-        tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
-        tiebreakerRushingYards={myPicksData?.tiebreakerRushingYards ?? null}
-      />
+      <div className="space-y-4">
+        {weekWinner && (
+          <div className="rounded-lg border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-amber-600/5 px-4 py-3.5 flex items-center gap-3">
+            <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-0.5">
+                🏆 Week {currentWeek} Winner
+              </p>
+              <p className="font-bebas text-lg tracking-wide leading-none text-foreground truncate">
+                {weekWinner.displayName ?? weekWinner.username}
+                {weekWinner.potSplit && (
+                  <span className="text-muted-foreground/60 text-base ml-1.5 font-sans font-normal">(split pot)</span>
+                )}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-bebas text-2xl text-yellow-400 leading-none">{weekWinner.weekPoints}</p>
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts</p>
+            </div>
+          </div>
+        )}
+        <LockedPicksView
+          picks={myPicksData!.picks}
+          tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
+          tiebreakerRushingYards={myPicksData?.tiebreakerRushingYards ?? null}
+        />
+      </div>
     );
   }
 

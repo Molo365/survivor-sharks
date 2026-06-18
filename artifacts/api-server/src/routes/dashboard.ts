@@ -53,7 +53,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_division_predictor"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor"];
 
 // GET /api/dashboard/pickem-stats
 router.get("/pickem-stats", requireAuth, async (req, res) => {
@@ -174,6 +174,73 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             hasPicks: !!myRow,
             status: null, eliminatedWeek: null,
             score: myRow ? Number(myRow.score) : null,
+            maxScore: null,
+          },
+        };
+      }
+
+      // ── NFL Confidence Picks — Weekly ──────────────────────────────────────
+      if (poolType === "nfl_confidence_weekly") {
+        const week = pool.currentWeek;
+        const prevWeek = week - 1;
+
+        let lastWinner = null;
+        if (prevWeek >= 1) {
+          const prevRows = await db
+            .select({
+              userId: pickemPicksTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              weekPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0)`,
+              gradedPicks: sql<string>`COUNT(*) FILTER (WHERE pickem_picks.result != 'pending')`,
+            })
+            .from(pickemPicksTable)
+            .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+            .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, prevWeek)))
+            .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+            .orderBy(
+              sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`,
+            );
+          const hasGraded = prevRows.some((r) => Number(r.gradedPicks) > 0);
+          if (hasGraded && prevRows.length > 0) {
+            lastWinner = {
+              userId: prevRows[0].userId,
+              username: prevRows[0].username,
+              displayName: prevRows[0].displayName ?? null,
+              correct: 0,
+              picked: 0,
+              score: Number(prevRows[0].weekPoints),
+            };
+          }
+        }
+
+        const currentRows = await db
+          .select({
+            userId: pickemPicksTable.userId,
+            weekPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0)`,
+          })
+          .from(pickemPicksTable)
+          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+          .groupBy(pickemPicksTable.userId)
+          .orderBy(
+            sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`,
+          );
+
+        const myIdx = currentRows.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+        return {
+          poolId: pool.id,
+          poolType,
+          lastWinner,
+          myStanding: {
+            rank: myRow ? myIdx + 1 : 0,
+            correct: 0,
+            picked: 0,
+            hasPicks: !!myRow,
+            status: null,
+            eliminatedWeek: null,
+            score: myRow ? Number(myRow.weekPoints) : null,
             maxScore: null,
           },
         };
