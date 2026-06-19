@@ -2962,6 +2962,14 @@ components:
                 type: string
               pickedTeamName:
                 type: string
+        tiebreakerPassingYards:
+          type: integer
+          minimum: 0
+          description: "Combined QB passing yards prediction (required on Week 18 only)"
+        tiebreakerRushingYards:
+          type: integer
+          minimum: 0
+          description: "Combined rushing yards prediction (required on Week 18 only)"
 
     NflPickEmSeasonLeaderboardEntry:
       type: object
@@ -2981,6 +2989,12 @@ components:
         seasonTotal:
           type: integer
         tiebreakerPrediction:
+          type: integer
+          nullable: true
+        tiebreakerPassingYards:
+          type: integer
+          nullable: true
+        tiebreakerRushingYards:
           type: integer
           nullable: true
         weeklyScores:

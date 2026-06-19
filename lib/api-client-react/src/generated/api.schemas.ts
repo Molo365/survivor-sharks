@@ -1163,6 +1163,16 @@ export interface NflPickEmSeasonPickInput {
      */
   week: number;
   picks: NflPickEmSeasonPickInputPicksItem[];
+  /**
+     * Combined QB passing yards prediction (required on Week 18 only)
+     * @minimum 0
+     */
+  tiebreakerPassingYards?: number;
+  /**
+     * Combined rushing yards prediction (required on Week 18 only)
+     * @minimum 0
+     */
+  tiebreakerRushingYards?: number;
 }
 
 export type NflPickEmSeasonLeaderboardEntryWeeklyScores = {[key: string]: {
@@ -1178,6 +1188,8 @@ export interface NflPickEmSeasonLeaderboardEntry {
   seasonCorrect: number;
   seasonTotal: number;
   tiebreakerPrediction?: number | null;
+  tiebreakerPassingYards?: number | null;
+  tiebreakerRushingYards?: number | null;
   weeklyScores: NflPickEmSeasonLeaderboardEntryWeeklyScores;
 }
 

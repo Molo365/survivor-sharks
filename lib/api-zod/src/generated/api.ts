@@ -1273,6 +1273,10 @@ export const SubmitNflPickEmSeasonPicksParams = zod.object({
 
 export const submitNflPickEmSeasonPicksBodyWeekMax = 18;
 
+export const submitNflPickEmSeasonPicksBodyTiebreakerPassingYardsMin = 0;
+
+export const submitNflPickEmSeasonPicksBodyTiebreakerRushingYardsMin = 0;
+
 
 
 export const SubmitNflPickEmSeasonPicksBody = zod.object({
@@ -1281,7 +1285,9 @@ export const SubmitNflPickEmSeasonPicksBody = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string()
-}))
+})),
+  "tiebreakerPassingYards": zod.number().min(submitNflPickEmSeasonPicksBodyTiebreakerPassingYardsMin).optional().describe('Combined QB passing yards prediction (required on Week 18 only)'),
+  "tiebreakerRushingYards": zod.number().min(submitNflPickEmSeasonPicksBodyTiebreakerRushingYardsMin).optional().describe('Combined rushing yards prediction (required on Week 18 only)')
 })
 
 
@@ -1303,6 +1309,8 @@ export const GetNflPickEmSeasonLeaderboardResponse = zod.object({
   "seasonCorrect": zod.number(),
   "seasonTotal": zod.number(),
   "tiebreakerPrediction": zod.number().nullish(),
+  "tiebreakerPassingYards": zod.number().nullish(),
+  "tiebreakerRushingYards": zod.number().nullish(),
   "weeklyScores": zod.record(zod.string(), zod.object({
   "correct": zod.number().optional(),
   "total": zod.number().optional()

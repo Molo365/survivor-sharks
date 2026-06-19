@@ -515,6 +515,8 @@ export function PickEmSeasonView({
     Map<string, { pickedTeamId: string; pickedTeamName: string }>
   >(new Map());
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [tbPassingYards, setTbPassingYards] = useState("");
+  const [tbRushingYards, setTbRushingYards] = useState("");
 
   const { data: slate, isLoading: slateLoading } = useGetNflPickEmSeasonGames(
     poolId,
@@ -649,6 +651,18 @@ export function PickEmSeasonView({
     setHasPendingChanges(true);
   }
 
+  // Pre-populate tiebreaker inputs from previously submitted Week 18 values
+  useEffect(() => {
+    if (currentWeek !== 18 || !leaderboard || !user) return;
+    const myEntry = leaderboard.entries.find(e => e.userId === user.id);
+    if (myEntry?.tiebreakerPassingYards != null && !tbPassingYards) {
+      setTbPassingYards(String(myEntry.tiebreakerPassingYards));
+    }
+    if (myEntry?.tiebreakerRushingYards != null && !tbRushingYards) {
+      setTbRushingYards(String(myEntry.tiebreakerRushingYards));
+    }
+  }, [leaderboard, user, currentWeek]);
+
   function handleSubmit() {
     if (!slate) return;
     const unlockedPicks = Array.from(localPicks.entries())
@@ -664,6 +678,39 @@ export function PickEmSeasonView({
 
     if (unlockedPicks.length === 0) {
       toast({ title: "No changes to save", description: "All picked games are already locked." });
+      return;
+    }
+
+    // Week 18: validate and attach tiebreaker guesses
+    if (currentWeek === 18) {
+      const py = parseInt(tbPassingYards, 10);
+      const ry = parseInt(tbRushingYards, 10);
+      if (!tbPassingYards || !tbRushingYards || isNaN(py) || py < 0 || isNaN(ry) || ry < 0) {
+        toast({
+          title: "Tiebreaker required",
+          description: "Enter combined passing and rushing yards for the Week 18 tiebreaker.",
+          variant: "destructive",
+        });
+        return;
+      }
+      submitPicks.mutate(
+        { poolId, data: { week: displayWeek, picks: unlockedPicks, tiebreakerPassingYards: py, tiebreakerRushingYards: ry } },
+        {
+          onSuccess: (result) => {
+            toast({
+              title: "Picks saved!",
+              description: `Saved ${result.saved} pick${result.saved !== 1 ? "s" : ""} for Week ${displayWeek}.`,
+            });
+            setHasPendingChanges(false);
+            queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId, { week: displayWeek }) });
+            queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonLeaderboardQueryKey(poolId) });
+            queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(poolId, weekGridParams) });
+          },
+          onError: (err: any) => {
+            toast({ variant: "destructive", title: "Failed to save picks", description: err?.data?.error ?? err?.message ?? "Please try again." });
+          },
+        },
+      );
       return;
     }
 
@@ -928,6 +975,49 @@ export function PickEmSeasonView({
                   </div>
                 )}
 
+                {/* ── Week 18 tiebreaker inputs (season-end champion resolution) ── */}
+                {currentWeek === 18 && unlockedGames.length > 0 && (
+                  <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 px-4 py-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <Trophy className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-yellow-300 leading-tight">Week 18 Tiebreaker</p>
+                        <p className="text-xs text-yellow-300/70 mt-0.5 leading-snug">
+                          If two players tie on season correct picks, the closest prediction of combined QB passing yards (primary) then rushing yards (secondary) wins.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          Combined passing yards
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={tbPassingYards}
+                          onChange={(e) => setTbPassingYards(e.target.value)}
+                          placeholder="e.g. 650"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-yellow-500/40"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          Combined rushing yards
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={tbRushingYards}
+                          onChange={(e) => setTbRushingYards(e.target.value)}
+                          placeholder="e.g. 210"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-yellow-500/40"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Save picks bar ── */}
                 {unlockedGames.length > 0 && (
                   <div className="flex items-center justify-between bg-card/50 border border-border/30 rounded-lg px-4 py-2.5">
@@ -1037,9 +1127,11 @@ export function PickEmSeasonView({
                               </span>
                             )}
                           </span>
-                          {isTied && entry.tiebreakerPrediction != null && (
+                          {isTied && (entry.tiebreakerPassingYards != null || entry.tiebreakerPrediction != null) && (
                             <span className="text-[10px] text-muted-foreground/40 font-mono shrink-0">
-                              TB:{entry.tiebreakerPrediction}
+                              {entry.tiebreakerPassingYards != null
+                                ? `Pass:${entry.tiebreakerPassingYards} Rush:${entry.tiebreakerRushingYards ?? "—"}`
+                                : `TB:${entry.tiebreakerPrediction}`}
                             </span>
                           )}
                         </div>

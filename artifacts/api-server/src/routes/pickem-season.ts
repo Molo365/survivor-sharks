@@ -103,9 +103,11 @@ router.get("/games", requireAuth, async (req, res) => {
 router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
-  const { week, picks } = req.body as {
+  const { week, picks, tiebreakerPassingYards, tiebreakerRushingYards } = req.body as {
     week: number;
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
+    tiebreakerPassingYards?: number;
+    tiebreakerRushingYards?: number;
   };
 
   if (!week || isNaN(Number(week)) || Number(week) < 1 || Number(week) > NFL_TOTAL_WEEKS) {
@@ -157,6 +159,15 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
+  // ── Week 18 tiebreaker — required on final week, forbidden/ignored on all others ──
+  if (numWeek === NFL_TOTAL_WEEKS) {
+    if (typeof tiebreakerPassingYards !== "number" || !isFinite(tiebreakerPassingYards) ||
+        typeof tiebreakerRushingYards !== "number" || !isFinite(tiebreakerRushingYards)) {
+      res.status(400).json({ error: "tiebreakerPassingYards and tiebreakerRushingYards are required for Week 18" });
+      return;
+    }
+  }
+
   const games = await fetchNflGamesByWeek(numWeek);
   const gameMap = new Map(games.map(g => [g.id, g]));
 
@@ -202,6 +213,13 @@ router.post("/picks", requireAuth, async (req, res) => {
         },
       });
     saved++;
+  }
+
+  // Persist tiebreaker guesses for Week 18 (season champion resolution)
+  if (numWeek === NFL_TOTAL_WEEKS) {
+    await db.update(entriesTable)
+      .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards as number), tiebreakerRushingYards: Math.round(tiebreakerRushingYards as number) } as any)
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
   res.status(201).json({ saved, skipped: 0 });
@@ -256,12 +274,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       .select({
         userId: entriesTable.userId,
         tiebreakerPrediction: entriesTable.tiebreakerPrediction,
+        tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
+        tiebreakerRushingYards: entriesTable.tiebreakerRushingYards,
       })
       .from(entriesTable)
       .where(eq(entriesTable.poolId, poolId)),
   ]);
 
-  const tiebreakerMap = new Map(tiebreakers.map(t => [t.userId, t.tiebreakerPrediction]));
+  const tiebreakerMap = new Map(tiebreakers.map(t => [t.userId, {
+    tiebreakerPrediction: t.tiebreakerPrediction,
+    tiebreakerPassingYards: t.tiebreakerPassingYards,
+    tiebreakerRushingYards: t.tiebreakerRushingYards,
+  }]));
 
   const weeklyMap = new Map<number, Record<number, { correct: number; total: number }>>();
   for (const row of weeklyAggregates) {
@@ -284,7 +308,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       displayName: u.displayName ?? null,
       seasonCorrect: Number(u.seasonCorrect),
       seasonTotal: Number(u.seasonTotal),
-      tiebreakerPrediction: tiebreakerMap.get(u.userId) ?? null,
+      tiebreakerPrediction: tiebreakerMap.get(u.userId)?.tiebreakerPrediction ?? null,
+      tiebreakerPassingYards: tiebreakerMap.get(u.userId)?.tiebreakerPassingYards ?? null,
+      tiebreakerRushingYards: tiebreakerMap.get(u.userId)?.tiebreakerRushingYards ?? null,
       weeklyScores: weeklyMap.get(u.userId) ?? {},
     };
   });
