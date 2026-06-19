@@ -20,7 +20,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { PickEmTiebreakerCard } from "@/components/PickEmTiebreakerCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +31,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
@@ -269,9 +272,10 @@ interface GameCardProps {
   game: PickEmGame;
   pickedTeamId: string | null;
   onPick: (teamId: string) => void;
+  isTiebreakerGame?: boolean;
 }
 
-function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
+function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProps) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
   const isPostponed = !isFinal && game.status === "postponed";
@@ -406,8 +410,14 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
       "shark-card rounded-xl border overflow-hidden relative",
       isLive
         ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]"
-        : "border-border/40",
+        : isTiebreakerGame
+          ? "border-yellow-500/50 shadow-[0_0_14px_rgba(234,179,8,0.18)]"
+          : "border-border/40",
     )}>
+      {/* Tiebreaker glow overlay */}
+      {isTiebreakerGame && !isLive && (
+        <span className="absolute inset-0 rounded-xl border border-yellow-500/30 pointer-events-none z-10" />
+      )}
       {/* Pulsing live border overlay */}
       {isLive && (
         <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
@@ -417,6 +427,13 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
         <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
           <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
           Live
+        </span>
+      )}
+      {/* TIEBREAKER badge */}
+      {isTiebreakerGame && (
+        <span className="absolute top-2 right-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 leading-none">
+          <Shuffle className="w-2.5 h-2.5" />
+          Tiebreaker
         </span>
       )}
       <div className="flex items-stretch gap-0">
@@ -1842,6 +1859,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const is3way = sport === "worldcup" || sport === "intl";
   const isWeekly = pickFrequency === "weekly" && !is3way;
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
+  const isMlb = sport === "mlb" && !is3way;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -1882,6 +1900,12 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
+  // Tiebreaker dialog state
+  const [showTiebreaker, setShowTiebreaker] = useState(false);
+  const [tbRuns, setTbRuns] = useState("");
+  const [tbStrikeouts, setTbStrikeouts] = useState("");
+  const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
+
   const {
     data: slate,
     isLoading: gamesLoading,
@@ -1901,6 +1925,11 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   });
 
   const submitPicks = useSubmitPickEmPicks();
+
+  // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
+  const weekSunday = leaderboard?.weekEnd ?? null;
+  const isLastDayOfWeek = isMlb && isWeekly && isToday && weekSunday === todayEt;
+  const needsTiebreaker = isMlb && isToday && (!isWeekly || isLastDayOfWeek);
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -1956,8 +1985,33 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       return;
     }
 
+    // MLB pools: intercept submit to collect tiebreaker guesses first
+    if (needsTiebreaker) {
+      pendingPicksRef.current = picks;
+      setTbRuns("");
+      setTbStrikeouts("");
+      setShowTiebreaker(true);
+      return;
+    }
+
+    doFinalSubmit(picks);
+  }
+
+  function doFinalSubmit(
+    picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
+    tiebreakerRuns?: number,
+    tiebreakerStrikeouts?: number,
+  ) {
     submitPicks.mutate(
-      { poolId, data: { picks } },
+      {
+        poolId,
+        data: {
+          picks,
+          ...(tiebreakerRuns !== undefined && tiebreakerStrikeouts !== undefined
+            ? { tiebreakerRuns, tiebreakerStrikeouts }
+            : {}),
+        },
+      },
       {
         onSuccess: (result) => {
           toast({
@@ -2019,6 +2073,85 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
         currentUserId={user?.id ?? null}
       />
     )}
+    {/* MLB Tiebreaker Dialog */}
+    <Dialog open={showTiebreaker} onOpenChange={(open) => { if (!open) setShowTiebreaker(false); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Shuffle className="w-5 h-5 text-yellow-400" />
+            Tiebreaker Guess
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground leading-snug">
+            {isWeekly
+              ? "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."
+              : "In case of a tie at end of day, your tiebreaker guess decides the winner."}
+            <br />
+            Guess the combined <strong className="text-foreground">runs scored</strong> and total <strong className="text-foreground">strikeouts</strong> across all {isWeekly ? "today's" : "today's"} games. Closest guess wins.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Combined Runs Scored
+            </label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 42"
+              value={tbRuns}
+              onChange={(e) => setTbRuns(e.target.value)}
+              className="text-lg font-mono h-12"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Total Strikeouts
+            </label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 28"
+              value={tbStrikeouts}
+              onChange={(e) => setTbStrikeouts(e.target.value)}
+              className="text-lg font-mono h-12"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const runs = parseInt(tbRuns, 10);
+                  const strikes = parseInt(tbStrikeouts, 10);
+                  if (!isNaN(runs) && runs >= 0 && !isNaN(strikes) && strikes >= 0) {
+                    setShowTiebreaker(false);
+                    doFinalSubmit(pendingPicksRef.current, runs, strikes);
+                  }
+                }
+              }}
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex flex-row gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowTiebreaker(false)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 font-bebas text-xl tracking-widest"
+            onClick={() => {
+              const runs = parseInt(tbRuns, 10);
+              const strikes = parseInt(tbStrikeouts, 10);
+              if (isNaN(runs) || runs < 0 || isNaN(strikes) || strikes < 0) {
+                toast({ variant: "destructive", title: "Enter valid guesses", description: "Both fields are required and must be ≥ 0." });
+                return;
+              }
+              setShowTiebreaker(false);
+              doFinalSubmit(pendingPicksRef.current, runs, strikes);
+            }}
+          >
+            Submit Picks
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
         <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -2127,6 +2260,21 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             </div>
           ) : (
             <div className="space-y-6">
+
+              {/* Tiebreaker banner — MLB Week, last day (Sunday) only */}
+              {isLastDayOfWeek && !slateLocked && (
+                <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
+                  <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-yellow-200 leading-snug">
+                      Final day of the week — tiebreaker required
+                    </p>
+                    <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
+                      When you submit today you'll be asked to guess combined runs scored + total strikeouts. The last game on today's slate is the tiebreaker reference game.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Last Week's Winner banner (weekly pools only) */}
               {isWeekly && prevWeekWinner && prevWeekResults && (
@@ -2240,8 +2388,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
               {/* All games in original scheduled-time order — never reorganised */}
               <div className="space-y-3">
-                {slate.games.map((game) =>
-                  is3way ? (
+                {slate.games.map((game, idx) => {
+                  const isLastGame = isMlb && isToday && idx === slate.games.length - 1;
+                  const showTiebreakerBadge = isLastGame && needsTiebreaker;
+                  return is3way ? (
                     <WcGameCard
                       key={game.id}
                       game={game}
@@ -2254,9 +2404,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       game={game}
                       pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
                       onPick={(teamId) => togglePick(game.id, teamId)}
+                      isTiebreakerGame={showTiebreakerBadge}
                     />
-                  )
-                )}
+                  );
+                })}
               </div>
 
               {isToday && openGames.length > 0 && (
@@ -2309,13 +2460,30 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
           ) : isWeekly && leaderboard.weekStart && leaderboard.weekEnd ? (
-            <WeeklyLeaderboard
-              poolId={poolId}
-              entries={leaderboard.entries}
-              currentUserId={user?.id ?? null}
-              weekStart={leaderboard.weekStart}
-              weekEnd={leaderboard.weekEnd}
-            />
+            <div className="space-y-4">
+              <WeeklyLeaderboard
+                poolId={poolId}
+                entries={leaderboard.entries}
+                currentUserId={user?.id ?? null}
+                weekStart={leaderboard.weekStart}
+                weekEnd={leaderboard.weekEnd}
+              />
+              {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
+                <PickEmTiebreakerCard
+                  actualRuns={leaderboard.tiebreakerActualRuns ?? null}
+                  tiedPlayers={leaderboard.entries
+                    .filter((e) => e.tiebreakerRunsGuess != null || e.tiebreakerStrikeoutsGuess != null)
+                    .map((e) => ({
+                      userId: e.userId,
+                      username: e.username,
+                      displayName: e.displayName ?? null,
+                      tiebreakerRunsGuess: e.tiebreakerRunsGuess ?? null,
+                      tiebreakerStrikeoutsGuess: e.tiebreakerStrikeoutsGuess ?? null,
+                      tiebreakerRunsDiff: e.tiebreakerRunsDiff ?? null,
+                    }))}
+                />
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -2397,6 +2565,22 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                   );
                 })}
               </div>
+              {/* MLB daily tiebreaker card */}
+              {isMlb && !isWeekly && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
+                <PickEmTiebreakerCard
+                  actualRuns={leaderboard.tiebreakerActualRuns ?? null}
+                  tiedPlayers={leaderboard.entries
+                    .filter((e) => e.tiebreakerRunsGuess != null || e.tiebreakerStrikeoutsGuess != null)
+                    .map((e) => ({
+                      userId: e.userId,
+                      username: e.username,
+                      displayName: e.displayName ?? null,
+                      tiebreakerRunsGuess: e.tiebreakerRunsGuess ?? null,
+                      tiebreakerStrikeoutsGuess: e.tiebreakerStrikeoutsGuess ?? null,
+                      tiebreakerRunsDiff: e.tiebreakerRunsDiff ?? null,
+                    }))}
+                />
+              )}
             </div>
           )}
         </TabsContent>

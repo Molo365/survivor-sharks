@@ -998,7 +998,9 @@ export const SubmitPickEmPicksBody = zod.object({
   "pickedTeamName": zod.string(),
   "gameDate": zod.string().optional().describe('YYYY-MM-DD date of the game in ET. Required for WC multi-date picks.'),
   "pickOption": zod.string().optional().describe('For World Cup pools — the pick outcome (home_win, draw, away_win)')
-}))
+})),
+  "tiebreakerRuns": zod.number().optional().describe('MLB tiebreaker — combined runs scored guess (all games on today\'s slate)'),
+  "tiebreakerStrikeouts": zod.number().optional().describe('MLB tiebreaker — total strikeouts guess (all games on today\'s slate)')
 })
 
 
@@ -1055,8 +1057,12 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "date": zod.string().describe('YYYY-MM-DD date in ET'),
   "correct": zod.number(),
   "picked": zod.number()
-})).optional().describe('Per-day breakdown; present only for weekly pick-em pools')
-}))
+})).optional().describe('Per-day breakdown; present only for weekly pick-em pools'),
+  "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
+  "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
+  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)')
+})),
+  "tiebreakerActualRuns": zod.number().nullish().describe('Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)')
 })
 
 
@@ -1212,7 +1218,10 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "date": zod.string().describe('YYYY-MM-DD date in ET'),
   "correct": zod.number(),
   "picked": zod.number()
-})).optional().describe('Per-day breakdown; present only for weekly pick-em pools')
+})).optional().describe('Per-day breakdown; present only for weekly pick-em pools'),
+  "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
+  "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
+  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)')
 }))
 })
 

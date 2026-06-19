@@ -2617,6 +2617,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmPickItem"
+        tiebreakerRuns:
+          type: integer
+          description: "MLB tiebreaker — combined runs scored guess (all games on today's slate)"
+        tiebreakerStrikeouts:
+          type: integer
+          description: "MLB tiebreaker — total strikeouts guess (all games on today's slate)"
 
     PickEmPicksResult:
       type: object
@@ -2748,6 +2754,15 @@ components:
           items:
             $ref: "#/components/schemas/PickEmDailyBreakdown"
           description: "Per-day breakdown; present only for weekly pick-em pools"
+        tiebreakerRunsGuess:
+          type: ["integer", "null"]
+          description: "Player's tiebreaker runs guess (MLB pools only)"
+        tiebreakerStrikeoutsGuess:
+          type: ["integer", "null"]
+          description: "Player's tiebreaker strikeouts guess (MLB pools only)"
+        tiebreakerRunsDiff:
+          type: ["integer", "null"]
+          description: "Absolute difference between runs guess and actual (null if no actual yet)"
 
     PickEmLeaderboard:
       type: object
@@ -2783,6 +2798,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
+        tiebreakerActualRuns:
+          type: ["integer", "null"]
+          description: "Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)"
 
     PickEmDailyResultsGame:
       type: object

@@ -240,8 +240,10 @@ router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { picks } = req.body as {
+  const { picks, tiebreakerRuns, tiebreakerStrikeouts } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
+    tiebreakerRuns?: number;
+    tiebreakerStrikeouts?: number;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -344,6 +346,15 @@ router.post("/picks", requireAuth, async (req, res) => {
         },
       });
     saved++;
+  }
+
+  // For MLB pools: save tiebreaker guesses onto the entry row when provided
+  const isMlb = sport === "mlb";
+  if (isMlb && typeof tiebreakerRuns === "number" && typeof tiebreakerStrikeouts === "number") {
+    await db
+      .update(entriesTable)
+      .set({ tiebreakerRuns, tiebreakerStrikeouts })
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
   res.status(201).json({ saved, skipped: 0 });
@@ -780,7 +791,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       )
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
 
-  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates] = await Promise.all([
+  const isMlb = sport === "mlb";
+
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -815,6 +828,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
           .orderBy(pickemPicksTable.gameDate)
       : Promise.resolve(null as null),
+    // For MLB pools: fetch tiebreaker guesses stored on entries
+    isMlb
+      ? db
+          .select({
+            userId: entriesTable.userId,
+            tiebreakerRuns: entriesTable.tiebreakerRuns,
+            tiebreakerStrikeouts: entriesTable.tiebreakerStrikeouts,
+          })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve(null as null),
   ]);
 
   if (!isWc) {
@@ -834,6 +858,29 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  // Build tiebreaker guess map for MLB pools
+  const tiebreakerByUser = new Map<number, { tiebreakerRuns: number | null; tiebreakerStrikeouts: number | null }>();
+  if (poolEntries) {
+    for (const entry of poolEntries) {
+      tiebreakerByUser.set(entry.userId, {
+        tiebreakerRuns: entry.tiebreakerRuns ?? null,
+        tiebreakerStrikeouts: entry.tiebreakerStrikeouts ?? null,
+      });
+    }
+  }
+
+  // For MLB pools: compute actualRuns from final ESPN games on today's slate
+  let tiebreakerActualRuns: number | null = null;
+  if (isMlb && espnGames.length > 0) {
+    const finalGames = espnGames.filter((g) => g.isCompleted);
+    if (finalGames.length > 0) {
+      tiebreakerActualRuns = finalGames.reduce(
+        (sum, g) => sum + (g.homeScore ?? 0) + (g.awayScore ?? 0),
+        0,
+      );
+    }
+  }
+
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
     if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
@@ -842,6 +889,13 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const entries = aggregates.map((row, i) => {
     const userPicks = picksByUser.get(row.userId) ?? new Map();
+    const tb = tiebreakerByUser.get(row.userId);
+    const runsGuess = tb?.tiebreakerRuns ?? null;
+    const strikesGuess = tb?.tiebreakerStrikeouts ?? null;
+    const runsDiff =
+      isMlb && tiebreakerActualRuns != null && runsGuess != null
+        ? Math.abs(runsGuess - tiebreakerActualRuns)
+        : null;
     return {
       rank: i + 1,
       userId: row.userId,
@@ -857,6 +911,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined,
       })),
       dailyBreakdown: isWeekly ? (dailyByUser.get(row.userId) ?? []) : undefined,
+      tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
+      tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
     };
   });
 
@@ -905,6 +962,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     entries,
     totalGames,
     completedGames,
+    tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
   });
 });
 

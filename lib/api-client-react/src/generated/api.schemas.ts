@@ -882,6 +882,10 @@ export interface WcSchedule {
 
 export interface PickEmPickInput {
   picks: PickEmPickItem[];
+  /** MLB tiebreaker — combined runs scored guess (all games on today's slate) */
+  tiebreakerRuns?: number;
+  /** MLB tiebreaker — total strikeouts guess (all games on today's slate) */
+  tiebreakerStrikeouts?: number;
 }
 
 export interface PickEmPicksResult {
@@ -979,6 +983,21 @@ export interface PickEmLeaderboardEntry {
   picks: PickEmPlayerPick[];
   /** Per-day breakdown; present only for weekly pick-em pools */
   dailyBreakdown?: PickEmDailyBreakdown[];
+  /**
+     * Player's tiebreaker runs guess (MLB pools only)
+     * @nullable
+     */
+  tiebreakerRunsGuess?: number | null;
+  /**
+     * Player's tiebreaker strikeouts guess (MLB pools only)
+     * @nullable
+     */
+  tiebreakerStrikeoutsGuess?: number | null;
+  /**
+     * Absolute difference between runs guess and actual (null if no actual yet)
+     * @nullable
+     */
+  tiebreakerRunsDiff?: number | null;
 }
 
 export interface PickEmLeaderboard {
@@ -1013,6 +1032,11 @@ export interface PickEmLeaderboard {
   completedGames?: number | null;
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
+  /**
+     * Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)
+     * @nullable
+     */
+  tiebreakerActualRuns?: number | null;
 }
 
 export type PickEmDailyResultsGameAwayTeam = {
