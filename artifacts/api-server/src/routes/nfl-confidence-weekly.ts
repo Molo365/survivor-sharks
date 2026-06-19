@@ -306,7 +306,38 @@ router.get("/grid", requireAuth, async (req, res) => {
         gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore as any, awayScore: row.awayScore as any });
       }
     }
+  } else {
+    // Non-sandbox: fetch completed game scores from ESPN so the grid shows final scores
+    try {
+      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
+      for (const ev of espnData.events ?? []) {
+        const comp = ev.competitions?.[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+        const isCompleted = comp?.status?.type?.completed ?? false;
+        const state = comp?.status?.type?.state ?? "pre";
+        const gameId = String(ev.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        gameMap.set(gameId, {
+          id: gameId,
+          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
+          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
+          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
+          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
+          startTime: ev.date ?? "",
+          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+      }
+    } catch { /* ESPN unavailable; grid shows picks without scores */ }
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const typedGameMap = gameMap as Map<string, any>;
 
   const userMap = new Map<number, {
     userId: number;
@@ -330,7 +361,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         picks: new Map(),
       });
     }
-    const game = gameMap.get(pick.gameId);
+    const game = typedGameMap.get(pick.gameId);
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
     userMap.get(pick.userId)!.picks.set(pick.gameId, {
       pickedTeamId: pick.pickedTeamId,
@@ -341,7 +372,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     });
   }
 
-  const games = [...gameMap.values()].map(g => ({
+  const games = [...typedGameMap.values()].map((g: any) => ({
     id: g.id,
     awayTeam: g.awayTeam,
     homeTeam: g.homeTeam,
