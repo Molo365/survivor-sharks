@@ -123,8 +123,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   const { picks, tiebreakerPassingYards, tiebreakerRushingYards } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; confidencePoints: number }>;
-    tiebreakerPassingYards: number;
-    tiebreakerRushingYards: number;
+    tiebreakerPassingYards?: number;
+    tiebreakerRushingYards?: number;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -213,10 +213,17 @@ router.post("/picks", requireAuth, async (req, res) => {
     saved++;
   }
 
-  await db
-    .update(entriesTable)
-    .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
-    .where(eq(entriesTable.id, entry.id));
+  // Tiebreaker guesses are only collected in Week 18 (season champion resolution)
+  if (week === 18) {
+    if (tiebreakerPassingYards == null || tiebreakerRushingYards == null) {
+      res.status(400).json({ error: "Tiebreaker guesses are required for Week 18" });
+      return;
+    }
+    await db
+      .update(entriesTable)
+      .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
+      .where(eq(entriesTable.id, entry.id));
+  }
 
   req.log.info({ poolId, userId, week, saved }, "NFL Confidence picks submitted");
   res.status(201).json({ ok: true, saved, message: "NFL Confidence picks submitted successfully" });

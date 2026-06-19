@@ -867,6 +867,48 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     });
   }
 
+  async function doSubmit(tiebreaker?: { passing: number; rushing: number }) {
+    setSubmitting(true);
+    try {
+      const picks = games.map((g) => {
+        const pickedTeamId = pickedTeams[g.id] ?? "";
+        const pickedTeam = pickedTeamId === g.homeTeam.id ? g.homeTeam : g.awayTeam;
+        return {
+          gameId: g.id,
+          pickedTeamId,
+          pickedTeamName: pickedTeam?.name ?? pickedTeamId,
+          confidencePoints: confidence[g.id],
+        };
+      });
+      const token = localStorage.getItem("auth_token");
+      const body: Record<string, unknown> = { picks };
+      if (tiebreaker) {
+        body.tiebreakerPassingYards = tiebreaker.passing;
+        body.tiebreakerRushingYards = tiebreaker.rushing;
+      }
+      const res = await fetch(`/api/pools/${poolId}/nfl-confidence/picks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error || "Submission failed");
+      }
+      setShowTiebreaker(false);
+      toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
+      queryClient.invalidateQueries({ queryKey: myPicksKey });
+    } catch (err) {
+      toast({ title: "Submission failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function handleSubmitClick() {
     const unpicked = games.filter((g) => !pickedTeams[g.id]);
     if (unpicked.length > 0) {
@@ -885,7 +927,12 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       });
       return;
     }
-    setShowTiebreaker(true);
+    // Tiebreaker is only needed in Week 18 (season champion resolution)
+    if (currentWeek === 18) {
+      setShowTiebreaker(true);
+    } else {
+      void doSubmit();
+    }
   }
 
   async function handleFinalSubmit() {
@@ -893,44 +940,7 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
       return;
     }
-    setSubmitting(true);
-    try {
-      const picks = games.map((g) => {
-        const pickedTeamId = pickedTeams[g.id] ?? "";
-        const pickedTeam = pickedTeamId === g.homeTeam.id ? g.homeTeam : g.awayTeam;
-        return {
-          gameId: g.id,
-          pickedTeamId,
-          pickedTeamName: pickedTeam?.name ?? pickedTeamId,
-          confidencePoints: confidence[g.id],
-        };
-      });
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/pools/${poolId}/nfl-confidence/picks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          picks,
-          tiebreakerPassingYards: parseInt(tbPassingYards, 10),
-          tiebreakerRushingYards: parseInt(tbRushingYards, 10),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error || "Submission failed");
-      }
-      setShowTiebreaker(false);
-      toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
-      queryClient.invalidateQueries({ queryKey: myPicksKey });
-    } catch (err) {
-      toast({ title: "Submission failed", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
+    await doSubmit({ passing: parseInt(tbPassingYards, 10), rushing: parseInt(tbRushingYards, 10) });
   }
 
   // ── Loading ─────────────────────────────────────────────────────────────────
@@ -1004,14 +1014,16 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
         </div>
       </div>
 
-      {/* Tiebreaker notice */}
-      <div className="flex items-center gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/5 px-4 py-2.5">
-        <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-        <p className="text-xs text-yellow-300/80">
-          The <span className="font-semibold text-yellow-300">last game</span> on the slate is always the tiebreaker.
-          If tied at week's end, closest prediction of combined QB passing yards wins.
-        </p>
-      </div>
+      {/* Tiebreaker notice — only relevant in Week 18 (season champion resolution) */}
+      {currentWeek === 18 && (
+        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/5 px-4 py-2.5">
+          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+          <p className="text-xs text-yellow-300/80">
+            <span className="font-semibold text-yellow-300">Week 18 tiebreaker:</span>{" "}
+            If two players finish the season tied, the closest prediction of combined QB passing yards wins.
+          </p>
+        </div>
+      )}
 
       {/* Badge legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
@@ -1088,7 +1100,7 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
                     </span>
                   )}
                   <span className="block">
-                    If tied at week's end, the player closest to each actual number wins. Both answers are locked with your picks.
+                    If two players finish the season tied on points, the player closest to each actual number wins. Both answers are locked with your Week 18 picks.
                   </span>
                 </DialogDescription>
               );
