@@ -88,16 +88,27 @@ export function NflConfidenceLeaderboard({ poolId }: { poolId: number; initialWe
 
   const weekPlayers = weekData?.players ?? [];
   const isWeekGraded = weekData?.actualPassingYards != null;
-  const maxWeekPts = weekPlayers[0]?.weekPoints ?? 0;
-  const tiedTopPlayers = isWeekGraded && maxWeekPts > 0
-    ? weekPlayers
-        .filter((p) => p.weekPoints === maxWeekPts)
-        .slice()
-        .sort((a, b) => {
+  // Find the highest-score group with 2+ players (a tie at any position)
+  const tiedTopPlayers: WeekPlayer[] = (() => {
+    if (!isWeekGraded || weekPlayers.length === 0) return [];
+    const groups = new Map<number, WeekPlayer[]>();
+    for (const p of weekPlayers) {
+      const pts = Number(p.weekPoints);
+      if (!groups.has(pts)) groups.set(pts, []);
+      groups.get(pts)!.push(p);
+    }
+    const sortedPts = [...groups.keys()].sort((a, b) => b - a);
+    for (const pts of sortedPts) {
+      const group = groups.get(pts)!;
+      if (group.length >= 2) {
+        return group.slice().sort((a, b) => {
           const d1 = (a.tiebreakerDiff1 ?? Infinity) - (b.tiebreakerDiff1 ?? Infinity);
           return d1 !== 0 ? d1 : (a.tiebreakerDiff2 ?? Infinity) - (b.tiebreakerDiff2 ?? Infinity);
-        })
-    : [];
+        });
+      }
+    }
+    return [];
+  })();
   const hasTie = tiedTopPlayers.length >= 2;
 
   // Show columns for weeks 1 through currentWeek only (unplayed weeks omitted)

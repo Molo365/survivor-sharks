@@ -70,16 +70,27 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const isFullyGraded = data?.actualPassingYards != null;
   const weekWinner = isFullyGraded && players.length > 0 ? players[0] : null;
 
-  const maxPts = players[0]?.weekPoints ?? 0;
-  const tiedTopPlayers = isFullyGraded && maxPts > 0
-    ? players
-        .filter((p) => p.weekPoints === maxPts)
-        .slice()
-        .sort((a, b) => {
+  // Find the highest-score group with 2+ players (a tie at any position)
+  const tiedTopPlayers: WeeklyPlayer[] = (() => {
+    if (!isFullyGraded || players.length === 0) return [];
+    const groups = new Map<number, WeeklyPlayer[]>();
+    for (const p of players) {
+      const pts = Number(p.weekPoints);
+      if (!groups.has(pts)) groups.set(pts, []);
+      groups.get(pts)!.push(p);
+    }
+    const sortedPts = [...groups.keys()].sort((a, b) => b - a);
+    for (const pts of sortedPts) {
+      const group = groups.get(pts)!;
+      if (group.length >= 2) {
+        return group.slice().sort((a, b) => {
           const d1 = (a.tiebreakerDiff1 ?? Infinity) - (b.tiebreakerDiff1 ?? Infinity);
           return d1 !== 0 ? d1 : (a.tiebreakerDiff2 ?? Infinity) - (b.tiebreakerDiff2 ?? Infinity);
-        })
-    : [];
+        });
+      }
+    }
+    return [];
+  })();
   const hasTie = tiedTopPlayers.length >= 2;
 
   if (isLoading) {
