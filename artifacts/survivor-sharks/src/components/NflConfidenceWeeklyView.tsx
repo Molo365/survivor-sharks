@@ -580,7 +580,6 @@ export function NflConfidenceWeeklyCommissionerPanel({
   const token = localStorage.getItem("auth_token");
   const [name, setName] = useState(poolName);
   const [desc, setDesc] = useState(poolDescription ?? "");
-  const [copied, setCopied] = useState(false);
   const [localSandboxMode, setLocalSandboxMode] = useState(sandboxMode);
   const [localSandboxWeek, setLocalSandboxWeek] = useState(initialSandboxWeek);
 
@@ -665,8 +664,14 @@ export function NflConfidenceWeeklyCommissionerPanel({
   function handleCopy() {
     if (!inviteCode) return;
     navigator.clipboard.writeText(inviteCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "Invite code copied!" });
+    });
+  }
+
+  function handleCopyLink() {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(`${window.location.origin}/join/${inviteCode}`).then(() => {
+      toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
     });
   }
 
@@ -681,18 +686,23 @@ export function NflConfidenceWeeklyCommissionerPanel({
         </CardHeader>
         <CardContent>
           {inviteCode ? (
-            <div className="flex items-center gap-3">
-              <code className="flex-1 rounded-lg border border-border/50 bg-muted/30 px-4 py-3 font-mono text-xl tracking-widest text-primary select-all">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
                 {inviteCode}
-              </code>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopy}
-                className="shrink-0 h-12 w-12 border-border/50"
-              >
-                {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="lg" onClick={handleCopy} className="font-bebas text-xl tracking-wider">
+                  <Copy className="w-5 h-5 mr-2" /> Copy Code
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+                  onClick={handleCopyLink}
+                >
+                  <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
+                </Button>
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No invite code set.</p>

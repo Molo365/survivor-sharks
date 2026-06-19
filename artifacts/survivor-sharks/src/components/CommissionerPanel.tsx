@@ -176,7 +176,14 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
   const copyInvite = () => {
     if (pool?.inviteCode) {
       navigator.clipboard.writeText(pool.inviteCode);
-      toast({ title: "Invite code copied to clipboard!" });
+      toast({ title: "Invite code copied!" });
+    }
+  };
+
+  const copyInviteLink = () => {
+    if (pool?.inviteCode) {
+      navigator.clipboard.writeText(`${window.location.origin}/join/${pool.inviteCode}`);
+      toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
     }
   };
 
@@ -196,9 +203,19 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
             <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
               {pool.inviteCode}
             </div>
-            <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider" data-testid="button-copy-invite">
-              <Copy className="w-5 h-5 mr-2" /> Copy Code
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider" data-testid="button-copy-invite">
+                <Copy className="w-5 h-5 mr-2" /> Copy Code
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+                onClick={copyInviteLink}
+              >
+                <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
