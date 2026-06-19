@@ -343,7 +343,7 @@ function GameCard({
           <img
             src={teamLogoSrc(team)}
             alt={team.name}
-            className="w-8 h-8 md:w-10 md:h-10 object-contain"
+            className="w-10 h-10 md:w-12 md:h-12 object-contain"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         </div>

@@ -168,7 +168,7 @@ function TeamSide({
               alt={team.name}
               className={cn(
                 "object-contain",
-                "w-[33px] h-[33px] sm:w-9 sm:h-9",
+                "w-10 h-10 sm:w-12 sm:h-12",
                 isUsed && "grayscale opacity-60",
                 variant === "final" && !isUsed && "opacity-75"
               )}
@@ -183,7 +183,7 @@ function TeamSide({
         </div>
         <div className={cn("flex-1 min-w-0", side === "home" && "text-right")}>
           <p className={cn(
-            "font-bebas tracking-wide leading-tight truncate text-xs sm:text-base",
+            "font-bebas tracking-wide leading-tight truncate text-xs sm:text-xl",
             variant === "final" ? "text-foreground/65" :
             isSelected ? "text-primary" : "text-foreground"
           )}>

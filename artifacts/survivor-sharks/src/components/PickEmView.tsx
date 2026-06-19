@@ -317,7 +317,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
     const info = (
       <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
         {/* Team name */}
-        <span className={cn("font-bebas tracking-wide text-base sm:text-lg leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
+        <span className={cn("font-bebas tracking-wide text-base sm:text-xl leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
           {team.name}
         </span>
 
