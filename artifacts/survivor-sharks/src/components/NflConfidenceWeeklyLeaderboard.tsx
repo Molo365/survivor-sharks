@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Users, Trophy } from "lucide-react";
+import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,18 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const isGraded = players.some((p) => p.gradedPicks > 0);
   const isFullyGraded = data?.actualPassingYards != null;
   const weekWinner = isFullyGraded && players.length > 0 ? players[0] : null;
+
+  const maxPts = players[0]?.weekPoints ?? 0;
+  const tiedTopPlayers = isFullyGraded && maxPts > 0
+    ? players
+        .filter((p) => p.weekPoints === maxPts)
+        .slice()
+        .sort((a, b) => {
+          const d1 = (a.tiebreakerDiff1 ?? Infinity) - (b.tiebreakerDiff1 ?? Infinity);
+          return d1 !== 0 ? d1 : (a.tiebreakerDiff2 ?? Infinity) - (b.tiebreakerDiff2 ?? Infinity);
+        })
+    : [];
+  const hasTie = tiedTopPlayers.length >= 2;
 
   if (isLoading) {
     return (
@@ -210,21 +223,11 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
 
       {/* Tiebreaker actuals (if graded) */}
       {isGraded && data?.actualPassingYards != null && (
-        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Tiebreaker Actuals</p>
-          <div className="flex gap-6">
-            <div>
-              <p className="text-[10px] text-muted-foreground/60">Combined passing yards</p>
-              <p className="font-bebas text-xl text-yellow-300">{data.actualPassingYards}</p>
-            </div>
-            {data.actualRushingYards != null && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/60">Combined rushing yards</p>
-                <p className="font-bebas text-xl text-yellow-300">{data.actualRushingYards}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <TiebreakerActualsCard
+          actualPassingYards={data.actualPassingYards}
+          actualRushingYards={data.actualRushingYards ?? null}
+          tiedPlayers={hasTie ? tiedTopPlayers : []}
+        />
       )}
 
       <p className="text-[11px] text-muted-foreground/40 text-center">

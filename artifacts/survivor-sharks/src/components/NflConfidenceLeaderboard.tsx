@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Users } from "lucide-react";
+import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,27 @@ interface SeasonStandingsResponse {
   currentWeek: number;
   totalWeeks: number;
   players: SeasonPlayer[];
+}
+
+interface WeekPlayer {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName: string | null;
+  weekPoints: number;
+  gradedPicks: number;
+  tiebreakerPassingYardsGuess: number | null;
+  tiebreakerRushingYardsGuess: number | null;
+  tiebreakerDiff1: number | null;
+  tiebreakerDiff2: number | null;
+  potSplit: boolean;
+}
+
+interface WeekLeaderboardResponse {
+  week: number;
+  players: WeekPlayer[];
+  actualPassingYards: number | null;
+  actualRushingYards: number | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,6 +77,29 @@ export function NflConfidenceLeaderboard({ poolId }: { poolId: number; initialWe
   });
 
   const currentWeek = data?.currentWeek ?? 1;
+
+  const { data: weekData } = useQuery<WeekLeaderboardResponse>({
+    queryKey: ["nfl-confidence-week-leaderboard", poolId, currentWeek],
+    queryFn: () => authedFetch<WeekLeaderboardResponse>(`/api/pools/${poolId}/nfl-confidence/leaderboard?week=${currentWeek}`),
+    enabled: !!user && currentWeek >= 1,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const weekPlayers = weekData?.players ?? [];
+  const isWeekGraded = weekData?.actualPassingYards != null;
+  const maxWeekPts = weekPlayers[0]?.weekPoints ?? 0;
+  const tiedTopPlayers = isWeekGraded && maxWeekPts > 0
+    ? weekPlayers
+        .filter((p) => p.weekPoints === maxWeekPts)
+        .slice()
+        .sort((a, b) => {
+          const d1 = (a.tiebreakerDiff1 ?? Infinity) - (b.tiebreakerDiff1 ?? Infinity);
+          return d1 !== 0 ? d1 : (a.tiebreakerDiff2 ?? Infinity) - (b.tiebreakerDiff2 ?? Infinity);
+        })
+    : [];
+  const hasTie = tiedTopPlayers.length >= 2;
+
   // Show columns for weeks 1 through currentWeek only (unplayed weeks omitted)
   const weekColumns = Array.from({ length: currentWeek }, (_, i) => i + 1);
   const players = data?.players ?? [];
@@ -205,6 +250,14 @@ export function NflConfidenceLeaderboard({ poolId }: { poolId: number; initialWe
           })}
         </div>
       </div>
+
+      {isWeekGraded && weekData?.actualPassingYards != null && (
+        <TiebreakerActualsCard
+          actualPassingYards={weekData.actualPassingYards}
+          actualRushingYards={weekData.actualRushingYards ?? null}
+          tiedPlayers={hasTie ? tiedTopPlayers : []}
+        />
+      )}
 
       <p className="text-[11px] text-muted-foreground/40 text-center">
         Points = confidence points from correct picks only · Total = season cumulative
