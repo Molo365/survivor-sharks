@@ -118,38 +118,6 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         };
       }
 
-      // ── NFL Pick-Ems Season ─────────────────────────────────────────────────
-      if (poolType === "pickem_season") {
-        const week = pool.currentWeek;
-        const rows = await db
-          .select({
-            userId: pickemPicksTable.userId,
-            correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
-            picked: sql<string>`COUNT(*)`,
-          })
-          .from(pickemPicksTable)
-          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
-          .groupBy(pickemPicksTable.userId)
-          .orderBy(
-            sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
-            sql`COUNT(*) DESC`,
-          );
-        const myIdx = rows.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? rows[myIdx] : null;
-        return {
-          poolId: pool.id,
-          poolType,
-          lastWinner: null,
-          myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
-            correct: myRow ? Number(myRow.correct) : 0,
-            picked: myRow ? Number(myRow.picked) : 0,
-            hasPicks: !!myRow,
-            status: null, eliminatedWeek: null, score: null, maxScore: null,
-          },
-        };
-      }
-
       // ── NFL Confidence Picks ────────────────────────────────────────────────
       if (poolType === "nfl_confidence") {
         const week = pool.currentWeek;

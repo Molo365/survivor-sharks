@@ -18,7 +18,6 @@ import { InjuriesTab } from "@/components/InjuriesTab";
 import { PickEmView } from "@/components/PickEmView";
 import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
 import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView";
-import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
@@ -43,7 +42,6 @@ export default function PoolHome() {
   const isPickEm = (pool?.poolType as string) === "pickem";
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
   const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
-  const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
@@ -134,11 +132,6 @@ export default function PoolHome() {
                       <ListOrdered className="w-3 h-3" /> Group Predictor
                     </span>
                   )}
-                  {(pool.poolType as string) === "pickem_season" && (
-                    <span className="flex items-center gap-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-1 rounded">
-                      <Target className="w-3 h-3" /> Pick-Ems Season
-                    </span>
-                  )}
                   {isNdp && (
                     <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
                       <ListOrdered className="w-3 h-3" /> Division Predictor
@@ -170,11 +163,6 @@ export default function PoolHome() {
                     </span>
                   )}
                   {pool.sport === "nfl" && ["season", "weekly", "mid_season"].includes(pool.poolType) && (pool as any).sandboxMode && (
-                    <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
-                      <Zap className="w-2.5 h-2.5" /> Sandbox
-                    </span>
-                  )}
-                  {isPickEmSeason && (pool as any).sandboxMode && (
                     <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
                       <Zap className="w-2.5 h-2.5" /> Sandbox
                     </span>
@@ -255,8 +243,6 @@ export default function PoolHome() {
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : isNdp ? (
               <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
-            ) : isPickEmSeason ? (
-              <PickEmSeasonView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} currentWeek={pool.currentWeek} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} sandboxWeek={(pool as any).sandboxWeek ?? undefined} isSuperAdmin={user?.role === "admin"} />
             ) : isCrazyEights ? (
               <Tabs defaultValue="picks" className="w-full">
                 <div className="relative">

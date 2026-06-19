@@ -119,7 +119,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 // POST /api/pools/join
 router.post("/join", requireAuth, async (req, res) => {
-  const { inviteCode, tiebreakerPrediction } = req.body;
+  const { inviteCode } = req.body;
 
   if (!inviteCode) {
     res.status(400).json({ error: "inviteCode is required" });
@@ -141,18 +141,10 @@ router.post("/join", requireAuth, async (req, res) => {
     return;
   }
 
-  const tbPrediction =
-    (pool.poolType as string) === "pickem_season" &&
-    typeof tiebreakerPrediction === "number" &&
-    isFinite(tiebreakerPrediction)
-      ? Math.round(tiebreakerPrediction)
-      : undefined;
-
   await db.insert(entriesTable).values({
     poolId: pool.id,
     userId: req.user!.id,
     status: "alive",
-    tiebreakerPrediction: tbPrediction,
   });
 
   const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
