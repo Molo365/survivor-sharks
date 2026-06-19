@@ -873,6 +873,7 @@ export function PickEmSeasonView({
             <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
               <TabsTrigger
                 value="picks"
+                onClick={() => setDisplayWeek(currentWeek)}
                 className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2 items-center"
               >
                 <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
