@@ -214,6 +214,77 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         };
       }
 
+      // ── NFL Pick-Em Season ──────────────────────────────────────────────────
+      if (poolType === "pickem_season") {
+        const week = pool.currentWeek;
+        const prevWeek = week - 1;
+
+        let lastWinner = null;
+        if (prevWeek >= 1) {
+          const prevRows = await db
+            .select({
+              userId: pickemPicksTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+              picked: sql<string>`COUNT(*)`,
+              graded: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IN ('correct','incorrect','postponed'))`,
+            })
+            .from(pickemPicksTable)
+            .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+            .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, prevWeek)))
+            .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+            .orderBy(
+              sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+              sql`COUNT(*) DESC`,
+            );
+          const hasGraded = prevRows.some((r) => Number(r.graded) > 0);
+          if (hasGraded && prevRows.length > 0) {
+            lastWinner = {
+              userId: prevRows[0].userId,
+              username: prevRows[0].username,
+              displayName: prevRows[0].displayName ?? null,
+              correct: Number(prevRows[0].correct),
+              picked: Number(prevRows[0].picked),
+              score: null,
+            };
+          }
+        }
+
+        const currentRows = await db
+          .select({
+            userId: pickemPicksTable.userId,
+            correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+            picked: sql<string>`COUNT(*)`,
+          })
+          .from(pickemPicksTable)
+          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+          .groupBy(pickemPicksTable.userId)
+          .orderBy(
+            sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+            sql`COUNT(*) DESC`,
+          );
+
+        const myIdx = currentRows.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+        return {
+          poolId: pool.id,
+          poolType,
+          lastWinner,
+          myStanding: {
+            rank: myRow ? myIdx + 1 : 0,
+            correct: myRow ? Number(myRow.correct) : 0,
+            picked: myRow ? Number(myRow.picked) : 0,
+            hasPicks: !!myRow,
+            status: null,
+            eliminatedWeek: null,
+            score: null,
+            maxScore: null,
+          },
+        };
+      }
+
       // ── NFL Division Predictor ──────────────────────────────────────────────
       if (poolType === "nfl_division_predictor") {
         const [allPicks, allResults] = await Promise.all([
