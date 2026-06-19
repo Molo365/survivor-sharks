@@ -1062,7 +1062,8 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
   "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)')
 })),
-  "tiebreakerActualRuns": zod.number().nullish().describe('Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)')
+  "tiebreakerActualRuns": zod.number().nullish().describe('Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)'),
+  "tiebreakerActualStrikeouts": zod.number().nullish().describe('Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)')
 })
 
 

@@ -1037,6 +1037,11 @@ export interface PickEmLeaderboard {
      * @nullable
      */
   tiebreakerActualRuns?: number | null;
+  /**
+     * Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)
+     * @nullable
+     */
+  tiebreakerActualStrikeouts?: number | null;
 }
 
 export type PickEmDailyResultsGameAwayTeam = {

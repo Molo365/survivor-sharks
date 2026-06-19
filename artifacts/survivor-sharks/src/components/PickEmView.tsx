@@ -2471,6 +2471,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard
                   actualRuns={leaderboard.tiebreakerActualRuns ?? null}
+                  actualStrikeouts={leaderboard.tiebreakerActualStrikeouts ?? null}
                   tiedPlayers={leaderboard.entries
                     .filter((e) => e.tiebreakerRunsGuess != null || e.tiebreakerStrikeoutsGuess != null)
                     .map((e) => ({
@@ -2569,6 +2570,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               {isMlb && !isWeekly && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard
                   actualRuns={leaderboard.tiebreakerActualRuns ?? null}
+                  actualStrikeouts={leaderboard.tiebreakerActualStrikeouts ?? null}
                   tiedPlayers={leaderboard.entries
                     .filter((e) => e.tiebreakerRunsGuess != null || e.tiebreakerStrikeoutsGuess != null)
                     .map((e) => ({

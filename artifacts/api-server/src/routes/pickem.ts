@@ -9,6 +9,7 @@ import {
   getTodayEtDate,
   formatDateEt,
 } from "../lib/espn";
+import { fetchDailyStrikeouts } from "../lib/mlb-stats";
 import {
   fetchWcSchedule,
   WC_PHASES,
@@ -870,7 +871,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }
 
   // For MLB pools: compute actualRuns from final ESPN games on today's slate
+  // and fetch actualStrikeouts from MLB Stats API (secondary source — failures → null)
   let tiebreakerActualRuns: number | null = null;
+  let tiebreakerActualStrikeouts: number | null = null;
   if (isMlb && espnGames.length > 0) {
     const finalGames = espnGames.filter((g) => g.isCompleted);
     if (finalGames.length > 0) {
@@ -878,6 +881,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         (sum, g) => sum + (g.homeScore ?? 0) + (g.awayScore ?? 0),
         0,
       );
+      // Fetch strikeouts from MLB Stats API; returns null on any match/fetch failure
+      tiebreakerActualStrikeouts = await fetchDailyStrikeouts(espnGames, todayEt);
     }
   }
 
@@ -963,6 +968,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     totalGames,
     completedGames,
     tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
+    tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
   });
 });
 

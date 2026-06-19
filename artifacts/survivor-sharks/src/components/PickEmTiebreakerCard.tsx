@@ -9,11 +9,18 @@ interface TiedPickEmPlayer {
 
 interface PickEmTiebreakerCardProps {
   actualRuns: number | null;
+  actualStrikeouts: number | null;
   tiedPlayers: TiedPickEmPlayer[];
 }
 
-export function PickEmTiebreakerCard({ actualRuns, tiedPlayers }: PickEmTiebreakerCardProps) {
+export function PickEmTiebreakerCard({ actualRuns, actualStrikeouts, tiedPlayers }: PickEmTiebreakerCardProps) {
   const hasTie = tiedPlayers.length >= 2;
+
+  const strikeoutDiff = (guess: number | null) =>
+    actualStrikeouts != null && guess != null
+      ? Math.abs(guess - actualStrikeouts)
+      : null;
+
   return (
     <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
       <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Tiebreaker</p>
@@ -24,7 +31,7 @@ export function PickEmTiebreakerCard({ actualRuns, tiedPlayers }: PickEmTiebreak
         </div>
         <div>
           <p className="text-[10px] text-muted-foreground/60">Total strikeouts</p>
-          <p className="font-bebas text-xl text-yellow-300">—</p>
+          <p className="font-bebas text-xl text-yellow-300">{actualStrikeouts ?? "—"}</p>
         </div>
       </div>
 
@@ -48,6 +55,9 @@ export function PickEmTiebreakerCard({ actualRuns, tiedPlayers }: PickEmTiebreak
               <span className="tabular-nums text-muted-foreground/60 shrink-0">
                 <span className="text-muted-foreground/40">K </span>
                 <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
+                {strikeoutDiff(p.tiebreakerStrikeoutsGuess) != null && (
+                  <span className="text-yellow-400/70"> (Δ{strikeoutDiff(p.tiebreakerStrikeoutsGuess)})</span>
+                )}
               </span>
             </div>
           ))}

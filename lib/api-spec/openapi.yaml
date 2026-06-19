@@ -2801,6 +2801,9 @@ components:
         tiebreakerActualRuns:
           type: ["integer", "null"]
           description: "Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)"
+        tiebreakerActualStrikeouts:
+          type: ["integer", "null"]
+          description: "Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)"
 
     PickEmDailyResultsGame:
       type: object
