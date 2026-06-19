@@ -852,8 +852,8 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     allPicked &&
     games.every((g) => confidence[g.id] !== undefined);
 
-  // The last game on the sorted slate is always the tiebreaker
-  const tiebreakerGameId = games.at(-1)?.id ?? null;
+  // The last game is only the tiebreaker in Week 18 — never highlight it on other weeks
+  const tiebreakerGameId = currentWeek === 18 ? (games.at(-1)?.id ?? null) : null;
 
   function handleTeamClick(gameId: string, teamId: string) {
     if (isLocked) return;
@@ -1035,13 +1035,15 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
         </div>
       )}
 
-      {/* Badge legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
-        <span className="flex items-center gap-1.5">
-          <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 text-[9px] px-1.5 py-0.5">TIEBREAKER</Badge>
-          Last game of the week
-        </span>
-      </div>
+      {/* Badge legend — only shown in Week 18 when tiebreaker is active */}
+      {currentWeek === 18 && (
+        <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
+          <span className="flex items-center gap-1.5">
+            <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 text-[9px] px-1.5 py-0.5">TIEBREAKER</Badge>
+            Last game of the week
+          </span>
+        </div>
+      )}
 
       {/* Game list */}
       <div className="space-y-3">
