@@ -159,9 +159,9 @@ function authedFetch<T>(url: string): Promise<T> {
 // ── Locked picks view ─────────────────────────────────────────────────────────
 
 function LockedPickRow({ pick }: { pick: SubmittedPick }) {
-  const isFinal = pick.status === "final";
-  const isLive = pick.status === "in_progress";
-  const isPostponed = pick.status === "postponed";
+  const isFinal = pick.status === "final" || pick.result === "correct" || pick.result === "incorrect";
+  const isLive = !isFinal && pick.status === "in_progress";
+  const isPostponed = !isFinal && pick.status === "postponed";
 
   type TeamShape = SubmittedPick["homeTeam"];
 
@@ -383,10 +383,10 @@ function GameCard({
   onTeamClick: (teamId: string) => void;
   onAssignConfidence: (pts: number) => void;
 }) {
-  const isFinal = !sandboxMode && game.status === "final";
-  const isLive = game.status === "in_progress";
-  const isPostponed = game.status === "postponed";
-  const isSuspended = game.status === "suspended";
+  const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
+  const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
+  const isPostponed = !isFinal && game.status === "postponed";
+  const isSuspended = !isFinal && game.status === "suspended";
   const isGameLocked = isSuspended || isLocked;
 
   function teamSide(team: PickEmGame["awayTeam"], side: "away" | "home") {

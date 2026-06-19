@@ -92,8 +92,8 @@ function GameCard({
   pending?: boolean;
 }) {
   const locked = game.deadlinePassed;
-  const isLive = game.status === "in_progress";
-  const isFinal = game.status === "final";
+  const isLive = game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS";
+  const isFinal = !isLive && (game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false));
   const result = game.userPickResult ?? null;
 
   function teamBtn(

@@ -60,18 +60,46 @@ router.get("/picks", requireAuth, async (req, res) => {
     .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.userId, userId), eq(pickemPicksTable.week, week)));
 
   const isSandbox = (pool as any).sandboxMode as boolean;
-  let gameMap: Map<string, ReturnType<typeof sandboxGameToPickEmShape>> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gameMap = new Map<string, any>();
 
   if (isSandbox) {
     const sandboxGames = getSandboxGamesForWeek(week);
     for (const g of sandboxGames) {
       gameMap.set(g.id, sandboxGameToPickEmShape(g));
     }
+  } else {
+    // Fetch live scores + status from ESPN for non-sandbox pools
+    try {
+      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
+      for (const ev of espnData.events ?? []) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const comp = ev.competitions?.[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+        const isCompleted = comp?.status?.type?.completed ?? false;
+        const state = comp?.status?.type?.state ?? "pre";
+        gameMap.set(String(ev.id), {
+          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
+          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
+          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
+          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
+          startTime: ev.date ?? "",
+          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
+        });
+      }
+    } catch { /* ESPN unavailable; status derived from pick result below */ }
   }
 
   const details = picks.map((pick) => {
     const game = gameMap.get(pick.gameId);
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+    // Derive "final" status from pick result when game data is unavailable or stale
+    const isGraded = pick.result === "correct" || pick.result === "incorrect";
     return {
       gameId: pick.gameId,
       pickedTeamId: pick.pickedTeamId,
@@ -86,7 +114,7 @@ router.get("/picks", requireAuth, async (req, res) => {
       homeScore: game?.homeScore ?? null,
       awayScore: game?.awayScore ?? null,
       startTime: game?.startTime ?? "",
-      status: (game?.status ?? "unknown") as string,
+      status: (isGraded ? "final" : (game?.status ?? "unknown")) as string,
     };
   });
 

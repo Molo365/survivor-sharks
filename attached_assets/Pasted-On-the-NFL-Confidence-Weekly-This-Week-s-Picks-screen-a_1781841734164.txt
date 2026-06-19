@@ -1,0 +1,12 @@
+On the NFL Confidence Weekly "This Week's Picks" screen (and likely shared across other NFL pool types), each graded matchup card currently shows only "VS" and the kickoff time in the center column, plus a CORRECT/WRONG indicator on whichever team the player picked. It does not show the actual final score of the game — only whether the pick was right or wrong. Compare this to the MLB Crazy 8's "Today's Picks" screen, where each finished game clearly shows the literal final score (e.g. "4 — 3") next to the team logos, regardless of picks.
+Please add final score display to all NFL pool matchup cards, matching that MLB pattern:
+
+Find the shared NFL matchup card component(s) used across NFL Survivor (Classic Season), NFL Confidence Picks (Season and Weekly), NFL Pick-Ems Season, and NFL Division Predictor — confirm which of these share a single component vs. have separate ones.
+For any game that has a final/completed status, display the actual final score for each team next to their logo/name, the same way MLB Crazy 8's does — away team's score on one side, home team's score on the other. This is the literal score (e.g. "24") regardless of whether the player's pick was correct.
+Keep the existing CORRECT/WRONG/MY PICK indicators as they are — the score is additional information shown alongside them, not a replacement.
+For games that haven't started yet or are scheduled, keep the current display (no score, just kickoff time/odds) — do not show a score placeholder like "0-0."
+Do not implement live/in-progress score updates as part of this task — that's intentionally out of scope for now. Only show the score once a game is in a final/completed state.
+Make sure this fits cleanly within the matchup card layout we just redesigned (2-row center column) — the score should not force the card back to a taller stacked layout. Adjust placement as needed to keep the compact height.
+Apply consistently across all NFL pool types identified in step 1. If any of them turn out to use separate, non-shared components, apply the same change to each one individually.
+
+Then push to GitHub when done.

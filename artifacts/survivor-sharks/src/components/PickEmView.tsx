@@ -139,9 +139,9 @@ function WcGameCard({
   pickedOption: WcPickOption | null;
   onPick: (opt: WcPickOption) => void;
 }) {
-  const isFinal = game.status === "final";
-  const isLive = game.status === "in_progress";
-  const isPostponed = game.status === "postponed";
+  const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
+  const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
+  const isPostponed = !isFinal && game.status === "postponed";
   const isLocked = game.deadlinePassed || isLive || isPostponed;
 
   const result = pickedOption ? game.userPickResult : null;
@@ -272,9 +272,9 @@ interface GameCardProps {
 }
 
 function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
-  const isFinal = game.status === "final";
-  const isLive = game.status === "in_progress";
-  const isPostponed = game.status === "postponed";
+  const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
+  const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
+  const isPostponed = !isFinal && game.status === "postponed";
   const isLocked = game.deadlinePassed || isLive || isPostponed;
 
   function teamBtn(
