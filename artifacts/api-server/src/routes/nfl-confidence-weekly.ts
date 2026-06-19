@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
@@ -67,6 +67,17 @@ router.get("/picks", requireAuth, async (req, res) => {
     const sandboxGames = getSandboxGamesForWeek(week);
     for (const g of sandboxGames) {
       gameMap.set(g.id, sandboxGameToPickEmShape(g));
+    }
+    // Overlay any stored sandbox scores from simulate-grading
+    const storedScores = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    for (const row of storedScores) {
+      const existing = gameMap.get(row.gameId);
+      if (existing) {
+        gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore, awayScore: row.awayScore });
+      }
     }
   } else {
     // Fetch live scores + status from ESPN for non-sandbox pools
@@ -395,14 +406,38 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     return Math.max(10, Math.min(45, tds * 7 + fgs * 3 + twoPt));
   }
 
-  const gameWinners = new Map<string, string>();
-  for (const [gameId, game] of gameMap) {
+  // Load any previously stored scores for this pool/week so outcomes are
+  // stable across repeated simulate-grading calls. Games that already have
+  // stored scores keep their results; only truly new games get random scores.
+  const existingScoreRows = await db
+    .select()
+    .from(sandboxGameScoresTable)
+    .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+  const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
+    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]),
+  );
+
+  // Generate and persist scores only for games that don't yet have stored scores
+  for (const [gameId] of gameMap) {
+    if (gameScores.has(gameId)) continue;
     let homeScore: number, awayScore: number;
     do {
       homeScore = randomNflScore();
       awayScore = randomNflScore();
     } while (homeScore === awayScore);
-    gameWinners.set(gameId, homeScore > awayScore ? game.homeTeamId : game.awayTeamId);
+    gameScores.set(gameId, { homeScore, awayScore });
+    await db
+      .insert(sandboxGameScoresTable)
+      .values({ poolId, week, gameId, homeScore, awayScore })
+      .onConflictDoNothing();
+  }
+
+  // Derive winners from the now-stable score map
+  const gameWinners = new Map<string, string>();
+  for (const [gameId, scores] of gameScores) {
+    const game = gameMap.get(gameId);
+    if (!game) continue;
+    gameWinners.set(gameId, scores.homeScore > scores.awayScore ? game.homeTeamId : game.awayTeamId);
   }
 
   const pendingPicks = await db
