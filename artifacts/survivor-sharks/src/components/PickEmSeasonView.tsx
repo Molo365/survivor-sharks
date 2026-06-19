@@ -1018,6 +1018,18 @@ export function PickEmSeasonView({
                   </div>
                 )}
 
+                <div className="space-y-3">
+                  {slate.games.map((game) => (
+                    <GameCard
+                      key={game.id}
+                      game={game}
+                      pickedTeamId={localPicks.get(game.id)?.pickedTeamId ?? null}
+                      onPick={(teamId, teamName) => handlePick(game.id, teamId, teamName)}
+                      pending={submitPicks.isPending}
+                    />
+                  ))}
+                </div>
+
                 {/* ── Save picks bar ── */}
                 {unlockedGames.length > 0 && (
                   <div className="flex items-center justify-between bg-card/50 border border-border/30 rounded-lg px-4 py-2.5">
@@ -1042,18 +1054,6 @@ export function PickEmSeasonView({
                     </Button>
                   </div>
                 )}
-
-                <div className="space-y-3">
-                  {slate.games.map((game) => (
-                    <GameCard
-                      key={game.id}
-                      game={game}
-                      pickedTeamId={localPicks.get(game.id)?.pickedTeamId ?? null}
-                      onPick={(teamId, teamName) => handlePick(game.id, teamId, teamName)}
-                      pending={submitPicks.isPending}
-                    />
-                  ))}
-                </div>
               </div>
             )}
           </TabsContent>
