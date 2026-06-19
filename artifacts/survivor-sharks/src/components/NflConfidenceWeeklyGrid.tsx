@@ -177,6 +177,47 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
       ) : (
         <div className="overflow-x-auto [scrollbar-width:thin] rounded-lg border border-border/40">
           <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border/40 bg-muted/20">
+                <th className="sticky left-0 z-10 bg-muted/20 border-r border-border/40 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                  Player
+                </th>
+                {displayGames.map((game) => {
+                  const hasScore = game.awayScore != null && game.homeScore != null;
+                  return (
+                    <th key={game.id} className="px-1 py-2 border-r border-border/20 last:border-r-0 min-w-[80px]">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                          <img
+                            src={teamLogoSrc(game.awayTeam)}
+                            alt={game.awayTeam.abbreviation}
+                            className="w-4 h-4 object-contain"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
+                          <span>{game.awayTeam.abbreviation}</span>
+                          <span className="text-muted-foreground/40">@</span>
+                          <span>{game.homeTeam.abbreviation}</span>
+                          <img
+                            src={teamLogoSrc(game.homeTeam)}
+                            alt={game.homeTeam.abbreviation}
+                            className="w-4 h-4 object-contain"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
+                        </div>
+                        {hasScore && (
+                          <span className="text-[11px] font-bold text-foreground tabular-nums">
+                            {game.awayScore}–{game.homeScore}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
+                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                  Pts
+                </th>
+              </tr>
+            </thead>
             <tbody>
               {(data?.players ?? [])
                 .slice()

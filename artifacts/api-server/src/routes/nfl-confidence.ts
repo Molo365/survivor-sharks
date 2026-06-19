@@ -308,6 +308,21 @@ router.get("/grid", requireAuth, async (req, res) => {
   sandboxGames.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const gameMap = new Map(sandboxGames.map(g => [g.id, g]));
 
+  // Overlay stored sandbox scores so the grid reflects graded results
+  if (isSandbox) {
+    const storedScores = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    for (const row of storedScores) {
+      const existing = gameMap.get(row.gameId);
+      if (existing) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore as any, awayScore: row.awayScore as any });
+      }
+    }
+  }
+
   const userMap = new Map<number, {
     userId: number;
     username: string;
@@ -341,7 +356,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     });
   }
 
-  const games = sandboxGames.map(g => ({
+  const games = [...gameMap.values()].map(g => ({
     id: g.id,
     awayTeam: g.awayTeam,
     homeTeam: g.homeTeam,
