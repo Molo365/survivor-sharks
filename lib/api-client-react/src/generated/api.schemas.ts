@@ -1231,6 +1231,109 @@ export interface NdpLeaderboardEntry {
   divisionScores: NdpLeaderboardEntryDivisionScoresItem[];
 }
 
+export interface NflPickEmSeasonTeam {
+  id: string;
+  name: string;
+  abbreviation: string;
+  logoUrl?: string | null;
+}
+
+export interface NflPickEmSeasonGame {
+  id: string;
+  startTime: string;
+  status: string;
+  deadlinePassed: boolean;
+  awayTeam: NflPickEmSeasonTeam;
+  homeTeam: NflPickEmSeasonTeam;
+  awayScore?: number | null;
+  homeScore?: number | null;
+  userPickTeamId?: string | null;
+  userPickResult?: string | null;
+  liveDetail?: string | null;
+  homeRecord?: string | null;
+  awayRecord?: string | null;
+}
+
+export interface NflPickEmSeasonSlate {
+  week: number;
+  totalWeeks: number;
+  currentWeek: number;
+  games: NflPickEmSeasonGame[];
+}
+
+export interface NflPickEmSeasonPickInput {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+}
+
+export interface NflPickEmSeasonPicksResult {
+  saved: number;
+  skipped: number;
+}
+
+export type NflPickEmSeasonLeaderboardEntryWeeklyScores = {[key: string]: {
+  correct: number;
+  total: number;
+}};
+
+export interface NflPickEmSeasonLeaderboardEntry {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  seasonCorrect: number;
+  seasonTotal: number;
+  tiebreakerPassingYards?: number | null;
+  tiebreakerRushingYards?: number | null;
+  weeklyScores: NflPickEmSeasonLeaderboardEntryWeeklyScores;
+}
+
+export interface NflPickEmSeasonLeaderboard {
+  currentWeek: number;
+  totalWeeks: number;
+  entries: NflPickEmSeasonLeaderboardEntry[];
+}
+
+export interface NflPickEmSeasonProcessResult {
+  graded: number;
+  week: number;
+  completedGames: number;
+}
+
+export interface NflPickEmSeasonPlayerPick {
+  gameId: string;
+  pickedTeamId: string;
+  pickedTeamName: string;
+  result?: string | null;
+}
+
+export interface NflPickEmSeasonWeekPlayer {
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+  rank: number;
+  picks: NflPickEmSeasonPlayerPick[];
+}
+
+export interface NflPickEmSeasonWeekWinner {
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+}
+
+export interface NflPickEmSeasonWeekResults {
+  week: number;
+  games: NflPickEmSeasonGame[];
+  players: NflPickEmSeasonWeekPlayer[];
+  winners: NflPickEmSeasonWeekWinner[];
+  hasResults: boolean;
+}
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.
@@ -1295,5 +1398,37 @@ export type AdminProcessPickemResultsBody = {
 export type AdminProcessPickemResults200 = {
   processed: number;
   dates: string[];
+};
+
+export type GetNflPickEmSeasonGamesParams = {
+week?: number;
+};
+
+export type SubmitNflPickEmSeasonPicksBody = {
+  week: number;
+  picks: NflPickEmSeasonPickInput[];
+  tiebreakerPassingYards?: number | null;
+  tiebreakerRushingYards?: number | null;
+};
+
+export type ProcessNflPickEmSeasonResultsBody = {
+  week?: number;
+};
+
+export type GetNflPickEmSeasonWeekResultsParams = {
+week?: number;
+};
+
+export type SetNflPickEmSeasonSandboxWeekBody = {
+  week: number;
+};
+
+export type SetNflPickEmSeasonSandboxWeek200 = {
+  week: number;
+};
+
+export type SimulateNflPickEmSeasonGrading200 = {
+  graded: number;
+  week: number;
 };
 

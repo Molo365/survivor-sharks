@@ -30,6 +30,7 @@ import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel, NflConfi
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
+import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -45,6 +46,7 @@ export default function PoolHome() {
   const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
+  const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -237,7 +239,18 @@ export default function PoolHome() {
               </div>
             </div>
 
-            {(pool.poolType as string) === "pickem" ? (
+            {isPickEmSeason ? (
+              <PickEmSeasonView
+                poolId={pool.id}
+                poolName={pool.name}
+                commissionerId={pool.commissionerId}
+                currentWeek={pool.currentWeek}
+                inviteCode={pool.inviteCode ?? ""}
+                sandboxMode={(pool as any).sandboxMode ?? false}
+                sandboxWeek={(pool as any).sandboxWeek ?? 1}
+                isSuperAdmin={user?.role === "admin"}
+              />
+            ) : (pool.poolType as string) === "pickem" ? (
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />
             ) : isGsp ? (
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />

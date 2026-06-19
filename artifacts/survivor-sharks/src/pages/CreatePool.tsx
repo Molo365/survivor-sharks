@@ -61,7 +61,7 @@ const SPORTS = [
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
-  [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly"],
+  [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "weekly"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
@@ -162,6 +162,18 @@ const POOL_TYPES = [
     cardClass:
       "border-purple-500/60 bg-[linear-gradient(145deg,rgba(168,85,247,0.08)_0%,transparent_100%)]",
   },
+  {
+    id: "pickem_season" as const,
+    label: "NFL Pick-Ems Season",
+    icon: Target,
+    tagline: "Pick Every Game. Win The Season.",
+    description:
+      "Pick the winner of every NFL game each week. Most correct picks at the end of the season wins. Tiebreaker on Week 18.",
+    badge: "NFL",
+    badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
+    cardClass:
+      "border-green-500/60 bg-[linear-gradient(145deg,rgba(34,197,94,0.08)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -173,7 +185,7 @@ const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th",
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   sandboxMode: z.boolean().default(false),
@@ -217,7 +229,7 @@ export default function CreatePool() {
   useEffect(() => {
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -233,7 +245,7 @@ export default function CreatePool() {
 
   // Ensure prize slots match the pool type's fixed structure
   useEffect(() => {
-    if (selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly") {
+    if (selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") {
       setPrizes(p => [p[0] ?? { amount: "" }]);
     } else {
       setPrizes(p => (p.length === 2 && p[1].amount === "" ? [p[0] ?? { amount: "" }] : p));
@@ -286,7 +298,7 @@ export default function CreatePool() {
           ...values,
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
-          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly") && { sandboxMode: values.sandboxMode }),
+          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season") && { sandboxMode: values.sandboxMode }),
         } as any,
       },
       {
@@ -592,8 +604,8 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* ── Sandbox Mode — NFL Confidence only ── */}
-              {(selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly") && (
+              {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season ── */}
+              {(selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") && (
                 <FormField
                   control={form.control}
                   name="sandboxMode"

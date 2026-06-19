@@ -31,6 +31,8 @@ import type {
   ErrorResponse,
   Game,
   GetDailyScheduleParams,
+  GetNflPickEmSeasonGamesParams,
+  GetNflPickEmSeasonWeekResultsParams,
   GetPickEmDailyPicksParams,
   GetPickEmDailyResultsParams,
   GetPickEmGamesParams,
@@ -53,6 +55,11 @@ import type {
   NdpPick,
   NdpPicksInput,
   NdpResultsInput,
+  NflPickEmSeasonLeaderboard,
+  NflPickEmSeasonPicksResult,
+  NflPickEmSeasonProcessResult,
+  NflPickEmSeasonSlate,
+  NflPickEmSeasonWeekResults,
   Pick,
   PickEmDailyPickDetail,
   PickEmDailyResults,
@@ -71,9 +78,14 @@ import type {
   PoolSchedule,
   PoolStats,
   PoolUpdate,
+  ProcessNflPickEmSeasonResultsBody,
   ProcessResultsInput,
   ProcessResultsResult,
   RegisterInput,
+  SetNflPickEmSeasonSandboxWeek200,
+  SetNflPickEmSeasonSandboxWeekBody,
+  SimulateNflPickEmSeasonGrading200,
+  SubmitNflPickEmSeasonPicksBody,
   SuccessResponse,
   SurvivorGrid,
   Team,
@@ -4150,5 +4162,546 @@ export const useAdminDeletePool = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminDeletePoolMutationOptions(options));
+    }
+
+export const getGetNflPickEmSeasonGamesUrl = (poolId: number,
+    params?: GetNflPickEmSeasonGamesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem-season/games?${stringifiedParams}` : `/api/pools/${poolId}/pickem-season/games`
+}
+
+/**
+ * @summary Get NFL games for a week with user's picks
+ */
+export const getNflPickEmSeasonGames = async (poolId: number,
+    params?: GetNflPickEmSeasonGamesParams, options?: RequestInit): Promise<NflPickEmSeasonSlate> => {
+
+  return customFetch<NflPickEmSeasonSlate>(getGetNflPickEmSeasonGamesUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflPickEmSeasonGamesQueryKey = (poolId: number,
+    params?: GetNflPickEmSeasonGamesParams,) => {
+    return [
+    `/api/pools/${poolId}/pickem-season/games`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNflPickEmSeasonGamesQueryOptions = <TData = Awaited<ReturnType<typeof getNflPickEmSeasonGames>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetNflPickEmSeasonGamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflPickEmSeasonGamesQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflPickEmSeasonGames>>> = ({ signal }) => getNflPickEmSeasonGames(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonGames>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflPickEmSeasonGamesQueryResult = NonNullable<Awaited<ReturnType<typeof getNflPickEmSeasonGames>>>
+export type GetNflPickEmSeasonGamesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get NFL games for a week with user's picks
+ */
+
+export function useGetNflPickEmSeasonGames<TData = Awaited<ReturnType<typeof getNflPickEmSeasonGames>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    params?: GetNflPickEmSeasonGamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflPickEmSeasonGamesQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitNflPickEmSeasonPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/picks`
+}
+
+/**
+ * @summary Submit picks for an NFL Pick-Ems Season pool
+ */
+export const submitNflPickEmSeasonPicks = async (poolId: number,
+    submitNflPickEmSeasonPicksBody: SubmitNflPickEmSeasonPicksBody, options?: RequestInit): Promise<NflPickEmSeasonPicksResult> => {
+
+  return customFetch<NflPickEmSeasonPicksResult>(getSubmitNflPickEmSeasonPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      submitNflPickEmSeasonPicksBody,)
+  }
+);}
+
+
+
+
+export const getSubmitNflPickEmSeasonPicksMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>, TError,{poolId: number;data: BodyType<SubmitNflPickEmSeasonPicksBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>, TError,{poolId: number;data: BodyType<SubmitNflPickEmSeasonPicksBody>}, TContext> => {
+
+const mutationKey = ['submitNflPickEmSeasonPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>, {poolId: number;data: BodyType<SubmitNflPickEmSeasonPicksBody>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitNflPickEmSeasonPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitNflPickEmSeasonPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>>
+    export type SubmitNflPickEmSeasonPicksMutationBody = BodyType<SubmitNflPickEmSeasonPicksBody>
+    export type SubmitNflPickEmSeasonPicksMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Submit picks for an NFL Pick-Ems Season pool
+ */
+export const useSubmitNflPickEmSeasonPicks = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>, TError,{poolId: number;data: BodyType<SubmitNflPickEmSeasonPicksBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitNflPickEmSeasonPicks>>,
+        TError,
+        {poolId: number;data: BodyType<SubmitNflPickEmSeasonPicksBody>},
+        TContext
+      > => {
+      return useMutation(getSubmitNflPickEmSeasonPicksMutationOptions(options));
+    }
+
+export const getGetNflPickEmSeasonLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/leaderboard`
+}
+
+/**
+ * @summary Season-long leaderboard with weekly breakdowns
+ */
+export const getNflPickEmSeasonLeaderboard = async (poolId: number, options?: RequestInit): Promise<NflPickEmSeasonLeaderboard> => {
+
+  return customFetch<NflPickEmSeasonLeaderboard>(getGetNflPickEmSeasonLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflPickEmSeasonLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem-season/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetNflPickEmSeasonLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflPickEmSeasonLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>> = ({ signal }) => getNflPickEmSeasonLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflPickEmSeasonLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>>
+export type GetNflPickEmSeasonLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Season-long leaderboard with weekly breakdowns
+ */
+
+export function useGetNflPickEmSeasonLeaderboard<TData = Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflPickEmSeasonLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getProcessNflPickEmSeasonResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/process-results`
+}
+
+/**
+ * @summary Grade picks for a completed week
+ */
+export const processNflPickEmSeasonResults = async (poolId: number,
+    processNflPickEmSeasonResultsBody?: ProcessNflPickEmSeasonResultsBody, options?: RequestInit): Promise<NflPickEmSeasonProcessResult> => {
+
+  return customFetch<NflPickEmSeasonProcessResult>(getProcessNflPickEmSeasonResultsUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      processNflPickEmSeasonResultsBody,)
+  }
+);}
+
+
+
+
+export const getProcessNflPickEmSeasonResultsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processNflPickEmSeasonResults>>, TError,{poolId: number;data?: BodyType<ProcessNflPickEmSeasonResultsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof processNflPickEmSeasonResults>>, TError,{poolId: number;data?: BodyType<ProcessNflPickEmSeasonResultsBody>}, TContext> => {
+
+const mutationKey = ['processNflPickEmSeasonResults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof processNflPickEmSeasonResults>>, {poolId: number;data?: BodyType<ProcessNflPickEmSeasonResultsBody>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  processNflPickEmSeasonResults(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProcessNflPickEmSeasonResultsMutationResult = NonNullable<Awaited<ReturnType<typeof processNflPickEmSeasonResults>>>
+    export type ProcessNflPickEmSeasonResultsMutationBody = BodyType<ProcessNflPickEmSeasonResultsBody> | undefined
+    export type ProcessNflPickEmSeasonResultsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Grade picks for a completed week
+ */
+export const useProcessNflPickEmSeasonResults = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processNflPickEmSeasonResults>>, TError,{poolId: number;data?: BodyType<ProcessNflPickEmSeasonResultsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof processNflPickEmSeasonResults>>,
+        TError,
+        {poolId: number;data?: BodyType<ProcessNflPickEmSeasonResultsBody>},
+        TContext
+      > => {
+      return useMutation(getProcessNflPickEmSeasonResultsMutationOptions(options));
+    }
+
+export const getGetNflPickEmSeasonWeekResultsUrl = (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem-season/week-results?${stringifiedParams}` : `/api/pools/${poolId}/pickem-season/week-results`
+}
+
+/**
+ * @summary All players' picks and results for a given week
+ */
+export const getNflPickEmSeasonWeekResults = async (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: RequestInit): Promise<NflPickEmSeasonWeekResults> => {
+
+  return customFetch<NflPickEmSeasonWeekResults>(getGetNflPickEmSeasonWeekResultsUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflPickEmSeasonWeekResultsQueryKey = (poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams,) => {
+    return [
+    `/api/pools/${poolId}/pickem-season/week-results`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNflPickEmSeasonWeekResultsQueryOptions = <TData = Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflPickEmSeasonWeekResultsQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>> = ({ signal }) => getNflPickEmSeasonWeekResults(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflPickEmSeasonWeekResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>>
+export type GetNflPickEmSeasonWeekResultsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All players' picks and results for a given week
+ */
+
+export function useGetNflPickEmSeasonWeekResults<TData = Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    params?: GetNflPickEmSeasonWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflPickEmSeasonWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflPickEmSeasonWeekResultsQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSetNflPickEmSeasonSandboxWeekUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/sandbox-week`
+}
+
+/**
+ * @summary Set sandbox week (super admin / commissioner only)
+ */
+export const setNflPickEmSeasonSandboxWeek = async (poolId: number,
+    setNflPickEmSeasonSandboxWeekBody: SetNflPickEmSeasonSandboxWeekBody, options?: RequestInit): Promise<SetNflPickEmSeasonSandboxWeek200> => {
+
+  return customFetch<SetNflPickEmSeasonSandboxWeek200>(getSetNflPickEmSeasonSandboxWeekUrl(poolId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setNflPickEmSeasonSandboxWeekBody,)
+  }
+);}
+
+
+
+
+export const getSetNflPickEmSeasonSandboxWeekMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>, TError,{poolId: number;data: BodyType<SetNflPickEmSeasonSandboxWeekBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>, TError,{poolId: number;data: BodyType<SetNflPickEmSeasonSandboxWeekBody>}, TContext> => {
+
+const mutationKey = ['setNflPickEmSeasonSandboxWeek'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>, {poolId: number;data: BodyType<SetNflPickEmSeasonSandboxWeekBody>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  setNflPickEmSeasonSandboxWeek(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetNflPickEmSeasonSandboxWeekMutationResult = NonNullable<Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>>
+    export type SetNflPickEmSeasonSandboxWeekMutationBody = BodyType<SetNflPickEmSeasonSandboxWeekBody>
+    export type SetNflPickEmSeasonSandboxWeekMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set sandbox week (super admin / commissioner only)
+ */
+export const useSetNflPickEmSeasonSandboxWeek = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>, TError,{poolId: number;data: BodyType<SetNflPickEmSeasonSandboxWeekBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setNflPickEmSeasonSandboxWeek>>,
+        TError,
+        {poolId: number;data: BodyType<SetNflPickEmSeasonSandboxWeekBody>},
+        TContext
+      > => {
+      return useMutation(getSetNflPickEmSeasonSandboxWeekMutationOptions(options));
+    }
+
+export const getSimulateNflPickEmSeasonGradingUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/simulate-grading`
+}
+
+/**
+ * @summary Simulate grading for sandbox mode
+ */
+export const simulateNflPickEmSeasonGrading = async (poolId: number, options?: RequestInit): Promise<SimulateNflPickEmSeasonGrading200> => {
+
+  return customFetch<SimulateNflPickEmSeasonGrading200>(getSimulateNflPickEmSeasonGradingUrl(poolId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSimulateNflPickEmSeasonGradingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>, TError,{poolId: number}, TContext> => {
+
+const mutationKey = ['simulateNflPickEmSeasonGrading'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>, {poolId: number}> = (props) => {
+          const {poolId} = props ?? {};
+
+          return  simulateNflPickEmSeasonGrading(poolId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SimulateNflPickEmSeasonGradingMutationResult = NonNullable<Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>>
+
+    export type SimulateNflPickEmSeasonGradingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Simulate grading for sandbox mode
+ */
+export const useSimulateNflPickEmSeasonGrading = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof simulateNflPickEmSeasonGrading>>,
+        TError,
+        {poolId: number},
+        TContext
+      > => {
+      return useMutation(getSimulateNflPickEmSeasonGradingMutationOptions(options));
     }
 

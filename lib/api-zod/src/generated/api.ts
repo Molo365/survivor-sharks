@@ -1662,3 +1662,202 @@ export const AdminDeletePoolResponse = zod.object({
 })
 
 
+/**
+ * @summary Get NFL games for a week with user's picks
+ */
+export const GetNflPickEmSeasonGamesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNflPickEmSeasonGamesQueryParams = zod.object({
+  "week": zod.coerce.number().optional()
+})
+
+export const GetNflPickEmSeasonGamesResponse = zod.object({
+  "week": zod.number(),
+  "totalWeeks": zod.number(),
+  "currentWeek": zod.number(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.string(),
+  "deadlinePassed": zod.boolean(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickTeamId": zod.string().nullish(),
+  "userPickResult": zod.string().nullish(),
+  "liveDetail": zod.string().nullish(),
+  "homeRecord": zod.string().nullish(),
+  "awayRecord": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Submit picks for an NFL Pick-Ems Season pool
+ */
+export const SubmitNflPickEmSeasonPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitNflPickEmSeasonPicksBody = zod.object({
+  "week": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string()
+})),
+  "tiebreakerPassingYards": zod.number().nullish(),
+  "tiebreakerRushingYards": zod.number().nullish()
+})
+
+
+/**
+ * @summary Season-long leaderboard with weekly breakdowns
+ */
+export const GetNflPickEmSeasonLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNflPickEmSeasonLeaderboardResponse = zod.object({
+  "currentWeek": zod.number(),
+  "totalWeeks": zod.number(),
+  "entries": zod.array(zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "seasonCorrect": zod.number(),
+  "seasonTotal": zod.number(),
+  "tiebreakerPassingYards": zod.number().nullish(),
+  "tiebreakerRushingYards": zod.number().nullish(),
+  "weeklyScores": zod.record(zod.string(), zod.object({
+  "correct": zod.number(),
+  "total": zod.number()
+}))
+}))
+})
+
+
+/**
+ * @summary Grade picks for a completed week
+ */
+export const ProcessNflPickEmSeasonResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const ProcessNflPickEmSeasonResultsBody = zod.object({
+  "week": zod.number().optional()
+})
+
+export const ProcessNflPickEmSeasonResultsResponse = zod.object({
+  "graded": zod.number(),
+  "week": zod.number(),
+  "completedGames": zod.number()
+})
+
+
+/**
+ * @summary All players' picks and results for a given week
+ */
+export const GetNflPickEmSeasonWeekResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNflPickEmSeasonWeekResultsQueryParams = zod.object({
+  "week": zod.coerce.number().optional()
+})
+
+export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
+  "week": zod.number(),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.string(),
+  "deadlinePassed": zod.boolean(),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickTeamId": zod.string().nullish(),
+  "userPickResult": zod.string().nullish(),
+  "liveDetail": zod.string().nullish(),
+  "homeRecord": zod.string().nullish(),
+  "awayRecord": zod.string().nullish()
+})),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number(),
+  "rank": zod.number(),
+  "picks": zod.array(zod.object({
+  "gameId": zod.string(),
+  "pickedTeamId": zod.string(),
+  "pickedTeamName": zod.string(),
+  "result": zod.string().nullish()
+}))
+})),
+  "winners": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number()
+})),
+  "hasResults": zod.boolean()
+})
+
+
+/**
+ * @summary Set sandbox week (super admin / commissioner only)
+ */
+export const SetNflPickEmSeasonSandboxWeekParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SetNflPickEmSeasonSandboxWeekBody = zod.object({
+  "week": zod.number()
+})
+
+export const SetNflPickEmSeasonSandboxWeekResponse = zod.object({
+  "week": zod.number()
+})
+
+
+/**
+ * @summary Simulate grading for sandbox mode
+ */
+export const SimulateNflPickEmSeasonGradingParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SimulateNflPickEmSeasonGradingResponse = zod.object({
+  "graded": zod.number(),
+  "week": zod.number()
+})
+
+
