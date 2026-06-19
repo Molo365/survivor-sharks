@@ -27,7 +27,7 @@ import { NflConfidenceView, NflConfidenceCommissionerPanel } from "@/components/
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
 import { NflConfidenceLeaderboard } from "@/components/NflConfidenceLeaderboard";
 import { NflConfidenceStats } from "@/components/NflConfidenceStats";
-import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel } from "@/components/NflConfidenceWeeklyView";
+import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel, NflConfidenceWeeklyWinnerBanner } from "@/components/NflConfidenceWeeklyView";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
@@ -304,6 +304,8 @@ export default function PoolHome() {
                 </div>
               </Tabs>
             ) : isNflConfidenceWeekly ? (
+              <div className="space-y-4">
+              <NflConfidenceWeeklyWinnerBanner poolId={pool.id} currentWeek={pool.currentWeek} />
               <Tabs defaultValue="picks" className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -358,6 +360,7 @@ export default function PoolHome() {
                   )}
                 </div>
               </Tabs>
+              </div>
             ) : isNflConfidence ? (
               <Tabs defaultValue="picks" className="w-full">
                 <div className="relative">
