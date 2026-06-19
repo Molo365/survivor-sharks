@@ -112,7 +112,18 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
 export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: number; initialWeek?: number }) {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
-  const [week, setWeek] = useState(() => initialWeek ?? 1);
+  const lsKey = `nfl-confidence-weekly-grid-week-${poolId}`;
+  const [week, setWeekState] = useState(() => {
+    const stored = localStorage.getItem(lsKey);
+    return stored ? parseInt(stored, 10) : (initialWeek ?? 1);
+  });
+  function setWeek(updater: number | ((prev: number) => number)) {
+    setWeekState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      localStorage.setItem(lsKey, String(next));
+      return next;
+    });
+  }
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["nfl-confidence-weekly-grid", poolId, week],
