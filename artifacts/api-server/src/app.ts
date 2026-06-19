@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -39,6 +39,18 @@ const frontendDist = path.resolve(process.cwd(), "artifacts/survivor-sharks/dist
 app.use(express.static(frontendDist));
 app.get("*splat", (_req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
+});
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const status = (err as { status?: number; statusCode?: number })?.status
+    ?? (err as { status?: number; statusCode?: number })?.statusCode
+    ?? 500;
+  const message = err instanceof Error ? err.message : "Internal server error";
+  logger.error({ err, req: { method: req.method, url: req.url } }, "Unhandled route error");
+  if (!res.headersSent) {
+    res.status(status).json({ error: message });
+  }
 });
 
 export default app;
