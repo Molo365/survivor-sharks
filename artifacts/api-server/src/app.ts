@@ -46,10 +46,9 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   const status = (err as { status?: number; statusCode?: number })?.status
     ?? (err as { status?: number; statusCode?: number })?.statusCode
     ?? 500;
-  const message = err instanceof Error ? err.message : "Internal server error";
   logger.error({ err, req: { method: req.method, url: req.url } }, "Unhandled route error");
   if (!res.headersSent) {
-    res.status(status).json({ error: message });
+    res.status(status).json({ error: status < 500 ? (err instanceof Error ? err.message : "Bad request") : "Internal server error" });
   }
 });
 
