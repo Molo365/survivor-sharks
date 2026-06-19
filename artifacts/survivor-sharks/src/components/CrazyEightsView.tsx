@@ -461,7 +461,7 @@ function GameCard({
         {teamSide(game.awayTeam, "away")}
 
         {/* Center: status + selection indicator */}
-        <div className="flex flex-col items-center justify-center gap-1.5 px-2 py-3 shrink-0 min-w-[52px] md:min-w-[60px]">
+        <div className="flex flex-col items-center justify-center gap-1.5 px-2 py-3 shrink-0 min-w-[72px] md:min-w-[88px]">
           {isFinal ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none text-center">
               Final
@@ -477,7 +477,7 @@ function GameCard({
           ) : isLive ? (
             <span className="text-[10px] font-bold text-red-400">vs</span>
           ) : (
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap text-center leading-tight">
+            <span className="text-[11px] md:text-xs text-muted-foreground font-semibold whitespace-nowrap text-center leading-tight">
               {formatTimeEt(game.startTime)}
             </span>
           )}

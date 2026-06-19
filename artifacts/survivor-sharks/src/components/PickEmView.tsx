@@ -423,7 +423,7 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
         {teamBtn(game.awayTeam, "away", game.awayScore, game.awayRecord, game.awayPitcher)}
 
         {/* Center divider */}
-        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[48px] sm:px-3 sm:min-w-[64px]">
+        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[72px] sm:px-3 sm:min-w-[88px]">
           {isLive ? (
             <>
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
@@ -455,12 +455,12 @@ function GameCard({ game, pickedTeamId, onPick }: GameCardProps) {
             </span>
           ) : (
             <>
-              <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">
+              <span className="font-bebas text-xs text-muted-foreground/70 tracking-widest uppercase">
                 vs
               </span>
-              <div className="flex items-center gap-0.5 mt-0.5">
-                <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
-                <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium whitespace-nowrap">
+              <div className="flex items-center gap-1 mt-0.5">
+                <Clock className="w-3 h-3 text-primary/60 shrink-0" />
+                <span className="text-[11px] sm:text-xs text-muted-foreground leading-tight font-semibold whitespace-nowrap">
                   {formatTime(game.startTime)}
                 </span>
               </div>
