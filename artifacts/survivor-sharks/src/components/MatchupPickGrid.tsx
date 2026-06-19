@@ -146,7 +146,7 @@ function TeamSide({
       className={cn(
         "relative flex-1 flex flex-col py-2 px-2 sm:p-3 transition-all select-none",
         side === "away" ? "items-start rounded-l-xl" : "items-end rounded-r-xl",
-        "min-h-[80px] sm:min-h-[140px]",
+        "min-h-[80px] sm:min-h-[96px]",
         isUsed
           ? "opacity-40 cursor-not-allowed"
           : isLocked
@@ -332,7 +332,7 @@ function MatchupCard({
   );
 
   const dividerClass = cn(
-    "flex flex-col items-center justify-start pt-2 pb-2 px-1 gap-1 min-w-[48px] sm:pt-3 sm:pb-3 sm:px-2 sm:gap-1.5 sm:min-w-[72px] text-center",
+    "flex flex-col items-center justify-center py-2 px-2 gap-1 min-w-[48px] sm:py-3 sm:px-3 sm:gap-1 sm:min-w-[140px] text-center",
     variant === "live" ? "bg-red-950/30" :
     variant === "final" ? "bg-muted/12" :
     "bg-background/50"
@@ -522,32 +522,37 @@ function MatchupCard({
               </>
             ) : (
               <>
-                <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Away</span>
-                <span className="font-bebas text-lg text-muted-foreground/70">vs</span>
-                <span className="font-bebas text-[10px] text-muted-foreground/50 tracking-widest uppercase">Home</span>
+                <span className="font-bebas text-sm text-muted-foreground/40 leading-none">vs</span>
 
-                <div className="mt-0.5 flex flex-col items-center gap-0.5">
-                  <Clock className="w-3 h-3 text-primary/50" />
-                  <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium">
+                {/* Row 1: kickoff time */}
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Clock className="w-3 h-3 text-primary/50 shrink-0" />
+                  <span className="text-[10px] text-muted-foreground/70 leading-tight font-medium">
                     {formatGameTime(game.startTime)}
                   </span>
                 </div>
 
-                {overUnder != null && (
-                  <div className="mt-1 flex flex-col items-center gap-0.5">
-                    <span className="text-[8px] text-muted-foreground/40 uppercase tracking-wider">O/U</span>
-                    <span className="text-[11px] font-mono font-bold text-foreground/60">{overUnder}</span>
+                {/* Row 2: O/U + spread inline */}
+                {(overUnder != null || game.odds?.details) && (
+                  <div className="flex items-center gap-1 flex-wrap justify-center">
+                    {overUnder != null && (
+                      <span className="text-[10px] font-mono font-semibold text-foreground/55">
+                        O/U {overUnder}
+                      </span>
+                    )}
+                    {overUnder != null && game.odds?.details && (
+                      <span className="text-[10px] text-muted-foreground/30 leading-none">·</span>
+                    )}
+                    {game.odds?.details && (
+                      <span className="text-[10px] font-mono font-semibold text-foreground/55">
+                        {game.odds.details}
+                      </span>
+                    )}
                   </div>
                 )}
 
-                {game.odds?.details && (
-                  <span className="text-[9px] font-mono text-muted-foreground/40 leading-tight text-center">
-                    {game.odds.details}
-                  </span>
-                )}
-
                 {hasWeather && (
-                  <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1.5 w-full">
+                  <div className="mt-1 flex flex-col items-center gap-0.5 border-t border-border/20 pt-1 w-full">
                     {game.weather!.temperature != null && (
                       <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground/55">
                         <Thermometer className="w-2.5 h-2.5 shrink-0" />
