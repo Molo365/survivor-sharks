@@ -610,14 +610,14 @@ export function MatchupPickGrid({
   sport: Sport;
   currentWeek: number;
 }) {
-  // MLB: weekly schedule from pool-scoped endpoint
+  // MLB + NFL: pool-scoped schedule (sandbox-aware for NFL, deadline-aware for MLB)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
-    query: { enabled: sport === "mlb", queryKey: ["pool-schedule", poolId] },
+    query: { enabled: sport === "mlb" || sport === "nfl", queryKey: ["pool-schedule", poolId] },
   });
 
-  // Non-MLB: flat game list from ESPN schedule
+  // Non-MLB, non-NFL: flat game list from ESPN schedule (NBA/NHL/FIFA)
   const { data: games, isLoading: loadingGames } = useListSportGames(sport, currentWeek, {
-    query: { enabled: !!sport && !!currentWeek && sport !== "mlb", queryKey: ["schedule", sport, currentWeek] },
+    query: { enabled: !!sport && !!currentWeek && sport !== "mlb" && sport !== "nfl", queryKey: ["schedule", sport, currentWeek] },
   });
 
   const { data: picks, isLoading: loadingPicks } = useGetMyPicks(poolId, {
@@ -656,7 +656,7 @@ export function MatchupPickGrid({
 
   // ── Loading states ─────────────────────────────────────────────────────────
 
-  if ((sport === "mlb" ? loadingSchedule : loadingGames) || loadingPicks) {
+  if (((sport === "mlb" || sport === "nfl") ? loadingSchedule : loadingGames) || loadingPicks) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
@@ -830,8 +830,12 @@ export function MatchupPickGrid({
   }
 
   // ── Non-MLB: flat game list ────────────────────────────────────────────────
+  // NFL uses the pool-scoped schedule (sandbox-aware); flatten days → games.
+  // NBA/NHL/FIFA still use the sport-level live feed.
 
-  const gameList = games ?? [];
+  const gameList = sport === "nfl"
+    ? (schedule?.days.flatMap(d => d.games) ?? [])
+    : (games ?? []);
 
   const currentPickGame = currentPick
     ? gameList.find(g => g.homeTeam.id === currentPick.teamId || g.awayTeam.id === currentPick.teamId)

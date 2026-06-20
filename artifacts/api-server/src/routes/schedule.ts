@@ -7,6 +7,7 @@ import {
   getMlbWeekBounds,
   fetchMlbWeekGames,
   fetchGamesForDate,
+  fetchNflGamesByWeek,
   getTodayEtDate,
   formatDateEt,
   getDailyPickDeadline,
@@ -143,6 +144,43 @@ router.get("/", requireAuth, async (req, res) => {
     const farFuture = "2099-01-01T00:00:00.000Z";
     res.json({
       weekLabel: `Week ${week} — Sandbox`,
+      weekStart: sortedDates[0] ? `${sortedDates[0]}T00:00:00.000Z` : farFuture,
+      weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
+      deadline: farFuture,
+      deadlinePassed: false,
+      currentWeek: week,
+      days,
+    });
+    return;
+  }
+
+  // ── NFL live path (non-sandbox) ───────────────────────────────────────────
+  if (pool.sport === "nfl") {
+    const week = pool.currentWeek;
+    const nflGames = await fetchNflGamesByWeek(week);
+
+    const byDate = new Map<string, EspnGame[]>();
+    for (const g of nflGames) {
+      const dateStr = g.date.slice(0, 10);
+      if (!byDate.has(dateStr)) byDate.set(dateStr, []);
+      byDate.get(dateStr)!.push(g);
+    }
+    const sortedDates = Array.from(byDate.keys()).sort();
+
+    const days = sortedDates.map(dateStr => {
+      const [yr, mo, dy] = dateStr.split("-").map(Number);
+      const dtForLabel = new Date(Date.UTC(yr!, mo! - 1, dy!, 17, 0, 0));
+      const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" });
+      return {
+        date: dateStr,
+        label: fmt.format(dtForLabel),
+        games: (byDate.get(dateStr) ?? []).map(g => formatGame(g, "nfl", week, pool.season)),
+      };
+    });
+
+    const farFuture = "2099-01-01T00:00:00.000Z";
+    res.json({
+      weekLabel: `Week ${week}`,
       weekStart: sortedDates[0] ? `${sortedDates[0]}T00:00:00.000Z` : farFuture,
       weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
       deadline: farFuture,
