@@ -31,6 +31,7 @@ import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
 import { NflConfidenceSnapshot } from "@/components/NflConfidenceSnapshot";
 import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
+import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 
@@ -49,6 +50,7 @@ export default function PoolHome() {
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
+  const isClassicSeason = (pool?.poolType as string) === "season";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -447,6 +449,11 @@ export default function PoolHome() {
                 <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                   <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                 </TabsTrigger>
+                {isClassicSeason && (
+                  <TabsTrigger value="standings" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                    <ListOrdered className="w-4 h-4 md:w-5 md:h-5" /> Standings
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                   Grid
                 </TabsTrigger>
@@ -480,6 +487,11 @@ export default function PoolHome() {
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
                   <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} />
                 </TabsContent>
+                {isClassicSeason && (
+                  <TabsContent value="standings" className="m-0 focus-visible:outline-none">
+                    <SurvivorStandings poolId={pool.id} />
+                  </TabsContent>
+                )}
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                   <SurvivorGrid poolId={pool.id} />
                 </TabsContent>
