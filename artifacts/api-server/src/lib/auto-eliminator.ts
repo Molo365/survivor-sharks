@@ -516,6 +516,7 @@ export async function processMlbDailyResults(): Promise<{
       eq(poolsTable.sport, "mlb"),
       eq(poolsTable.isActive, true),
       eq(poolsTable.pickFrequency, "daily"),
+      ne(poolsTable.poolType, "pickem"),
     ));
 
   for (const pool of dailyPools) {
@@ -805,6 +806,80 @@ export async function processPickEmResults(): Promise<{
           .returning({ id: pickemPicksTable.id });
         if (updated.length > 0) {
           logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em: marked picks as postponed");
+        }
+      }
+    }
+
+    // ── MLB Daily pickem: advance day counter / close non-recurring pools ────
+    // processMlbDailyResults only handles survivor-style pools (picks table).
+    // Daily pickem pools write to pickem_picks, so their lifecycle is managed here.
+    const mlbDailyPools = mlbPools.filter((p) => p.pickFrequency === "daily");
+    if (mlbDailyPools.length > 0) {
+      // Map ET date strings to the game arrays already fetched above.
+      const gamesByDate = new Map<string, EspnGame[]>([
+        [todayEt, todayGames],
+        [yesterdayEt, yesterdayGames],
+      ]);
+
+      for (const pool of mlbDailyPools) {
+        // Check yesterday first so a missed day is caught up before today.
+        for (const dateEt of [yesterdayEt, todayEt]) {
+          const gamesForDate = gamesByDate.get(dateEt) ?? [];
+          if (gamesForDate.length === 0) continue;
+
+          // All games must be final before closing the day.
+          const allGamesFinal = gamesForDate.every((g) => g.isCompleted);
+          if (!allGamesFinal) continue;
+
+          // Guard: don't close a date with zero picks — pool may not have been
+          // active on that date (e.g. yesterday check on a brand-new pool).
+          const [{ totalForDate }] = await db
+            .select({ totalForDate: count() })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameDate, dateEt),
+              ),
+            );
+          if (Number(totalForDate) === 0) continue;
+
+          // No pending picks may remain before closing.
+          const [stillPending] = await db
+            .select({ id: pickemPicksTable.id })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameDate, dateEt),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            )
+            .limit(1);
+          if (stillPending) continue;
+
+          if (pool.isRecurring) {
+            await db
+              .update(poolsTable)
+              .set({ currentWeek: pool.currentWeek + 1 })
+              .where(eq(poolsTable.id, pool.id));
+            logger.info(
+              { poolId: pool.id, day: pool.currentWeek, date: dateEt },
+              "Pick-Em MLB Daily: day closed, advancing day counter",
+            );
+          } else {
+            await db
+              .update(poolsTable)
+              .set({ isActive: false, endedAt: new Date() })
+              .where(eq(poolsTable.id, pool.id));
+            logger.info(
+              { poolId: pool.id, day: pool.currentWeek, date: dateEt },
+              "Pick-Em MLB Daily: non-recurring pool closed after single day",
+            );
+          }
+
+          // Day closed — stop iterating dates for this pool.
+          break;
         }
       }
     }
