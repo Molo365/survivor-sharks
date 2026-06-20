@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { weekResultsTable, picksTable, entriesTable, poolsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getCompletedGameResults } from "../lib/espn";
 import { ESPN_TEAMS, type Sport } from "../lib/teams-data";
@@ -172,6 +172,20 @@ router.post("/", requireAuth, async (req, res) => {
     losingTeamIds: [...losingSet],
     processedBy: req.user!.id,
   });
+
+  // Winner detection: close the pool when ≤1 survivor remains (season/mid-season only)
+  if (pool.poolType !== "weekly") {
+    const [{ remaining }] = await db
+      .select({ remaining: count() })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+    if (Number(remaining) <= 1) {
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, poolId));
+    }
+  }
 
   res.json({
     week,

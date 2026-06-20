@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar } from "lucide-react";
+import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
@@ -605,10 +605,12 @@ export function MatchupPickGrid({
   poolId,
   sport,
   currentWeek,
+  isActive = true,
 }: {
   poolId: number;
   sport: Sport;
   currentWeek: number;
+  isActive?: boolean;
 }) {
   // MLB + NFL: pool-scoped schedule (sandbox-aware for NFL, deadline-aware for MLB)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
@@ -653,6 +655,18 @@ export function MatchupPickGrid({
       }
     );
   };
+
+  // ── Pool ended — no picks allowed ─────────────────────────────────────────
+
+  if (!isActive) {
+    return (
+      <div className="flex flex-col items-center justify-center p-16 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+        <Trophy className="w-16 h-16 text-yellow-500/60 mb-6" />
+        <h3 className="font-bebas text-3xl tracking-widest mb-3 text-muted-foreground/70">SEASON ENDED</h3>
+        <p className="text-muted-foreground text-lg">This pool has concluded. Picks are no longer accepted.</p>
+      </div>
+    );
+  }
 
   // ── Loading states ─────────────────────────────────────────────────────────
 

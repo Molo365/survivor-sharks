@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable } from "@workspace/db";
+import { eq, and, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   isPickLocked,
@@ -59,6 +59,11 @@ router.post("/", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+
+  if (!pool.isActive) {
+    res.status(400).json({ error: "This pool has ended — picks are no longer accepted." });
     return;
   }
 
@@ -277,8 +282,10 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   let graded = 0;
   const lostEntryIds = new Set<number>();
+  const pickedUserIds = new Set<number>();
 
   for (const pick of pendingPicks) {
+    pickedUserIds.add(pick.userId);
     const winner = winnerByTeamId.get(pick.teamId);
     if (winner === undefined) continue;
     const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
@@ -287,11 +294,62 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     graded++;
   }
 
+  // Eliminate pick losers (with eliminatedWeek — parity with real grading)
   for (const entryId of lostEntryIds) {
-    await db.update(entriesTable).set({ status: "eliminated" }).where(eq(entriesTable.id, entryId));
+    await db.update(entriesTable)
+      .set({ status: "eliminated", eliminatedWeek: week })
+      .where(eq(entriesTable.id, entryId));
   }
 
-  res.json({ graded, week, eliminated: lostEntryIds.size });
+  // Forfeit handling: alive members who made no pick are eliminated too
+  const aliveEntries = await db.select().from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+  let forfeits = 0;
+  for (const entry of aliveEntries) {
+    if (!pickedUserIds.has(entry.userId)) {
+      await db.update(entriesTable)
+        .set({ status: "eliminated", eliminatedWeek: week })
+        .where(eq(entriesTable.id, entry.id));
+      forfeits++;
+    }
+  }
+
+  // weekResultsTable record — parity with real grading
+  const losingTeamIds = [
+    ...new Set(
+      pendingPicks
+        .filter(p => {
+          const w = winnerByTeamId.get(p.teamId);
+          return w !== undefined && p.teamId !== w;
+        })
+        .map(p => p.teamId),
+    ),
+  ];
+  await db.insert(weekResultsTable).values({
+    poolId,
+    week,
+    losingTeamIds,
+    processedBy: userId,
+  });
+
+  // Winner detection: close pool when ≤1 survivor remains (season/mid-season only)
+  let poolEnded = false;
+  if (pool.poolType !== "weekly") {
+    const [{ remaining }] = await db
+      .select({ remaining: count() })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+    if (Number(remaining) <= 1) {
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, poolId));
+      poolEnded = true;
+    }
+  }
+
+  res.json({ graded, week, eliminated: lostEntryIds.size, forfeits, poolEnded });
 });
 
 export default router;

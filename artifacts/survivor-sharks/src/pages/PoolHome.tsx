@@ -453,7 +453,7 @@ export default function PoolHome() {
                   {(pool as any).pickFrequency === "daily" ? (
                     <DailyPickGrid poolId={pool.id} />
                   ) : (
-                    <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} />
+                    <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} currentWeek={pool.currentWeek} isActive={pool.isActive} />
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
