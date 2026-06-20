@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5 } from "lucide-react";
+import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -29,6 +29,7 @@ import { NflConfidenceStats } from "@/components/NflConfidenceStats";
 import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel, NflConfidenceWeeklyWinnerBanner } from "@/components/NflConfidenceWeeklyView";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
+import { NflConfidenceSnapshot } from "@/components/NflConfidenceSnapshot";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 
@@ -319,6 +320,9 @@ export default function PoolHome() {
                       <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Weekly Grid
                       </TabsTrigger>
+                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
+                      </TabsTrigger>
                       <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Stats
                       </TabsTrigger>
@@ -340,6 +344,9 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <NflConfidenceWeeklyGrid poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="weekly" poolName={pool.name} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                     <NflConfidenceWeeklyStats poolId={pool.id} initialWeek={pool.currentWeek} />
@@ -375,6 +382,9 @@ export default function PoolHome() {
                       <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Weekly Grid
                       </TabsTrigger>
+                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                        <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
+                      </TabsTrigger>
                       <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Stats
                       </TabsTrigger>
@@ -396,6 +406,9 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <NflConfidenceGrid poolId={pool.id} initialWeek={pool.currentWeek} />
+                  </TabsContent>
+                  <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
+                    <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="season" poolName={pool.name} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                     <NflConfidenceStats poolId={pool.id} initialWeek={pool.currentWeek} />
