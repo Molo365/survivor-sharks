@@ -28,8 +28,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
             <CardTitle className="font-bebas text-2xl truncate">{pool.name}</CardTitle>
-            <Badge variant={pool.isActive ? "default" : "secondary"} className={pool.isActive ? "bg-accent text-accent-foreground hover:bg-accent/80" : ""}>
-              {pool.isActive ? 'Active' : 'Finished'}
+            <Badge
+              variant={pool.isActive ? "default" : "secondary"}
+              className={pool.isActive ? "bg-accent text-accent-foreground hover:bg-accent/80" : ""}
+            >
+              {pool.isActive ? "Active" : !pool.isRecurring ? "Completed" : "Finished"}
             </Badge>
           </div>
           <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">

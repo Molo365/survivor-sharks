@@ -127,6 +127,7 @@ export const ListPoolsResponseItem = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -142,6 +143,7 @@ export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 export const createPoolBodyPoolTypeDefault = `season`;
 export const createPoolBodyDoubleEliminationDefault = false;
 export const createPoolBodyPickFrequencyDefault = `weekly`;
+export const createPoolBodyIsRecurringDefault = false;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
@@ -156,6 +158,7 @@ export const CreatePoolBody = zod.object({
   "season": zod.number().optional(),
   "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently'),
   "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate'),
+  "isRecurring": zod.boolean().default(createPoolBodyIsRecurringDefault).describe('MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -191,6 +194,7 @@ export const JoinPoolResponse = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -224,6 +228,7 @@ export const GetPoolResponse = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
   "activeCount": zod.number().describe('Number of members still alive (not eliminated)'),
   "totalMembers": zod.number().describe('Total number of members in the pool'),
   "members": zod.array(zod.object({
@@ -282,6 +287,7 @@ export const UpdatePoolResponse = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -891,6 +897,8 @@ export const GetPickEmGamesResponse = zod.object({
   "date": zod.string(),
   "label": zod.string(),
   "deadlinePassed": zod.boolean(),
+  "poolClosed": zod.boolean().optional().describe('True when the pool is a non-recurring MLB Daily pool that has already finished — UI should show read-only results, not a picks interface'),
+  "isRecurring": zod.boolean().optional().describe('Whether this pool auto-advances to new days (MLB Daily only)'),
   "sport": zod.string().optional().describe('Sport for this slate (mlb, worldcup, etc.)'),
   "phase": zod.string().nullish().describe('Current WC phase (group_stage, knockout_stage) for worldcup pools; null otherwise'),
   "games": zod.array(zod.object({
@@ -1585,6 +1593,7 @@ export const AdminListPoolsResponseItem = zod.object({
   "prizePot": zod.number().nullish(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
+  "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')

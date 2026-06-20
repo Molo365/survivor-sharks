@@ -160,10 +160,17 @@ router.get("/games", requireAuth, async (req, res) => {
       ? "knockout_stage"
       : null) : null;
 
+  // A non-recurring MLB daily pool that has already finished: flag as closed so the
+  // frontend can show a permanent "pool ended" read-only state instead of a picks UI.
+  const isMlbDaily = sport === "mlb" && pool.pickFrequency === "daily";
+  const poolClosed = isMlbDaily && !pool.isActive && !pool.isRecurring;
+
   res.json({
     date: requestedDate,
     label,
-    deadlinePassed: slateDeadlinePassed,
+    deadlinePassed: poolClosed ? true : slateDeadlinePassed,
+    poolClosed: poolClosed || undefined,
+    isRecurring: isMlbDaily ? pool.isRecurring : undefined,
     sport,
     phase,
     games: formattedGames,

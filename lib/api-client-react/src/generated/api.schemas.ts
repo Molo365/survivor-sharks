@@ -119,6 +119,8 @@ export interface PoolInput {
   doubleElimination?: boolean;
   /** MLB only: weekly = one pick per week; daily = one pick per day from that day's slate */
   pickFrequency?: PoolInputPickFrequency;
+  /** MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely */
+  isRecurring?: boolean;
   /** Ordered prize payouts. prizePot is auto-calculated as the sum. */
   prizeStructure?: PrizeEntry[];
 }
@@ -249,6 +251,8 @@ export interface Pool {
   doubleElimination?: boolean;
   /** MLB only: pick frequency for this pool */
   pickFrequency?: PoolPickFrequency;
+  /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
+  isRecurring: boolean;
   prizeStructure?: PrizeEntry[] | null;
   createdAt?: string;
 }
@@ -324,6 +328,8 @@ export interface PoolDetail {
   doubleElimination?: boolean;
   /** MLB only: pick frequency for this pool */
   pickFrequency?: PoolDetailPickFrequency;
+  /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
+  isRecurring: boolean;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */
@@ -790,6 +796,10 @@ export interface PickEmSlate {
   date: string;
   label: string;
   deadlinePassed: boolean;
+  /** True when the pool is a non-recurring MLB Daily pool that has already finished — UI should show read-only results, not a picks interface */
+  poolClosed?: boolean;
+  /** Whether this pool auto-advances to new days (MLB Daily only) */
+  isRecurring?: boolean;
   /** Sport for this slate (mlb, worldcup, etc.) */
   sport?: string;
   /**

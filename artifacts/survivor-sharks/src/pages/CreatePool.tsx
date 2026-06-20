@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap } from "lucide-react";
+import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -188,6 +188,7 @@ const formSchema = z.object({
   poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
+  isRecurring: z.boolean().default(false),
   sandboxMode: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
@@ -299,6 +300,7 @@ export default function CreatePool() {
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season") && { sandboxMode: values.sandboxMode }),
+          ...(values.sport === PoolInputSport.mlb && values.poolType === "pickem" && { isRecurring: values.isRecurring }),
         } as any,
       },
       {
@@ -596,6 +598,38 @@ export default function CreatePool() {
                             checked={field.value}
                             onCheckedChange={field.onChange}
                             data-testid="toggle-double-elimination"
+                          />
+                        </FormControl>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* ── Recurring — MLB Daily Pick-Ems only ── */}
+              {selectedSport === PoolInputSport.mlb && selectedType === "pickem" && (
+                <FormField
+                  control={form.control}
+                  name="isRecurring"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <Repeat className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                          <div>
+                            <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer">
+                              Recurring Pool
+                            </FormLabel>
+                            <FormDescription className="text-xs mt-0.5">
+                              When on, the pool auto-advances every day indefinitely. When off, the pool runs exactly one day then closes permanently.
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="toggle-recurring"
                           />
                         </FormControl>
                       </div>

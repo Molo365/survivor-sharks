@@ -2386,6 +2386,17 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 </div>
               </div>
 
+              {/* Pool-closed banner for non-recurring MLB Daily pools that have ended */}
+              {slate.poolClosed && (
+                <div className="rounded-lg border border-muted/40 bg-muted/10 px-4 py-3 flex items-center gap-3 text-sm text-muted-foreground">
+                  <span className="text-base">🏁</span>
+                  <div>
+                    <span className="font-semibold text-foreground/80">Pool Ended</span>
+                    <span className="ml-2">This was a one-day pool — results are final. No further picks can be made.</span>
+                  </div>
+                </div>
+              )}
+
               {/* All games in original scheduled-time order — never reorganised */}
               <div className="space-y-3">
                 {slate.games.map((game, idx) => {

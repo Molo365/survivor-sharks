@@ -35,6 +35,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring,
     createdAt: pool.createdAt.toISOString(),
   };
 }
@@ -68,7 +69,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
+  const { name, sport, description, maxEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -110,6 +111,8 @@ router.post("/", requireAuth, async (req, res) => {
     prizeStructure: resolvedPrizeStructure,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
+    // isRecurring only meaningful for MLB daily; default true so existing pools keep auto-advancing
+    isRecurring: isRecurring === true,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });

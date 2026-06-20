@@ -1686,6 +1686,10 @@ components:
           enum: [weekly, daily]
           default: weekly
           description: "MLB only: weekly = one pick per week; daily = one pick per day from that day's slate"
+        isRecurring:
+          type: boolean
+          default: false
+          description: "MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely"
         prizeStructure:
           type: array
           description: Ordered prize payouts. prizePot is auto-calculated as the sum.
@@ -1786,7 +1790,7 @@ components:
 
     Pool:
       type: object
-      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, memberCount, commissionerId]
+      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, isRecurring, memberCount, commissionerId]
       properties:
         id:
           type: integer
@@ -1829,6 +1833,9 @@ components:
           type: string
           enum: [weekly, daily]
           description: "MLB only: pick frequency for this pool"
+        isRecurring:
+          type: boolean
+          description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
         prizeStructure:
           type: array
           nullable: true
@@ -1839,7 +1846,7 @@ components:
 
     PoolDetail:
       type: object
-      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, members, commissionerId, activeCount, totalMembers]
+      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, isRecurring, members, commissionerId, activeCount, totalMembers]
       properties:
         id:
           type: integer
@@ -1878,6 +1885,9 @@ components:
           type: string
           enum: [weekly, daily]
           description: "MLB only: pick frequency for this pool"
+        isRecurring:
+          type: boolean
+          description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
         activeCount:
           type: integer
           description: Number of members still alive (not eliminated)
@@ -2518,6 +2528,12 @@ components:
           type: string
         deadlinePassed:
           type: boolean
+        poolClosed:
+          type: boolean
+          description: "True when the pool is a non-recurring MLB Daily pool that has already finished — UI should show read-only results, not a picks interface"
+        isRecurring:
+          type: boolean
+          description: "Whether this pool auto-advances to new days (MLB Daily only)"
         sport:
           type: string
           description: Sport for this slate (mlb, worldcup, etc.)

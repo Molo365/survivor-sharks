@@ -651,12 +651,19 @@ export async function processMlbDailyResults(): Promise<{
       processedBy: null,
     });
 
-    await db.update(poolsTable)
-      .set({ currentWeek: pool.currentWeek + 1 })
-      .where(eq(poolsTable.id, pool.id));
+    if (pool.isRecurring) {
+      await db.update(poolsTable)
+        .set({ currentWeek: pool.currentWeek + 1 })
+        .where(eq(poolsTable.id, pool.id));
+      logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: day closed, advancing day counter");
+    } else {
+      await db.update(poolsTable)
+        .set({ isActive: false })
+        .where(eq(poolsTable.id, pool.id));
+      logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: non-recurring pool closed after single day");
+    }
 
     daysProcessed++;
-    logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: day closed, advancing day counter");
   }
 
   return { daysProcessed, picksGraded, playersEliminated, playersRevived };
