@@ -2407,21 +2407,21 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       key={game.id}
                       game={game}
                       pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                      onPick={(opt) => togglePick(game.id, opt)}
+                      onPick={slate.poolClosed ? () => {} : (opt) => togglePick(game.id, opt)}
                     />
                   ) : (
                     <GameCard
                       key={game.id}
                       game={game}
                       pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                      onPick={(teamId) => togglePick(game.id, teamId)}
+                      onPick={slate.poolClosed ? () => {} : (teamId) => togglePick(game.id, teamId)}
                       isTiebreakerGame={showTiebreakerBadge}
                     />
                   );
                 })}
               </div>
 
-              {isToday && openGames.length > 0 && (
+              {isToday && openGames.length > 0 && !slate.poolClosed && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                   <p className="text-sm text-muted-foreground">
                     {pendingPickCount > 0 ? (

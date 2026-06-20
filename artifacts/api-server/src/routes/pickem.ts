@@ -262,6 +262,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
   if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (!pool.isActive) { res.status(400).json({ error: "This pool has ended — picks are no longer accepted." }); return; }
 
   const [entry] = await db
     .select()
