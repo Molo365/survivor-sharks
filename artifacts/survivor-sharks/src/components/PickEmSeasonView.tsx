@@ -868,6 +868,7 @@ interface PickEmSeasonViewProps {
   sandboxMode: boolean;
   sandboxWeek: number;
   isSuperAdmin: boolean;
+  isActive: boolean;
 }
 
 export function PickEmSeasonView({
@@ -879,6 +880,7 @@ export function PickEmSeasonView({
   sandboxMode,
   sandboxWeek,
   isSuperAdmin,
+  isActive,
 }: PickEmSeasonViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1286,12 +1288,22 @@ export function PickEmSeasonView({
                     )}
                   </div>
 
+                  {!isActive && (
+                    <div className="rounded-lg border border-muted/40 bg-muted/10 px-4 py-3 flex items-center gap-3 text-sm text-muted-foreground">
+                      <span className="text-base">🏁</span>
+                      <div>
+                        <span className="font-semibold text-foreground/80">Pool Ended</span>
+                        <span className="ml-2">This pool has concluded — results are final. No further picks can be made.</span>
+                      </div>
+                    </div>
+                  )}
+
                   {slate.games.map((game) => (
                     <NflGameCard
                       key={game.id}
                       game={game}
                       pickedTeamId={localPicks.get(game.id) ?? null}
-                      onPick={togglePick}
+                      onPick={isActive ? togglePick : () => {}}
                     />
                   ))}
 
@@ -1339,7 +1351,7 @@ export function PickEmSeasonView({
                   )}
 
                   {/* Submit */}
-                  {openGames.length > 0 && (
+                  {isActive && openGames.length > 0 && (
                     <div className="pt-1">
                       <Button
                         onClick={handleSubmit}

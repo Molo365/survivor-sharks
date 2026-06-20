@@ -249,6 +249,7 @@ export default function PoolHome() {
                 sandboxMode={(pool as any).sandboxMode ?? false}
                 sandboxWeek={(pool as any).sandboxWeek ?? 1}
                 isSuperAdmin={user?.role === "admin"}
+                isActive={pool.isActive}
               />
             ) : (pool.poolType as string) === "pickem" ? (
               <PickEmView poolId={pool.id} poolName={pool.name} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} />

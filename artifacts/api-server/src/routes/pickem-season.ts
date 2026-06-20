@@ -122,6 +122,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   if ((pool.poolType as string) !== "pickem_season") {
     res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
   }
+  if (!pool.isActive) { res.status(400).json({ error: "This pool has ended — picks are no longer accepted." }); return; }
 
   const [entry] = await db
     .select()
