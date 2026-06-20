@@ -101,6 +101,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       toast({ title: `Week ${sandboxWeek} loaded`, description: "Game slate updated for sandbox week." });
       queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+      queryClient.invalidateQueries({ queryKey: ["pool-schedule", poolId] });
     } catch (err) {
       toast({ variant: "destructive", title: "Failed to load week", description: (err as Error).message });
     } finally {

@@ -84,7 +84,7 @@ router.get("/", requireAuth, async (req, res) => {
 
   // ── NFL Sandbox path ─────────────────────────────────────────────────────
   if (pool.sport === "nfl" && pool.sandboxMode) {
-    const week = pool.sandboxWeek ?? pool.currentWeek;
+    const week = pool.currentWeek;
     const sandboxGames = getSandboxGamesForWeek(week);
     const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
 
@@ -318,7 +318,9 @@ router.patch("/sandbox-week", requireAuth, async (req, res) => {
   }
 
   const week = Math.max(1, Math.min(18, parseInt(String(req.body.week)) || 1));
-  await db.update(poolsTable).set({ sandboxWeek: week }).where(eq(poolsTable.id, poolId));
+  // Write both so currentWeek is always the authoritative source of truth.
+  // sandboxWeek stays in sync as a mirror; all consumers read currentWeek directly.
+  await db.update(poolsTable).set({ sandboxWeek: week, currentWeek: week }).where(eq(poolsTable.id, poolId));
   res.json({ week });
 });
 

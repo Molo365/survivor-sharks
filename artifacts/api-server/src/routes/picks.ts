@@ -176,6 +176,15 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
+  // Week must match the pool's active week — applies even in sandbox mode.
+  // Sandbox bypasses game-start timing locks, but never "wrong week" protection.
+  if (week !== pool.currentWeek) {
+    res.status(400).json({
+      error: `Week ${week} is not currently active — picks can only be submitted for Week ${pool.currentWeek}.`,
+    });
+    return;
+  }
+
   const existingPick = previousPicks.find(p => p.week === week);
 
   // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
@@ -263,7 +272,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Simulate grading is only available for NFL pools" }); return;
   }
 
-  const week = pool.sandboxWeek ?? pool.currentWeek;
+  const week = pool.currentWeek;
   const games = getSandboxGamesForWeek(week);
 
   // Random NFL-realistic scores (10–45, no ties)
