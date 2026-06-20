@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startAutoEliminator } from "./lib/auto-eliminator";
+import { startPoolCleanup } from "./lib/pool-cleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,5 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startAutoEliminator();
+  startPoolCleanup();
 });

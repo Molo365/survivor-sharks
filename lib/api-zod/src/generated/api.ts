@@ -132,7 +132,8 @@ export const ListPoolsResponseItem = zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string().optional(),
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 
@@ -199,8 +200,28 @@ export const JoinPoolResponse = zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string().optional(),
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
 })
+
+
+/**
+ * @summary List pools that ended more than 2 days ago (within the 30-day retention window)
+ */
+export const ListPastPoolsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sport": zod.string(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly']),
+  "currentWeek": zod.number(),
+  "season": zod.number(),
+  "memberCount": zod.number(),
+  "commissionerId": zod.number(),
+  "commissionerName": zod.string().nullish(),
+  "endedAt": zod.string().describe('ISO timestamp when the pool ended'),
+  "winnerName": zod.string().nullish().describe('Display name of the winner, if determinable')
+})
+export const ListPastPoolsResponse = zod.array(ListPastPoolsResponseItem)
 
 
 /**
@@ -239,7 +260,12 @@ export const GetPoolResponse = zod.object({
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string()
 })),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string().optional(),
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish()
 })
 
 
@@ -292,7 +318,8 @@ export const UpdatePoolResponse = zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string().optional(),
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
 })
 
 
@@ -1598,7 +1625,8 @@ export const AdminListPoolsResponseItem = zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string().optional(),
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable } from "@workspace/db";
-import { eq, and, count, inArray } from "drizzle-orm";
+import { eq, and, count, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 
@@ -37,10 +37,11 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
     createdAt: pool.createdAt.toISOString(),
+    endedAt: pool.endedAt?.toISOString() ?? null,
   };
 }
 
-// GET /api/pools
+// GET /api/pools — active lobby: pools that are active OR ended within the last 2 days
 router.get("/", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
@@ -54,14 +55,85 @@ router.get("/", requireAuth, async (req, res) => {
     return;
   }
 
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
   const pools = await db.select().from(poolsTable)
-    .where(inArray(poolsTable.id, poolIds));
+    .where(and(
+      inArray(poolsTable.id, poolIds),
+      or(
+        eq(poolsTable.isActive, true),
+        and(isNotNull(poolsTable.endedAt), gt(poolsTable.endedAt, twoDaysAgo))
+      )
+    ));
 
   const result = await Promise.all(pools.map(async (pool) => {
     const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
     const [{ active }] = await db.select({ active: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
     const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
     return formatPool(pool, Number(total), Number(active), commissioner?.username ?? "");
+  }));
+
+  res.json(result);
+});
+
+// GET /api/pools/past — pools ended >2 days ago, within the 30-day retention window
+router.get("/past", requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+
+  const memberships = await db.select({ poolId: entriesTable.poolId })
+    .from(entriesTable)
+    .where(eq(entriesTable.userId, userId));
+
+  const poolIds = memberships.map(m => m.poolId);
+  if (poolIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const SURVIVOR_POOL_TYPES = ["season", "weekly", "mid_season"] as const;
+
+  const pools = await db.select().from(poolsTable)
+    .where(and(
+      inArray(poolsTable.id, poolIds),
+      eq(poolsTable.isActive, false),
+      isNotNull(poolsTable.endedAt),
+      lte(poolsTable.endedAt, twoDaysAgo),
+      gt(poolsTable.endedAt, thirtyDaysAgo)
+    ));
+
+  const result = await Promise.all(pools.map(async (pool) => {
+    const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
+    const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
+
+    let winnerName: string | null = null;
+    if ((SURVIVOR_POOL_TYPES as readonly string[]).includes(pool.poolType)) {
+      const alive = await db
+        .select({ username: usersTable.username, displayName: usersTable.displayName })
+        .from(entriesTable)
+        .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+        .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")))
+        .limit(1);
+      if (alive.length === 1) {
+        winnerName = alive[0].displayName ?? alive[0].username;
+      }
+    }
+
+    return {
+      id: pool.id,
+      name: pool.name,
+      sport: pool.sport,
+      poolType: pool.poolType,
+      currentWeek: pool.currentWeek,
+      season: pool.season,
+      memberCount: Number(total),
+      commissionerId: pool.commissionerId,
+      commissionerName: commissioner?.username ?? null,
+      endedAt: pool.endedAt!.toISOString(),
+      winnerName,
+    };
   }));
 
   res.json(result);
@@ -250,6 +322,9 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   }
 
   const { name, description, maxEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
+
+  const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
+
   const [updated] = await db.update(poolsTable).set({
     ...(name !== undefined && { name }),
     ...(description !== undefined && { description }),
@@ -261,6 +336,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(startWeek !== undefined && { startWeek }),
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
+    ...setEndedAt,
   }).where(eq(poolsTable.id, poolId)).returning();
 
   const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId));

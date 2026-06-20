@@ -255,6 +255,11 @@ export interface Pool {
   isRecurring: boolean;
   prizeStructure?: PrizeEntry[] | null;
   createdAt?: string;
+  /**
+     * Timestamp when the pool ended (isActive flipped to false); null if still active
+     * @nullable
+     */
+  endedAt?: string | null;
 }
 
 export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];
@@ -336,6 +341,49 @@ export interface PoolDetail {
   totalMembers: number;
   members: PoolMember[];
   createdAt?: string;
+  /**
+     * Timestamp when the pool ended (isActive flipped to false); null if still active
+     * @nullable
+     */
+  endedAt?: string | null;
+  prizeStructure?: PrizeEntry[] | null;
+}
+
+export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];
+
+
+export const PastPoolPoolType = {
+  season: 'season',
+  weekly: 'weekly',
+  mid_season: 'mid_season',
+  pickem: 'pickem',
+  group_stage_predictor: 'group_stage_predictor',
+  pickem_season: 'pickem_season',
+  nfl_division_predictor: 'nfl_division_predictor',
+  dirty_dozen: 'dirty_dozen',
+  crazy_8s: 'crazy_8s',
+  nfl_confidence: 'nfl_confidence',
+  nfl_confidence_weekly: 'nfl_confidence_weekly',
+} as const;
+
+export interface PastPool {
+  id: number;
+  name: string;
+  sport: string;
+  poolType: PastPoolPoolType;
+  currentWeek: number;
+  season: number;
+  memberCount: number;
+  commissionerId: number;
+  /** @nullable */
+  commissionerName?: string | null;
+  /** ISO timestamp when the pool ended */
+  endedAt: string;
+  /**
+     * Display name of the winner, if determinable
+     * @nullable
+     */
+  winnerName?: string | null;
 }
 
 export interface PoolStats {

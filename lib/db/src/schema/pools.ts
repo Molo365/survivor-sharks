@@ -30,6 +30,7 @@ export const poolsTable = pgTable("pools", {
   sandboxWeek: integer("sandbox_week").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
 });
 
 export const insertPoolSchema = createInsertSchema(poolsTable).omit({ id: true, createdAt: true, updatedAt: true, inviteCode: true });

@@ -658,7 +658,7 @@ export async function processMlbDailyResults(): Promise<{
       logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: day closed, advancing day counter");
     } else {
       await db.update(poolsTable)
-        .set({ isActive: false })
+        .set({ isActive: false, endedAt: new Date() })
         .where(eq(poolsTable.id, pool.id));
       logger.info({ poolId: pool.id, day: pool.currentWeek }, "MLB Daily: non-recurring pool closed after single day");
     }

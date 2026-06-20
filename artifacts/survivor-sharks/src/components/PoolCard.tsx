@@ -32,7 +32,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               variant={pool.isActive ? "default" : "secondary"}
               className={pool.isActive ? "bg-accent text-accent-foreground hover:bg-accent/80" : ""}
             >
-              {pool.isActive ? "Active" : !pool.isRecurring ? "Completed" : "Finished"}
+              {pool.isActive ? "Active" : "Ended"}
             </Badge>
           </div>
           <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">

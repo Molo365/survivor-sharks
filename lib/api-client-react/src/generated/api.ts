@@ -60,6 +60,7 @@ import type {
   NflPickEmSeasonProcessResult,
   NflPickEmSeasonSlate,
   NflPickEmSeasonWeekResults,
+  PastPool,
   Pick,
   PickEmDailyPickDetail,
   PickEmDailyResults,
@@ -767,6 +768,83 @@ export const useJoinPool = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getJoinPoolMutationOptions(options));
     }
+
+export const getListPastPoolsUrl = () => {
+
+
+
+
+  return `/api/pools/past`
+}
+
+/**
+ * @summary List pools that ended more than 2 days ago (within the 30-day retention window)
+ */
+export const listPastPools = async ( options?: RequestInit): Promise<PastPool[]> => {
+
+  return customFetch<PastPool[]>(getListPastPoolsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPastPoolsQueryKey = () => {
+    return [
+    `/api/pools/past`
+    ] as const;
+    }
+
+
+export const getListPastPoolsQueryOptions = <TData = Awaited<ReturnType<typeof listPastPools>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPastPools>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPastPoolsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPastPools>>> = ({ signal }) => listPastPools({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPastPools>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPastPoolsQueryResult = NonNullable<Awaited<ReturnType<typeof listPastPools>>>
+export type ListPastPoolsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pools that ended more than 2 days ago (within the 30-day retention window)
+ */
+
+export function useListPastPools<TData = Awaited<ReturnType<typeof listPastPools>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPastPools>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPastPoolsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetPoolUrl = (poolId: number,) => {
 
