@@ -35,6 +35,14 @@ function offsetDateStr(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+// Returns the 1st-place prize for a pool, or null if no prize is configured.
+// Used for "last winner" display on dashboard cards — always a sole winner, so top tier applies.
+function computeTopPrize(pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null }): number | null {
+  if (pool.prizeStructure && pool.prizeStructure.length > 0) return pool.prizeStructure[0].amount;
+  if (pool.prizePot && pool.prizePot > 0) return pool.prizePot;
+  return null;
+}
+
 function scoreNdpDivision(
   actual: [string, string, string, string],
   predicted: [string, string, string, string],
@@ -216,6 +224,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: 0,
               picked: 0,
               score: Number(prevRows[0].weekPoints),
+              prizeWon: computeTopPrize(pool),
             };
           }
         }
@@ -285,6 +294,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: Number(prevRows[0].correct),
               picked: Number(prevRows[0].picked),
               score: null,
+              prizeWon: computeTopPrize(pool),
             };
           }
         }
@@ -439,6 +449,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               displayName: prevRows[0].displayName ?? null,
               correct: Number(prevRows[0].correct),
               picked: Number(prevRows[0].picked),
+              prizeWon: computeTopPrize(pool),
             }
           : null;
 

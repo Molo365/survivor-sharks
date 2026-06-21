@@ -88,7 +88,8 @@ export const GetPickEmDashboardStatsResponseItem = zod.object({
   "displayName": zod.string().nullable(),
   "correct": zod.number(),
   "picked": zod.number(),
-  "score": zod.number().nullish()
+  "score": zod.number().nullish(),
+  "prizeWon": zod.number().nullish().describe('Prize amount won; null if the pool has no prize structure')
 }).nullish(),
   "myStanding": zod.object({
   "rank": zod.number(),
@@ -1225,7 +1226,8 @@ export const GetPickEmYesterdayWinnerResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string().nullish(),
   "correct": zod.number(),
-  "total": zod.number()
+  "total": zod.number(),
+  "prizeWon": zod.number().nullish().describe('Prize amount won; null if the pool has no prize structure')
 }))
 })
 

@@ -1778,6 +1778,10 @@ components:
             score:
               type: integer
               nullable: true
+            prizeWon:
+              type: integer
+              nullable: true
+              description: Prize amount won; null if the pool has no prize structure
         myStanding:
           type: object
           required: [rank, correct, picked, hasPicks]
@@ -2975,6 +2979,10 @@ components:
           type: integer
         total:
           type: integer
+        prizeWon:
+          type: integer
+          nullable: true
+          description: Prize amount won; null if the pool has no prize structure
 
     PickEmPrevWeekResults:
       type: object

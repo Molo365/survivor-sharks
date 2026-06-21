@@ -642,7 +642,18 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
       total: Number(r.total),
     }));
 
-  res.json({ date, hasResults: true, winners });
+  // Compute prize per winner: sole winner takes 1st-place tier; tied winners split total equally.
+  let prizeWon: number | null = null;
+  if (pool.prizeStructure && pool.prizeStructure.length > 0) {
+    const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+    prizeWon = winners.length > 1
+      ? Math.floor(total / winners.length)
+      : pool.prizeStructure[0].amount;
+  } else if (pool.prizePot && pool.prizePot > 0) {
+    prizeWon = Math.floor(pool.prizePot / winners.length);
+  }
+
+  res.json({ date, hasResults: true, winners: winners.map(w => ({ ...w, prizeWon })) });
 });
 
 // Helper: offset a YYYY-MM-DD string by N days

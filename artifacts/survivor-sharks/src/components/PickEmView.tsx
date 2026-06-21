@@ -2317,6 +2317,12 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                     <span className="text-sm text-yellow-400/70">
                       {yesterdayWinner.winners[0].correct}/{yesterdayWinner.winners[0].total} correct
                     </span>
+                    {yesterdayWinner.winners[0].prizeWon != null && (
+                      <>
+                        <span className="text-yellow-500/50 text-xs">·</span>
+                        <span className="text-sm font-semibold text-yellow-300">${yesterdayWinner.winners[0].prizeWon}</span>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"

@@ -177,6 +177,8 @@ export type PoolPickEmStatLastWinner = {
   correct: number;
   picked: number;
   score?: number | null;
+  /** Prize amount won; null if the pool has no prize structure */
+  prizeWon?: number | null;
 } | null;
 
 export type PoolPickEmStatMyStanding = {
@@ -1173,6 +1175,8 @@ export interface PickEmDayWinnerEntry {
   displayName?: string | null;
   correct: number;
   total: number;
+  /** Prize amount won; null if the pool has no prize structure */
+  prizeWon?: number | null;
 }
 
 export interface PickEmPrevWeekResults {
