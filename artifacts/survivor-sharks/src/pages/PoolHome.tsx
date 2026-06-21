@@ -115,7 +115,7 @@ export default function PoolHome() {
                   <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
                   {pool.poolType === "season" && (
                     <span className="flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded">
-                      <Trophy className="w-3 h-3" /> Season
+                      <Trophy className="w-3 h-3" /> Survivor
                     </span>
                   )}
                   {pool.poolType === "weekly" && (
