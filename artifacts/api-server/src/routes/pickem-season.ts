@@ -59,7 +59,7 @@ router.get("/games", requireAuth, async (req, res) => {
     return;
   }
 
-  const games = await fetchNflGamesByWeek(week);
+  const games = await fetchNflGamesByWeek(week, pool.season);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const formattedGames = games.map(g => {
@@ -169,7 +169,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   }
 
-  const games = await fetchNflGamesByWeek(numWeek);
+  const games = await fetchNflGamesByWeek(numWeek, pool.season);
   const gameMap = new Map(games.map(g => [g.id, g]));
 
   const lockedIds: string[] = [];
@@ -345,7 +345,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
     : parseInt(String(req.query.week ?? pool.currentWeek));
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
 
-  const games = await fetchNflGamesByWeek(week);
+  const games = await fetchNflGamesByWeek(week, pool.season);
   const completedGames = games.filter(
     g => g.status === "final" && g.homeScore != null && g.awayScore != null
   );
@@ -417,7 +417,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
   const [rawGames, allPicks] = await Promise.all([
     pool.sandboxMode
       ? Promise.resolve(getSandboxGamesForWeek(pool.sandboxWeek ?? week).map(sandboxGameToPickEmShape))
-      : fetchNflGamesByWeek(week).then(gs => gs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())),
+      : fetchNflGamesByWeek(week, pool.season).then(gs => gs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())),
     db
       .select({
         userId: pickemPicksTable.userId,
