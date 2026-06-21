@@ -8,6 +8,8 @@ import {
   fetchMlbWeekGames,
   fetchGamesForDate,
   fetchNflGamesByWeek,
+  getNhlWeekBounds,
+  fetchNhlGamesByWeek,
   getTodayEtDate,
   formatDateEt,
   getDailyPickDeadline,
@@ -193,6 +195,58 @@ router.get("/", requireAuth, async (req, res) => {
       weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
       deadline: farFuture,
       deadlinePassed: false,
+      currentWeek: week,
+      days,
+    });
+    return;
+  }
+
+  // ── NHL live path ─────────────────────────────────────────────────────────
+  if (pool.sport === "nhl") {
+    const week = pool.currentWeek;
+    const bounds = getNhlWeekBounds(pool.createdAt, week);
+    const allGames = await fetchNhlGamesByWeek(pool.createdAt, week);
+
+    // Group games by ET date string (YYYY-MM-DD)
+    const gamesByDate = new Map<string, EspnGame[]>();
+    for (const dateStr of bounds.days) {
+      gamesByDate.set(dateStr, []);
+    }
+    for (const g of allGames) {
+      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
+      const etMs = new Date(g.date).getTime() - ET_OFFSET_MS;
+      const etDate = new Date(etMs);
+      const year = etDate.getUTCFullYear();
+      const month = String(etDate.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(etDate.getUTCDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+      if (gamesByDate.has(dateStr)) {
+        gamesByDate.get(dateStr)!.push(g);
+      }
+    }
+    for (const [, games] of gamesByDate) {
+      games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+
+    const days = bounds.days.map(dateStr => {
+      const [yearStr, monthStr, dayStr] = dateStr.split("-");
+      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
+      const etMidnight = new Date(`${yearStr}-${monthStr}-${dayStr}T00:00:00Z`);
+      const utcDate = new Date(etMidnight.getTime() + ET_OFFSET_MS);
+      const dow = utcDate.getUTCDay();
+      const dayName = DAY_NAMES[dow] ?? "";
+      const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "long", day: "numeric" });
+      const label = `${dayName}, ${fmt.format(utcDate)}`;
+      const games = (gamesByDate.get(dateStr) ?? []).map(g => formatGame(g, "nhl", week, pool.season));
+      return { date: dateStr, label, games };
+    });
+
+    res.json({
+      weekLabel: bounds.weekLabel,
+      weekStart: bounds.weekStart.toISOString(),
+      weekEnd: bounds.weekEnd.toISOString(),
+      deadline: bounds.weekEnd.toISOString(),
+      deadlinePassed: Date.now() >= bounds.weekEnd.getTime(),
       currentWeek: week,
       days,
     });

@@ -200,7 +200,7 @@ router.post("/", requireAuth, async (req, res) => {
   } else {
     // All other sports: lock once the picked team's game has started
     if (existingPick) {
-      const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week);
+      const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week, pool.createdAt);
       if (currentlyLocked) {
         res.status(400).json({
           error: `Your pick (${existingPick.teamName}) is locked — that game has already started`,
@@ -208,7 +208,7 @@ router.post("/", requireAuth, async (req, res) => {
         return;
       }
     }
-    const newTeamLocked = await isPickLocked(pool.sport, teamId, week);
+    const newTeamLocked = await isPickLocked(pool.sport, teamId, week, pool.createdAt);
     if (newTeamLocked) {
       res.status(400).json({
         error: "That team's game has already started — choose a team that hasn't played yet",

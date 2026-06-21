@@ -626,14 +626,14 @@ export function MatchupPickGrid({
   currentWeek: number;
   isActive?: boolean;
 }) {
-  // MLB + NFL: pool-scoped schedule (sandbox-aware for NFL, deadline-aware for MLB)
+  // MLB, NFL, NHL: pool-scoped schedule (correctly date-bounded per week)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
-    query: { enabled: sport === "mlb" || sport === "nfl", queryKey: ["pool-schedule", poolId] },
+    query: { enabled: sport === "mlb" || sport === "nfl" || sport === "nhl", queryKey: ["pool-schedule", poolId] },
   });
 
-  // Non-MLB, non-NFL: flat game list from ESPN schedule (NBA/NHL/FIFA)
+  // Non-MLB, non-NFL, non-NHL: flat game list from ESPN schedule (NBA/FIFA)
   const { data: games, isLoading: loadingGames } = useListSportGames(sport, currentWeek, {
-    query: { enabled: !!sport && !!currentWeek && sport !== "mlb" && sport !== "nfl", queryKey: ["schedule", sport, currentWeek] },
+    query: { enabled: !!sport && !!currentWeek && sport !== "mlb" && sport !== "nfl" && sport !== "nhl", queryKey: ["schedule", sport, currentWeek] },
   });
 
   const { data: picks, isLoading: loadingPicks } = useGetMyPicks(poolId, {
@@ -858,10 +858,9 @@ export function MatchupPickGrid({
   }
 
   // ── Non-MLB: flat game list ────────────────────────────────────────────────
-  // NFL uses the pool-scoped schedule (sandbox-aware); flatten days → games.
-  // NBA/NHL/FIFA still use the sport-level live feed.
+  // NFL + NHL use the pool-scoped schedule; NBA/FIFA still use the live feed.
 
-  const gameList = sport === "nfl"
+  const gameList = (sport === "nfl" || sport === "nhl")
     ? (schedule?.days.flatMap(d => d.games) ?? [])
     : (games ?? []);
 

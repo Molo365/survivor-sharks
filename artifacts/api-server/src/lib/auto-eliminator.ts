@@ -31,6 +31,7 @@ import {
   getMlbWeekBounds,
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
+  fetchNhlGamesByWeek,
   getTeamsWithWin,
 } from "./espn";
 import {
@@ -69,14 +70,16 @@ export async function processCompletedGames(): Promise<{
       week: picksTable.week,
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
+      poolCreatedAt: poolsTable.createdAt,
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
     .where(and(eq(picksTable.result, "pending"), ne(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true)));
 
   if (pendingRows.length > 0) {
-    // Fetch ESPN scoreboards — one request per sport per poll cycle
-    const distinctSports = [...new Set(pendingRows.map(r => r.sport))];
+    // ── Non-NHL: batch-fetch today's scoreboard once per sport ───────────────
+    const nonNhlRows = pendingRows.filter(r => r.sport !== "nhl");
+    const distinctSports = [...new Set(nonNhlRows.map(r => r.sport))];
     const gamesBySport = new Map<string, EspnGame[]>();
 
     await Promise.all(
@@ -86,7 +89,33 @@ export async function processCompletedGames(): Promise<{
       }),
     );
 
-    // Build teamId → completed game lookup; log all completed game IDs
+    // ── NHL: fetch full Mon-Sun week per pool+week combo ─────────────────────
+    // The bare scoreboard only has today's games; NHL picks can reference any
+    // game within the week, so we need the full 7-day range.
+    const nhlRows = pendingRows.filter(r => r.sport === "nhl");
+    const nhlPoolWeekKeys = [...new Set(nhlRows.map(r => `${r.poolId}:${r.week}`))];
+    const nhlGamesByPoolWeek = new Map<string, EspnGame[]>();
+    if (nhlPoolWeekKeys.length > 0) {
+      await Promise.all(nhlPoolWeekKeys.map(async key => {
+        const ref = nhlRows.find(r => `${r.poolId}:${r.week}` === key)!;
+        const games = await fetchNhlGamesByWeek(ref.poolCreatedAt, ref.week);
+        nhlGamesByPoolWeek.set(key, games);
+        const completed = games.filter(g => g.isCompleted);
+        logger.info(
+          {
+            sport: "nhl",
+            poolId: ref.poolId,
+            week: ref.week,
+            completedGames: completed.map(g =>
+              `${g.awayTeam.abbreviation}(${g.awayTeam.id}) ${g.awayScore}-${g.homeScore} ${g.homeTeam.abbreviation}(${g.homeTeam.id})`,
+            ),
+          },
+          "ESPN completed games for sport",
+        );
+      }));
+    }
+
+    // Build teamId → completed game lookup for non-NHL sports
     const completedByTeam = new Map<string, EspnGame>();
     for (const [sport, games] of gamesBySport) {
       const completed = games.filter(g => g.isCompleted);
@@ -108,7 +137,12 @@ export async function processCompletedGames(): Promise<{
     const affectedPoolWeeks = new Set<string>();
 
     for (const row of pendingRows) {
-      const game = completedByTeam.get(row.teamId);
+      // NHL: look up the game from the week-specific batch, not today's scoreboard
+      const game = row.sport === "nhl"
+        ? (nhlGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
+            g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+          )
+        : completedByTeam.get(row.teamId);
 
       // ── Comparison log (always emitted for pending picks) ──
       logger.info(
