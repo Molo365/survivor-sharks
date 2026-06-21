@@ -19,6 +19,7 @@ export const entriesTable = pgTable("entries", {
   tiebreakerStrikeouts: integer("tiebreaker_strikeouts"),
   tiebreakerPassingYards: integer("tiebreaker_passing_yards"),
   tiebreakerRushingYards: integer("tiebreaker_rushing_yards"),
+  sovTotal: integer("sov_total"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,10 +1,15 @@
 import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Skull, Activity, Check, Zap, Clock, Trophy } from "lucide-react";
+import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, Swords } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+
+type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
 export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFrequency?: string }) {
+  const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
+
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
     query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
   });
@@ -17,6 +22,7 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
   const isDaily = pickFrequency === "daily" || (leaderboard as any).pickFrequency === "daily";
   const unitLabel = isDaily ? "day" : "week";
   const prizeStructure = (leaderboard as any).prizeStructure as Array<{ place: number; amount: number }> | null ?? null;
+  const sovTiebreaker = (leaderboard as any).sovTiebreaker as boolean ?? false;
 
   return (
     <div className="space-y-10">
@@ -40,6 +46,83 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
               {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}: ${p.amount}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* ── SOV Tiebreaker callout ─────────────────────────────────────────── */}
+      {sovTiebreaker && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-amber-500/20">
+            <Swords className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="font-bebas text-lg tracking-wide text-amber-300">
+                Tiebreaker Applied: Strength of Victory
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
+                Multiple players survived Week 18. The winner was determined by cumulative
+                margin of victory across all 18 weeks of picks.
+              </p>
+            </div>
+          </div>
+          <div className="divide-y divide-amber-500/10">
+            {leaderboard.active.map((entry, idx) => {
+              const e = entry as any;
+              const sovTotal: number | null = e.sovTotal ?? null;
+              const sovBreakdown: SovBreakdownItem[] = e.sovBreakdown ?? [];
+              const isOpen = expandedSOV === entry.userId;
+              return (
+                <div key={entry.userId}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSOV(isOpen ? null : entry.userId)}
+                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-amber-500/[0.04] transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "font-bebas text-xl w-6 text-center",
+                        idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : "text-amber-600",
+                      )}>{idx + 1}</span>
+                      <span className="font-medium text-sm text-foreground/90">
+                        {entry.displayName ?? entry.username}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="font-bebas text-xl text-amber-300">
+                          {sovTotal != null ? (sovTotal >= 0 ? `+${sovTotal}` : `${sovTotal}`) : "—"}
+                        </span>
+                        <span className="text-xs text-muted-foreground/50 ml-1">SOV</span>
+                      </div>
+                      {isOpen
+                        ? <ChevronUp className="w-4 h-4 text-muted-foreground/40" />
+                        : <ChevronDown className="w-4 h-4 text-muted-foreground/40" />}
+                    </div>
+                  </button>
+                  {isOpen && sovBreakdown.length > 0 && (
+                    <div className="px-5 pb-4">
+                      <div className="flex flex-wrap gap-2">
+                        {sovBreakdown.map((b) => (
+                          <span
+                            key={b.week}
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border font-mono",
+                              b.marginOfVictory >= 0
+                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                : "bg-destructive/10 border-destructive/20 text-destructive/70",
+                            )}
+                          >
+                            <span className="text-muted-foreground/50">Wk{b.week}</span>
+                            <span className="font-medium">{b.teamName}</span>
+                            <span>{b.marginOfVictory >= 0 ? `+${b.marginOfVictory}` : b.marginOfVictory}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

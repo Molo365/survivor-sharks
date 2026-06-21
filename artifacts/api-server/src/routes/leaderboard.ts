@@ -25,6 +25,7 @@ router.get("/", requireAuth, async (req, res) => {
     eliminatedWeek: entriesTable.eliminatedWeek,
     strikeCount: entriesTable.strikeCount,
     streak: entriesTable.streak,
+    sovTotal: entriesTable.sovTotal,
     joinedAt: entriesTable.joinedAt,
   }).from(entriesTable)
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -50,9 +51,18 @@ router.get("/", requireAuth, async (req, res) => {
     const sortedPicks = userPicks.sort((a, b) => b.week - a.week);
     const lastPick = sortedPicks[0];
 
-    // hasWonThisWeek: current week pick result is "win"
     const currentWeekPick = userPicks.find(p => p.week === pool.currentWeek);
     const hasWonThisWeek = currentWeekPick?.result === "win";
+
+    // SOV breakdown: week-by-week margin for display when SOV resolved a tie
+    const sovBreakdown = userPicks
+      .filter(p => p.marginOfVictory != null)
+      .sort((a, b) => a.week - b.week)
+      .map(p => ({
+        week: p.week,
+        teamName: p.teamName,
+        marginOfVictory: p.marginOfVictory!,
+      }));
 
     return {
       userId: member.userId,
@@ -66,12 +76,18 @@ router.get("/", requireAuth, async (req, res) => {
       streak: member.streak,
       strikeCount: member.strikeCount,
       hasWonThisWeek,
+      sovTotal: member.sovTotal ?? null,
+      sovBreakdown,
     };
   }));
 
   const active = entries
     .filter(e => e.status === "active")
-    .sort((a, b) => b.weeksAlive - a.weeksAlive)
+    .sort((a, b) => {
+      // When SOV was used, sort active players by sovTotal DESC
+      if (a.sovTotal != null && b.sovTotal != null) return b.sovTotal - a.sovTotal;
+      return b.weeksAlive - a.weeksAlive;
+    })
     .map((e, i) => ({
       rank: i + 1,
       prizeWon: prizeStructure?.find(p => p.place === i + 1)?.amount ?? null,
@@ -83,6 +99,12 @@ router.get("/", requireAuth, async (req, res) => {
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
     .map((e, i) => ({ rank: active.length + i + 1, prizeWon: null as number | null, ...e }));
 
+  // sovTiebreaker: true when the pool ended and SOV was actually computed
+  // (at least one active player has sovTotal set)
+  const sovTiebreaker =
+    !pool.isActive &&
+    active.some(e => e.sovTotal != null);
+
   res.json({
     poolId,
     currentWeek: pool.currentWeek,
@@ -90,6 +112,7 @@ router.get("/", requireAuth, async (req, res) => {
     pickFrequency: pool.pickFrequency,
     deadlinePassed,
     prizeStructure,
+    sovTiebreaker,
     active,
     eliminated,
   });

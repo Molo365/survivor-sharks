@@ -510,6 +510,24 @@ export async function getCompletedGameResults(sport: string, week?: number): Pro
 }
 
 /**
+ * Returns a map of teamId → signed margin for every completed game this week.
+ * Positive  = the team won by that many points (e.g. +7 means won by 7).
+ * Negative  = the team lost by that many points (e.g. -7 means lost by 7).
+ * Teams in games that are not yet final are omitted.
+ */
+export async function getGameMarginsByTeam(sport: string, week?: number): Promise<Map<string, number>> {
+  const games = await fetchGames(sport, week);
+  const marginByTeamId = new Map<string, number>();
+  for (const g of games) {
+    if (!g.isCompleted || g.homeScore == null || g.awayScore == null) continue;
+    const diff = g.homeScore - g.awayScore; // positive → home won
+    marginByTeamId.set(g.homeTeam.id, diff);
+    marginByTeamId.set(g.awayTeam.id, -diff);
+  }
+  return marginByTeamId;
+}
+
+/**
  * Fetch this week's schedule — used by commissioner panel and pick grid.
  */
 export { fetchGames };

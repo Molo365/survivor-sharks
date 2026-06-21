@@ -277,6 +277,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   // Random NFL-realistic scores (10–45, no ties)
   const winnerByTeamId = new Map<string, string>();
+  const marginByTeamId = new Map<string, number>();
   for (const game of games) {
     let homeScore = 10 + Math.floor(Math.random() * 36);
     let awayScore = 10 + Math.floor(Math.random() * 36);
@@ -284,6 +285,9 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     winnerByTeamId.set(game.homeTeamId, winner);
     winnerByTeamId.set(game.awayTeamId, winner);
+    const diff = homeScore - awayScore; // positive → home won
+    marginByTeamId.set(game.homeTeamId, diff);
+    marginByTeamId.set(game.awayTeamId, -diff);
   }
 
   const pendingPicks = await db.select().from(picksTable)
@@ -298,7 +302,8 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const winner = winnerByTeamId.get(pick.teamId);
     if (winner === undefined) continue;
     const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
-    await db.update(picksTable).set({ result }).where(eq(picksTable.id, pick.id));
+    const marginOfVictory = marginByTeamId.get(pick.teamId) ?? null;
+    await db.update(picksTable).set({ result, marginOfVictory }).where(eq(picksTable.id, pick.id));
     if (result === "loss") lostEntryIds.add(pick.entryId);
     graded++;
   }
@@ -343,22 +348,55 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   });
 
   // Winner detection: close pool when ≤1 survivor remains (season/mid-season only)
+  // For Classic Season (poolType === "season") ending Week 18 with multiple survivors,
+  // resolve via Strength of Victory instead of leaving the pool open.
   let poolEnded = false;
+  let sovUsed = false;
   if (pool.poolType !== "weekly") {
     const [{ remaining }] = await db
       .select({ remaining: count() })
       .from(entriesTable)
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-    if (Number(remaining) <= 1) {
+    const remainingCount = Number(remaining);
+
+    if (remainingCount <= 1) {
       await db.update(poolsTable)
         .set({ isActive: false, endedAt: new Date() })
         .where(eq(poolsTable.id, poolId));
       poolEnded = true;
+    } else if (pool.poolType === "season" && week === 18) {
+      // Multiple survivors after the final week — resolve via SOV
+      const aliveEntries = await db
+        .select({ id: entriesTable.id, userId: entriesTable.userId })
+        .from(entriesTable)
+        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+      const allPicks = await db
+        .select({ userId: picksTable.userId, marginOfVictory: picksTable.marginOfVictory })
+        .from(picksTable)
+        .where(eq(picksTable.poolId, poolId));
+
+      const sovByUser = new Map<number, number>();
+      for (const pick of allPicks) {
+        if (pick.marginOfVictory == null) continue;
+        sovByUser.set(pick.userId, (sovByUser.get(pick.userId) ?? 0) + pick.marginOfVictory);
+      }
+      for (const entry of aliveEntries) {
+        await db.update(entriesTable)
+          .set({ sovTotal: sovByUser.get(entry.userId) ?? 0 })
+          .where(eq(entriesTable.id, entry.id));
+      }
+
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, poolId));
+      poolEnded = true;
+      sovUsed = true;
     }
   }
 
-  res.json({ graded, week, eliminated: lostEntryIds.size, forfeits, poolEnded });
+  res.json({ graded, week, eliminated: lostEntryIds.size, forfeits, poolEnded, sovUsed });
 });
 
 export default router;

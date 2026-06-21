@@ -2,9 +2,12 @@ import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-cli
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ListOrdered, Shield, Skull } from "lucide-react";
+import { ListOrdered, Shield, Skull, Swords, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
 type LeaderboardEntry = {
   rank: number;
@@ -20,6 +23,8 @@ type LeaderboardEntry = {
   strikeCount: number | null;
   hasWonThisWeek: boolean;
   prizeWon: number | null;
+  sovTotal: number | null;
+  sovBreakdown: SovBreakdownItem[];
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -51,6 +56,9 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
   const alive = (leaderboard.active ?? []) as LeaderboardEntry[];
   const eliminated = (leaderboard.eliminated ?? []) as LeaderboardEntry[];
   const currentWeek = leaderboard.currentWeek ?? 1;
+  const sovTiebreaker = (leaderboard as any).sovTiebreaker as boolean ?? false;
+
+  const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
   // Alive: already sorted by weeksAlive DESC from server (rank order)
   // Eliminated: sort by eliminatedWeek DESC — most recently eliminated first
@@ -73,6 +81,82 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
           {eliminated.length} eliminated · Week {currentWeek} · {totalPlayers} total
         </p>
       </div>
+
+      {/* ── SOV Tiebreaker callout ───────────────────────────────────────── */}
+      {sovTiebreaker && alive.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-amber-500/20">
+            <Swords className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <p className="font-bebas text-sm tracking-wide text-amber-300">
+                Tiebreaker Applied: Strength of Victory
+              </p>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Multiple players survived Week 18. Rankings set by cumulative margin of victory.
+              </p>
+            </div>
+          </div>
+          <div className="divide-y divide-amber-500/10">
+            {alive.map((entry, idx) => {
+              const isOpen = expandedSOV === entry.userId;
+              return (
+                <div key={entry.userId}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSOV(isOpen ? null : entry.userId)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.04] transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "font-bebas text-base w-5 text-center",
+                        idx === 0 ? "text-yellow-400" : "text-amber-600/70",
+                      )}>{idx + 1}</span>
+                      <span className="text-sm font-medium">
+                        {entry.displayName ?? entry.username}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "font-bebas text-base",
+                        entry.sovTotal != null && entry.sovTotal >= 0 ? "text-amber-300" : "text-muted-foreground",
+                      )}>
+                        {entry.sovTotal != null
+                          ? (entry.sovTotal >= 0 ? `+${entry.sovTotal}` : `${entry.sovTotal}`)
+                          : "—"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/40">SOV</span>
+                      {isOpen
+                        ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/40" />
+                        : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                    </div>
+                  </button>
+                  {isOpen && entry.sovBreakdown && entry.sovBreakdown.length > 0 && (
+                    <div className="px-4 pb-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {entry.sovBreakdown.map((b) => (
+                          <span
+                            key={b.week}
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border font-mono",
+                              b.marginOfVictory >= 0
+                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                : "bg-destructive/10 border-destructive/20 text-destructive/70",
+                            )}
+                          >
+                            <span className="text-muted-foreground/50">Wk{b.week}</span>
+                            <span>{b.teamName}</span>
+                            <span>{b.marginOfVictory >= 0 ? `+${b.marginOfVictory}` : b.marginOfVictory}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {totalPlayers === 0 ? (
         <div className="rounded-xl border border-border/30 bg-muted/[0.03] py-14 flex flex-col items-center gap-2 text-center">

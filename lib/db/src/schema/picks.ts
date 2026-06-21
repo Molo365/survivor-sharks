@@ -18,6 +18,7 @@ export const picksTable = pgTable("picks", {
   week: integer("week").notNull(),
   pickDate: text("pick_date"),
   result: pickResultEnum("result").notNull().default("pending"),
+  marginOfVictory: integer("margin_of_victory"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

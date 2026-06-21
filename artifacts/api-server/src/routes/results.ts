@@ -3,10 +3,37 @@ import { db } from "@workspace/db";
 import { weekResultsTable, picksTable, entriesTable, poolsTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getCompletedGameResults } from "../lib/espn";
+import { getCompletedGameResults, getGameMarginsByTeam } from "../lib/espn";
 import { ESPN_TEAMS, type Sport } from "../lib/teams-data";
 
 const router = Router({ mergeParams: true });
+
+// ── SOV helper ────────────────────────────────────────────────────────────────
+// Sums each alive player's marginOfVictory across all their picks and
+// persists the result to entries.sovTotal.  Called only when multiple
+// survivors remain after the final regular-season week (Week 18).
+async function resolveSOV(poolId: number): Promise<void> {
+  const aliveEntries = await db
+    .select({ id: entriesTable.id, userId: entriesTable.userId })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+  const allPicks = await db
+    .select({ userId: picksTable.userId, marginOfVictory: picksTable.marginOfVictory })
+    .from(picksTable)
+    .where(eq(picksTable.poolId, poolId));
+
+  const sovByUser = new Map<number, number>();
+  for (const pick of allPicks) {
+    if (pick.marginOfVictory == null) continue;
+    sovByUser.set(pick.userId, (sovByUser.get(pick.userId) ?? 0) + pick.marginOfVictory);
+  }
+
+  for (const entry of aliveEntries) {
+    const sovTotal = sovByUser.get(entry.userId) ?? 0;
+    await db.update(entriesTable).set({ sovTotal }).where(eq(entriesTable.id, entry.id));
+  }
+}
 
 // GET /api/pools/:poolId/results
 router.get("/", requireAuth, async (req, res) => {
@@ -48,14 +75,11 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  // Build abbreviation → teamId lookup for this sport so the commissioner can
-  // enter abbreviations (BAL, NYY) OR numeric IDs — both work.
   const sportTeams = ESPN_TEAMS[pool.sport as Sport] ?? [];
   const abbrevToId = new Map(sportTeams.map(t => [t.abbreviation.toUpperCase(), t.id]));
   const idToAbbrev = new Map(sportTeams.map(t => [t.id, t.abbreviation.toUpperCase()]));
 
-  // Resolve losing teams — either from ESPN or from the request body
-  let losingSet: Set<string>; // always contains numeric teamIds
+  let losingSet: Set<string>;
   let inputTokens: string[] = [];
 
   if (autoFetch) {
@@ -71,7 +95,6 @@ router.post("/", requireAuth, async (req, res) => {
       return;
     }
 
-    // Normalize each entry: abbreviation → numeric ID, or keep as-is if already an ID
     const resolvedIds: string[] = [];
     const unrecognized: string[] = [];
 
@@ -93,7 +116,16 @@ router.post("/", requireAuth, async (req, res) => {
     losingSet = new Set(resolvedIds);
   }
 
-  // Grade all picks for this week
+  // Best-effort: fetch game margins from ESPN for SOV storage.
+  // Works for both autoFetch and manual submission; margin stays null if ESPN
+  // data is unavailable (e.g. pre-season test pools).
+  let marginByTeamId = new Map<string, number>();
+  try {
+    marginByTeamId = await getGameMarginsByTeam(pool.sport, week);
+  } catch {
+    req.log.warn({ poolId, week }, "Could not fetch game margins from ESPN — marginOfVictory will be null for this week");
+  }
+
   const weekPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week)));
 
@@ -106,11 +138,15 @@ router.post("/", requireAuth, async (req, res) => {
 
   const eliminated: string[] = [];
   const survived: string[] = [];
-  const pickDebug: { userId: number; teamId: string; teamName: string; abbreviation: string; result: string }[] = [];
+  const pickDebug: {
+    userId: number; teamId: string; teamName: string;
+    abbreviation: string; result: string; marginOfVictory: number | null;
+  }[] = [];
 
   for (const pick of weekPicks) {
     const result = losingSet.has(pick.teamId) ? "loss" : "win";
-    await db.update(picksTable).set({ result }).where(eq(picksTable.id, pick.id));
+    const marginOfVictory = marginByTeamId.get(pick.teamId) ?? null;
+    await db.update(picksTable).set({ result, marginOfVictory }).where(eq(picksTable.id, pick.id));
 
     pickDebug.push({
       userId: pick.userId,
@@ -118,11 +154,11 @@ router.post("/", requireAuth, async (req, res) => {
       teamName: pick.teamName,
       abbreviation: idToAbbrev.get(pick.teamId) ?? pick.teamId,
       result,
+      marginOfVictory,
     });
 
     if (result === "loss") {
       eliminated.push(pick.userId.toString());
-      // For weekly pools eliminations don't carry over — we'll restore below
       if (pool.poolType !== "weekly") {
         await db.update(entriesTable)
           .set({ status: "eliminated", eliminatedWeek: week })
@@ -133,8 +169,6 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
-  // Eliminate alive members who submitted no pick this week (forfeit)
-  // Weekly pools: only mark for the current grading, won't carry forward
   const pickedUserIds = new Set(weekPicks.map(p => p.userId));
   const aliveEntries = await db.select().from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
@@ -152,8 +186,6 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
-  // For weekly pools: reset everyone back to "alive" for next week
-  // The weekly format has no carry-over — it's a fresh contest each week.
   if (pool.poolType === "weekly") {
     const allEntries = await db.select().from(entriesTable)
       .where(eq(entriesTable.poolId, poolId));
@@ -165,7 +197,6 @@ router.post("/", requireAuth, async (req, res) => {
     req.log.info({ poolId, week, poolType: "weekly" }, "Weekly pool — all entries reset to alive for next week");
   }
 
-  // Record result
   await db.insert(weekResultsTable).values({
     poolId,
     week,
@@ -173,18 +204,33 @@ router.post("/", requireAuth, async (req, res) => {
     processedBy: req.user!.id,
   });
 
-  // Winner detection: close the pool when ≤1 survivor remains (season/mid-season only)
+  // ── Winner detection (season / mid-season only) ───────────────────────────
   if (pool.poolType !== "weekly") {
     const [{ remaining }] = await db
       .select({ remaining: count() })
       .from(entriesTable)
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-    if (Number(remaining) <= 1) {
+    const remainingCount = Number(remaining);
+
+    if (remainingCount <= 1) {
+      // 0 or 1 survivors — close the pool immediately (normal path)
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, poolId));
+    } else if (pool.poolType === "season" && week === 18) {
+      // Multiple survivors after the final regular-season week →
+      // resolve via Strength of Victory (sum of signed margins across all picks).
+      req.log.info(
+        { poolId, week, remaining: remainingCount },
+        "Season Week 18 ended with multiple survivors — resolving via SOV tiebreaker",
+      );
+      await resolveSOV(poolId);
       await db.update(poolsTable)
         .set({ isActive: false, endedAt: new Date() })
         .where(eq(poolsTable.id, poolId));
     }
+    // remaining > 1 and week < 18 → pool stays open, season continues
   }
 
   res.json({
