@@ -94,8 +94,10 @@ type EspnCompetitor = {
 type EspnEvent = {
   id: string;
   date: string;
-  /** e.g. { id: 1, name: "Preseason" } / { id: 2, name: "Regular Season" } / { id: 3, name: "Postseason" } */
-  season?: { year?: number; type?: { id?: number; name?: string; slug?: string } };
+  /** ESPN response shape: { year: 2026, type: 1, slug: "preseason" }
+   *  type is a plain number: 1 = preseason, 2 = regular season, 3 = postseason.
+   *  slug is a sibling of type, not a child. */
+  season?: { year?: number; type?: number; slug?: string };
   competitions?: {
     competitors?: EspnCompetitor[];
     status?: {
@@ -194,7 +196,7 @@ function parseGame(event: EspnEvent): EspnGame {
     homeStartingPitcher: extractStartingPitcher(home?.probables?.[0]),
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
     groupLabel,
-    seasonType: event.season?.type?.id ?? 2,
+    seasonType: event.season?.type ?? 2,
   };
 }
 
@@ -433,7 +435,10 @@ export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
       }
     }
   }
-  return games;
+  // Post-fetch filter: ESPN ignores &seasontype= on date-based endpoints, so we
+  // enforce the season type here by inspecting the per-event e.season.type field
+  // that parseGame now reads correctly (a plain number: 1=pre, 2=regular, 3=post).
+  return games.filter(g => g.seasonType === seasonType);
 }
 
 /**
