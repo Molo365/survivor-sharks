@@ -505,6 +505,8 @@ export interface Leaderboard {
   currentWeek: number;
   /** Whether this pool uses double elimination mode */
   doubleElimination?: boolean;
+  /** Lives in this pool (1 = single elim, 2 = double elim, 3 = NHL 3-life Survivor) */
+  maxLives?: number;
   /** MLB: true if the pick deadline for the current week has passed */
   deadlinePassed?: boolean;
   prizeStructure?: PrizeEntry[] | null;

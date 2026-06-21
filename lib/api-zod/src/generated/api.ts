@@ -651,6 +651,7 @@ export const GetLeaderboardResponse = zod.object({
   "poolId": zod.number(),
   "currentWeek": zod.number(),
   "doubleElimination": zod.boolean().optional().describe('Whether this pool uses double elimination mode'),
+  "maxLives": zod.number().optional().describe('Lives in this pool (1 = single elim, 2 = double elim, 3 = NHL 3-life Survivor)'),
   "deadlinePassed": zod.boolean().optional().describe('MLB: true if the pick deadline for the current week has passed'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),

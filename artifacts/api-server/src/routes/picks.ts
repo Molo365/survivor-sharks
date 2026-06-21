@@ -226,9 +226,13 @@ router.post("/", requireAuth, async (req, res) => {
       ? previousPicks.filter(p => p.week >= pool.startWeek!)
       : previousPicks;
 
-    const alreadyUsed = relevantPicks.some(p => p.teamId === teamId && p.week !== week);
-    if (alreadyUsed) {
-      res.status(400).json({ error: "You have already used this team in a previous week" });
+    // NHL Survivor Season allows each team to be picked up to 2 times; all other season/mid_season pools allow 1 use.
+    const maxTeamUses = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 1;
+    const timesUsed = relevantPicks.filter(p => p.teamId === teamId && p.week !== week).length;
+    if (timesUsed >= maxTeamUses) {
+      res.status(400).json({ error: timesUsed >= 2
+        ? "You have already used this team twice — maximum reuse reached"
+        : "You have already used this team in a previous week" });
       return;
     }
   }
@@ -338,7 +342,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   // Phase 1: snapshot alive entries BEFORE grading
   const aliveAtStart = await db
-    .select({ id: entriesTable.id, userId: entriesTable.userId })
+    .select({ id: entriesTable.id, userId: entriesTable.userId, strikeCount: entriesTable.strikeCount })
     .from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
   const aliveUserIds = new Set(aliveAtStart.map(e => e.userId));
@@ -404,13 +408,24 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   }
 
   // Phase 5: conditionally apply eliminations
+  // NHL Survivor Season uses 3 lives (maxStrikes = 2 warning strikes before elimination).
+  const maxStrikes = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 0;
+  const aliveById = new Map(aliveAtStart.map(e => [e.id, e]));
+
   if (!voidFired && !coWinnersTriggered) {
-    for (const entryId of lostEntryIds) {
-      await db.update(entriesTable)
-        .set({ status: "eliminated", eliminatedWeek: week })
-        .where(eq(entriesTable.id, entryId));
-    }
-    for (const entryId of forfeitEntryIds) {
+    for (const entryId of [...lostEntryIds, ...forfeitEntryIds]) {
+      if (maxStrikes > 0) {
+        const entry = aliveById.get(entryId);
+        const currentStrikes = entry?.strikeCount ?? 0;
+        if (currentStrikes < maxStrikes) {
+          // Use up one life — player survives with a warning strike
+          await db.update(entriesTable)
+            .set({ strikeCount: currentStrikes + 1, streak: 0 })
+            .where(eq(entriesTable.id, entryId));
+          continue;
+        }
+      }
+      // Single-life pool, or strikes exhausted: permanent elimination
       await db.update(entriesTable)
         .set({ status: "eliminated", eliminatedWeek: week })
         .where(eq(entriesTable.id, entryId));

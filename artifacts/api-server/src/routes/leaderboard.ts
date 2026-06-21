@@ -145,10 +145,15 @@ router.get("/", requireAuth, async (req, res) => {
     }
   }
 
+  const maxLives = (pool.sport === "nhl" && pool.poolType === "season")
+    ? 3
+    : pool.doubleElimination ? 2 : 1;
+
   res.json({
     poolId,
     currentWeek: pool.currentWeek,
     doubleElimination: pool.doubleElimination,
+    maxLives,
     pickFrequency: pool.pickFrequency,
     deadlinePassed,
     prizeStructure,

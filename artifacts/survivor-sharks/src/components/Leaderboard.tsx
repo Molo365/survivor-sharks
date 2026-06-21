@@ -18,6 +18,7 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
   if (!leaderboard) return null;
 
   const isDoubleElim = leaderboard.doubleElimination ?? false;
+  const maxLives = leaderboard.maxLives ?? (isDoubleElim ? 2 : 1);
   const isDeadlinePassed = leaderboard.deadlinePassed ?? false;
   const isDaily = pickFrequency === "daily" || (leaderboard as any).pickFrequency === "daily";
   const unitLabel = isDaily ? "day" : "week";
@@ -204,12 +205,14 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
                   <div>
                     <div className="font-medium text-xl flex items-center gap-2">
                       {entry.displayName || entry.username}
-                      {isDoubleElim && strikeCount === 1 && (
+                      {maxLives > 1 && strikeCount > 0 && (
                         <span
-                          title="Warning strike — one more loss eliminates this player"
+                          title={strikeCount >= maxLives - 1
+                            ? "Final warning — one more loss eliminates this player"
+                            : `Warning strike ${strikeCount} of ${maxLives - 1}`}
                           className="inline-flex items-center gap-0.5 text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30"
                         >
-                          <Zap className="w-3 h-3" /> Strike
+                          <Zap className="w-3 h-3" /> {strikeCount === 1 ? "Strike" : `${strikeCount} Strikes`}
                         </span>
                       )}
                     </div>

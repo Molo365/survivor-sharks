@@ -618,11 +618,13 @@ function MatchupCard({
 export function MatchupPickGrid({
   poolId,
   sport,
+  poolType,
   currentWeek,
   isActive = true,
 }: {
   poolId: number;
   sport: Sport;
+  poolType: string;
   currentWeek: number;
   isActive?: boolean;
 }) {
@@ -647,6 +649,20 @@ export function MatchupPickGrid({
 
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
+
+  // NHL Survivor Season: teams may be reused up to 2 times. Compute which teams
+  // are "exhausted" (used max times in prior weeks, excluding current week) so
+  // MatchupCard grays them out correctly.
+  const isNhlSurvivorSeason = sport === "nhl" && poolType === "season";
+  const maxTeamUses = isNhlSurvivorSeason ? 2 : 1;
+  const priorPickTeamIds = picks?.filter(p => p.week !== currentWeek).map(p => p.teamId) ?? [];
+  const teamUseCounts = priorPickTeamIds.reduce<Map<string, number>>((acc, id) => {
+    acc.set(id, (acc.get(id) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+  const exhaustedTeamIds = [...teamUseCounts.entries()]
+    .filter(([, count]) => count >= maxTeamUses)
+    .map(([id]) => id);
 
   const handleSubmit = () => {
     if (!selectedTeam) return;
@@ -859,9 +875,15 @@ export function MatchupPickGrid({
 
   // ── Non-MLB: flat game list ────────────────────────────────────────────────
   // NFL + NHL use the pool-scoped schedule; NBA/FIFA still use the live feed.
+  // NHL Survivor Season additionally filters down to Saturday games only.
+
+  const scheduleDays = schedule?.days ?? [];
+  const visibleDays = isNhlSurvivorSeason
+    ? scheduleDays.filter(d => new Date(d.date + "T12:00:00Z").getUTCDay() === 6)
+    : scheduleDays;
 
   const gameList = (sport === "nfl" || sport === "nhl")
-    ? (schedule?.days.flatMap(d => d.games) ?? [])
+    ? visibleDays.flatMap(d => d.games)
     : (games ?? []);
 
   const currentPickGame = currentPick
@@ -940,7 +962,7 @@ export function MatchupPickGrid({
               key={game.id}
               game={game}
               sport={sport}
-              pickedTeamIds={pickedTeamIds}
+              pickedTeamIds={exhaustedTeamIds}
               currentPickTeamId={currentPick?.teamId}
               selectedTeam={pickIsLocked ? null : selectedTeam}
               onSelect={(team) => {

@@ -191,29 +191,77 @@ export async function processCompletedGames(): Promise<{
       );
 
       if (result === "loss" && row.poolType !== "weekly") {
-        const updated = await db
-          .update(entriesTable)
-          .set({ status: "eliminated", eliminatedWeek: row.week, streak: 0 })
-          .where(
-            and(
+        // NHL Survivor Season uses 3 lives (2 warning strikes before elimination).
+        const maxStrikes = (row.sport === "nhl" && row.poolType === "season") ? 2 : 0;
+
+        if (maxStrikes > 0) {
+          // Point-read the entry to get current strikeCount
+          const [entry] = await db
+            .select({ strikeCount: entriesTable.strikeCount })
+            .from(entriesTable)
+            .where(and(
               eq(entriesTable.poolId, row.poolId),
               eq(entriesTable.userId, row.userId),
               eq(entriesTable.status, "alive"),
-            ),
-          )
-          .returning({ id: entriesTable.id });
+            ))
+            .limit(1);
 
-        if (updated.length > 0) {
-          playersEliminated++;
-          logger.info(
-            { poolId: row.poolId, userId: row.userId, week: row.week, teamName: row.teamName },
-            "Auto-eliminated player (pass 1)",
-          );
+          if (entry && entry.strikeCount < maxStrikes) {
+            // Warning strike — player stays alive
+            await db
+              .update(entriesTable)
+              .set({ strikeCount: entry.strikeCount + 1, streak: 0 })
+              .where(and(
+                eq(entriesTable.poolId, row.poolId),
+                eq(entriesTable.userId, row.userId),
+                eq(entriesTable.status, "alive"),
+              ));
+            logger.info(
+              { poolId: row.poolId, userId: row.userId, week: row.week, teamName: row.teamName, strikeCount: entry.strikeCount + 1, maxStrikes },
+              "Auto-eliminator pass 1: warning strike (multi-life pool)",
+            );
+          } else if (entry) {
+            // Strikes exhausted — permanent elimination
+            await db
+              .update(entriesTable)
+              .set({ status: "eliminated", eliminatedWeek: row.week, streak: 0 })
+              .where(and(
+                eq(entriesTable.poolId, row.poolId),
+                eq(entriesTable.userId, row.userId),
+                eq(entriesTable.status, "alive"),
+              ));
+            playersEliminated++;
+            logger.info(
+              { poolId: row.poolId, userId: row.userId, week: row.week, teamName: row.teamName, strikeCount: entry.strikeCount },
+              "Auto-eliminated player (pass 1, strikes exhausted)",
+            );
+          }
         } else {
-          logger.warn(
-            { poolId: row.poolId, userId: row.userId, week: row.week },
-            "Auto-eliminator pass 1: loss pick found but entry update matched 0 rows (already eliminated or entry missing)",
-          );
+          // Single-life pool: eliminate immediately
+          const updated = await db
+            .update(entriesTable)
+            .set({ status: "eliminated", eliminatedWeek: row.week, streak: 0 })
+            .where(
+              and(
+                eq(entriesTable.poolId, row.poolId),
+                eq(entriesTable.userId, row.userId),
+                eq(entriesTable.status, "alive"),
+              ),
+            )
+            .returning({ id: entriesTable.id });
+
+          if (updated.length > 0) {
+            playersEliminated++;
+            logger.info(
+              { poolId: row.poolId, userId: row.userId, week: row.week, teamName: row.teamName },
+              "Auto-eliminated player (pass 1)",
+            );
+          } else {
+            logger.warn(
+              { poolId: row.poolId, userId: row.userId, week: row.week },
+              "Auto-eliminator pass 1: loss pick found but entry update matched 0 rows (already eliminated or entry missing)",
+            );
+          }
         }
       }
 

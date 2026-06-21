@@ -2137,6 +2137,9 @@ components:
         doubleElimination:
           type: boolean
           description: Whether this pool uses double elimination mode
+        maxLives:
+          type: integer
+          description: "Lives in this pool (1 = single elim, 2 = double elim, 3 = NHL 3-life Survivor)"
         deadlinePassed:
           type: boolean
           description: "MLB: true if the pick deadline for the current week has passed"
