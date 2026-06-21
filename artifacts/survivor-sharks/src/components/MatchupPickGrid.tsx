@@ -684,7 +684,7 @@ export function MatchupPickGrid({
 
   // ── Loading states ─────────────────────────────────────────────────────────
 
-  if (((sport === "mlb" || sport === "nfl") ? loadingSchedule : loadingGames) || loadingPicks) {
+  if (((sport === "mlb" || sport === "nfl" || sport === "nhl") ? loadingSchedule : loadingGames) || loadingPicks) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (

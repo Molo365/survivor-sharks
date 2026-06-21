@@ -448,7 +448,10 @@ router.patch("/sandbox-week", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
   }
 
-  const week = Math.max(1, Math.min(18, parseInt(String(req.body.week)) || 1));
+  // Clamp week to a sport-appropriate maximum:
+  // NFL has 18 regular-season weeks; NHL regular season spans ~26 weeks.
+  const maxWeek = pool.sport === "nhl" ? 26 : 18;
+  const week = Math.max(1, Math.min(maxWeek, parseInt(String(req.body.week)) || 1));
   // Write both so currentWeek is always the authoritative source of truth.
   // sandboxWeek stays in sync as a mirror; all consumers read currentWeek directly.
   await db.update(poolsTable).set({ sandboxWeek: week, currentWeek: week }).where(eq(poolsTable.id, poolId));
