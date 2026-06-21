@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable } from "@workspace/db";
+import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
@@ -275,13 +275,36 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   const week = pool.currentWeek;
   const games = getSandboxGamesForWeek(week);
 
-  // Random NFL-realistic scores (10–45, no ties)
-  const winnerByTeamId = new Map<string, string>();
-  const marginByTeamId = new Map<string, number>();
+  // Load any previously stored scores for this pool/week so outcomes are
+  // stable across repeated simulate-grading calls.
+  const existingScoreRows = await db
+    .select()
+    .from(sandboxGameScoresTable)
+    .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+  const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
+    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]),
+  );
+
+  // Generate and persist scores only for games that don't yet have stored scores.
   for (const game of games) {
+    if (gameScores.has(game.id)) continue;
     let homeScore = 10 + Math.floor(Math.random() * 36);
     let awayScore = 10 + Math.floor(Math.random() * 36);
     if (homeScore === awayScore) homeScore += 3;
+    gameScores.set(game.id, { homeScore, awayScore });
+    await db
+      .insert(sandboxGameScoresTable)
+      .values({ poolId, week, gameId: game.id, homeScore, awayScore })
+      .onConflictDoNothing();
+  }
+
+  // Build winner/margin maps from the now-stable score map.
+  const winnerByTeamId = new Map<string, string>();
+  const marginByTeamId = new Map<string, number>();
+  for (const game of games) {
+    const scores = gameScores.get(game.id);
+    if (!scores) continue;
+    const { homeScore, awayScore } = scores;
     const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     winnerByTeamId.set(game.homeTeamId, winner);
     winnerByTeamId.set(game.awayTeamId, winner);

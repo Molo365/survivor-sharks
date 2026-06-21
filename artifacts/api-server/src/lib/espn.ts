@@ -193,12 +193,13 @@ function parseGame(event: EspnEvent): EspnGame {
   };
 }
 
-async function fetchGames(sport: string, week?: number): Promise<EspnGame[]> {
+async function fetchGames(sport: string, week?: number, season?: number): Promise<EspnGame[]> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return [];
 
+  const resolvedSeason = season ?? new Date().getFullYear();
   const url = sport === "nfl" && week
-    ? `${base}/scoreboard?week=${week}&seasontype=2&dates=2026`
+    ? `${base}/scoreboard?week=${week}&seasontype=2&dates=${resolvedSeason}`
     : `${base}/scoreboard`;
 
   try {
@@ -423,10 +424,11 @@ export async function fetchGamesForDate(sport: string, dateStr: string): Promise
 
 /**
  * Fetch all NFL games for a given regular-season week (1-18).
- * Uses ESPN's week-based scoreboard endpoint with dates=2026.
+ * Uses ESPN's week-based scoreboard endpoint. Pass the pool's season year so
+ * the correct season is queried (e.g. 2025 for a 2025-season pool).
  */
-export async function fetchNflGamesByWeek(week: number): Promise<EspnGame[]> {
-  return fetchGames("nfl", week);
+export async function fetchNflGamesByWeek(week: number, season?: number): Promise<EspnGame[]> {
+  return fetchGames("nfl", week, season);
 }
 
 /**

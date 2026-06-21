@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { poolsTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   getMlbWeekBounds,
@@ -88,6 +88,13 @@ router.get("/", requireAuth, async (req, res) => {
     const sandboxGames = getSandboxGamesForWeek(week);
     const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
 
+    // Load any scores stored by simulate-grading so graded cards show final scores.
+    const storedScoreRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+
     // Group by date
     const byDate = new Map<string, typeof sandboxGames>();
     for (const g of sandboxGames) {
@@ -107,6 +114,7 @@ router.get("/", requireAuth, async (req, res) => {
         games: byDate.get(dateStr)!.map(g => {
           const awayInfo = NFL_TEAM_INFO[g.awayAbbr];
           const homeInfo = NFL_TEAM_INFO[g.homeAbbr];
+          const scored = storedScores.get(g.id);
           return {
             id: g.id,
             sport: "nfl",
@@ -115,10 +123,10 @@ router.get("/", requireAuth, async (req, res) => {
             startTime: g.gameTime,
             week,
             season: pool.season,
-            status: "scheduled",
-            hasStarted: false,
-            homeScore: null,
-            awayScore: null,
+            status: scored ? "final" : "scheduled",
+            hasStarted: scored ? true : false,
+            homeScore: scored?.homeScore ?? null,
+            awayScore: scored?.awayScore ?? null,
             homeRecord: null,
             awayRecord: null,
             odds: null,
@@ -157,7 +165,7 @@ router.get("/", requireAuth, async (req, res) => {
   // ── NFL live path (non-sandbox) ───────────────────────────────────────────
   if (pool.sport === "nfl") {
     const week = pool.currentWeek;
-    const nflGames = await fetchNflGamesByWeek(week);
+    const nflGames = await fetchNflGamesByWeek(week, pool.season);
 
     const byDate = new Map<string, EspnGame[]>();
     for (const g of nflGames) {

@@ -154,9 +154,11 @@ function TeamSide({
             : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
         isSelected && variant === "upcoming"
           ? "ring-2 ring-inset ring-primary/70"
-          : variant === "upcoming" && !unpickable
-            ? "hover:ring-1 hover:ring-inset hover:ring-primary/30"
-            : ""
+          : isCurrentPick && variant === "upcoming"
+            ? "bg-primary/[0.12] ring-2 ring-inset ring-primary/50"
+            : variant === "upcoming" && !unpickable
+              ? "hover:ring-1 hover:ring-inset hover:ring-primary/30"
+              : ""
       )}
     >
       {/* Logo + name */}
@@ -372,7 +374,11 @@ function MatchupCard({
               isAwayUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isAwayUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
-              selectedId === game.awayTeam.id && variant === "upcoming" ? "ring-2 ring-inset ring-primary/70 rounded-lg" : ""
+              selectedId === game.awayTeam.id && variant === "upcoming"
+                ? "ring-2 ring-inset ring-primary/70 rounded-lg"
+                : currentPickTeamId === game.awayTeam.id && variant === "upcoming"
+                  ? "bg-primary/[0.12] ring-2 ring-inset ring-primary/50 rounded-lg"
+                  : ""
             )}
           >
             <div className="relative">
@@ -431,7 +437,11 @@ function MatchupCard({
               isHomeUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isHomeUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
-              selectedId === game.homeTeam.id && variant === "upcoming" ? "ring-2 ring-inset ring-primary/70 rounded-lg" : ""
+              selectedId === game.homeTeam.id && variant === "upcoming"
+                ? "ring-2 ring-inset ring-primary/70 rounded-lg"
+                : currentPickTeamId === game.homeTeam.id && variant === "upcoming"
+                  ? "bg-primary/[0.12] ring-2 ring-inset ring-primary/50 rounded-lg"
+                  : ""
             )}
           >
             <div className="relative">
@@ -518,7 +528,11 @@ function MatchupCard({
                 <span className="font-bebas text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
                   Final
                 </span>
-                <span className="font-bebas text-xl text-foreground/25 mt-1">–</span>
+                {game.awayScore != null && game.homeScore != null ? (
+                  <span className="font-bebas text-xl text-foreground/55 mt-1">{game.awayScore}–{game.homeScore}</span>
+                ) : (
+                  <span className="font-bebas text-xl text-foreground/25 mt-1">–</span>
+                )}
               </>
             ) : (
               <>
