@@ -108,6 +108,7 @@ function mapFixture(f: ApifFixture): EspnGame {
     homeStartingPitcher: null,
     awayStartingPitcher: null,
     groupLabel: null,
+    seasonType: 2,
   };
 }
 

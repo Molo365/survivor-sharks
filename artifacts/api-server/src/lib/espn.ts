@@ -60,6 +60,8 @@ export interface EspnGame {
   homeStartingPitcher: EspnStartingPitcher | null;
   awayStartingPitcher: EspnStartingPitcher | null;
   groupLabel: string | null; // WC group (e.g. "Group A"), null for other sports
+  /** ESPN season type: 1 = preseason, 2 = regular season, 3 = postseason. Defaults to 2 when ESPN omits the field. */
+  seasonType: number;
 }
 
 type EspnProbable = {
@@ -92,6 +94,8 @@ type EspnCompetitor = {
 type EspnEvent = {
   id: string;
   date: string;
+  /** e.g. { id: 1, name: "Preseason" } / { id: 2, name: "Regular Season" } / { id: 3, name: "Postseason" } */
+  season?: { year?: number; type?: { id?: number; name?: string; slug?: string } };
   competitions?: {
     competitors?: EspnCompetitor[];
     status?: {
@@ -190,6 +194,7 @@ function parseGame(event: EspnEvent): EspnGame {
     homeStartingPitcher: extractStartingPitcher(home?.probables?.[0]),
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
     groupLabel,
+    seasonType: event.season?.type?.id ?? 2,
   };
 }
 
@@ -411,10 +416,13 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
  * Fetch all NHL games for a full week (7 days, Mon–Sun ET).
  * Calls ESPN once per day in parallel and deduplicates by game ID.
  * Season is implicitly encoded in poolCreatedAt — never hardcoded.
+ *
+ * @param seasonType ESPN season type (1=preseason, 2=regular, 3=postseason). Defaults to 2.
+ *   Pass 3 for a future playoff-bracket pool type without modifying this function.
  */
-export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: number): Promise<EspnGame[]> {
+export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: number, seasonType = 2): Promise<EspnGame[]> {
   const { espnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
-  const results = await Promise.all(espnDates.map(d => fetchGamesForDate("nhl", d)));
+  const results = await Promise.all(espnDates.map(d => fetchGamesForDate("nhl", d, seasonType)));
   const seen = new Set<string>();
   const games: EspnGame[] = [];
   for (const dayGames of results) {
@@ -487,13 +495,17 @@ export async function fetchIntlGamesForDate(dateStr: string): Promise<EspnGame[]
 }
 
 /**
- * Fetch all MLB games for a specific ET date string (YYYYMMDD).
+ * Fetch games for a specific sport and ET date string (YYYYMMDD).
+ *
+ * @param seasonType ESPN season type filter (1=preseason, 2=regular, 3=postseason). Defaults to 2.
+ *   Pass 3 for a future playoff-bracket pool without modifying callers.
+ *   Note: some ESPN sport endpoints ignore this parameter (e.g. MLB returns the same games regardless).
  */
-export async function fetchGamesForDate(sport: string, dateStr: string): Promise<EspnGame[]> {
+export async function fetchGamesForDate(sport: string, dateStr: string, seasonType = 2): Promise<EspnGame[]> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return [];
 
-  const url = `${base}/scoreboard?dates=${dateStr}&limit=100`;
+  const url = `${base}/scoreboard?dates=${dateStr}&seasontype=${seasonType}&limit=100`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
@@ -516,9 +528,12 @@ export async function fetchNflGamesByWeek(week: number, season?: number): Promis
 /**
  * Fetch all MLB games for a full week (7 days, Mon–Sun ET).
  * Calls ESPN once per day in parallel.
+ *
+ * @param seasonType ESPN season type (1=preseason, 2=regular, 3=postseason). Defaults to 2.
+ *   Note: the ESPN MLB scoreboard endpoint currently ignores this parameter and returns all games.
  */
-export async function fetchMlbWeekGames(espnDates: string[]): Promise<EspnGame[]> {
-  const results = await Promise.all(espnDates.map(d => fetchGamesForDate("mlb", d)));
+export async function fetchMlbWeekGames(espnDates: string[], seasonType = 2): Promise<EspnGame[]> {
+  const results = await Promise.all(espnDates.map(d => fetchGamesForDate("mlb", d, seasonType)));
   // Deduplicate by game ID (same game can appear on multiple date endpoints near midnight)
   const seen = new Set<string>();
   const games: EspnGame[] = [];
