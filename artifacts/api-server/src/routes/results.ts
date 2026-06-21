@@ -255,6 +255,10 @@ router.post("/", requireAuth, async (req, res) => {
   if (!voidFired && pool.poolType !== "weekly") {
     if (coWinnersTriggered) {
       // All alive players lost Week 18 → co-champions, pool closes
+      // Mark all alive entries as final winners before closing
+      await db.update(entriesTable)
+        .set({ finalWinner: true })
+        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
       await db.update(poolsTable)
         .set({ isActive: false, endedAt: new Date(), closureReason: "co_winners" })
         .where(eq(poolsTable.id, poolId));
@@ -267,6 +271,10 @@ router.post("/", requireAuth, async (req, res) => {
 
       if (remainingCount <= 1) {
         // 0 or 1 survivors → close immediately (normal path)
+        // Mark survivor(s) as final winner(s) before closing
+        await db.update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
         await db.update(poolsTable)
           .set({ isActive: false, endedAt: new Date() })
           .where(eq(poolsTable.id, poolId));
@@ -276,6 +284,10 @@ router.post("/", requireAuth, async (req, res) => {
           { poolId, week, remaining: remainingCount },
           "Season Week 18 ended with multiple survivors — resolving via SOV tiebreaker",
         );
+        // Mark all Week-18 survivors as final winners, then resolve SOV for ranking
+        await db.update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
         await resolveSOV(poolId);
         await db.update(poolsTable)
           .set({ isActive: false, endedAt: new Date(), closureReason: "sov_tiebreaker" })

@@ -72,7 +72,7 @@ export async function processCompletedGames(): Promise<{
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
-    .where(and(eq(picksTable.result, "pending"), ne(poolsTable.sport, "mlb")));
+    .where(and(eq(picksTable.result, "pending"), ne(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true)));
 
   if (pendingRows.length > 0) {
     // Fetch ESPN scoreboards — one request per sport per poll cycle
@@ -274,6 +274,7 @@ export async function processCompletedGames(): Promise<{
         eq(entriesTable.status, "alive"),
         ne(poolsTable.poolType, "weekly"),
         ne(poolsTable.sport, "mlb"),
+        eq(poolsTable.isActive, true),
         or(isNull(weekResultsTable.id), eq(weekResultsTable.isVoided, false)),
       ),
     );

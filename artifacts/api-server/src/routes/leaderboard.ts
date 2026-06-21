@@ -27,6 +27,7 @@ router.get("/", requireAuth, async (req, res) => {
       strikeCount: entriesTable.strikeCount,
       streak: entriesTable.streak,
       sovTotal: entriesTable.sovTotal,
+      finalWinner: entriesTable.finalWinner,
       joinedAt: entriesTable.joinedAt,
     }).from(entriesTable)
       .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -55,9 +56,14 @@ router.get("/", requireAuth, async (req, res) => {
     const userPicks = await db.select().from(picksTable)
       .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, member.userId)));
 
-    const weeksAlive = member.status === "eliminated"
-      ? (member.eliminatedWeek ?? 0)
-      : pool.currentWeek;
+    // For ended pools, use finalWinner flag instead of live status so the
+    // auto-eliminator cannot retroactively flip winners to "eliminated".
+    const isWinner = !pool.isActive && member.finalWinner;
+    const isAliveInDisplay = isWinner || (pool.isActive && member.status === "alive");
+
+    const weeksAlive = isAliveInDisplay
+      ? pool.currentWeek
+      : (member.eliminatedWeek ?? 0);
 
     const sortedPicks = userPicks.sort((a, b) => b.week - a.week);
     const lastPick = sortedPicks[0];
@@ -79,7 +85,7 @@ router.get("/", requireAuth, async (req, res) => {
       userId: member.userId,
       username: member.username,
       displayName: member.displayName,
-      status: member.status === "alive" ? "active" : "eliminated",
+      status: isAliveInDisplay ? "active" : "eliminated",
       weeksAlive,
       eliminatedWeek: member.eliminatedWeek,
       lastPickTeam: lastPick?.teamName ?? null,

@@ -97,12 +97,15 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       // ── Survivor pools ──────────────────────────────────────────────────────
       if (SURVIVOR_TYPES.has(poolType)) {
         const [entry] = await db
-          .select({ status: entriesTable.status, eliminatedWeek: entriesTable.eliminatedWeek, sovTotal: entriesTable.sovTotal })
+          .select({ status: entriesTable.status, eliminatedWeek: entriesTable.eliminatedWeek, sovTotal: entriesTable.sovTotal, finalWinner: entriesTable.finalWinner })
           .from(entriesTable)
           .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
           .limit(1);
-        const status = entry?.status ?? null;
-        const eliminatedWeek = entry?.eliminatedWeek ?? null;
+        // For ended pools, a finalWinner entry is treated as "alive" regardless of
+        // the live status field (which the auto-eliminator may have flipped to "eliminated").
+        const isFinalWinner = entry?.finalWinner ?? false;
+        const status: string | null = isFinalWinner ? "alive" : (entry?.status ?? null);
+        const eliminatedWeek = isFinalWinner ? null : (entry?.eliminatedWeek ?? null);
 
         let closureReason: string | null = null;
         let sovRank: number | null = null;
@@ -113,19 +116,21 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           closureReason = pool.closureReason ?? null;
 
           if (pool.closureReason === "sov_tiebreaker") {
-            const aliveEntries = await db
+            // Use finalWinner flag — live status may have been flipped by auto-eliminator
+            const winnerEntries = await db
               .select({ userId: entriesTable.userId, sovTotal: entriesTable.sovTotal })
               .from(entriesTable)
-              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
-            aliveEntries.sort((a, b) => (b.sovTotal ?? 0) - (a.sovTotal ?? 0));
-            const idx = aliveEntries.findIndex((e) => e.userId === userId);
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+            winnerEntries.sort((a, b) => (b.sovTotal ?? 0) - (a.sovTotal ?? 0));
+            const idx = winnerEntries.findIndex((e) => e.userId === userId);
             sovRank = idx >= 0 ? idx + 1 : null;
           } else if (pool.closureReason === "co_winners") {
-            const aliveEntries = await db
+            // Use finalWinner flag — live status may have been flipped by auto-eliminator
+            const winnerEntries = await db
               .select({ id: entriesTable.id })
               .from(entriesTable)
-              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
-            coWinnerCount = aliveEntries.length;
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+            coWinnerCount = winnerEntries.length;
             if (coWinnerCount > 0 && pool.prizePot && pool.prizePot > 0) {
               coWinnerPrize = Math.floor(pool.prizePot / coWinnerCount);
             }

@@ -419,6 +419,10 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   if (!voidFired && pool.poolType !== "weekly") {
     if (coWinnersTriggered) {
+      // Mark all alive entries as final winners before closing the pool
+      await db.update(entriesTable)
+        .set({ finalWinner: true })
+        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
       await db.update(poolsTable)
         .set({ isActive: false, endedAt: new Date(), closureReason: "co_winners" })
         .where(eq(poolsTable.id, poolId));
@@ -432,6 +436,10 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
       const remainingCount = Number(remaining);
 
       if (remainingCount <= 1) {
+        // Mark survivor(s) as final winner(s) before closing the pool
+        await db.update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
         await db.update(poolsTable)
           .set({ isActive: false, endedAt: new Date() })
           .where(eq(poolsTable.id, poolId));
@@ -455,7 +463,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
         }
         for (const entry of aliveEntriesForSOV) {
           await db.update(entriesTable)
-            .set({ sovTotal: sovByUser.get(entry.userId) ?? 0 })
+            .set({ sovTotal: sovByUser.get(entry.userId) ?? 0, finalWinner: true })
             .where(eq(entriesTable.id, entry.id));
         }
 
