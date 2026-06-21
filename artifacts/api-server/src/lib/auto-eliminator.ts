@@ -19,7 +19,7 @@
 
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count } from "drizzle-orm";
+import { eq, and, ne, inArray, count, or, isNull } from "drizzle-orm";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -239,6 +239,8 @@ export async function processCompletedGames(): Promise<{
   // missed elimination. Safe to run every cycle — updates are no-ops if the
   // entry is already eliminated.
   // Excludes MLB pools — they use weekly batch processing instead.
+  // Excludes picks from voided weeks — void intentionally keeps entries alive;
+  // eliminating them here would undo the void rule.
 
   const missedRows = await db
     .select({
@@ -259,12 +261,20 @@ export async function processCompletedGames(): Promise<{
         eq(entriesTable.userId, picksTable.userId),
       ),
     )
+    .leftJoin(
+      weekResultsTable,
+      and(
+        eq(weekResultsTable.poolId, picksTable.poolId),
+        eq(weekResultsTable.week, picksTable.week),
+      ),
+    )
     .where(
       and(
         eq(picksTable.result, "loss"),
         eq(entriesTable.status, "alive"),
         ne(poolsTable.poolType, "weekly"),
         ne(poolsTable.sport, "mlb"),
+        or(isNull(weekResultsTable.id), eq(weekResultsTable.isVoided, false)),
       ),
     );
 

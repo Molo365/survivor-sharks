@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, integer, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, integer, text, boolean, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { poolsTable } from "./pools";
@@ -12,7 +12,9 @@ export const weekResultsTable = pgTable("week_results", {
   isVoided: boolean("is_voided").notNull().default(false),
   processedBy: integer("processed_by").references(() => usersTable.id),
   processedAt: timestamp("processed_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  unique("week_results_pool_week_unique").on(table.poolId, table.week),
+]);
 
 export const insertWeekResultSchema = createInsertSchema(weekResultsTable).omit({ id: true, processedAt: true });
 export type InsertWeekResult = z.infer<typeof insertWeekResultSchema>;
