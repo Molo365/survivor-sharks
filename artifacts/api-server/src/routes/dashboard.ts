@@ -35,11 +35,13 @@ function offsetDateStr(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-// Returns the 1st-place prize for a pool, or null if no prize is configured.
-// Used for "last winner" display on dashboard cards — always a sole winner, so top tier applies.
-function computeTopPrize(pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null }): number | null {
-  if (pool.prizeStructure && pool.prizeStructure.length > 0) return pool.prizeStructure[0].amount;
-  if (pool.prizePot && pool.prizePot > 0) return pool.prizePot;
+// Returns the prize per winner: sole winner takes the 1st-place tier; tied winners split the total equally.
+function computeSplitPrize(pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null }, winnerCount: number): number | null {
+  if (pool.prizeStructure && pool.prizeStructure.length > 0) {
+    const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+    return winnerCount === 1 ? pool.prizeStructure[0].amount : Math.floor(total / winnerCount);
+  }
+  if (pool.prizePot && pool.prizePot > 0) return Math.floor(pool.prizePot / winnerCount);
   return null;
 }
 
@@ -148,7 +150,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return {
           poolId: pool.id,
           poolType,
-          lastWinner: null,
+          lastWinners: null,
           myStanding: {
             rank: 0, correct: 0, picked: 0,
             hasPicks: !!entry,
@@ -181,7 +183,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return {
           poolId: pool.id,
           poolType,
-          lastWinner: null,
+          lastWinners: null,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
             correct: 0, picked: 0,
@@ -198,7 +200,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const week = pool.currentWeek;
         const prevWeek = week - 1;
 
-        let lastWinner = null;
+        let lastWinners = null;
         if (prevWeek >= 1) {
           const prevRows = await db
             .select({
@@ -217,15 +219,17 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             );
           const hasGraded = prevRows.some((r) => Number(r.gradedPicks) > 0);
           if (hasGraded && prevRows.length > 0) {
-            lastWinner = {
-              userId: prevRows[0].userId,
-              username: prevRows[0].username,
-              displayName: prevRows[0].displayName ?? null,
+            const topScore = Number(prevRows[0].weekPoints);
+            const tiedRows = prevRows.filter(r => Number(r.weekPoints) === topScore);
+            lastWinners = tiedRows.map(r => ({
+              userId: r.userId,
+              username: r.username,
+              displayName: r.displayName ?? null,
               correct: 0,
               picked: 0,
-              score: Number(prevRows[0].weekPoints),
-              prizeWon: computeTopPrize(pool),
-            };
+              score: Number(r.weekPoints),
+              prizeWon: computeSplitPrize(pool, tiedRows.length),
+            }));
           }
         }
 
@@ -247,7 +251,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return {
           poolId: pool.id,
           poolType,
-          lastWinner,
+          lastWinners,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
             correct: 0,
@@ -266,7 +270,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const week = pool.currentWeek;
         const prevWeek = week - 1;
 
-        let lastWinner = null;
+        let lastWinners = null;
         if (prevWeek >= 1) {
           const prevRows = await db
             .select({
@@ -287,15 +291,17 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             );
           const hasGraded = prevRows.some((r) => Number(r.graded) > 0);
           if (hasGraded && prevRows.length > 0) {
-            lastWinner = {
-              userId: prevRows[0].userId,
-              username: prevRows[0].username,
-              displayName: prevRows[0].displayName ?? null,
-              correct: Number(prevRows[0].correct),
-              picked: Number(prevRows[0].picked),
+            const topCorrect = Number(prevRows[0].correct);
+            const tiedRows = prevRows.filter(r => Number(r.correct) === topCorrect);
+            lastWinners = tiedRows.map(r => ({
+              userId: r.userId,
+              username: r.username,
+              displayName: r.displayName ?? null,
+              correct: Number(r.correct),
+              picked: Number(r.picked),
               score: null,
-              prizeWon: computeTopPrize(pool),
-            };
+              prizeWon: computeSplitPrize(pool, tiedRows.length),
+            }));
           }
         }
 
@@ -319,7 +325,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return {
           poolId: pool.id,
           poolType,
-          lastWinner,
+          lastWinners,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
             correct: myRow ? Number(myRow.correct) : 0,
@@ -365,7 +371,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return {
           poolId: pool.id,
           poolType,
-          lastWinner: null,
+          lastWinners: null,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
             correct: 0, picked: 0,
@@ -441,16 +447,18 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       ]);
 
       const hasGradedPrev = prevRows.some((r) => Number(r.graded) > 0);
-      const lastWinner =
-        hasGradedPrev && prevRows.length > 0
-          ? {
-              userId: prevRows[0].userId,
-              username: prevRows[0].username,
-              displayName: prevRows[0].displayName ?? null,
-              correct: Number(prevRows[0].correct),
-              picked: Number(prevRows[0].picked),
-              prizeWon: computeTopPrize(pool),
-            }
+      const topCorrect = prevRows.length > 0 ? Number(prevRows[0].correct) : 0;
+      const tiedPrevRows = hasGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
+      const lastWinners =
+        tiedPrevRows.length > 0
+          ? tiedPrevRows.map(r => ({
+              userId: r.userId,
+              username: r.username,
+              displayName: r.displayName ?? null,
+              correct: Number(r.correct),
+              picked: Number(r.picked),
+              prizeWon: computeSplitPrize(pool, tiedPrevRows.length),
+            }))
           : null;
 
       const myIdx = currentRows.findIndex((r) => r.userId === userId);
@@ -465,7 +473,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             }
           : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
-      return { poolId: pool.id, poolType, lastWinner, myStanding };
+      return { poolId: pool.id, poolType, lastWinners, myStanding };
     }),
   );
 

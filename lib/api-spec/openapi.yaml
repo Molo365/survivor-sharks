@@ -1759,29 +1759,32 @@ components:
           type: integer
         poolType:
           type: string
-        lastWinner:
-          type: object
+        lastWinners:
+          type: array
           nullable: true
-          required: [userId, username, displayName, correct, picked]
-          properties:
-            userId:
-              type: integer
-            username:
-              type: string
-            displayName:
-              type: string
-              nullable: true
-            correct:
-              type: integer
-            picked:
-              type: integer
-            score:
-              type: integer
-              nullable: true
-            prizeWon:
-              type: integer
-              nullable: true
-              description: Prize amount won; null if the pool has no prize structure
+          description: All tied top scorers from the previous period; null if no graded results yet
+          items:
+            type: object
+            required: [userId, username, displayName, correct, picked]
+            properties:
+              userId:
+                type: integer
+              username:
+                type: string
+              displayName:
+                type: string
+                nullable: true
+              correct:
+                type: integer
+              picked:
+                type: integer
+              score:
+                type: integer
+                nullable: true
+              prizeWon:
+                type: integer
+                nullable: true
+                description: Prize amount won; null if the pool has no prize structure
         myStanding:
           type: object
           required: [rank, correct, picked, hasPicks]

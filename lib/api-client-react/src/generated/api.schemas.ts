@@ -170,7 +170,7 @@ export interface JoinPoolInput {
   tiebreakerPrediction?: number;
 }
 
-export type PoolPickEmStatLastWinner = {
+export type PoolPickEmStatLastWinnersItem = {
   userId: number;
   username: string;
   displayName: string | null;
@@ -179,7 +179,7 @@ export type PoolPickEmStatLastWinner = {
   score?: number | null;
   /** Prize amount won; null if the pool has no prize structure */
   prizeWon?: number | null;
-} | null;
+};
 
 export type PoolPickEmStatMyStanding = {
   rank: number;
@@ -203,7 +203,8 @@ export type PoolPickEmStatMyStanding = {
 export interface PoolPickEmStat {
   poolId: number;
   poolType: string;
-  lastWinner?: PoolPickEmStatLastWinner;
+  /** All tied top scorers from the previous period; null if no graded results yet */
+  lastWinners?: PoolPickEmStatLastWinnersItem[] | null;
   myStanding: PoolPickEmStatMyStanding;
 }
 

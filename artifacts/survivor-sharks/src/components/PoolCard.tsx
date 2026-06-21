@@ -57,23 +57,23 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
 
           {pickEmStat && (
             <div className="mt-3 space-y-1 border-t border-border/20 pt-3">
-              {/* Last winner — only for MLB / World Cup pickem */}
-              {pickEmStat.lastWinner && (
+              {/* Last winner(s) — all tied top scorers from the previous period */}
+              {pickEmStat.lastWinners && pickEmStat.lastWinners.length > 0 && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span aria-hidden>🏆</span>
                   <span>
-                    Last winner:{" "}
+                    Last winner{pickEmStat.lastWinners.length > 1 ? "s" : ""}:{" "}
                     <span className="text-foreground/70 font-medium">
-                      {pickEmStat.lastWinner.displayName || pickEmStat.lastWinner.username}
+                      {pickEmStat.lastWinners.map(w => w.displayName || w.username).join(" & ")}
                     </span>
                   </span>
                   <span className="text-muted-foreground/40">·</span>
-                  {pickEmStat.lastWinner.score != null
-                    ? <span>{pickEmStat.lastWinner.score} pts</span>
-                    : <span>{pickEmStat.lastWinner.correct}/{pickEmStat.lastWinner.picked} correct</span>
+                  {pickEmStat.lastWinners[0].score != null
+                    ? <span>{pickEmStat.lastWinners[0].score} pts</span>
+                    : <span>{pickEmStat.lastWinners[0].correct}/{pickEmStat.lastWinners[0].picked} correct</span>
                   }
-                  {pickEmStat.lastWinner.prizeWon != null && (
-                    <span className="text-yellow-400">· ${pickEmStat.lastWinner.prizeWon}</span>
+                  {pickEmStat.lastWinners[0].prizeWon != null && (
+                    <span className="text-yellow-400">· ${pickEmStat.lastWinners[0].prizeWon}</span>
                   )}
                 </div>
               )}

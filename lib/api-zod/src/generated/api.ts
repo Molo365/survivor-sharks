@@ -82,7 +82,7 @@ export const GetMeResponse = zod.object({
 export const GetPickEmDashboardStatsResponseItem = zod.object({
   "poolId": zod.number(),
   "poolType": zod.string(),
-  "lastWinner": zod.object({
+  "lastWinners": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullable(),
@@ -90,7 +90,7 @@ export const GetPickEmDashboardStatsResponseItem = zod.object({
   "picked": zod.number(),
   "score": zod.number().nullish(),
   "prizeWon": zod.number().nullish().describe('Prize amount won; null if the pool has no prize structure')
-}).nullish(),
+})).nullish().describe('All tied top scorers from the previous period; null if no graded results yet'),
   "myStanding": zod.object({
   "rank": zod.number(),
   "correct": zod.number(),
