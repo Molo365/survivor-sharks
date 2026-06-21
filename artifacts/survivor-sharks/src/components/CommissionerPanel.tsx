@@ -79,7 +79,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       setLocalSandboxMode(enabled);
-      toast({ title: enabled ? "Sandbox enabled" : "Sandbox disabled", description: enabled ? "Picks now use the 2025 NFL schedule." : "Picks now use live schedule." });
+      const schedLabel = sport === "nhl" ? "2025-26 NHL schedule" : "2025 NFL schedule";
+      toast({ title: enabled ? "Sandbox enabled" : "Sandbox disabled", description: enabled ? `Picks now use the ${schedLabel}.` : "Picks now use live schedule." });
       queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
     } catch (err) {
       toast({ variant: "destructive", title: "Failed to toggle sandbox", description: (err as Error).message });
@@ -339,22 +340,26 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
         </Card>
       </div>
 
-      {/* Sandbox Mode — NFL survivor pools, super admin only */}
-      {pool.sport === "nfl" && ["season", "weekly", "mid_season"].includes(pool.poolType) && isSuperAdmin && (
+      {/* Sandbox Mode — NFL/NHL survivor pools, super admin only */}
+      {(pool.sport === "nfl" || pool.sport === "nhl") && ["season", "weekly", "mid_season"].includes(pool.poolType) && isSuperAdmin && (
         <Card className="border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)]">
           <CardHeader>
             <CardTitle className="font-bebas text-2xl tracking-wide text-yellow-400 flex items-center gap-2">
               <Zap className="w-5 h-5" /> Sandbox Mode
             </CardTitle>
             <CardDescription className="text-muted-foreground/80">
-              Use the 2025 NFL schedule for testing — picks are always unlocked in sandbox.
+              {sport === "nhl"
+                ? "Use the 2025-26 NHL regular-season schedule for testing — picks are always unlocked in sandbox."
+                : "Use the 2025 NFL schedule for testing — picks are always unlocked in sandbox."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold text-sm text-foreground">Enable Sandbox</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Serve 2025 NFL games instead of live schedule</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {sport === "nhl" ? "Serve 2025-26 NHL games instead of live schedule" : "Serve 2025 NFL games instead of live schedule"}
+                </p>
               </div>
               <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
             </div>
@@ -362,13 +367,18 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
               <>
                 <div className="flex items-end gap-3">
                   <div className="grid gap-2 flex-1 max-w-[160px]">
-                    <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">Week (1–18)</Label>
+                    <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">
+                      {sport === "nhl" ? "Week (1–26)" : "Week (1–18)"}
+                    </Label>
                     <Input
                       type="number"
                       min={1}
-                      max={18}
+                      max={sport === "nhl" ? 26 : 18}
                       value={sandboxWeek}
-                      onChange={e => setSandboxWeek(Math.min(18, Math.max(1, parseInt(e.target.value) || 1)))}
+                      onChange={e => {
+                        const max = sport === "nhl" ? 26 : 18;
+                        setSandboxWeek(Math.min(max, Math.max(1, parseInt(e.target.value) || 1)));
+                      }}
                       className="bg-background/50 border-yellow-500/20 w-full"
                     />
                   </div>

@@ -10,6 +10,7 @@ import {
   fetchNflGamesByWeek,
   getNhlWeekBounds,
   fetchNhlGamesByWeek,
+  NHL_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
   getDailyPickDeadline,
@@ -193,6 +194,74 @@ router.get("/", requireAuth, async (req, res) => {
       weekLabel: `Week ${week}`,
       weekStart: sortedDates[0] ? `${sortedDates[0]}T00:00:00.000Z` : farFuture,
       weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
+      deadline: farFuture,
+      deadlinePassed: false,
+      currentWeek: week,
+      days,
+    });
+    return;
+  }
+
+  // ── NHL sandbox path ──────────────────────────────────────────────────────
+  // Uses the fixed NHL_SANDBOX_ANCHOR so "Week 1" always maps to the 2025-26
+  // season opener (Oct 6-12), regardless of when the pool was actually created.
+  if (pool.sport === "nhl" && pool.sandboxMode) {
+    const week = pool.currentWeek;
+    const bounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, week);
+    const allGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+
+    // Load stored scores from simulate-grading so graded cards show final scores.
+    const storedScoreRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+
+    // Group by ET date (same logic as live NHL path)
+    const gamesByDate = new Map<string, EspnGame[]>();
+    for (const dateStr of bounds.days) {
+      gamesByDate.set(dateStr, []);
+    }
+    for (const g of allGames) {
+      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
+      const etMs = new Date(g.date).getTime() - ET_OFFSET_MS;
+      const etDate = new Date(etMs);
+      const year = etDate.getUTCFullYear();
+      const month = String(etDate.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(etDate.getUTCDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+      if (gamesByDate.has(dateStr)) gamesByDate.get(dateStr)!.push(g);
+    }
+    for (const [, games] of gamesByDate) {
+      games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+
+    const farFuture = "2099-01-01T00:00:00.000Z";
+
+    const days = bounds.days.map(dateStr => {
+      const [yearStr, monthStr, dayStr] = dateStr.split("-");
+      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
+      const etMidnight = new Date(`${yearStr}-${monthStr}-${dayStr}T00:00:00Z`);
+      const utcDate = new Date(etMidnight.getTime() + ET_OFFSET_MS);
+      const dow = utcDate.getUTCDay();
+      const dayName = DAY_NAMES[dow] ?? "";
+      const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "long", day: "numeric" });
+      const label = `${dayName}, ${fmt.format(utcDate)}`;
+      const games = (gamesByDate.get(dateStr) ?? []).map(g => {
+        const scored = storedScores.get(g.id);
+        const base = formatGame(g, "nhl", week, pool.season);
+        // Overlay stored scores: flip status to "final" once simulate-grading has run.
+        return scored
+          ? { ...base, status: "final", hasStarted: true, homeScore: scored.homeScore, awayScore: scored.awayScore }
+          : base;
+      });
+      return { date: dateStr, label, games };
+    });
+
+    res.json({
+      weekLabel: `${bounds.weekLabel} — Sandbox`,
+      weekStart: bounds.weekStart.toISOString(),
+      weekEnd: bounds.weekEnd.toISOString(),
       deadline: farFuture,
       deadlinePassed: false,
       currentWeek: week,

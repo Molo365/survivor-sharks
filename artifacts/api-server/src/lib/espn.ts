@@ -361,6 +361,11 @@ export function getMlbProcessingTrigger(poolCreatedAt: Date, weekNumber: number)
  * Returns the UTC timestamp of the Monday at midnight ET that is on or after
  * the given UTC date. Used to anchor the "first NHL week" for a pool.
  */
+// Sandbox anchor: createdAt that places NHL Week 1 at the 2025-26 season opener (Oct 6–12, 2025).
+// All NHL sandbox pools use this constant instead of pool.createdAt so that
+// "Week 1" always means the first week of actual regular-season games.
+export const NHL_SANDBOX_ANCHOR = new Date("2025-10-01T12:00:00Z");
+
 export function getFirstNhlWeekMonday(poolCreatedAt: Date): Date {
   const etDate = asEtDate(poolCreatedAt);
   const dow = etDate.getUTCDay(); // 0=Sun … 6=Sat

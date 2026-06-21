@@ -10,6 +10,8 @@ import {
   formatDateEt,
   isDailyPickDeadlinePassed,
   fetchGamesForDate,
+  fetchNhlGamesByWeek,
+  NHL_SANDBOX_ANCHOR,
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
@@ -268,12 +270,24 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   if (pool.commissionerId !== userId && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
   }
-  if (pool.sport !== "nfl") {
-    res.status(400).json({ error: "Simulate grading is only available for NFL pools" }); return;
+  if (pool.sport !== "nfl" && pool.sport !== "nhl") {
+    res.status(400).json({ error: "Simulate grading is only available for NFL and NHL pools" }); return;
   }
 
   const week = pool.currentWeek;
-  const games = getSandboxGamesForWeek(week);
+
+  // Normalise game list to { id, homeTeamId, awayTeamId } regardless of sport.
+  // NFL uses the static schedule; NHL fetches real historical ESPN data anchored
+  // to the 2025-26 season opener via NHL_SANDBOX_ANCHOR.
+  type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
+  let gameList: SandboxGame[];
+  if (pool.sport === "nhl") {
+    const nhlGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+    gameList = nhlGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
+  } else {
+    const nflGames = getSandboxGamesForWeek(week);
+    gameList = nflGames.map(g => ({ id: g.id, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId }));
+  }
 
   // Load any previously stored scores for this pool/week so outcomes are
   // stable across repeated simulate-grading calls.
@@ -286,11 +300,20 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   );
 
   // Generate and persist scores only for games that don't yet have stored scores.
-  for (const game of games) {
+  // NHL uses hockey-appropriate goal counts (0–7); NFL uses touchdown-scale scores.
+  for (const game of gameList) {
     if (gameScores.has(game.id)) continue;
-    let homeScore = 10 + Math.floor(Math.random() * 36);
-    let awayScore = 10 + Math.floor(Math.random() * 36);
-    if (homeScore === awayScore) homeScore += 3;
+    let homeScore: number;
+    let awayScore: number;
+    if (pool.sport === "nhl") {
+      homeScore = Math.floor(Math.random() * 8); // 0-7 goals
+      awayScore = Math.floor(Math.random() * 8);
+      if (homeScore === awayScore) homeScore = Math.min(homeScore + 1, 7); // no ties
+    } else {
+      homeScore = 10 + Math.floor(Math.random() * 36);
+      awayScore = 10 + Math.floor(Math.random() * 36);
+      if (homeScore === awayScore) homeScore += 3;
+    }
     gameScores.set(game.id, { homeScore, awayScore });
     await db
       .insert(sandboxGameScoresTable)
@@ -301,7 +324,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   // Build winner/margin maps from the now-stable score map.
   const winnerByTeamId = new Map<string, string>();
   const marginByTeamId = new Map<string, number>();
-  for (const game of games) {
+  for (const game of gameList) {
     const scores = gameScores.get(game.id);
     if (!scores) continue;
     const { homeScore, awayScore } = scores;

@@ -299,7 +299,8 @@ export default function CreatePool() {
           ...values,
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
-          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season") && { sandboxMode: values.sandboxMode }),
+          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
+            (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
           ...(values.sport === PoolInputSport.mlb && values.poolType === "pickem" && { isRecurring: values.isRecurring }),
         } as any,
       },
@@ -654,8 +655,9 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season ── */}
-              {(selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") && (
+              {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season ── */}
+              {((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
+                (selectedSport === PoolInputSport.nhl && selectedType === "season")) && (
                 <FormField
                   control={form.control}
                   name="sandboxMode"
@@ -669,7 +671,9 @@ export default function CreatePool() {
                               Sandbox Mode
                             </FormLabel>
                             <FormDescription className="text-xs mt-0.5">
-                              Use the hardcoded 2025 NFL schedule with pre-set scores. Great for testing or running a demo season.
+                              {selectedSport === PoolInputSport.nhl
+                                ? "Use the real 2025-26 NHL schedule for testing — weeks load via Live Week, scores simulated."
+                                : "Use the hardcoded 2025 NFL schedule with pre-set scores. Great for testing or running a demo season."}
                             </FormDescription>
                           </div>
                         </div>
