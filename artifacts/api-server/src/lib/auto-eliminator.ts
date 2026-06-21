@@ -844,6 +844,22 @@ export async function processPickEmResults(): Promise<{
             );
           if (Number(totalForDate) === 0) continue;
 
+          // Idempotency guard: picks are stored with week = pool.currentWeek at
+          // submission time. After a day closes and currentWeek advances, no picks
+          // for that dateEt will match pool.currentWeek — skip to avoid double-advancing.
+          const [currentDayPick] = await db
+            .select({ id: pickemPicksTable.id })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameDate, dateEt),
+                eq(pickemPicksTable.week, pool.currentWeek),
+              ),
+            )
+            .limit(1);
+          if (!currentDayPick) continue;
+
           // No pending picks may remain before closing.
           const [stillPending] = await db
             .select({ id: pickemPicksTable.id })
