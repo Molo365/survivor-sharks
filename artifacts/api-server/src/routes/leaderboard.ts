@@ -136,6 +136,15 @@ router.get("/", requireAuth, async (req, res) => {
     }
   }
 
+  // Override rank-based prizeWon with the actual split amount for co-champion pools.
+  // The rank-based assignment at line 110 runs before coWinners/coWinnerPrizeEach are
+  // computed, so we correct it here for all active entries.
+  if (coWinners && coWinnerPrizeEach !== null) {
+    for (const entry of active) {
+      entry.prizeWon = coWinnerPrizeEach;
+    }
+  }
+
   res.json({
     poolId,
     currentWeek: pool.currentWeek,
