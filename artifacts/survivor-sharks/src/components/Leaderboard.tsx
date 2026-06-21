@@ -1,6 +1,6 @@
 import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, Swords } from "lucide-react";
+import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, Swords, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -23,6 +23,9 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
   const unitLabel = isDaily ? "day" : "week";
   const prizeStructure = (leaderboard as any).prizeStructure as Array<{ place: number; amount: number }> | null ?? null;
   const sovTiebreaker = (leaderboard as any).sovTiebreaker as boolean ?? false;
+  const coWinners = (leaderboard as any).coWinners as boolean ?? false;
+  const coWinnerPrizeEach = (leaderboard as any).coWinnerPrizeEach as number | null ?? null;
+  const voidedWeeks = (leaderboard as any).voidedWeeks as number[] ?? [];
 
   return (
     <div className="space-y-10">
@@ -30,6 +33,24 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
         <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border border-border/50 rounded-lg text-sm text-muted-foreground">
           <Clock className="w-4 h-4 shrink-0" />
           <span>Pick deadline has passed — results will be processed at end of week</span>
+        </div>
+      )}
+
+      {/* ── Voided weeks banner ──────────────────────────────────────────────── */}
+      {voidedWeeks.length > 0 && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-sky-500/[0.05] border border-sky-500/25 rounded-lg text-sm text-sky-300">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+          <div>
+            <span className="font-semibold">
+              {voidedWeeks.length === 1
+                ? `Week ${voidedWeeks[0]} voided`
+                : `Weeks ${voidedWeeks.join(", ")} voided`}
+              {" "}—{" "}
+            </span>
+            <span className="text-sky-300/70">
+              full-field wipeout averted; picks used, no eliminations recorded.
+            </span>
+          </div>
         </div>
       )}
 
@@ -126,9 +147,46 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
         </div>
       )}
 
+      {/* ── Co-winner callout ───────────────────────────────────────────────── */}
+      {coWinners && leaderboard.active.length > 0 && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-emerald-500/20">
+            <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
+            <div>
+              <p className="font-bebas text-lg tracking-wide text-emerald-300">
+                Co-Champions — Prize Split
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
+                All remaining survivors lost in Week 18. The prize pool is split equally among {leaderboard.active.length} co-champion{leaderboard.active.length !== 1 ? "s" : ""}.
+              </p>
+            </div>
+          </div>
+          <div className="divide-y divide-emerald-500/10">
+            {leaderboard.active.map((entry, idx) => (
+              <div key={entry.userId} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <span className={cn(
+                    "font-bebas text-xl w-6 text-center",
+                    idx === 0 ? "text-yellow-400" : "text-emerald-500/60",
+                  )}>
+                    {idx + 1}
+                  </span>
+                  <span className="font-medium text-sm text-foreground/90">
+                    {entry.displayName ?? entry.username}
+                  </span>
+                </div>
+                <span className="font-bebas text-lg text-emerald-300">
+                  {coWinnerPrizeEach != null ? `$${coWinnerPrizeEach}` : "Equal share"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 className="font-bebas text-3xl text-primary flex items-center gap-3 mb-6 tracking-wide">
-          <Activity className="w-7 h-7" /> THE SURVIVORS
+          <Activity className="w-7 h-7" /> {coWinners ? "CO-CHAMPIONS" : "THE SURVIVORS"}
         </h3>
         <div className="space-y-3">
           {leaderboard.active.map((entry, idx) => {
@@ -186,8 +244,13 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
                       <Trophy className="w-3 h-3" /> ${prizeWon}
                     </span>
                   )}
-                  <Badge className="bg-accent/10 text-accent border border-accent/30 font-bebas text-lg px-4 py-1 tracking-wider">
-                    ALIVE
+                  <Badge className={cn(
+                    "font-bebas text-lg px-4 py-1 tracking-wider",
+                    coWinners
+                      ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/30"
+                      : "bg-accent/10 text-accent border border-accent/30",
+                  )}>
+                    {coWinners ? "CO-CHAMP" : "ALIVE"}
                   </Badge>
                 </div>
               </div>

@@ -31,6 +31,7 @@ export const poolsTable = pgTable("pools", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   endedAt: timestamp("ended_at", { withTimezone: true }),
+  closureReason: text("closure_reason"),
 });
 
 export const insertPoolSchema = createInsertSchema(poolsTable).omit({ id: true, createdAt: true, updatedAt: true, inviteCode: true });

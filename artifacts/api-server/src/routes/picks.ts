@@ -290,12 +290,21 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     marginByTeamId.set(game.awayTeamId, -diff);
   }
 
+  // Phase 1: snapshot alive entries BEFORE grading
+  const aliveAtStart = await db
+    .select({ id: entriesTable.id, userId: entriesTable.userId })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+  const aliveUserIds = new Set(aliveAtStart.map(e => e.userId));
+
   const pendingPicks = await db.select().from(picksTable)
     .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week), eq(picksTable.result, "pending")));
 
+  // Phase 2: grade picks (no entry status changes yet)
   let graded = 0;
-  const lostEntryIds = new Set<number>();
   const pickedUserIds = new Set<number>();
+  const resultByPickId = new Map<number, "win" | "loss">();
+  const lostEntryIds = new Set<number>();
 
   for (const pick of pendingPicks) {
     pickedUserIds.add(pick.userId);
@@ -304,28 +313,61 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
     const marginOfVictory = marginByTeamId.get(pick.teamId) ?? null;
     await db.update(picksTable).set({ result, marginOfVictory }).where(eq(picksTable.id, pick.id));
+    resultByPickId.set(pick.id, result);
     if (result === "loss") lostEntryIds.add(pick.entryId);
     graded++;
   }
 
-  // Eliminate pick losers (with eliminatedWeek — parity with real grading)
-  for (const entryId of lostEntryIds) {
-    await db.update(entriesTable)
-      .set({ status: "eliminated", eliminatedWeek: week })
-      .where(eq(entriesTable.id, entryId));
+  // Phase 3: identify losers + forfeits among alive-at-start players
+  const losersThisWeek = new Set<number>(); // userId
+  let forfeitCount = 0;
+  const forfeitEntryIds: number[] = [];
+
+  for (const pick of pendingPicks) {
+    if (aliveUserIds.has(pick.userId) && resultByPickId.get(pick.id) === "loss") {
+      losersThisWeek.add(pick.userId);
+    }
+  }
+  for (const entry of aliveAtStart) {
+    if (!pickedUserIds.has(entry.userId)) {
+      losersThisWeek.add(entry.userId);
+      forfeitCount++;
+      forfeitEntryIds.push(entry.id);
+    }
   }
 
-  // Forfeit handling: alive members who made no pick are eliminated too
-  const aliveEntries = await db.select().from(entriesTable)
-    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+  // Phase 4: void / co-winner check (Classic Season only)
+  const allAliveAtStartLost =
+    aliveAtStart.length > 0 && losersThisWeek.size === aliveAtStart.length;
+  let voidFired = false;
+  let coWinnersTriggered = false;
+  let coWinnerPrize: number | null = null;
 
-  let forfeits = 0;
-  for (const entry of aliveEntries) {
-    if (!pickedUserIds.has(entry.userId)) {
+  if (pool.poolType === "season" && allAliveAtStartLost) {
+    if (week < 18) {
+      voidFired = true;
+    } else {
+      coWinnersTriggered = true;
+      const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+      if (ps && ps.length > 0) {
+        coWinnerPrize = Math.floor(ps.reduce((sum, p) => sum + p.amount, 0) / aliveAtStart.length);
+      } else if (pool.prizePot && pool.prizePot > 0) {
+        coWinnerPrize = Math.floor(pool.prizePot / aliveAtStart.length);
+      }
+    }
+  }
+
+  // Phase 5: conditionally apply eliminations
+  if (!voidFired && !coWinnersTriggered) {
+    for (const entryId of lostEntryIds) {
       await db.update(entriesTable)
         .set({ status: "eliminated", eliminatedWeek: week })
-        .where(eq(entriesTable.id, entry.id));
-      forfeits++;
+        .where(eq(entriesTable.id, entryId));
+    }
+    for (const entryId of forfeitEntryIds) {
+      await db.update(entriesTable)
+        .set({ status: "eliminated", eliminatedWeek: week })
+        .where(eq(entriesTable.id, entryId));
     }
   }
 
@@ -344,59 +386,66 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     poolId,
     week,
     losingTeamIds,
+    isVoided: voidFired,
     processedBy: userId,
   });
 
-  // Winner detection: close pool when ≤1 survivor remains (season/mid-season only)
-  // For Classic Season (poolType === "season") ending Week 18 with multiple survivors,
-  // resolve via Strength of Victory instead of leaving the pool open.
+  // Pool closure
   let poolEnded = false;
   let sovUsed = false;
-  if (pool.poolType !== "weekly") {
-    const [{ remaining }] = await db
-      .select({ remaining: count() })
-      .from(entriesTable)
-      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-    const remainingCount = Number(remaining);
-
-    if (remainingCount <= 1) {
+  if (!voidFired && pool.poolType !== "weekly") {
+    if (coWinnersTriggered) {
       await db.update(poolsTable)
-        .set({ isActive: false, endedAt: new Date() })
+        .set({ isActive: false, endedAt: new Date(), closureReason: "co_winners" })
         .where(eq(poolsTable.id, poolId));
       poolEnded = true;
-    } else if (pool.poolType === "season" && week === 18) {
-      // Multiple survivors after the final week — resolve via SOV
-      const aliveEntries = await db
-        .select({ id: entriesTable.id, userId: entriesTable.userId })
+    } else {
+      const [{ remaining }] = await db
+        .select({ remaining: count() })
         .from(entriesTable)
         .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-      const allPicks = await db
-        .select({ userId: picksTable.userId, marginOfVictory: picksTable.marginOfVictory })
-        .from(picksTable)
-        .where(eq(picksTable.poolId, poolId));
+      const remainingCount = Number(remaining);
 
-      const sovByUser = new Map<number, number>();
-      for (const pick of allPicks) {
-        if (pick.marginOfVictory == null) continue;
-        sovByUser.set(pick.userId, (sovByUser.get(pick.userId) ?? 0) + pick.marginOfVictory);
-      }
-      for (const entry of aliveEntries) {
-        await db.update(entriesTable)
-          .set({ sovTotal: sovByUser.get(entry.userId) ?? 0 })
-          .where(eq(entriesTable.id, entry.id));
-      }
+      if (remainingCount <= 1) {
+        await db.update(poolsTable)
+          .set({ isActive: false, endedAt: new Date() })
+          .where(eq(poolsTable.id, poolId));
+        poolEnded = true;
+      } else if (pool.poolType === "season" && week === 18) {
+        // Multiple survivors after the final week — resolve via SOV
+        const aliveEntriesForSOV = await db
+          .select({ id: entriesTable.id, userId: entriesTable.userId })
+          .from(entriesTable)
+          .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
 
-      await db.update(poolsTable)
-        .set({ isActive: false, endedAt: new Date() })
-        .where(eq(poolsTable.id, poolId));
-      poolEnded = true;
-      sovUsed = true;
+        const allPicks = await db
+          .select({ userId: picksTable.userId, marginOfVictory: picksTable.marginOfVictory })
+          .from(picksTable)
+          .where(eq(picksTable.poolId, poolId));
+
+        const sovByUser = new Map<number, number>();
+        for (const pick of allPicks) {
+          if (pick.marginOfVictory == null) continue;
+          sovByUser.set(pick.userId, (sovByUser.get(pick.userId) ?? 0) + pick.marginOfVictory);
+        }
+        for (const entry of aliveEntriesForSOV) {
+          await db.update(entriesTable)
+            .set({ sovTotal: sovByUser.get(entry.userId) ?? 0 })
+            .where(eq(entriesTable.id, entry.id));
+        }
+
+        await db.update(poolsTable)
+          .set({ isActive: false, endedAt: new Date(), closureReason: "sov_tiebreaker" })
+          .where(eq(poolsTable.id, poolId));
+        poolEnded = true;
+        sovUsed = true;
+      }
     }
   }
 
-  res.json({ graded, week, eliminated: lostEntryIds.size, forfeits, poolEnded, sovUsed });
+  res.json({ graded, week, eliminated: lostEntryIds.size, forfeits: forfeitCount, poolEnded, sovUsed, voidFired, coWinners: coWinnersTriggered, coWinnerPrize });
 });
 
 export default router;

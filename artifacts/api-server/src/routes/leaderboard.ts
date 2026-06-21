@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { entriesTable, poolsTable, picksTable, usersTable } from "@workspace/db";
+import { entriesTable, poolsTable, picksTable, usersTable, weekResultsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getMlbWeekBounds } from "../lib/espn";
@@ -17,19 +17,30 @@ router.get("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const members = await db.select({
-    userId: entriesTable.userId,
-    username: usersTable.username,
-    displayName: usersTable.displayName,
-    status: entriesTable.status,
-    eliminatedWeek: entriesTable.eliminatedWeek,
-    strikeCount: entriesTable.strikeCount,
-    streak: entriesTable.streak,
-    sovTotal: entriesTable.sovTotal,
-    joinedAt: entriesTable.joinedAt,
-  }).from(entriesTable)
-    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
-    .where(eq(entriesTable.poolId, poolId));
+  const [members, weekResultRows] = await Promise.all([
+    db.select({
+      userId: entriesTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      status: entriesTable.status,
+      eliminatedWeek: entriesTable.eliminatedWeek,
+      strikeCount: entriesTable.strikeCount,
+      streak: entriesTable.streak,
+      sovTotal: entriesTable.sovTotal,
+      joinedAt: entriesTable.joinedAt,
+    }).from(entriesTable)
+      .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+      .where(eq(entriesTable.poolId, poolId)),
+
+    db.select({ week: weekResultsTable.week, isVoided: weekResultsTable.isVoided })
+      .from(weekResultsTable)
+      .where(eq(weekResultsTable.poolId, poolId)),
+  ]);
+
+  const voidedWeeks = weekResultRows
+    .filter(r => r.isVoided)
+    .map(r => r.week)
+    .sort((a, b) => a - b);
 
   // MLB: compute deadline info for this week
   let deadlinePassed = false;
@@ -99,11 +110,25 @@ router.get("/", requireAuth, async (req, res) => {
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
     .map((e, i) => ({ rank: active.length + i + 1, prizeWon: null as number | null, ...e }));
 
-  // sovTiebreaker: true when the pool ended and SOV was actually computed
-  // (at least one active player has sovTotal set)
+  // ── Derived flags ─────────────────────────────────────────────────────────
+  // sovTiebreaker: SOV was used to break a Week 18 multi-survivor tie
   const sovTiebreaker =
     !pool.isActive &&
-    active.some(e => e.sovTotal != null);
+    (pool.closureReason === "sov_tiebreaker" || (!pool.closureReason && active.some(e => e.sovTotal != null)));
+
+  // coWinners: all alive Week-18 players lost → declared co-champions
+  const coWinners = !pool.isActive && pool.closureReason === "co_winners";
+
+  // coWinnerPrizeEach: equal prize share per co-winner
+  let coWinnerPrizeEach: number | null = null;
+  if (coWinners && active.length > 0) {
+    if (prizeStructure && prizeStructure.length > 0) {
+      const total = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+      coWinnerPrizeEach = Math.floor(total / active.length);
+    } else if (pool.prizePot && pool.prizePot > 0) {
+      coWinnerPrizeEach = Math.floor(pool.prizePot / active.length);
+    }
+  }
 
   res.json({
     poolId,
@@ -113,6 +138,9 @@ router.get("/", requireAuth, async (req, res) => {
     deadlinePassed,
     prizeStructure,
     sovTiebreaker,
+    coWinners,
+    coWinnerPrizeEach,
+    voidedWeeks,
     active,
     eliminated,
   });
