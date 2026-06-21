@@ -70,14 +70,14 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
 const POOL_TYPES = [
   {
     id: "season" as const,
-    label: "Season",
+    label: "Survivor Season",
     icon: Trophy,
     tagline: "Last One Standing Wins",
     description:
       "Pick one team per week to win. Pick wrong and you're eliminated. Survive the whole season to claim the prize.",
-    badge: "Classic",
-    badgeClass: "bg-primary/20 text-primary border-primary/30",
-    cardClass: "border-primary/60 bg-[linear-gradient(145deg,rgba(30,144,255,0.08)_0%,transparent_100%)]",
+    badge: "Flagship",
+    badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    cardClass: "border-amber-500/60 bg-[linear-gradient(145deg,rgba(245,158,11,0.10)_0%,transparent_100%)]",
   },
   {
     id: "weekly" as const,
@@ -425,15 +425,24 @@ export default function CreatePool() {
                                 "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                 isSelected
                                   ? `${type.cardClass} ring-2 ring-offset-1 ring-offset-background`
-                                  : "border-border/40 hover:border-border bg-card/50",
+                                  : type.id === "season"
+                                    ? "border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.02]"
+                                    : "border-border/40 hover:border-border bg-card/50",
                               )}
                             >
                               <div className="flex items-start gap-4">
                                 <div className={cn(
                                   "mt-0.5 p-2 rounded-md",
-                                  isSelected ? "bg-primary/10" : "bg-muted/50",
+                                  isSelected
+                                    ? type.id === "season" ? "bg-amber-500/10" : "bg-primary/10"
+                                    : "bg-muted/50",
                                 )}>
-                                  <Icon className={cn("w-5 h-5", isSelected ? "text-primary" : "text-muted-foreground")} />
+                                  <Icon className={cn(
+                                    "w-5 h-5",
+                                    isSelected
+                                      ? type.id === "season" ? "text-amber-400" : "text-primary"
+                                      : type.id === "season" ? "text-amber-500/60" : "text-muted-foreground",
+                                  )} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -444,12 +453,19 @@ export default function CreatePool() {
                                       {type.badge}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mb-1">{type.tagline}</p>
+                                  <p className={cn(
+                                    "text-xs font-semibold uppercase tracking-wider mb-1",
+                                    isSelected
+                                      ? type.id === "season" ? "text-amber-400/80" : "text-primary/70"
+                                      : "text-muted-foreground/50",
+                                  )}>{type.tagline}</p>
                                   <p className="text-sm text-muted-foreground leading-snug">{type.description}</p>
                                 </div>
                                 <div className={cn(
                                   "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
-                                  isSelected ? "border-primary bg-primary" : "border-muted-foreground/30",
+                                  isSelected
+                                    ? type.id === "season" ? "border-amber-400 bg-amber-400" : "border-primary bg-primary"
+                                    : "border-muted-foreground/30",
                                 )} />
                               </div>
                             </button>
