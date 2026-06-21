@@ -2386,40 +2386,38 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 </div>
               </div>
 
-              {/* Pool-closed banner for non-recurring MLB Daily pools that have ended */}
-              {slate.poolClosed && (
-                <div className="rounded-lg border border-muted/40 bg-muted/10 px-4 py-3 flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="text-base">🏁</span>
-                  <div>
-                    <span className="font-semibold text-foreground/80">Pool Ended</span>
-                    <span className="ml-2">This was a one-day pool — results are final. No further picks can be made.</span>
-                  </div>
+              {/* Pool ended — full takeover replaces slate for non-recurring pools */}
+              {slate.poolClosed ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+                  <Trophy className="w-16 h-16 text-yellow-500/60 mb-6" />
+                  <h3 className="font-bebas text-3xl tracking-widest mb-3 text-muted-foreground/70">POOL ENDED</h3>
+                  <p className="text-muted-foreground text-lg">This was a one-day pool — results are final.</p>
+                </div>
+              ) : (
+                /* All games in original scheduled-time order — never reorganised */
+                <div className="space-y-3">
+                  {slate.games.map((game, idx) => {
+                    const isLastGame = isMlb && isToday && idx === slate.games.length - 1;
+                    const showTiebreakerBadge = isLastGame && needsTiebreaker;
+                    return is3way ? (
+                      <WcGameCard
+                        key={game.id}
+                        game={game}
+                        pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
+                        onPick={(opt) => togglePick(game.id, opt)}
+                      />
+                    ) : (
+                      <GameCard
+                        key={game.id}
+                        game={game}
+                        pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                        onPick={(teamId) => togglePick(game.id, teamId)}
+                        isTiebreakerGame={showTiebreakerBadge}
+                      />
+                    );
+                  })}
                 </div>
               )}
-
-              {/* All games in original scheduled-time order — never reorganised */}
-              <div className="space-y-3">
-                {slate.games.map((game, idx) => {
-                  const isLastGame = isMlb && isToday && idx === slate.games.length - 1;
-                  const showTiebreakerBadge = isLastGame && needsTiebreaker;
-                  return is3way ? (
-                    <WcGameCard
-                      key={game.id}
-                      game={game}
-                      pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                      onPick={slate.poolClosed ? () => {} : (opt) => togglePick(game.id, opt)}
-                    />
-                  ) : (
-                    <GameCard
-                      key={game.id}
-                      game={game}
-                      pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                      onPick={slate.poolClosed ? () => {} : (teamId) => togglePick(game.id, teamId)}
-                      isTiebreakerGame={showTiebreakerBadge}
-                    />
-                  );
-                })}
-              </div>
 
               {isToday && openGames.length > 0 && !slate.poolClosed && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">

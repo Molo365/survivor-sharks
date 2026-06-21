@@ -206,6 +206,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span className="text-muted-foreground/40">·</span>
                     <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
                   </div>
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
