@@ -78,12 +78,48 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               {/* My standing — pool-type-specific */}
               {SURVIVOR_TYPES.has(pt) ? (
                 pickEmStat.myStanding.status === "alive" ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden>💪</span>
-                    <span className="text-foreground/70 font-medium">You&apos;re alive</span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pool.activeCount ?? 0} alive</span>
-                  </div>
+                  // Ended season pool: show winner outcome; otherwise "You're alive"
+                  !pool.isActive && pt === "season" ? (
+                    pickEmStat.myStanding.closureReason === "co_winners" ? (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                        <span aria-hidden>🏆</span>
+                        <span className="font-medium">Co-Champion — Prize Split</span>
+                        {pickEmStat.myStanding.coWinnerPrize != null && (
+                          <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span>${pickEmStat.myStanding.coWinnerPrize} each</span>
+                          </>
+                        )}
+                      </div>
+                    ) : pickEmStat.myStanding.closureReason === "sov_tiebreaker" ? (
+                      pickEmStat.myStanding.sovRank === 1 ? (
+                        <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                          <span aria-hidden>🏆</span>
+                          <span className="font-medium">You won!</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="opacity-70">Tiebreaker: SOV</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span aria-hidden>📊</span>
+                          <span>Tiebreaker: {ordinal(pickEmStat.myStanding.sovRank ?? 0)} place</span>
+                        </div>
+                      )
+                    ) : (
+                      // null closureReason = last survivor standing
+                      <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                        <span aria-hidden>🏆</span>
+                        <span className="font-medium">You won!</span>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span aria-hidden>💪</span>
+                      <span className="text-foreground/70 font-medium">You&apos;re alive</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pool.activeCount ?? 0} alive</span>
+                    </div>
+                  )
                 ) : pickEmStat.myStanding.status === "eliminated" ? (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>💀</span>

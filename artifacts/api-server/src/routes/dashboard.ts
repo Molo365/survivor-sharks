@@ -97,12 +97,41 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       // ── Survivor pools ──────────────────────────────────────────────────────
       if (SURVIVOR_TYPES.has(poolType)) {
         const [entry] = await db
-          .select({ status: entriesTable.status, eliminatedWeek: entriesTable.eliminatedWeek })
+          .select({ status: entriesTable.status, eliminatedWeek: entriesTable.eliminatedWeek, sovTotal: entriesTable.sovTotal })
           .from(entriesTable)
           .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
           .limit(1);
         const status = entry?.status ?? null;
         const eliminatedWeek = entry?.eliminatedWeek ?? null;
+
+        let closureReason: string | null = null;
+        let sovRank: number | null = null;
+        let coWinnerCount: number | null = null;
+        let coWinnerPrize: number | null = null;
+
+        if (!pool.isActive && poolType === "season" && status === "alive") {
+          closureReason = pool.closureReason ?? null;
+
+          if (pool.closureReason === "sov_tiebreaker") {
+            const aliveEntries = await db
+              .select({ userId: entriesTable.userId, sovTotal: entriesTable.sovTotal })
+              .from(entriesTable)
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+            aliveEntries.sort((a, b) => (b.sovTotal ?? 0) - (a.sovTotal ?? 0));
+            const idx = aliveEntries.findIndex((e) => e.userId === userId);
+            sovRank = idx >= 0 ? idx + 1 : null;
+          } else if (pool.closureReason === "co_winners") {
+            const aliveEntries = await db
+              .select({ id: entriesTable.id })
+              .from(entriesTable)
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+            coWinnerCount = aliveEntries.length;
+            if (coWinnerCount > 0 && pool.prizePot && pool.prizePot > 0) {
+              coWinnerPrize = Math.floor(pool.prizePot / coWinnerCount);
+            }
+          }
+        }
+
         return {
           poolId: pool.id,
           poolType,
@@ -114,6 +143,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             eliminatedWeek,
             score: null,
             maxScore: null,
+            closureReason,
+            sovRank,
+            coWinnerCount,
+            coWinnerPrize,
           },
         };
       }

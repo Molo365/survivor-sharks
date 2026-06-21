@@ -1802,6 +1802,22 @@ components:
             maxScore:
               type: integer
               nullable: true
+            closureReason:
+              type: string
+              nullable: true
+              description: "Survivor season pools only: null = last survivor standing, sov_tiebreaker = SOV decided winner, co_winners = prize split"
+            sovRank:
+              type: integer
+              nullable: true
+              description: "Survivor SOV tiebreaker only: this user's rank by cumulative margin (1 = winner)"
+            coWinnerCount:
+              type: integer
+              nullable: true
+              description: "Co-winner scenario: total number of co-champions sharing the prize"
+            coWinnerPrize:
+              type: integer
+              nullable: true
+              description: "Co-winner scenario: each champion's share of the prize pot in dollars"
 
     Pool:
       type: object

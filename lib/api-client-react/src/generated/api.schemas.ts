@@ -188,6 +188,14 @@ export type PoolPickEmStatMyStanding = {
   eliminatedWeek?: number | null;
   score?: number | null;
   maxScore?: number | null;
+  /** Survivor season pools only: null = last survivor standing, sov_tiebreaker = SOV decided winner, co_winners = prize split */
+  closureReason?: string | null;
+  /** Survivor SOV tiebreaker only: this user's rank by cumulative margin (1 = winner) */
+  sovRank?: number | null;
+  /** Co-winner scenario: total number of co-champions sharing the prize */
+  coWinnerCount?: number | null;
+  /** Co-winner scenario: each champion's share of the prize pot in dollars */
+  coWinnerPrize?: number | null;
 };
 
 export interface PoolPickEmStat {
