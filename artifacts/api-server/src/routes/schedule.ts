@@ -250,10 +250,12 @@ router.get("/", requireAuth, async (req, res) => {
       const games = (gamesByDate.get(dateStr) ?? []).map(g => {
         const scored = storedScores.get(g.id);
         const base = formatGame(g, "nhl", week, pool.season);
-        // Overlay stored scores: flip status to "final" once simulate-grading has run.
+        // Source finality purely from sandboxGameScoresTable — never leak real ESPN
+        // status/scores. Before simulate-grading runs, reset to safe sandbox defaults
+        // (mirrors the NFL sandbox pattern exactly).
         return scored
-          ? { ...base, status: "final", hasStarted: true, homeScore: scored.homeScore, awayScore: scored.awayScore }
-          : base;
+          ? { ...base, status: "final",     hasStarted: true,  homeScore: scored.homeScore, awayScore: scored.awayScore }
+          : { ...base, status: "scheduled", hasStarted: false, homeScore: null,             awayScore: null };
       });
       return { date: dateStr, label, games };
     });
