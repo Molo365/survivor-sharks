@@ -84,7 +84,7 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const pickMap = new Map(existingPicks.map((p) => [p.gameId, p]));
 
-  const formattedGames = games.map((g) => {
+  const formattedGames = games.map((g, idx) => {
     const existing = pickMap.get(g.id);
     const locked = isGameLocked(g.date);
     const base = {
@@ -92,6 +92,7 @@ router.get("/games", requireAuth, async (req, res) => {
       startTime: g.date,
       status: g.status,
       deadlinePassed: locked,
+      isTiebreakerGame: sport === "mlb" && !is3way && idx === games.length - 1,
       awayTeam: {
         id: g.awayTeam.id,
         name: g.awayTeam.displayName,
@@ -643,14 +644,17 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
     }));
 
   // Compute prize per winner: sole winner takes 1st-place tier; tied winners split total equally.
+  // Weekly pools award the prize at week level (via prev-week-results), not per individual day.
   let prizeWon: number | null = null;
-  if (pool.prizeStructure && pool.prizeStructure.length > 0) {
-    const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-    prizeWon = winners.length > 1
-      ? Math.floor(total / winners.length)
-      : pool.prizeStructure[0].amount;
-  } else if (pool.prizePot && pool.prizePot > 0) {
-    prizeWon = Math.floor(pool.prizePot / winners.length);
+  if (pool.pickFrequency !== "weekly") {
+    if (pool.prizeStructure && pool.prizeStructure.length > 0) {
+      const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+      prizeWon = winners.length > 1
+        ? Math.floor(total / winners.length)
+        : pool.prizeStructure[0].amount;
+    } else if (pool.prizePot && pool.prizePot > 0) {
+      prizeWon = Math.floor(pool.prizePot / winners.length);
+    }
   }
 
   res.json({ date, hasResults: true, winners: winners.map(w => ({ ...w, prizeWon })) });
@@ -741,6 +745,21 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     });
   }
 
+  // Compute prize for the week winner(s) — only once all picks are fully graded
+  const allGraded = hasResults && aggregates.every((r) => Number(r.graded) === Number(r.picked));
+  let weekPrizePerWinner: number | null = null;
+  let weekTopCorrect = -1;
+  if (allGraded && aggregates.length > 0) {
+    weekTopCorrect = Number(aggregates[0].correct);
+    const winnerCount = aggregates.filter((r) => Number(r.correct) === weekTopCorrect).length;
+    if (pool.prizeStructure && pool.prizeStructure.length > 0) {
+      const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+      weekPrizePerWinner = winnerCount === 1 ? pool.prizeStructure[0].amount : Math.floor(total / winnerCount);
+    } else if (pool.prizePot && pool.prizePot > 0) {
+      weekPrizePerWinner = Math.floor(pool.prizePot / winnerCount);
+    }
+  }
+
   const entries = aggregates.map((row, i) => ({
     rank: i + 1,
     userId: row.userId,
@@ -750,6 +769,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     picked: Number(row.picked),
     picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
     dailyBreakdown: dailyByUser.get(row.userId) ?? [],
+    prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect ? weekPrizePerWinner : null,
   }));
 
   res.json({
@@ -890,19 +910,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
-  // For MLB pools: compute actualRuns from final ESPN games on today's slate
-  // and fetch actualStrikeouts from MLB Stats API (secondary source — failures → null)
+  // For MLB pools: compute actualRuns and actualStrikeouts from the tiebreaker game only —
+  // the last game on the slate by start time (matching the frontend's isTiebreakerGame tag).
+  // Mirrors NFL Confidence's pattern of isolating a single tiebreakerGame.
   let tiebreakerActualRuns: number | null = null;
   let tiebreakerActualStrikeouts: number | null = null;
   if (isMlb && espnGames.length > 0) {
-    const finalGames = espnGames.filter((g) => g.isCompleted);
-    if (finalGames.length > 0) {
-      tiebreakerActualRuns = finalGames.reduce(
-        (sum, g) => sum + (g.homeScore ?? 0) + (g.awayScore ?? 0),
-        0,
-      );
-      // Fetch strikeouts from MLB Stats API; returns null on any match/fetch failure
-      tiebreakerActualStrikeouts = await fetchDailyStrikeouts(espnGames, todayEt);
+    const tiebreakerGame = espnGames[espnGames.length - 1];
+    if (tiebreakerGame.isCompleted) {
+      tiebreakerActualRuns = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
+      // Fetch strikeouts from MLB Stats API for this game only; returns null on any failure
+      tiebreakerActualStrikeouts = await fetchDailyStrikeouts([tiebreakerGame], todayEt);
     }
   }
 
@@ -957,11 +975,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
             homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
           }))
         )
-    : espnGames.map((g) => ({
+    : espnGames.map((g, idx) => ({
         id: g.id,
         startTime: g.date,
         status: g.status,
         group: null as string | null,
+        isTiebreakerGame: isMlb && idx === espnGames.length - 1,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
         homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
       }));

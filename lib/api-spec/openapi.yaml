@@ -2546,6 +2546,9 @@ components:
           enum: [scheduled, in_progress, final, postponed, suspended]
         deadlinePassed:
           type: boolean
+        isTiebreakerGame:
+          type: boolean
+          description: "True for the last game on the slate for MLB daily/weekly pools — the designated tiebreaker reference game; absent for WC/intl pools"
         awayTeam:
           $ref: "#/components/schemas/PickEmTeam"
         homeTeam:
@@ -2755,6 +2758,9 @@ components:
         group:
           type: ["string", "null"]
           description: WC group label (e.g. "Group A"); null for knockout or non-WC sports
+        isTiebreakerGame:
+          type: boolean
+          description: "True for the last game on the slate for MLB pools — the designated tiebreaker reference game; absent for WC/intl pools"
         awayTeam:
           $ref: "#/components/schemas/PickEmLeaderboardTeam"
         homeTeam:
@@ -2861,6 +2867,9 @@ components:
         tiebreakerRunsDiff:
           type: ["integer", "null"]
           description: "Absolute difference between runs guess and actual (null if no actual yet)"
+        prizeWon:
+          type: ["integer", "null"]
+          description: "Prize amount won; populated on winning entries once the period is fully graded; null otherwise"
 
     PickEmLeaderboard:
       type: object
@@ -2898,10 +2907,10 @@ components:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
         tiebreakerActualRuns:
           type: ["integer", "null"]
-          description: "Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)"
+          description: "Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)"
         tiebreakerActualStrikeouts:
           type: ["integer", "null"]
-          description: "Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)"
+          description: "Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)"
 
     PickEmDailyResultsGame:
       type: object

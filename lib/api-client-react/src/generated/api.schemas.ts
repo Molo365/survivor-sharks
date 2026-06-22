@@ -801,6 +801,8 @@ export interface PickEmGame {
   startTime: string;
   status: PickEmGameStatus;
   deadlinePassed: boolean;
+  /** True for the last game on the slate for MLB daily/weekly pools — the designated tiebreaker reference game; absent for WC/intl pools */
+  isTiebreakerGame?: boolean;
   awayTeam: PickEmTeam;
   homeTeam: PickEmTeam;
   /** @nullable */
@@ -980,6 +982,8 @@ export interface PickEmLeaderboardGame {
      * @nullable
      */
   group?: string | null;
+  /** True for the last game on the slate for MLB pools — the designated tiebreaker reference game; absent for WC/intl pools */
+  isTiebreakerGame?: boolean;
   awayTeam: PickEmLeaderboardTeam;
   homeTeam: PickEmLeaderboardTeam;
 }
@@ -1069,6 +1073,11 @@ export interface PickEmLeaderboardEntry {
      * @nullable
      */
   tiebreakerRunsDiff?: number | null;
+  /**
+     * Prize amount won; populated on winning entries once the period is fully graded; null otherwise
+     * @nullable
+     */
+  prizeWon?: number | null;
 }
 
 export interface PickEmLeaderboard {
@@ -1104,12 +1113,12 @@ export interface PickEmLeaderboard {
   games: PickEmLeaderboardGame[];
   entries: PickEmLeaderboardEntry[];
   /**
-     * Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)
+     * Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)
      * @nullable
      */
   tiebreakerActualRuns?: number | null;
   /**
-     * Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)
+     * Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)
      * @nullable
      */
   tiebreakerActualStrikeouts?: number | null;

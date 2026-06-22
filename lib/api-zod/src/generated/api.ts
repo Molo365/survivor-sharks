@@ -939,6 +939,7 @@ export const GetPickEmGamesResponse = zod.object({
   "startTime": zod.string(),
   "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed', 'suspended']),
   "deadlinePassed": zod.boolean(),
+  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB daily\/weekly pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
   "awayTeam": zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -1070,6 +1071,7 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "startTime": zod.string(),
   "status": zod.string(),
   "group": zod.string().nullish().describe('WC group label (e.g. \"Group A\"); null for knockout or non-WC sports'),
+  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
   "awayTeam": zod.object({
   "id": zod.string(),
   "abbreviation": zod.string(),
@@ -1101,10 +1103,11 @@ export const GetPickEmLeaderboardResponse = zod.object({
 })).optional().describe('Per-day breakdown; present only for weekly pick-em pools'),
   "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
   "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
-  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)')
+  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)'),
+  "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 })),
-  "tiebreakerActualRuns": zod.number().nullish().describe('Auto-computed combined runs scored from final games (MLB pools only; null if not applicable or no final games yet)'),
-  "tiebreakerActualStrikeouts": zod.number().nullish().describe('Auto-computed combined strikeouts from final games via MLB Stats API (MLB pools only; null if not applicable, any game unmatched, or fetch failed)')
+  "tiebreakerActualRuns": zod.number().nullish().describe('Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)'),
+  "tiebreakerActualStrikeouts": zod.number().nullish().describe('Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)')
 })
 
 
@@ -1264,7 +1267,8 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
 })).optional().describe('Per-day breakdown; present only for weekly pick-em pools'),
   "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
   "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
-  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)')
+  "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)'),
+  "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 }))
 })
 

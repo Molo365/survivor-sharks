@@ -2285,6 +2285,12 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                     <span className="text-sm text-yellow-300">{prevWeekWinner.displayName || prevWeekWinner.username}</span>
                     <span className="text-yellow-500/50 text-xs">·</span>
                     <span className="text-sm text-yellow-400/70">{prevWeekWinner.correct}/{prevWeekWinner.picked} correct</span>
+                    {prevWeekWinner.prizeWon != null && (
+                      <>
+                        <span className="text-yellow-500/50 text-xs">·</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinner.prizeWon}</span>
+                      </>
+                    )}
                     <span className="text-yellow-500/50 text-xs">·</span>
                     <span className="text-xs text-yellow-500/60">
                       {new Date(prevWeekResults.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
@@ -2403,8 +2409,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 /* All games in original scheduled-time order — never reorganised */
                 <div className="space-y-3">
                   {slate.games.map((game, idx) => {
-                    const isLastGame = isMlb && isToday && idx === slate.games.length - 1;
-                    const showTiebreakerBadge = isLastGame && needsTiebreaker;
+                    const showTiebreakerBadge = (game.isTiebreakerGame ?? false) && needsTiebreaker;
                     return is3way ? (
                       <WcGameCard
                         key={game.id}
