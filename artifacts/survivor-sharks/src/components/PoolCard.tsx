@@ -47,7 +47,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
           <div className="flex gap-4 mt-auto">
             <div className="flex items-center gap-1.5 text-sm">
               <Users className="w-4 h-4 text-primary" />
-              <span>{pool.activeCount ?? 0} / {pool.memberCount} Alive</span>
+              <span>{pool.isActive ? `${pool.activeCount ?? 0} / ${pool.memberCount} Alive` : "Final"}</span>
             </div>
             <div className="flex items-center gap-1.5 text-sm">
               <Calendar className="w-4 h-4 text-primary" />
