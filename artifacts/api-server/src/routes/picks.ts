@@ -347,17 +347,21 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
   const aliveUserIds = new Set(aliveAtStart.map(e => e.userId));
 
-  const pendingPicks = await db.select().from(picksTable)
-    .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week), eq(picksTable.result, "pending")));
+  // Load ALL picks for this week first so pickedUserIds is correct even on
+  // repeated calls (when picks are already graded and pendingPicks is empty).
+  // False forfeits occur when pickedUserIds is built only from pendingPicks:
+  // on a second call every alive entry appears to have no pick → forfeit.
+  const allPicksThisWeek = await db.select().from(picksTable)
+    .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, week)));
+  const pendingPicks = allPicksThisWeek.filter(p => p.result === "pending");
 
   // Phase 2: grade picks (no entry status changes yet)
   let graded = 0;
-  const pickedUserIds = new Set<number>();
+  const pickedUserIds = new Set(allPicksThisWeek.map(p => p.userId));
   const resultByPickId = new Map<number, "win" | "loss">();
   const lostEntryIds = new Set<number>();
 
   for (const pick of pendingPicks) {
-    pickedUserIds.add(pick.userId);
     const winner = winnerByTeamId.get(pick.teamId);
     if (winner === undefined) continue;
     const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
@@ -443,13 +447,15 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
         .map(p => p.teamId),
     ),
   ];
+  // onConflictDoNothing: the unique (poolId, week) constraint ensures a second
+  // call leaves the existing weekResults row untouched rather than crashing.
   await db.insert(weekResultsTable).values({
     poolId,
     week,
     losingTeamIds,
     isVoided: voidFired,
     processedBy: userId,
-  });
+  }).onConflictDoNothing();
 
   // Pool closure
   let poolEnded = false;
