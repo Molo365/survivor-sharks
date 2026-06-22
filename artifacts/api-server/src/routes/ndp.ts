@@ -7,7 +7,7 @@ import {
   entriesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 
@@ -278,6 +278,70 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
     .where(eq(nflDivisionResultsTable.poolId, poolId));
 
   req.log.info({ poolId, count: saved.length }, "Admin entered NDP actual results");
+
+  // ── Closure detection ────────────────────────────────────────────────────
+  // Guarded by pool.isActive so it only fires once even if results are re-saved.
+  // Queries the cumulative distinct-division count from the DB (not just this request).
+  if (pool.isActive) {
+    try {
+      const countRows = await db
+        .select({ count: sql<number>`COUNT(DISTINCT division_name)` })
+        .from(nflDivisionResultsTable)
+        .where(eq(nflDivisionResultsTable.poolId, poolId));
+      const distinctCount = Number(countRows[0]?.count ?? 0);
+
+      if (distinctCount >= NFL_DIVISIONS.length) {
+        const [allPicks, members] = await Promise.all([
+          db.select().from(nflDivisionPredictorPicksTable).where(eq(nflDivisionPredictorPicksTable.poolId, poolId)),
+          db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
+        ]);
+
+        const resultMap = new Map(saved.map((r) => [r.divisionName, r]));
+        const picksByUser = new Map<number, typeof allPicks>();
+        for (const pick of allPicks) {
+          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
+          picksByUser.get(pick.userId)!.push(pick);
+        }
+
+        const scored = members.map(({ userId: uid }) => {
+          const picks = picksByUser.get(uid) ?? [];
+          let total = 0;
+          for (const pick of picks) {
+            const result = resultMap.get(pick.divisionName);
+            if (result) {
+              total += scoreDivision(
+                [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
+                [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
+              );
+            }
+          }
+          return { userId: uid, total };
+        });
+
+        const topScore = Math.max(0, ...scored.map((s) => s.total));
+        const winners = scored.filter((s) => s.total === topScore);
+        const winnerIds = winners.map((w) => w.userId);
+
+        await db
+          .update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+
+        await db
+          .update(poolsTable)
+          .set({
+            isActive: false,
+            endedAt: new Date(),
+            closureReason: winners.length > 1 ? "co_winners" : null,
+          })
+          .where(eq(poolsTable.id, poolId));
+
+        req.log.info({ poolId, winnerIds, isTie: winners.length > 1 }, "NDP pool closed, winner(s) declared");
+      }
+    } catch (err) {
+      req.log.error({ err, poolId }, "NDP closure detection failed — results saved but pool not closed");
+    }
+  }
 
   res.json(saved.map((r) => ({
     divisionName: r.divisionName,

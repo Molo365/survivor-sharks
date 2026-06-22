@@ -7,6 +7,8 @@ import {
   entriesTable,
   nflDivisionPredictorPicksTable,
   nflDivisionResultsTable,
+  groupStagePredictorPicksTable,
+  groupStageResultsTable,
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
@@ -63,7 +65,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor"];
 
 // GET /api/dashboard/pickem-stats
 router.get("/pickem-stats", requireAuth, async (req, res) => {
@@ -368,10 +370,32 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myIdx = scored.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? scored[myIdx] : null;
         const hasPicks = picksByUser.has(userId);
+
+        let lastWinners = null;
+        if (!pool.isActive) {
+          const winnerRows = await db
+            .select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+          if (winnerRows.length > 0) {
+            const scoreMap = new Map(scored.map((s) => [s.userId, s.total]));
+            lastWinners = winnerRows.map((w) => ({
+              userId: w.userId,
+              username: w.username,
+              displayName: w.displayName ?? null,
+              score: scoreMap.get(w.userId) ?? null,
+              correct: null,
+              picked: null,
+              prizeWon: computeSplitPrize(pool, winnerRows.length),
+            }));
+          }
+        }
+
         return {
           poolId: pool.id,
           poolType,
-          lastWinners: null,
+          lastWinners,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
             correct: 0, picked: 0,
@@ -379,6 +403,72 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             status: null, eliminatedWeek: null,
             score: myRow ? myRow.total : null,
             maxScore: 96,
+          },
+        };
+      }
+
+      // ── World Cup Group Stage Predictor ──────────────────────────────────
+      if (poolType === "group_stage_predictor") {
+        const [allPicks, allResults] = await Promise.all([
+          db.select().from(groupStagePredictorPicksTable).where(eq(groupStagePredictorPicksTable.poolId, pool.id)),
+          db.select().from(groupStageResultsTable).where(eq(groupStageResultsTable.poolId, pool.id)),
+        ]);
+        const resultMap = new Map(allResults.map((r) => [r.groupName, r]));
+        const picksByUser = new Map<number, typeof allPicks>();
+        for (const pick of allPicks) {
+          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
+          picksByUser.get(pick.userId)!.push(pick);
+        }
+        const scored = Array.from(picksByUser.entries()).map(([uid, picks]) => {
+          let total = 0;
+          for (const pick of picks) {
+            const result = resultMap.get(pick.groupName);
+            if (result) {
+              total += scoreNdpDivision(
+                [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
+                [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
+              );
+            }
+          }
+          return { userId: uid, total };
+        });
+        scored.sort((a, b) => b.total - a.total);
+        const myIdx = scored.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? scored[myIdx] : null;
+        const hasPicks = picksByUser.has(userId);
+
+        let lastWinners = null;
+        if (!pool.isActive) {
+          const winnerRows = await db
+            .select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+          if (winnerRows.length > 0) {
+            const scoreMap = new Map(scored.map((s) => [s.userId, s.total]));
+            lastWinners = winnerRows.map((w) => ({
+              userId: w.userId,
+              username: w.username,
+              displayName: w.displayName ?? null,
+              score: scoreMap.get(w.userId) ?? null,
+              correct: null,
+              picked: null,
+              prizeWon: computeSplitPrize(pool, winnerRows.length),
+            }));
+          }
+        }
+
+        return {
+          poolId: pool.id,
+          poolType,
+          lastWinners,
+          myStanding: {
+            rank: myRow ? myIdx + 1 : 0,
+            correct: 0, picked: 0,
+            hasPicks,
+            status: null, eliminatedWeek: null,
+            score: myRow ? myRow.total : null,
+            maxScore: 144,
           },
         };
       }

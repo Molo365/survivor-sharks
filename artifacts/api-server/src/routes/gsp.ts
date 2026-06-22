@@ -7,7 +7,7 @@ import {
   entriesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchWcStandings } from "../lib/wc";
 
@@ -286,6 +286,71 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
     .where(eq(groupStageResultsTable.poolId, poolId));
 
   req.log.info({ poolId, count: saved.length }, "Admin entered GSP actual results");
+
+  // ── Closure detection ────────────────────────────────────────────────────
+  // Guarded by pool.isActive so it only fires once even if results are re-saved.
+  // Queries the cumulative distinct-group count from the DB (not just this request).
+  // Uses standings.length (live ESPN group count) as the expected total — no hardcoding.
+  if (pool.isActive) {
+    try {
+      const countRows = await db
+        .select({ count: sql<number>`COUNT(DISTINCT group_name)` })
+        .from(groupStageResultsTable)
+        .where(eq(groupStageResultsTable.poolId, poolId));
+      const distinctCount = Number(countRows[0]?.count ?? 0);
+
+      if (distinctCount >= standings.length) {
+        const [allPicks, members] = await Promise.all([
+          db.select().from(groupStagePredictorPicksTable).where(eq(groupStagePredictorPicksTable.poolId, poolId)),
+          db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
+        ]);
+
+        const resultMap = new Map(saved.map((r) => [r.groupName, r]));
+        const picksByUser = new Map<number, typeof allPicks>();
+        for (const pick of allPicks) {
+          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
+          picksByUser.get(pick.userId)!.push(pick);
+        }
+
+        const scored = members.map(({ userId: uid }) => {
+          const picks = picksByUser.get(uid) ?? [];
+          let total = 0;
+          for (const pick of picks) {
+            const result = resultMap.get(pick.groupName);
+            if (result) {
+              total += scoreGroup(
+                [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
+                [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
+              );
+            }
+          }
+          return { userId: uid, total };
+        });
+
+        const topScore = Math.max(0, ...scored.map((s) => s.total));
+        const winners = scored.filter((s) => s.total === topScore);
+        const winnerIds = winners.map((w) => w.userId);
+
+        await db
+          .update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+
+        await db
+          .update(poolsTable)
+          .set({
+            isActive: false,
+            endedAt: new Date(),
+            closureReason: winners.length > 1 ? "co_winners" : null,
+          })
+          .where(eq(poolsTable.id, poolId));
+
+        req.log.info({ poolId, winnerIds, isTie: winners.length > 1 }, "GSP pool closed, winner(s) declared");
+      }
+    } catch (err) {
+      req.log.error({ err, poolId }, "GSP closure detection failed — results saved but pool not closed");
+    }
+  }
 
   res.json(saved.map((r) => ({
     groupName: r.groupName,
