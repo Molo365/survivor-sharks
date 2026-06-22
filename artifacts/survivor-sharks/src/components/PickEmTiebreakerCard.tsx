@@ -26,11 +26,11 @@ export function PickEmTiebreakerCard({ actualRuns, actualStrikeouts, tiedPlayers
       <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Tiebreaker</p>
       <div className="flex gap-6">
         <div>
-          <p className="text-[10px] text-muted-foreground/60">Combined runs scored</p>
+          <p className="text-[10px] text-muted-foreground/60">Runs scored (tiebreaker game)</p>
           <p className="font-bebas text-xl text-yellow-300">{actualRuns ?? "—"}</p>
         </div>
         <div>
-          <p className="text-[10px] text-muted-foreground/60">Total strikeouts</p>
+          <p className="text-[10px] text-muted-foreground/60">Strikeouts (tiebreaker game)</p>
           <p className="font-bebas text-xl text-yellow-300">{actualStrikeouts ?? "—"}</p>
         </div>
       </div>

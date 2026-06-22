@@ -2086,13 +2086,13 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               ? "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."
               : "In case of a tie at end of day, your tiebreaker guess decides the winner."}
             <br />
-            Guess the combined <strong className="text-foreground">runs scored</strong> and total <strong className="text-foreground">strikeouts</strong> across all {isWeekly ? "today's" : "today's"} games. Closest guess wins.
+            Guess the <strong className="text-foreground">runs scored</strong> and total <strong className="text-foreground">strikeouts</strong> for the last game on today's slate only. Closest guess wins.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Combined Runs Scored
+              Runs Scored — Tiebreaker Game
             </label>
             <Input
               type="number"
@@ -2106,7 +2106,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Total Strikeouts
+              Strikeouts — Tiebreaker Game
             </label>
             <Input
               type="number"
