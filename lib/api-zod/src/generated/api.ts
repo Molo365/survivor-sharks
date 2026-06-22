@@ -939,7 +939,7 @@ export const GetPickEmGamesResponse = zod.object({
   "startTime": zod.string(),
   "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed', 'suspended']),
   "deadlinePassed": zod.boolean(),
-  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB daily\/weekly pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
+  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB daily\/weekly pools, or the last game of the final day of the week for NHL weekly pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
   "awayTeam": zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -1041,8 +1041,10 @@ export const SubmitPickEmPicksBody = zod.object({
   "gameDate": zod.string().optional().describe('YYYY-MM-DD date of the game in ET. Required for WC multi-date picks.'),
   "pickOption": zod.string().optional().describe('For World Cup pools — the pick outcome (home_win, draw, away_win)')
 })),
-  "tiebreakerRuns": zod.number().optional().describe('MLB tiebreaker — combined runs scored guess (all games on today\'s slate)'),
-  "tiebreakerStrikeouts": zod.number().optional().describe('MLB tiebreaker — total strikeouts guess (all games on today\'s slate)')
+  "tiebreakerRuns": zod.number().optional().describe('MLB tiebreaker — combined runs scored guess for the tiebreaker game (last game on the slate)'),
+  "tiebreakerStrikeouts": zod.number().optional().describe('MLB tiebreaker — total strikeouts guess for the tiebreaker game (last game on the slate)'),
+  "tiebreakerShotsOnGoal": zod.number().optional().describe('NHL weekly tiebreaker — combined shots on goal guess for the last game of the week'),
+  "tiebreakerPenaltyMinutes": zod.number().optional().describe('NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week')
 })
 
 
@@ -1071,7 +1073,7 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "startTime": zod.string(),
   "status": zod.string(),
   "group": zod.string().nullish().describe('WC group label (e.g. \"Group A\"); null for knockout or non-WC sports'),
-  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
+  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on today\'s slate for MLB pools, or the last game of the final day of the week for NHL weekly pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
   "awayTeam": zod.object({
   "id": zod.string(),
   "abbreviation": zod.string(),
@@ -1104,10 +1106,15 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
   "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
   "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)'),
+  "tiebreakerShotsOnGoalGuess": zod.number().nullish().describe('Player\'s tiebreaker shots on goal guess (NHL weekly pools only)'),
+  "tiebreakerPenaltyMinutesGuess": zod.number().nullish().describe('Player\'s tiebreaker penalty minutes guess (NHL weekly pools only)'),
+  "tiebreakerNhlDiff": zod.number().nullish().describe('Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)'),
   "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 })),
   "tiebreakerActualRuns": zod.number().nullish().describe('Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)'),
-  "tiebreakerActualStrikeouts": zod.number().nullish().describe('Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)')
+  "tiebreakerActualStrikeouts": zod.number().nullish().describe('Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)'),
+  "tiebreakerActualShotsOnGoal": zod.number().nullish().describe('Combined shots on goal in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)'),
+  "tiebreakerActualPenaltyMinutes": zod.number().nullish().describe('Combined penalty minutes in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)')
 })
 
 
@@ -1268,6 +1275,9 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "tiebreakerRunsGuess": zod.number().nullish().describe('Player\'s tiebreaker runs guess (MLB pools only)'),
   "tiebreakerStrikeoutsGuess": zod.number().nullish().describe('Player\'s tiebreaker strikeouts guess (MLB pools only)'),
   "tiebreakerRunsDiff": zod.number().nullish().describe('Absolute difference between runs guess and actual (null if no actual yet)'),
+  "tiebreakerShotsOnGoalGuess": zod.number().nullish().describe('Player\'s tiebreaker shots on goal guess (NHL weekly pools only)'),
+  "tiebreakerPenaltyMinutesGuess": zod.number().nullish().describe('Player\'s tiebreaker penalty minutes guess (NHL weekly pools only)'),
+  "tiebreakerNhlDiff": zod.number().nullish().describe('Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)'),
   "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 }))
 })

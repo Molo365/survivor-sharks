@@ -10,6 +10,7 @@ import {
   formatDateEt,
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
+import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import {
   fetchWcSchedule,
   WC_PHASES,
@@ -92,7 +93,10 @@ router.get("/games", requireAuth, async (req, res) => {
       startTime: g.date,
       status: g.status,
       deadlinePassed: locked,
-      isTiebreakerGame: sport === "mlb" && !is3way && idx === games.length - 1,
+      isTiebreakerGame: !is3way && (
+        (sport === "mlb" && idx === games.length - 1) ||
+        (sport === "nhl" && pool.pickFrequency === "weekly" && requestedDate === getWeekBoundsEt(requestedDate).weekEnd && idx === games.length - 1)
+      ),
       awayTeam: {
         id: g.awayTeam.id,
         name: g.awayTeam.displayName,
@@ -250,10 +254,12 @@ router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { picks, tiebreakerRuns, tiebreakerStrikeouts } = req.body as {
+  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
     tiebreakerRuns?: number;
     tiebreakerStrikeouts?: number;
+    tiebreakerShotsOnGoal?: number;
+    tiebreakerPenaltyMinutes?: number;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -365,6 +371,15 @@ router.post("/picks", requireAuth, async (req, res) => {
     await db
       .update(entriesTable)
       .set({ tiebreakerRuns, tiebreakerStrikeouts })
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
+  }
+
+  // For NHL weekly pools: save tiebreaker guesses onto the entry row when provided
+  const isNhl = sport === "nhl";
+  if (isNhl && pool.pickFrequency === "weekly" && typeof tiebreakerShotsOnGoal === "number" && typeof tiebreakerPenaltyMinutes === "number") {
+    await db
+      .update(entriesTable)
+      .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes })
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
@@ -833,8 +848,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
 
   const isMlb = sport === "mlb";
+  const isNhl = sport === "nhl";
 
-  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries] = await Promise.all([
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -880,6 +896,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           .from(entriesTable)
           .where(eq(entriesTable.poolId, poolId))
       : Promise.resolve(null as null),
+    // For NHL weekly pools: fetch tiebreaker guesses stored on entries
+    isNhl
+      ? db
+          .select({
+            userId: entriesTable.userId,
+            tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal,
+            tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes,
+          })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve(null as null),
   ]);
 
   if (!isWc) {
@@ -910,6 +937,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  // Build tiebreaker guess map for NHL weekly pools
+  const nhlTiebreakerByUser = new Map<number, { tiebreakerShotsOnGoal: number | null; tiebreakerPenaltyMinutes: number | null }>();
+  if (poolEntriesNhl) {
+    for (const entry of poolEntriesNhl) {
+      nhlTiebreakerByUser.set(entry.userId, {
+        tiebreakerShotsOnGoal: entry.tiebreakerShotsOnGoal ?? null,
+        tiebreakerPenaltyMinutes: entry.tiebreakerPenaltyMinutes ?? null,
+      });
+    }
+  }
+
   // For MLB pools: compute actualRuns and actualStrikeouts from the tiebreaker game only —
   // the last game on the slate by start time (matching the frontend's isTiebreakerGame tag).
   // Mirrors NFL Confidence's pattern of isolating a single tiebreakerGame.
@@ -921,6 +959,19 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       tiebreakerActualRuns = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
       // Fetch strikeouts from MLB Stats API for this game only; returns null on any failure
       tiebreakerActualStrikeouts = await fetchDailyStrikeouts([tiebreakerGame], todayEt);
+    }
+  }
+
+  // For NHL weekly pools: compute actualShotsOnGoal and actualPenaltyMinutes from the last
+  // game on today's slate — only applicable on Sunday (the final day of the week).
+  let tiebreakerActualShotsOnGoal: number | null = null;
+  let tiebreakerActualPenaltyMinutes: number | null = null;
+  if (isNhl && isWeekly && espnGames.length > 0 && weekBounds && todayEt === weekBounds.weekEnd) {
+    const tiebreakerGame = espnGames[espnGames.length - 1];
+    if (tiebreakerGame.isCompleted) {
+      const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
+      tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
+      tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
     }
   }
 
@@ -938,6 +989,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     const runsDiff =
       isMlb && tiebreakerActualRuns != null && runsGuess != null
         ? Math.abs(runsGuess - tiebreakerActualRuns)
+        : null;
+    const nhlTb = nhlTiebreakerByUser.get(row.userId);
+    const shotsGuess = nhlTb?.tiebreakerShotsOnGoal ?? null;
+    const pimGuess = nhlTb?.tiebreakerPenaltyMinutes ?? null;
+    const nhlDiff =
+      isNhl &&
+      tiebreakerActualShotsOnGoal != null &&
+      tiebreakerActualPenaltyMinutes != null &&
+      shotsGuess != null &&
+      pimGuess != null
+        ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes)
         : null;
     return {
       rank: i + 1,
@@ -957,6 +1019,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? shotsGuess : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? pimGuess : undefined,
+      tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
     };
   });
 
@@ -980,7 +1045,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         startTime: g.date,
         status: g.status,
         group: null as string | null,
-        isTiebreakerGame: isMlb && idx === espnGames.length - 1,
+        isTiebreakerGame: (isMlb && idx === espnGames.length - 1) || (isNhl && isWeekly && weekBounds != null && todayEt === weekBounds.weekEnd && idx === espnGames.length - 1),
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
         homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
       }));
@@ -1008,6 +1073,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     completedGames,
     tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
+    tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
+    tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
   });
 });
 

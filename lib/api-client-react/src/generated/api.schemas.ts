@@ -801,7 +801,7 @@ export interface PickEmGame {
   startTime: string;
   status: PickEmGameStatus;
   deadlinePassed: boolean;
-  /** True for the last game on the slate for MLB daily/weekly pools — the designated tiebreaker reference game; absent for WC/intl pools */
+  /** True for the last game on the slate for MLB daily/weekly pools, or the last game of the final day of the week for NHL weekly pools — the designated tiebreaker reference game; absent for WC/intl pools */
   isTiebreakerGame?: boolean;
   awayTeam: PickEmTeam;
   homeTeam: PickEmTeam;
@@ -955,10 +955,14 @@ export interface WcSchedule {
 
 export interface PickEmPickInput {
   picks: PickEmPickItem[];
-  /** MLB tiebreaker — combined runs scored guess (all games on today's slate) */
+  /** MLB tiebreaker — combined runs scored guess for the tiebreaker game (last game on the slate) */
   tiebreakerRuns?: number;
-  /** MLB tiebreaker — total strikeouts guess (all games on today's slate) */
+  /** MLB tiebreaker — total strikeouts guess for the tiebreaker game (last game on the slate) */
   tiebreakerStrikeouts?: number;
+  /** NHL weekly tiebreaker — combined shots on goal guess for the last game of the week */
+  tiebreakerShotsOnGoal?: number;
+  /** NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week */
+  tiebreakerPenaltyMinutes?: number;
 }
 
 export interface PickEmPicksResult {
@@ -982,7 +986,7 @@ export interface PickEmLeaderboardGame {
      * @nullable
      */
   group?: string | null;
-  /** True for the last game on the slate for MLB pools — the designated tiebreaker reference game; absent for WC/intl pools */
+  /** True for the last game on today's slate for MLB pools, or the last game of the final day of the week for NHL weekly pools — the designated tiebreaker reference game; absent for WC/intl pools */
   isTiebreakerGame?: boolean;
   awayTeam: PickEmLeaderboardTeam;
   homeTeam: PickEmLeaderboardTeam;
@@ -1074,6 +1078,21 @@ export interface PickEmLeaderboardEntry {
      */
   tiebreakerRunsDiff?: number | null;
   /**
+     * Player's tiebreaker shots on goal guess (NHL weekly pools only)
+     * @nullable
+     */
+  tiebreakerShotsOnGoalGuess?: number | null;
+  /**
+     * Player's tiebreaker penalty minutes guess (NHL weekly pools only)
+     * @nullable
+     */
+  tiebreakerPenaltyMinutesGuess?: number | null;
+  /**
+     * Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)
+     * @nullable
+     */
+  tiebreakerNhlDiff?: number | null;
+  /**
      * Prize amount won; populated on winning entries once the period is fully graded; null otherwise
      * @nullable
      */
@@ -1122,6 +1141,16 @@ export interface PickEmLeaderboard {
      * @nullable
      */
   tiebreakerActualStrikeouts?: number | null;
+  /**
+     * Combined shots on goal in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)
+     * @nullable
+     */
+  tiebreakerActualShotsOnGoal?: number | null;
+  /**
+     * Combined penalty minutes in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)
+     * @nullable
+     */
+  tiebreakerActualPenaltyMinutes?: number | null;
 }
 
 export type PickEmDailyResultsGameAwayTeam = {

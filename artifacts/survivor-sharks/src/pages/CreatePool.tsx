@@ -63,7 +63,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem"],
   [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
-  [PoolInputSport.nhl]: ["season", "weekly"],
+  [PoolInputSport.nhl]: ["season", "pickem"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
 };
 
@@ -237,10 +237,10 @@ export default function CreatePool() {
     }
   }, [selectedSport]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When pool type switches to pickem, default frequency to daily
+  // When pool type switches to pickem, default frequency: weekly for NHL, daily for everything else
   useEffect(() => {
     if (selectedType === "pickem" && selectedSport !== PoolInputSport.worldcup) {
-      form.setValue("pickFrequency", "daily");
+      form.setValue("pickFrequency", selectedSport === PoolInputSport.nhl ? "weekly" : "daily");
     }
   }, [selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -448,10 +448,10 @@ export default function CreatePool() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                     <span className={cn("font-bebas text-xl tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
-                                      {type.label}
+                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL Pick-Ems" : type.label}
                                     </span>
-                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5", type.badgeClass)}>
-                                      {type.badge}
+                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5", type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "bg-sky-500/20 text-sky-300 border-sky-500/30" : type.badgeClass)}>
+                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL" : type.badge}
                                     </span>
                                   </div>
                                   <p className={cn(
@@ -459,8 +459,8 @@ export default function CreatePool() {
                                     isSelected
                                       ? type.id === "season" ? "text-amber-400/80" : "text-primary/70"
                                       : "text-muted-foreground/50",
-                                  )}>{type.tagline}</p>
-                                  <p className="text-sm text-muted-foreground leading-snug">{type.description}</p>
+                                  )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week" : type.tagline}</p>
+                                  <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — most correct by Sunday wins the prize pot. Tiebreaker on the last game of the week." : type.description}</p>
                                 </div>
                                 <div className={cn(
                                   "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",

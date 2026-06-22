@@ -2,38 +2,61 @@ interface TiedPickEmPlayer {
   userId: number;
   username: string;
   displayName: string | null;
-  tiebreakerRunsGuess: number | null;
-  tiebreakerStrikeoutsGuess: number | null;
-  tiebreakerRunsDiff: number | null;
+  tiebreakerRunsGuess?: number | null;
+  tiebreakerStrikeoutsGuess?: number | null;
+  tiebreakerRunsDiff?: number | null;
+  tiebreakerShotsOnGoalGuess?: number | null;
+  tiebreakerPenaltyMinutesGuess?: number | null;
+  tiebreakerNhlDiff?: number | null;
 }
 
 interface PickEmTiebreakerCardProps {
-  actualRuns: number | null;
-  actualStrikeouts: number | null;
+  sport?: "mlb" | "nhl";
+  actualRuns?: number | null;
+  actualStrikeouts?: number | null;
+  actualShotsOnGoal?: number | null;
+  actualPenaltyMinutes?: number | null;
   tiedPlayers: TiedPickEmPlayer[];
 }
 
-export function PickEmTiebreakerCard({ actualRuns, actualStrikeouts, tiedPlayers }: PickEmTiebreakerCardProps) {
+export function PickEmTiebreakerCard({
+  sport = "mlb",
+  actualRuns,
+  actualStrikeouts,
+  actualShotsOnGoal,
+  actualPenaltyMinutes,
+  tiedPlayers,
+}: PickEmTiebreakerCardProps) {
   const hasTie = tiedPlayers.length >= 2;
-
-  const strikeoutDiff = (guess: number | null) =>
-    actualStrikeouts != null && guess != null
-      ? Math.abs(guess - actualStrikeouts)
-      : null;
+  const isNhl = sport === "nhl";
 
   return (
     <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
       <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Tiebreaker</p>
-      <div className="flex gap-6">
-        <div>
-          <p className="text-[10px] text-muted-foreground/60">Runs scored (tiebreaker game)</p>
-          <p className="font-bebas text-xl text-yellow-300">{actualRuns ?? "—"}</p>
+
+      {isNhl ? (
+        <div className="flex gap-6">
+          <div>
+            <p className="text-[10px] text-muted-foreground/60">Shots on goal (tiebreaker game)</p>
+            <p className="font-bebas text-xl text-yellow-300">{actualShotsOnGoal ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground/60">Penalty minutes (tiebreaker game)</p>
+            <p className="font-bebas text-xl text-yellow-300">{actualPenaltyMinutes ?? "—"}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground/60">Strikeouts (tiebreaker game)</p>
-          <p className="font-bebas text-xl text-yellow-300">{actualStrikeouts ?? "—"}</p>
+      ) : (
+        <div className="flex gap-6">
+          <div>
+            <p className="text-[10px] text-muted-foreground/60">Runs scored (tiebreaker game)</p>
+            <p className="font-bebas text-xl text-yellow-300">{actualRuns ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground/60">Strikeouts (tiebreaker game)</p>
+            <p className="font-bebas text-xl text-yellow-300">{actualStrikeouts ?? "—"}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {hasTie && (
         <div className="pt-2 border-t border-yellow-500/20 space-y-1.5 mt-2">
@@ -45,20 +68,38 @@ export function PickEmTiebreakerCard({ actualRuns, actualStrikeouts, tiedPlayers
               <span className="flex-1 truncate font-medium text-foreground/80">
                 {p.displayName ?? p.username}
               </span>
-              <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                <span className="text-muted-foreground/40">Runs </span>
-                <span className="text-foreground/80">{p.tiebreakerRunsGuess ?? "—"}</span>
-                {p.tiebreakerRunsDiff != null && (
-                  <span className="text-yellow-400/70"> (Δ{p.tiebreakerRunsDiff})</span>
-                )}
-              </span>
-              <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                <span className="text-muted-foreground/40">K </span>
-                <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
-                {strikeoutDiff(p.tiebreakerStrikeoutsGuess) != null && (
-                  <span className="text-yellow-400/70"> (Δ{strikeoutDiff(p.tiebreakerStrikeoutsGuess)})</span>
-                )}
-              </span>
+              {isNhl ? (
+                <>
+                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                    <span className="text-muted-foreground/40">SOG </span>
+                    <span className="text-foreground/80">{p.tiebreakerShotsOnGoalGuess ?? "—"}</span>
+                  </span>
+                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                    <span className="text-muted-foreground/40">PIM </span>
+                    <span className="text-foreground/80">{p.tiebreakerPenaltyMinutesGuess ?? "—"}</span>
+                    {p.tiebreakerNhlDiff != null && (
+                      <span className="text-yellow-400/70"> (Δ{p.tiebreakerNhlDiff})</span>
+                    )}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                    <span className="text-muted-foreground/40">Runs </span>
+                    <span className="text-foreground/80">{p.tiebreakerRunsGuess ?? "—"}</span>
+                    {p.tiebreakerRunsDiff != null && (
+                      <span className="text-yellow-400/70"> (Δ{p.tiebreakerRunsDiff})</span>
+                    )}
+                  </span>
+                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                    <span className="text-muted-foreground/40">K </span>
+                    <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
+                    {actualStrikeouts != null && p.tiebreakerStrikeoutsGuess != null && (
+                      <span className="text-yellow-400/70"> (Δ{Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
           ))}
         </div>

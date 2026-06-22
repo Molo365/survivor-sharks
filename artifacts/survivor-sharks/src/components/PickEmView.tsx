@@ -1860,6 +1860,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
   const isWeekly = pickFrequency === "weekly" && !is3way;
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
   const isMlb = sport === "mlb" && !is3way;
+  const isNhl = sport === "nhl" && !is3way;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -1900,10 +1901,14 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
-  // Tiebreaker dialog state
+  // Tiebreaker dialog state — MLB
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [tbRuns, setTbRuns] = useState("");
   const [tbStrikeouts, setTbStrikeouts] = useState("");
+  // Tiebreaker dialog state — NHL
+  const [showNhlTiebreaker, setShowNhlTiebreaker] = useState(false);
+  const [tbShots, setTbShots] = useState("");
+  const [tbPim, setTbPim] = useState("");
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
 
   const {
@@ -1928,8 +1933,8 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
 
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
-  const isLastDayOfWeek = isMlb && isWeekly && isToday && weekSunday === todayEt;
-  const needsTiebreaker = isMlb && isToday && (!isWeekly || isLastDayOfWeek);
+  const isLastDayOfWeek = (isMlb || isNhl) && isWeekly && isToday && weekSunday === todayEt;
+  const needsTiebreaker = (isMlb || isNhl) && isToday && (!isWeekly || isLastDayOfWeek);
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -1985,12 +1990,18 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       return;
     }
 
-    // MLB pools: intercept submit to collect tiebreaker guesses first
+    // MLB/NHL pools: intercept submit to collect tiebreaker guesses first
     if (needsTiebreaker) {
       pendingPicksRef.current = picks;
-      setTbRuns("");
-      setTbStrikeouts("");
-      setShowTiebreaker(true);
+      if (isNhl) {
+        setTbShots("");
+        setTbPim("");
+        setShowNhlTiebreaker(true);
+      } else {
+        setTbRuns("");
+        setTbStrikeouts("");
+        setShowTiebreaker(true);
+      }
       return;
     }
 
@@ -2001,6 +2012,8 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     tiebreakerRuns?: number,
     tiebreakerStrikeouts?: number,
+    tiebreakerShotsOnGoal?: number,
+    tiebreakerPenaltyMinutes?: number,
   ) {
     submitPicks.mutate(
       {
@@ -2009,6 +2022,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           picks,
           ...(tiebreakerRuns !== undefined && tiebreakerStrikeouts !== undefined
             ? { tiebreakerRuns, tiebreakerStrikeouts }
+            : {}),
+          ...(tiebreakerShotsOnGoal !== undefined && tiebreakerPenaltyMinutes !== undefined
+            ? { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes }
             : {}),
         },
       },
@@ -2152,6 +2168,83 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
       </DialogContent>
     </Dialog>
 
+    {/* NHL Tiebreaker Dialog */}
+    <Dialog open={showNhlTiebreaker} onOpenChange={(open) => { if (!open) setShowNhlTiebreaker(false); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Shuffle className="w-5 h-5 text-yellow-400" />
+            Tiebreaker Guess
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground leading-snug">
+            It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner.
+            <br />
+            Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest combined error wins.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Shots on Goal — Tiebreaker Game
+            </label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 58"
+              value={tbShots}
+              onChange={(e) => setTbShots(e.target.value)}
+              className="text-lg font-mono h-12"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Penalty Minutes — Tiebreaker Game
+            </label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 12"
+              value={tbPim}
+              onChange={(e) => setTbPim(e.target.value)}
+              className="text-lg font-mono h-12"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const shots = parseInt(tbShots, 10);
+                  const pim = parseInt(tbPim, 10);
+                  if (!isNaN(shots) && shots >= 0 && !isNaN(pim) && pim >= 0) {
+                    setShowNhlTiebreaker(false);
+                    doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots, pim);
+                  }
+                }
+              }}
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex flex-row gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowNhlTiebreaker(false)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 font-bebas text-xl tracking-widest"
+            onClick={() => {
+              const shots = parseInt(tbShots, 10);
+              const pim = parseInt(tbPim, 10);
+              if (isNaN(shots) || shots < 0 || isNaN(pim) || pim < 0) {
+                toast({ variant: "destructive", title: "Enter valid guesses", description: "Both fields are required and must be ≥ 0." });
+                return;
+              }
+              setShowNhlTiebreaker(false);
+              doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots, pim);
+            }}
+          >
+            Submit Picks
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
         <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -2229,7 +2322,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                     {is3way
                       ? "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                       : pickFrequency === "weekly"
-                      ? "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"
+                      ? (isNhl
+                          ? "Pick the winner of every NHL game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🦈🏒"
+                          : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
                       : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
                   </p>
                 </div>
@@ -2261,7 +2356,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
           ) : (
             <div className="space-y-6">
 
-              {/* Tiebreaker banner — MLB Week, last day (Sunday) only */}
+              {/* Tiebreaker banner — MLB/NHL Weekly, last day (Sunday) only */}
               {isLastDayOfWeek && !slateLocked && (
                 <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
                   <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
@@ -2270,7 +2365,9 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       Final day of the week — tiebreaker required
                     </p>
                     <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
-                      When you submit today you'll be asked to guess combined runs scored + total strikeouts. The last game on today's slate is the tiebreaker reference game.
+                      {isNhl
+                        ? "When you submit today you'll be asked to guess combined shots on goal + penalty minutes. The last game on today's slate is the tiebreaker reference game."
+                        : "When you submit today you'll be asked to guess combined runs scored + total strikeouts. The last game on today's slate is the tiebreaker reference game."}
                     </p>
                   </div>
                 </div>
@@ -2490,6 +2587,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
               />
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard
+                  sport="mlb"
                   actualRuns={leaderboard.tiebreakerActualRuns ?? null}
                   actualStrikeouts={leaderboard.tiebreakerActualStrikeouts ?? null}
                   tiedPlayers={leaderboard.entries
@@ -2501,6 +2599,23 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                       tiebreakerRunsGuess: e.tiebreakerRunsGuess ?? null,
                       tiebreakerStrikeoutsGuess: e.tiebreakerStrikeoutsGuess ?? null,
                       tiebreakerRunsDiff: e.tiebreakerRunsDiff ?? null,
+                    }))}
+                />
+              )}
+              {isNhl && leaderboard.entries.some((e) => e.tiebreakerShotsOnGoalGuess != null) && (
+                <PickEmTiebreakerCard
+                  sport="nhl"
+                  actualShotsOnGoal={leaderboard.tiebreakerActualShotsOnGoal ?? null}
+                  actualPenaltyMinutes={leaderboard.tiebreakerActualPenaltyMinutes ?? null}
+                  tiedPlayers={leaderboard.entries
+                    .filter((e) => e.tiebreakerShotsOnGoalGuess != null || e.tiebreakerPenaltyMinutesGuess != null)
+                    .map((e) => ({
+                      userId: e.userId,
+                      username: e.username,
+                      displayName: e.displayName ?? null,
+                      tiebreakerShotsOnGoalGuess: e.tiebreakerShotsOnGoalGuess ?? null,
+                      tiebreakerPenaltyMinutesGuess: e.tiebreakerPenaltyMinutesGuess ?? null,
+                      tiebreakerNhlDiff: e.tiebreakerNhlDiff ?? null,
                     }))}
                 />
               )}
