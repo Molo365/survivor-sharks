@@ -77,14 +77,15 @@ function FormDots({ form, side }: { form?: string[]; side: "away" | "home" }) {
   );
 }
 
-function PitcherLine({ pitcher, side }: { pitcher: GamePitcher; side: "away" | "home" }) {
+function PitcherLine({ pitcher, side, sport }: { pitcher: GamePitcher; side: "away" | "home"; sport: Sport }) {
   const stats = [
     pitcher.era ? `${pitcher.era} ERA` : null,
     pitcher.wins != null && pitcher.losses != null ? `${pitcher.wins}-${pitcher.losses}` : null,
   ].filter(Boolean).join(" · ");
+  const label = sport === "nhl" ? "G: " : "SP: ";
   return (
     <p className={cn("mt-1.5 text-[11px] leading-tight truncate", side === "home" && "text-right")}>
-      <span className="text-muted-foreground/45 font-medium">SP: </span>
+      <span className="text-muted-foreground/45 font-medium">{label}</span>
       <span className="text-foreground/85 font-semibold">{pitcher.name}</span>
       {stats && <span className="text-muted-foreground/55 font-mono"> {stats}</span>}
     </p>
@@ -108,6 +109,7 @@ function TeamSide({
   onClick,
   side,
   variant,
+  sport,
 }: {
   team: Team;
   record: string | null;
@@ -123,6 +125,7 @@ function TeamSide({
   onClick: () => void;
   side: "away" | "home";
   variant: GameVariant;
+  sport: Sport;
 }) {
   const unpickable = isUsed || isLocked;
   const isFavorite = moneyline != null && moneyline < 0;
@@ -231,7 +234,7 @@ function TeamSide({
       )}
       {pitcher && (
         <div className="hidden sm:block">
-          <PitcherLine pitcher={pitcher} side={side} />
+          <PitcherLine pitcher={pitcher} side={side} sport={sport} />
         </div>
       )}
 
@@ -506,6 +509,7 @@ function MatchupCard({
             onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
             side="away"
             variant={variant}
+            sport={sport}
           />
 
           {/* Centre divider */}
@@ -606,6 +610,7 @@ function MatchupCard({
             onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
             side="home"
             variant={variant}
+            sport={sport}
           />
         </div>
       </div>
