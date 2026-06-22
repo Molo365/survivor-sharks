@@ -85,7 +85,7 @@ function PitcherLine({ pitcher, side, sport }: { pitcher: GamePitcher; side: "aw
   const label = sport === "nhl" ? "G: " : "SP: ";
   return (
     <p className={cn("mt-1.5 text-[11px] leading-tight truncate", side === "home" && "text-right")}>
-      <span className="text-muted-foreground/45 font-medium">{label}</span>
+      <span className="text-muted-foreground/65 font-medium">{label}</span>
       <span className="text-foreground/85 font-semibold">{pitcher.name}</span>
       {stats && <span className="text-muted-foreground/55 font-mono"> {stats}</span>}
     </p>
@@ -110,6 +110,7 @@ function TeamSide({
   side,
   variant,
   sport,
+  pickResult,
 }: {
   team: Team;
   record: string | null;
@@ -126,6 +127,7 @@ function TeamSide({
   side: "away" | "home";
   variant: GameVariant;
   sport: Sport;
+  pickResult?: string | null;
 }) {
   const unpickable = isUsed || isLocked;
   const isFavorite = moneyline != null && moneyline < 0;
@@ -181,14 +183,17 @@ function TeamSide({
             />
           </div>
           {isCurrentPick && (
-            <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-0.5">
+            <div className={cn(
+              "absolute -bottom-1 -right-1 rounded-full p-0.5",
+              pickResult === "win" ? "bg-green-500" : pickResult === "loss" ? "bg-destructive" : "bg-primary"
+            )}>
               <Check className="w-2.5 h-2.5 text-white" />
             </div>
           )}
         </div>
         <div className={cn("flex-1 min-w-0", side === "home" && "text-right")}>
           <p className={cn(
-            "font-bebas tracking-wide leading-tight truncate text-xs sm:text-xl",
+            "font-bebas tracking-wide leading-tight truncate text-base sm:text-xl",
             variant === "final" ? "text-foreground/65" :
             isSelected ? "text-primary" : "text-foreground"
           )}>
@@ -198,7 +203,7 @@ function TeamSide({
           {record && (
             <p className={cn(
               "text-[10px] font-mono leading-tight hidden sm:block",
-              variant === "final" ? "text-muted-foreground/45" : "text-muted-foreground/70"
+              variant === "final" ? "text-muted-foreground/60" : "text-muted-foreground/70"
             )}>
               {record}
             </p>
@@ -208,9 +213,27 @@ function TeamSide({
 
       {/* Score — only show for final games; live scores are shown in centre divider */}
       {score != null && variant === "final" && (
-        <p className="font-bebas tracking-wide mt-1 text-xl sm:text-3xl text-foreground/55">
+        <p className={cn(
+          "font-bebas tracking-wide mt-1 text-xl sm:text-3xl",
+          isCurrentPick && pickResult === "win" ? "text-green-400" :
+          isCurrentPick && pickResult === "loss" ? "text-destructive/70" :
+          "text-foreground/55"
+        )}>
           {score}
         </p>
+      )}
+      {isCurrentPick && variant === "final" && (pickResult === "win" || pickResult === "loss") && (
+        <div className={cn("flex items-center gap-0.5 mt-0.5", side === "home" && "self-end")}>
+          {pickResult === "win" ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
+              <Check className="w-3 h-3" /> Correct
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80">
+              ✗ Wrong
+            </span>
+          )}
+        </div>
       )}
 
       {/* Moneyline */}
@@ -291,6 +314,7 @@ function MatchupCard({
   sport,
   pickedTeamIds,
   currentPickTeamId,
+  currentPickResult,
   selectedTeam,
   onSelect,
   deadlineLock = false,
@@ -299,6 +323,7 @@ function MatchupCard({
   sport: Sport;
   pickedTeamIds: string[];
   currentPickTeamId?: string;
+  currentPickResult?: string | null;
   selectedTeam: SelectedTeam | null;
   onSelect: (team: SelectedTeam) => void;
   deadlineLock?: boolean;
@@ -306,6 +331,13 @@ function MatchupCard({
   const isFinal = !!(game.status?.includes("FINAL") || game.status?.includes("final"));
   const isLive = game.hasStarted && !isFinal;
   const variant: GameVariant = isFinal ? "final" : isLive ? "live" : "upcoming";
+
+  // Derive whether the user's pick in this specific game was correct or wrong.
+  const currentPickInThisGame = currentPickTeamId != null && (
+    game.awayTeam.id === currentPickTeamId || game.homeTeam.id === currentPickTeamId
+  );
+  const isCorrect = currentPickInThisGame && variant === "final" && currentPickResult === "win";
+  const isWrong = currentPickInThisGame && variant === "final" && currentPickResult === "loss";
 
   // For MLB: lock state is deadline-based. For others: game-start-based.
   const isGameLocked = deadlineLock ? deadlineLock : game.hasStarted;
@@ -326,8 +358,12 @@ function MatchupCard({
       "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
     ],
     variant === "final" && [
-      "border-l-border/40 border-t border-r border-b border-border/25",
-      "bg-muted/8 opacity-80",
+      isCorrect
+        ? "border-l-green-500 border-t border-r border-b border-green-900/40 bg-green-950/10"
+        : isWrong
+          ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/10"
+          : "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8",
+      "opacity-80",
     ],
     variant === "upcoming" && [
       selectedInGame
@@ -357,7 +393,11 @@ function MatchupCard({
     variant === "live"
       ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/20 shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]"
       : variant === "final"
-        ? "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8 opacity-80"
+        ? isCorrect
+          ? "border-l-green-500 border-t border-r border-b border-green-900/40 bg-green-950/10 opacity-80"
+          : isWrong
+            ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/10 opacity-80"
+            : "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8 opacity-80"
         : selectedInGame
           ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
           : "border-l-primary/60 border-t border-r border-b border-border/50"
@@ -510,6 +550,7 @@ function MatchupCard({
             side="away"
             variant={variant}
             sport={sport}
+            pickResult={currentPickTeamId === game.awayTeam.id ? currentPickResult : null}
           />
 
           {/* Centre divider */}
@@ -611,6 +652,7 @@ function MatchupCard({
             side="home"
             variant={variant}
             sport={sport}
+            pickResult={currentPickTeamId === game.homeTeam.id ? currentPickResult : null}
           />
         </div>
       </div>
@@ -839,6 +881,7 @@ export function MatchupPickGrid({
                       sport={sport}
                       pickedTeamIds={pickedTeamIds}
                       currentPickTeamId={currentPick?.teamId}
+                      currentPickResult={currentPick?.result ?? null}
                       selectedTeam={mlbPickIsLocked ? null : selectedTeam}
                       onSelect={(team) => {
                         if (!mlbPickIsLocked) {
@@ -969,6 +1012,7 @@ export function MatchupPickGrid({
               sport={sport}
               pickedTeamIds={exhaustedTeamIds}
               currentPickTeamId={currentPick?.teamId}
+              currentPickResult={currentPick?.result ?? null}
               selectedTeam={pickIsLocked ? null : selectedTeam}
               onSelect={(team) => {
                 if (!pickIsLocked) setSelectedTeam(prev => prev?.id === team.id ? null : team);
