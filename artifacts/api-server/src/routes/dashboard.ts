@@ -446,9 +446,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           ),
       ]);
 
-      const hasGradedPrev = prevRows.some((r) => Number(r.graded) > 0);
+      const allGradedPrev = prevRows.length > 0 && prevRows.every((r) => Number(r.graded) === Number(r.picked));
       const topCorrect = prevRows.length > 0 ? Number(prevRows[0].correct) : 0;
-      const tiedPrevRows = hasGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
+      const tiedPrevRows = allGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
       const lastWinners =
         tiedPrevRows.length > 0
           ? tiedPrevRows.map(r => ({
