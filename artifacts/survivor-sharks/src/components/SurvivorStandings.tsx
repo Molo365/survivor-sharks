@@ -31,6 +31,7 @@ type LeaderboardEntry = {
 
 export function SurvivorStandings({ poolId }: { poolId: number }) {
   const { user } = useAuth();
+  const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
     query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
@@ -60,8 +61,6 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
   const coWinners = (leaderboard as any).coWinners as boolean ?? false;
   const coWinnerPrizeEach = (leaderboard as any).coWinnerPrizeEach as number | null ?? null;
   const voidedWeeks = (leaderboard as any).voidedWeeks as number[] ?? [];
-
-  const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
   // Alive: already sorted by weeksAlive DESC from server (rank order)
   // Eliminated: sort by eliminatedWeek DESC — most recently eliminated first
