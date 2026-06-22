@@ -438,6 +438,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         userId: entriesTable.userId,
         username: usersTable.username,
         displayName: usersTable.displayName,
+        finalWinner: entriesTable.finalWinner,
       })
       .from(entriesTable)
       .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -489,6 +490,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       totalScore,
       maxScore: MAX_SCORE,
       divisionScores,
+      finalWinner: member.finalWinner ?? false,
     };
   });
 
@@ -500,7 +502,19 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     return { ...entry, rank };
   });
 
-  res.json(ranked);
+  const winnerCount = ranked.filter((e) => e.finalWinner).length;
+  const prizePerWinner: number | null = (() => {
+    if (winnerCount === 0) return null;
+    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null | undefined;
+    if (ps && ps.length > 0) {
+      const total = ps.reduce((s, p) => s + p.amount, 0);
+      return winnerCount === 1 ? ps[0].amount : Math.floor(total / winnerCount);
+    }
+    if (pool.prizePot && pool.prizePot > 0) return Math.floor(pool.prizePot / winnerCount);
+    return null;
+  })();
+
+  res.json(ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })));
 });
 
 // POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random division orderings

@@ -1405,6 +1405,8 @@ export const GetGspLeaderboardResponseItem = zod.object({
   "totalScore": zod.number(),
   "maxScore": zod.number(),
   "rank": zod.number(),
+  "finalWinner": zod.boolean(),
+  "prizeWon": zod.number().nullish(),
   "groupScores": zod.array(zod.object({
   "groupName": zod.string(),
   "score": zod.number(),
@@ -1595,6 +1597,8 @@ export const GetNdpLeaderboardResponseItem = zod.object({
   "totalScore": zod.number(),
   "maxScore": zod.number(),
   "rank": zod.number(),
+  "finalWinner": zod.boolean(),
+  "prizeWon": zod.number().nullish(),
   "divisionScores": zod.array(zod.object({
   "divisionName": zod.string(),
   "score": zod.number(),

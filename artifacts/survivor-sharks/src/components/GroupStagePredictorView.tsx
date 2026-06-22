@@ -288,6 +288,12 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
                       {displayName}
                       {isMe && <span className="ml-1.5 text-xs text-primary/60 font-normal no-underline">(you)</span>}
                     </p>
+                    {entry.finalWinner && (
+                      <span className="inline-flex items-center gap-1 text-yellow-400 text-[10px] font-bold uppercase tracking-wide mt-0.5">
+                        <Trophy className="w-3 h-3 shrink-0" />
+                        Winner
+                      </span>
+                    )}
                     {/* Mini score bar */}
                     <div className="mt-1.5 h-1 w-full bg-muted/40 rounded-full overflow-hidden">
                       <div
@@ -311,6 +317,11 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
                     {groupsScored > 0 && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {groupsScored} group{groupsScored !== 1 ? "s" : ""} scored
+                      </p>
+                    )}
+                    {entry.prizeWon != null && (
+                      <p className="text-[11px] text-yellow-400 font-bold mt-0.5">
+                        ${entry.prizeWon.toLocaleString()}
                       </p>
                     )}
                   </div>

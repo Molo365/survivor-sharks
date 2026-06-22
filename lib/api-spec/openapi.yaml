@@ -3108,7 +3108,7 @@ components:
 
     GspLeaderboardEntry:
       type: object
-      required: [userId, username, totalScore, maxScore, rank, groupScores]
+      required: [userId, username, totalScore, maxScore, rank, finalWinner, groupScores]
       properties:
         userId:
           type: integer
@@ -3123,6 +3123,11 @@ components:
           type: integer
         rank:
           type: integer
+        finalWinner:
+          type: boolean
+        prizeWon:
+          type: integer
+          nullable: true
         groupScores:
           type: array
           items:
@@ -3263,7 +3268,7 @@ components:
 
     NdpLeaderboardEntry:
       type: object
-      required: [userId, username, displayName, totalScore, maxScore, rank, divisionScores]
+      required: [userId, username, displayName, totalScore, maxScore, rank, finalWinner, divisionScores]
       properties:
         userId:
           type: integer
@@ -3278,6 +3283,11 @@ components:
           type: integer
         rank:
           type: integer
+        finalWinner:
+          type: boolean
+        prizeWon:
+          type: integer
+          nullable: true
         divisionScores:
           type: array
           items:

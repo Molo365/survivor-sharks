@@ -1254,6 +1254,8 @@ export interface GspLeaderboardEntry {
   totalScore: number;
   maxScore: number;
   rank: number;
+  finalWinner: boolean;
+  prizeWon?: number | null;
   groupScores: GspLeaderboardEntryGroupScoresItem[];
 }
 
@@ -1330,6 +1332,8 @@ export interface NdpLeaderboardEntry {
   totalScore: number;
   maxScore: number;
   rank: number;
+  finalWinner: boolean;
+  prizeWon?: number | null;
   divisionScores: NdpLeaderboardEntryDivisionScoresItem[];
 }
 
