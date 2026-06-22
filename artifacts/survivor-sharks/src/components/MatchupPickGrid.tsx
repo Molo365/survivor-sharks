@@ -351,19 +351,20 @@ function MatchupCard({
   const hasWeather = isOutdoor && game.weather && game.weather.displayValue && game.weather.displayValue !== "none";
 
   const cardClass = cn(
-    "rounded-xl overflow-hidden transition-all border-l-4",
+    "rounded-xl overflow-hidden transition-all",
+    variant !== "final" && "border-l-4",
     variant === "live" && [
       "border-l-red-500 border-t border-r border-b border-red-900/40",
       "bg-red-950/20",
       "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
     ],
     variant === "final" && [
+      "border-2 opacity-80",
       isCorrect
-        ? "border-l-green-500 border-t border-r border-b border-green-900/40 bg-green-950/10"
+        ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
         : isWrong
-          ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/10"
-          : "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8",
-      "opacity-80",
+          ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+          : "border-border/40 bg-muted/8",
     ],
     variant === "upcoming" && [
       selectedInGame
@@ -389,18 +390,25 @@ function MatchupCard({
       : `https://a.espncdn.com/i/teamlogos/${game.homeTeam.sport}/500/${game.homeTeam.abbreviation.toLowerCase()}.png`);
 
   const mobileBorderClass = cn(
-    "sm:hidden rounded-xl overflow-hidden border-l-4 transition-all",
-    variant === "live"
-      ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/20 shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]"
-      : variant === "final"
-        ? isCorrect
-          ? "border-l-green-500 border-t border-r border-b border-green-900/40 bg-green-950/10 opacity-80"
-          : isWrong
-            ? "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/10 opacity-80"
-            : "border-l-border/40 border-t border-r border-b border-border/25 bg-muted/8 opacity-80"
-        : selectedInGame
-          ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
-          : "border-l-primary/60 border-t border-r border-b border-border/50"
+    "sm:hidden rounded-xl overflow-hidden transition-all",
+    variant !== "final" && "border-l-4",
+    variant === "live" && [
+      "border-l-red-500 border-t border-r border-b border-red-900/40 bg-red-950/20",
+      "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
+    ],
+    variant === "final" && [
+      "border-2 opacity-80",
+      isCorrect
+        ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
+        : isWrong
+          ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+          : "border-border/40 bg-muted/8",
+    ],
+    variant === "upcoming" && (
+      selectedInGame
+        ? "border-l-primary border-t border-r border-b border-primary/50 shadow-[0_0_22px_rgba(30,144,255,0.18),-4px_0_14px_rgba(30,144,255,0.22)]"
+        : "border-l-primary/60 border-t border-r border-b border-border/50"
+    ),
   );
 
   return (
