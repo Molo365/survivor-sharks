@@ -700,7 +700,8 @@ export async function processMlbDailyResults(): Promise<{
         }
       }
 
-      // Get pending picks for this date
+      // Get pending picks for this date — must match pool.currentWeek so a
+      // previously-closed day (week already advanced) is never re-processed.
       const pendingPicks = await db.select({
         id: picksTable.id,
         userId: picksTable.userId,
@@ -709,6 +710,7 @@ export async function processMlbDailyResults(): Promise<{
       }).from(picksTable)
         .where(and(
           eq(picksTable.poolId, pool.id),
+          eq(picksTable.week, pool.currentWeek),
           eq(picksTable.pickDate, dateEt),
           eq(picksTable.result, "pending"),
         ));
@@ -766,18 +768,21 @@ export async function processMlbDailyResults(): Promise<{
         .from(picksTable)
         .where(and(
           eq(picksTable.poolId, pool.id),
+          eq(picksTable.week, pool.currentWeek),
           eq(picksTable.pickDate, dateEt),
           eq(picksTable.result, "pending"),
         ))
         .limit(1);
       if (stillPending) continue;
 
-      // Guard: don't close a date where this pool had zero picks — the pool may not
-      // have been active on that date (e.g. yesterday check on a brand-new pool).
+      // Guard: don't close a date where this pool had zero picks for the current
+      // week slot — the pool may not have been active on that date (e.g. yesterday
+      // check on a brand-new pool), or the day has already been advanced.
       const [{ totalForDate }] = await db.select({ totalForDate: count() })
         .from(picksTable)
         .where(and(
           eq(picksTable.poolId, pool.id),
+          eq(picksTable.week, pool.currentWeek),
           eq(picksTable.pickDate, dateEt),
         ));
       if (Number(totalForDate) === 0) continue;

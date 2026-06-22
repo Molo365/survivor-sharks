@@ -183,8 +183,9 @@ router.post("/", requireAuth, async (req, res) => {
     prizeStructure: resolvedPrizeStructure,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
-    // isRecurring only meaningful for MLB daily; default true so existing pools keep auto-advancing
-    isRecurring: isRecurring === true,
+    // isRecurring only meaningful for MLB daily; default true (matching DB default)
+    // when the client does not send the field so new pools auto-advance by default.
+    isRecurring: typeof isRecurring === 'boolean' ? isRecurring : true,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
