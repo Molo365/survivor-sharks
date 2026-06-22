@@ -199,7 +199,8 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
             "font-bebas tracking-wide text-base sm:text-lg leading-tight",
             isPicked ? "text-foreground" : "text-muted-foreground",
           )}>
-            {team.name}
+            <span className="sm:hidden">{team.abbreviation}</span>
+            <span className="hidden sm:inline">{team.name}</span>
           </span>
           {(isFinal || isLive) && score != null && (
             <span className={cn(
@@ -216,15 +217,15 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
             <div className="flex items-center gap-1 mt-0.5">
               {isCorrect ? (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
-                  <Check className="w-3 h-3" /> Correct · My Pick
+                  <Check className="w-3 h-3" /> Correct<span className="hidden sm:inline"> · My Pick</span>
                 </span>
               ) : isWrong ? (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80 flex items-center gap-0.5">
-                  <X className="w-3 h-3" /> Wrong · My Pick
+                  <X className="w-3 h-3" /> Wrong<span className="hidden sm:inline"> · My Pick</span>
                 </span>
               ) : (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400/70 flex items-center gap-0.5">
-                  <Check className="w-3 h-3" /> My Pick
+                  <Check className="w-3 h-3" /><span className="hidden sm:inline"> My Pick</span>
                 </span>
               )}
             </div>
@@ -237,7 +238,7 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
   return (
     <div className="flex items-center gap-2 sm:gap-3">
       <div className={cn(
-        "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
+        "shrink-0 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-lg sm:text-xl md:text-2xl border-2",
         pick.result === "correct"   ? "bg-green-500/15 border-green-500/40 text-green-300" :
         pick.result === "incorrect" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
                                       "bg-cyan-500/15 border-cyan-500/40 text-cyan-300",
@@ -422,7 +423,8 @@ function GameCard({
             "font-bebas text-base md:text-xl tracking-wide leading-none truncate transition-colors",
             isPicked ? "text-cyan-200" : "text-foreground",
           )}>
-            {team.name}
+            <span className="sm:hidden">{team.abbreviation}</span>
+            <span className="hidden sm:inline">{team.name}</span>
           </div>
           {(isFinal || isLive) && score != null ? (
             <div className={cn("font-bebas text-2xl leading-none", isPicked ? "text-cyan-300" : "text-foreground/70")}>
