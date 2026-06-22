@@ -107,7 +107,12 @@ router.get("/", requireAuth, async (req, res) => {
     })
     .map((e, i) => ({
       rank: i + 1,
-      prizeWon: prizeStructure?.find(p => p.place === i + 1)?.amount ?? null,
+      // Only surface prize amounts once the pool has actually resolved.
+      // While the pool is active, rank positions are interim — assigning prize
+      // values would show dollar badges to players who haven't won anything yet.
+      prizeWon: !pool.isActive
+        ? (prizeStructure?.find(p => p.place === i + 1)?.amount ?? null)
+        : null,
       ...e,
     }));
 
@@ -137,8 +142,7 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   // Override rank-based prizeWon with the actual split amount for co-champion pools.
-  // The rank-based assignment at line 110 runs before coWinners/coWinnerPrizeEach are
-  // computed, so we correct it here for all active entries.
+  // prizeWon is already null for active pools, so this only runs on ended pools.
   if (coWinners && coWinnerPrizeEach !== null) {
     for (const entry of active) {
       entry.prizeWon = coWinnerPrizeEach;

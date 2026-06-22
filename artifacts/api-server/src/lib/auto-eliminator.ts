@@ -331,8 +331,10 @@ export async function processCompletedGames(): Promise<{
       teamId: picksTable.teamId,
       teamName: picksTable.teamName,
       week: picksTable.week,
+      sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       entryId: entriesTable.id,
+      strikeCount: entriesTable.strikeCount,
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
@@ -362,6 +364,28 @@ export async function processCompletedGames(): Promise<{
     );
 
   for (const row of missedRows) {
+    // NHL Survivor Season uses 3 lives (maxStrikes = 2 warning strikes).
+    // Pass 2 must not eliminate a player who still has lives remaining — Pass 1
+    // is responsible for incrementing strikeCount on warning strikes. If we
+    // incremented here too, we would double-count for any pick Pass 1 already
+    // handled. The safe rule: skip NHL Season players below the strike cap and
+    // only eliminate those whose strikes are exhausted.
+    const maxStrikes = (row.sport === "nhl" && row.poolType === "season") ? 2 : 0;
+
+    if (maxStrikes > 0 && row.strikeCount < maxStrikes) {
+      logger.info(
+        {
+          poolId: row.poolId,
+          userId: row.userId,
+          week: row.week,
+          strikeCount: row.strikeCount,
+          maxStrikes,
+        },
+        "Auto-eliminator pass 2: NHL Season player has remaining lives — skipping (Pass 1 owns warning-strike increment)",
+      );
+      continue;
+    }
+
     logger.warn(
       {
         poolId: row.poolId,
@@ -369,7 +393,9 @@ export async function processCompletedGames(): Promise<{
         teamId: row.teamId,
         teamName: row.teamName,
         week: row.week,
+        sport: row.sport,
         poolType: row.poolType,
+        strikeCount: row.strikeCount,
       },
       "Auto-eliminator pass 2: found loss pick with alive entry — correcting",
     );
