@@ -121,6 +121,51 @@ router.get("/", requireAuth, async (req, res) => {
     .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
     .map((e, i) => ({ rank: active.length + i + 1, prizeWon: null as number | null, ...e }));
 
+  // ── NHL Survivor Season: re-rank eliminated players with SOV tiebreaker and assign prize tiers ──
+  // Scoped strictly to pool.sport === "nhl" && pool.poolType === "season".
+  // results.ts, picks.ts, and the active-winner prize assignment above are untouched.
+  if (!pool.isActive && pool.sport === "nhl" && pool.poolType === "season") {
+    // 1. Re-sort: eliminatedWeek DESC primary, sovTotal DESC secondary
+    eliminated.sort((a, b) => {
+      const weekDiff = (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0);
+      if (weekDiff !== 0) return weekDiff;
+      return (b.sovTotal ?? 0) - (a.sovTotal ?? 0);
+    });
+    // 2. Re-number ranks to reflect the new order
+    eliminated.forEach((e, i) => { e.rank = active.length + i + 1; });
+
+    // 3. Walk in tied groups and assign remaining prize tiers
+    if (prizeStructure && prizeStructure.length > 0) {
+      let pos = 0;
+      while (pos < eliminated.length) {
+        const thisWeek = eliminated[pos].eliminatedWeek;
+        const thisSov  = eliminated[pos].sovTotal; // null === null is true in JS
+
+        // Extend group while both eliminatedWeek AND sovTotal match (genuine tie)
+        let end = pos + 1;
+        while (
+          end < eliminated.length &&
+          eliminated[end].eliminatedWeek === thisWeek &&
+          eliminated[end].sovTotal        === thisSov
+        ) { end++; }
+
+        const groupSize  = end - pos;
+        const placeIndex = active.length + pos; // 0-based index into prizeStructure
+        const tiers      = prizeStructure.slice(placeIndex, placeIndex + groupSize);
+
+        if (tiers.length > 0) {
+          const total     = tiers.reduce((s, t) => s + t.amount, 0);
+          const shareEach = total > 0 ? Math.floor(total / groupSize) : 0;
+          if (shareEach > 0) {
+            for (let g = pos; g < end; g++) eliminated[g].prizeWon = shareEach;
+          }
+        }
+
+        pos = end;
+      }
+    }
+  }
+
   // ── Derived flags ─────────────────────────────────────────────────────────
   // sovTiebreaker: SOV was used to break a Week 18 multi-survivor tie
   const sovTiebreaker =
