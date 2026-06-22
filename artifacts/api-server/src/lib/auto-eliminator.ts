@@ -19,7 +19,7 @@
 
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count, or, isNull } from "drizzle-orm";
+import { eq, and, ne, inArray, count, or, isNull, max } from "drizzle-orm";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -323,6 +323,24 @@ export async function processCompletedGames(): Promise<{
   // Excludes MLB pools — they use weekly batch processing instead.
   // Excludes picks from voided weeks — void intentionally keeps entries alive;
   // eliminating them here would undo the void rule.
+  //
+  // Query anchors each player to their MOST RECENT graded (non-pending) pick
+  // via the latestGradedPickSq subquery. This ensures:
+  //   a) Each player appears at most once — no duplicate processing of old picks.
+  //   b) A player whose latest result is a WIN never enters the candidate set
+  //      at all (the WHERE clause requires result = "loss"), so no extra logic
+  //      is needed for the "won after capping strikes" case.
+
+  const latestGradedPickSq = db
+    .select({
+      poolId: picksTable.poolId,
+      userId: picksTable.userId,
+      maxWeek: max(picksTable.week),
+    })
+    .from(picksTable)
+    .where(ne(picksTable.result, "pending"))
+    .groupBy(picksTable.poolId, picksTable.userId)
+    .as("lgp");
 
   const missedRows = await db
     .select({
@@ -337,6 +355,14 @@ export async function processCompletedGames(): Promise<{
       strikeCount: entriesTable.strikeCount,
     })
     .from(picksTable)
+    .innerJoin(
+      latestGradedPickSq,
+      and(
+        eq(latestGradedPickSq.poolId, picksTable.poolId),
+        eq(latestGradedPickSq.userId, picksTable.userId),
+        eq(latestGradedPickSq.maxWeek, picksTable.week),
+      ),
+    )
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
     .innerJoin(
       entriesTable,
@@ -365,25 +391,40 @@ export async function processCompletedGames(): Promise<{
 
   for (const row of missedRows) {
     // NHL Survivor Season uses 3 lives (maxStrikes = 2 warning strikes).
-    // Pass 2 must not eliminate a player who still has lives remaining — Pass 1
-    // is responsible for incrementing strikeCount on warning strikes. If we
-    // incremented here too, we would double-count for any pick Pass 1 already
-    // handled. The safe rule: skip NHL Season players below the strike cap and
-    // only eliminate those whose strikes are exhausted.
+    // strikeCount alone cannot distinguish "player just hit the cap on this loss
+    // (correctly alive)" from "player lost again after exhausting warnings (missed
+    // elimination)": both states have strikeCount = maxStrikes = 2.
+    //
+    // The correct discriminator is the total count of graded loss picks:
+    //   <= maxStrikes  → all losses were warning strikes; player correctly alive → skip
+    //   >  maxStrikes  → player has more losses than warnings; Pass 1 missed → eliminate
     const maxStrikes = (row.sport === "nhl" && row.poolType === "season") ? 2 : 0;
 
-    if (maxStrikes > 0 && row.strikeCount < maxStrikes) {
-      logger.info(
-        {
-          poolId: row.poolId,
-          userId: row.userId,
-          week: row.week,
-          strikeCount: row.strikeCount,
-          maxStrikes,
-        },
-        "Auto-eliminator pass 2: NHL Season player has remaining lives — skipping (Pass 1 owns warning-strike increment)",
-      );
-      continue;
+    if (maxStrikes > 0) {
+      const [{ lossCount }] = await db
+        .select({ lossCount: count() })
+        .from(picksTable)
+        .where(
+          and(
+            eq(picksTable.poolId, row.poolId),
+            eq(picksTable.userId, row.userId),
+            eq(picksTable.result, "loss"),
+          ),
+        );
+
+      if (Number(lossCount) <= maxStrikes) {
+        logger.info(
+          {
+            poolId: row.poolId,
+            userId: row.userId,
+            week: row.week,
+            lossCount: Number(lossCount),
+            maxStrikes,
+          },
+          "Auto-eliminator pass 2: loss count within warning budget — skipping",
+        );
+        continue;
+      }
     }
 
     logger.warn(
