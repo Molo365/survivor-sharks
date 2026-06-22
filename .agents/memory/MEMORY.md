@@ -2,3 +2,4 @@
 - [ESPN soccer slugs](espn-soccer-slugs.md) — correct slugs for international soccer; wrong slug silently returns HTML not JSON.
 - [Predictor pool type checklist](predictor-pool-type-checklist.md) — 7 touch points required when adding a new predictor pool type (GSP/NDP pattern).
 - [isRecurring pool lifecycle](is-recurring-pool.md) — non-recurring MLB Daily pools set isActive=false (not currentWeek+1) when day closes; poolClosed flag in slate response drives read-only UI.
+- [Pass 2 auto-eliminator design](pass2-eliminator-design.md) — correct algorithm is two-query in-memory running-loss walk; "most recent pick" anchor is wrong for multi-life pools.

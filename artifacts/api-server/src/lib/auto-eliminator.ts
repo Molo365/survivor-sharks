@@ -316,149 +316,148 @@ export async function processCompletedGames(): Promise<{
     }
   }
 
-  // ── PASS 2: Idempotency — fix graded-loss picks with alive entries ────────
-  // Catches: pool-type changes (weekly → season), server restarts, any prior
-  // missed elimination. Safe to run every cycle — updates are no-ops if the
-  // entry is already eliminated.
+  // ── PASS 2: Idempotency — fix alive entries that have exceeded their loss cap ──
+  // Catches: Pass 1 failures (grade succeeded but entry UPDATE missed), server
+  // restarts, any prior missed elimination. Safe to run every cycle — entry
+  // UPDATE has WHERE status = "alive", so re-runs against already-eliminated
+  // entries are no-ops.
   // Excludes MLB pools — they use weekly batch processing instead.
-  // Excludes picks from voided weeks — void intentionally keeps entries alive;
-  // eliminating them here would undo the void rule.
+  // Excludes picks from voided weeks — void intentionally keeps entries alive.
   //
-  // Query anchors each player to their MOST RECENT graded (non-pending) pick
-  // via the latestGradedPickSq subquery. This ensures:
-  //   a) Each player appears at most once — no duplicate processing of old picks.
-  //   b) A player whose latest result is a WIN never enters the candidate set
-  //      at all (the WHERE clause requires result = "loss"), so no extra logic
-  //      is needed for the "won after capping strikes" case.
+  // Algorithm: two flat queries + in-memory walk.
+  //   Query 1 — fetch all alive entries in eligible (non-mlb, non-weekly,
+  //             isActive) pools.
+  //   Query 2 — fetch all graded (non-pending) picks for those pools, excluding
+  //             picks from voided weeks, ordered (poolId, userId, week ASC).
+  //   Walk    — for each player, accumulate a running loss count in week order.
+  //             The FIRST week where lossCount > maxStrikes is violatingWeek.
+  //   Outcome — violatingWeek found → eliminate with eliminatedWeek = violatingWeek.
+  //             not found → player correctly alive, skip.
+  //
+  // This correctly handles two previously broken cases:
+  //   • Player exceeded cap early then won later weeks: latest pick is a win,
+  //     which the old "most recent pick" approach never saw.
+  //   • Player exceeded cap at week N then kept playing: eliminatedWeek must be
+  //     N (the first violating week), not the last loss week.
 
-  const latestGradedPickSq = db
+  const pass2Candidates = await db
     .select({
-      poolId: picksTable.poolId,
-      userId: picksTable.userId,
-      maxWeek: max(picksTable.week),
-    })
-    .from(picksTable)
-    .where(ne(picksTable.result, "pending"))
-    .groupBy(picksTable.poolId, picksTable.userId)
-    .as("lgp");
-
-  const missedRows = await db
-    .select({
-      poolId: picksTable.poolId,
-      userId: picksTable.userId,
-      teamId: picksTable.teamId,
-      teamName: picksTable.teamName,
-      week: picksTable.week,
+      poolId: entriesTable.poolId,
+      userId: entriesTable.userId,
+      entryId: entriesTable.id,
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
-      entryId: entriesTable.id,
-      strikeCount: entriesTable.strikeCount,
     })
-    .from(picksTable)
-    .innerJoin(
-      latestGradedPickSq,
-      and(
-        eq(latestGradedPickSq.poolId, picksTable.poolId),
-        eq(latestGradedPickSq.userId, picksTable.userId),
-        eq(latestGradedPickSq.maxWeek, picksTable.week),
-      ),
-    )
-    .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
-    .innerJoin(
-      entriesTable,
-      and(
-        eq(entriesTable.poolId, picksTable.poolId),
-        eq(entriesTable.userId, picksTable.userId),
-      ),
-    )
-    .leftJoin(
-      weekResultsTable,
-      and(
-        eq(weekResultsTable.poolId, picksTable.poolId),
-        eq(weekResultsTable.week, picksTable.week),
-      ),
-    )
+    .from(entriesTable)
+    .innerJoin(poolsTable, eq(entriesTable.poolId, poolsTable.id))
     .where(
       and(
-        eq(picksTable.result, "loss"),
         eq(entriesTable.status, "alive"),
         ne(poolsTable.poolType, "weekly"),
         ne(poolsTable.sport, "mlb"),
         eq(poolsTable.isActive, true),
-        or(isNull(weekResultsTable.id), eq(weekResultsTable.isVoided, false)),
       ),
     );
 
-  for (const row of missedRows) {
-    // NHL Survivor Season uses 3 lives (maxStrikes = 2 warning strikes).
-    // strikeCount alone cannot distinguish "player just hit the cap on this loss
-    // (correctly alive)" from "player lost again after exhausting warnings (missed
-    // elimination)": both states have strikeCount = maxStrikes = 2.
-    //
-    // The correct discriminator is the total count of graded loss picks:
-    //   <= maxStrikes  → all losses were warning strikes; player correctly alive → skip
-    //   >  maxStrikes  → player has more losses than warnings; Pass 1 missed → eliminate
-    const maxStrikes = (row.sport === "nhl" && row.poolType === "season") ? 2 : 0;
+  if (pass2Candidates.length > 0) {
+    const candidatePoolIds = [...new Set(pass2Candidates.map(c => c.poolId))];
 
-    if (maxStrikes > 0) {
-      const [{ lossCount }] = await db
-        .select({ lossCount: count() })
-        .from(picksTable)
-        .where(
-          and(
-            eq(picksTable.poolId, row.poolId),
-            eq(picksTable.userId, row.userId),
-            eq(picksTable.result, "loss"),
-          ),
-        );
-
-      if (Number(lossCount) <= maxStrikes) {
-        logger.info(
-          {
-            poolId: row.poolId,
-            userId: row.userId,
-            week: row.week,
-            lossCount: Number(lossCount),
-            maxStrikes,
-          },
-          "Auto-eliminator pass 2: loss count within warning budget — skipping",
-        );
-        continue;
-      }
-    }
-
-    logger.warn(
-      {
-        poolId: row.poolId,
-        userId: row.userId,
-        teamId: row.teamId,
-        teamName: row.teamName,
-        week: row.week,
-        sport: row.sport,
-        poolType: row.poolType,
-        strikeCount: row.strikeCount,
-      },
-      "Auto-eliminator pass 2: found loss pick with alive entry — correcting",
-    );
-
-    const updated = await db
-      .update(entriesTable)
-      .set({ status: "eliminated", eliminatedWeek: row.week, streak: 0 })
-      .where(
+    const gradedPicks = await db
+      .select({
+        poolId: picksTable.poolId,
+        userId: picksTable.userId,
+        week: picksTable.week,
+        result: picksTable.result,
+        teamId: picksTable.teamId,
+        teamName: picksTable.teamName,
+      })
+      .from(picksTable)
+      .leftJoin(
+        weekResultsTable,
         and(
-          eq(entriesTable.poolId, row.poolId),
-          eq(entriesTable.userId, row.userId),
-          eq(entriesTable.status, "alive"),
+          eq(weekResultsTable.poolId, picksTable.poolId),
+          eq(weekResultsTable.week, picksTable.week),
         ),
       )
-      .returning({ id: entriesTable.id });
+      .where(
+        and(
+          inArray(picksTable.poolId, candidatePoolIds),
+          ne(picksTable.result, "pending"),
+          or(isNull(weekResultsTable.id), eq(weekResultsTable.isVoided, false)),
+        ),
+      )
+      .orderBy(picksTable.poolId, picksTable.userId, picksTable.week);
 
-    if (updated.length > 0) {
-      playersEliminated++;
-      logger.info(
-        { poolId: row.poolId, userId: row.userId, week: row.week, teamName: row.teamName },
-        "Auto-eliminated player (pass 2 correction)",
+    const picksByPlayer = new Map<string, typeof gradedPicks>();
+    for (const pick of gradedPicks) {
+      const key = `${pick.poolId}:${pick.userId}`;
+      if (!picksByPlayer.has(key)) picksByPlayer.set(key, []);
+      picksByPlayer.get(key)!.push(pick);
+    }
+
+    for (const candidate of pass2Candidates) {
+      const maxStrikes =
+        candidate.sport === "nhl" && candidate.poolType === "season" ? 2 : 0;
+      const picks =
+        picksByPlayer.get(`${candidate.poolId}:${candidate.userId}`) ?? [];
+
+      let lossCount = 0;
+      let violatingWeek: number | null = null;
+      let violatingTeamId: string | null = null;
+      let violatingTeamName: string | null = null;
+
+      for (const pick of picks) {
+        if (pick.result === "loss") {
+          lossCount++;
+          if (lossCount > maxStrikes && violatingWeek === null) {
+            violatingWeek = pick.week;
+            violatingTeamId = pick.teamId;
+            violatingTeamName = pick.teamName;
+          }
+        }
+      }
+
+      if (violatingWeek === null) continue;
+
+      logger.warn(
+        {
+          poolId: candidate.poolId,
+          userId: candidate.userId,
+          violatingWeek,
+          lossCount,
+          maxStrikes,
+          teamId: violatingTeamId,
+          teamName: violatingTeamName,
+          sport: candidate.sport,
+          poolType: candidate.poolType,
+        },
+        "Auto-eliminator pass 2: cumulative losses exceed cap — correcting",
       );
+
+      const updated = await db
+        .update(entriesTable)
+        .set({ status: "eliminated", eliminatedWeek: violatingWeek, streak: 0 })
+        .where(
+          and(
+            eq(entriesTable.poolId, candidate.poolId),
+            eq(entriesTable.userId, candidate.userId),
+            eq(entriesTable.status, "alive"),
+          ),
+        )
+        .returning({ id: entriesTable.id });
+
+      if (updated.length > 0) {
+        playersEliminated++;
+        logger.info(
+          {
+            poolId: candidate.poolId,
+            userId: candidate.userId,
+            eliminatedWeek: violatingWeek,
+            teamName: violatingTeamName,
+          },
+          "Auto-eliminated player (pass 2 correction)",
+        );
+      }
     }
   }
 
