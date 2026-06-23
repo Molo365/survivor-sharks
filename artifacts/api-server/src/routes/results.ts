@@ -73,6 +73,30 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
+  // ── Min-entries auto-cancel (week 1 only) ────────────────────────────────
+  // If the pool requires a minimum number of entries and week 1 is being
+  // processed for the first time, cancel instead of running results.
+  if (week === 1 && pool.currentWeek === 1 && pool.minEntries != null) {
+    const [{ actualCount }] = await db
+      .select({ actualCount: count() })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    const actualEntries = Number(actualCount);
+    if (actualEntries < pool.minEntries) {
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date(), closureReason: "min_entries_not_met" })
+        .where(eq(poolsTable.id, poolId));
+      req.log.info({ poolId, actualEntries, minEntries: pool.minEntries }, "Pool cancelled — min entries not met");
+      res.status(409).json({
+        error: `Pool cancelled — only ${actualEntries} of the required ${pool.minEntries} minimum entries joined.`,
+        cancelled: true,
+        actualEntries,
+        minEntries: pool.minEntries,
+      });
+      return;
+    }
+  }
+
   const sportTeams = ESPN_TEAMS[pool.sport as Sport] ?? [];
   const abbrevToId = new Map(sportTeams.map(t => [t.abbreviation.toUpperCase(), t.id]));
   const idToAbbrev = new Map(sportTeams.map(t => [t.id, t.abbreviation.toUpperCase()]));

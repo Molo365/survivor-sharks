@@ -36,6 +36,8 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
+    minEntries: pool.minEntries ?? null,
+    closureReason: pool.closureReason ?? null,
     createdAt: pool.createdAt.toISOString(),
     endedAt: pool.endedAt?.toISOString() ?? null,
   };
@@ -141,7 +143,7 @@ router.get("/past", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
+  const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -178,6 +180,7 @@ router.post("/", requireAuth, async (req, res) => {
     isActive: true,
     commissionerId: req.user!.id,
     maxEntries: maxEntries ?? null,
+    minEntries: minEntries ?? null,
     entryFee: entryFee ?? null,
     prizePot: resolvedPrizePot,
     prizeStructure: resolvedPrizeStructure,
@@ -253,6 +256,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     poolType: pool.poolType,
     prizePot: pool.prizePot ?? null,
     prizeStructure: pool.prizeStructure ?? null,
+    maxEntries: pool.maxEntries ?? null,
     playerCount: Number(playerCount),
     description: pool.description ?? null,
     season: pool.season ?? null,
@@ -295,6 +299,9 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     commissionerId: pool.commissionerId,
     commissionerName: commissioner?.username ?? "",
     maxEntries: pool.maxEntries,
+    minEntries: pool.minEntries ?? null,
+    closureReason: pool.closureReason ?? null,
+    endedAt: pool.endedAt?.toISOString() ?? null,
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
     prizeStructure: pool.prizeStructure ?? null,
@@ -322,7 +329,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 
@@ -330,6 +337,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(name !== undefined && { name }),
     ...(description !== undefined && { description }),
     ...(maxEntries !== undefined && { maxEntries }),
+    ...(minEntries !== undefined && { minEntries }),
     ...(currentWeek !== undefined && { currentWeek }),
     ...(season !== undefined && { season }),
     ...(isActive !== undefined && { isActive }),

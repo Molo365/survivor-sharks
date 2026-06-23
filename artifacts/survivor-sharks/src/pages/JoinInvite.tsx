@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Users, Trophy, AlertCircle, LogIn, UserPlus, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 interface PoolPreview {
   id: number;
@@ -17,6 +18,7 @@ interface PoolPreview {
   poolType: string;
   prizePot: number | null;
   prizeStructure: Array<{ place: number; amount: number }> | null;
+  maxEntries: number | null;
   playerCount: number;
   description: string | null;
   season: string | null;
@@ -242,21 +244,13 @@ export default function JoinInvite() {
 
             {/* Stats row */}
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {pool.prizeStructure && pool.prizeStructure.length > 0 ? (
-                pool.prizeStructure.map((p) => (
-                  <StatPill key={p.place} icon={<Trophy className="w-3.5 h-3.5" />}>
-                    <span className="text-foreground font-semibold">
-                      {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}:
-                    </span>
-                    <span className="text-foreground font-semibold">${p.amount}</span>
-                  </StatPill>
-                ))
-              ) : pool.prizePot ? (
-                <StatPill icon={<Trophy className="w-3.5 h-3.5" />}>
-                  <span className="text-foreground font-semibold">${pool.prizePot}</span>
-                  <span className="text-muted-foreground/60">prize pot</span>
-                </StatPill>
-              ) : null}
+              <PrizeDisplay
+                variant="join-invite"
+                prizeStructure={pool.prizeStructure}
+                prizePot={pool.prizePot}
+                maxEntries={pool.maxEntries}
+                actualEntries={pool.playerCount}
+              />
               <StatPill icon={<Users className="w-3.5 h-3.5" />}>
                 <span className="text-foreground font-semibold">{pool.playerCount}</span>
                 <span className="text-muted-foreground/60">{pool.playerCount === 1 ? "player" : "players"} joined</span>

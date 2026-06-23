@@ -4,10 +4,11 @@ import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, Swo
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
-export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFrequency?: string }) {
+export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers }: { poolId: number; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number }) {
   const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
@@ -56,20 +57,12 @@ export function Leaderboard({ poolId, pickFrequency }: { poolId: number; pickFre
       )}
 
       {/* Prize structure legend */}
-      {prizeStructure && prizeStructure.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-          <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mr-1">Prizes:</span>
-          {prizeStructure.map((p) => (
-            <span
-              key={p.place}
-              className="text-xs bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 rounded-full px-2.5 py-0.5 font-semibold"
-            >
-              {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}: ${p.amount}
-            </span>
-          ))}
-        </div>
-      )}
+      <PrizeDisplay
+        variant="leaderboard"
+        prizeStructure={prizeStructure}
+        maxEntries={maxEntries}
+        actualEntries={totalMembers}
+      />
 
       {/* ── SOV Tiebreaker callout ─────────────────────────────────────────── */}
       {sovTiebreaker && (

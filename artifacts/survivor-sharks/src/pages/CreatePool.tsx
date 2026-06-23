@@ -192,6 +192,7 @@ const formSchema = z.object({
   sandboxMode: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
+  minEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
 });
@@ -732,7 +733,7 @@ export default function CreatePool() {
 
               {/* ── Money fields ── */}
               <div className="space-y-6 pt-4 border-t border-border/50">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <FormField
                     control={form.control}
                     name="maxEntries"
@@ -751,6 +752,28 @@ export default function CreatePool() {
                           />
                         </FormControl>
                         <FormDescription className="text-xs">Limit total members</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="minEntries"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-bebas text-lg tracking-wide">Min Entries</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="No minimum"
+                            {...field}
+                            value={field.value ?? ""}
+                            data-testid="input-min-entries"
+                            className="bg-background/50 border-primary/20"
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Cancel if not enough players join</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -785,6 +808,9 @@ export default function CreatePool() {
                   <div>
                     <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
+                    {form.watch("maxEntries") && (
+                      <p className="text-xs text-amber-400/70 mt-1.5">Payouts shown are based on reaching the maximum entries. If fewer players join, displayed amounts will scale proportionally.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {prizes.map((prize, i) => (

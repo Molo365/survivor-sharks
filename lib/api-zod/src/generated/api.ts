@@ -138,7 +138,9 @@ export const ListPoolsResponseItem = zod.object({
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
   "createdAt": zod.string().optional(),
-  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
+  "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
+  "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced')
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 
@@ -158,6 +160,7 @@ export const CreatePoolBody = zod.object({
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
+  "minEntries": zod.number().optional().describe('Minimum players required; pool auto-cancels if not met when week 1 results are processed'),
   "entryFee": zod.number().optional(),
   "prizePot": zod.number().optional(),
   "currentWeek": zod.number().optional(),
@@ -206,7 +209,9 @@ export const JoinPoolResponse = zod.object({
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
   "createdAt": zod.string().optional(),
-  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
+  "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
+  "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced')
 })
 
 
@@ -270,7 +275,9 @@ export const GetPoolResponse = zod.object({
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
-})).nullish()
+})).nullish(),
+  "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
+  "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced')
 })
 
 
@@ -285,6 +292,7 @@ export const UpdatePoolBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
+  "minEntries": zod.number().optional(),
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "isActive": zod.boolean().optional(),
@@ -324,7 +332,9 @@ export const UpdatePoolResponse = zod.object({
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
   "createdAt": zod.string().optional(),
-  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
+  "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
+  "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced')
 })
 
 
@@ -1651,7 +1661,9 @@ export const AdminListPoolsResponseItem = zod.object({
   "amount": zod.number().describe('Prize amount in dollars')
 })).nullish(),
   "createdAt": zod.string().optional(),
-  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active')
+  "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
+  "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
+  "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced')
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)
 

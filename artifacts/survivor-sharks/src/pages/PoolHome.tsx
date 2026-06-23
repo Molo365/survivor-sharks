@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
+import { Ban, ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -34,6 +34,7 @@ import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
 import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
+import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -218,30 +219,25 @@ export default function PoolHome() {
                     </div>
                   </div>
                 )}
-                {(pool as any).prizeStructure && (pool as any).prizeStructure.length > 0 ? (
-                  <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg shadow-[0_0_15px_rgba(30,144,255,0.05)] min-w-[120px]">
-                    <div className="text-xs text-primary/80 uppercase font-bold tracking-wider mb-2 flex items-center gap-1">
-                      <Trophy className="w-3 h-3" /> Prizes
-                    </div>
-                    <div className="space-y-0.5">
-                      {((pool as any).prizeStructure as Array<{ place: number; amount: number }>).map((p) => (
-                        <div key={p.place} className="flex items-center justify-between gap-3 text-sm">
-                          <span className="text-muted-foreground text-xs">
-                            {["1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"][p.place - 1]}
-                          </span>
-                          <span className="font-bebas text-base text-primary">${p.amount}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : pool.prizePot && pool.prizePot > 0 ? (
-                  <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg text-center shadow-[0_0_15px_rgba(30,144,255,0.05)]">
-                    <div className="text-xs text-primary/80 uppercase font-bold tracking-wider mb-1">Prize Pot</div>
-                    <div className="font-bebas text-3xl text-primary">${pool.prizePot}</div>
-                  </div>
-                ) : null}
+                <PrizeDisplay
+                  variant="pool-home"
+                  prizeStructure={(pool as any).prizeStructure}
+                  prizePot={pool.prizePot}
+                  maxEntries={pool.maxEntries}
+                  actualEntries={pool.totalMembers}
+                />
               </div>
             </div>
+
+            {!pool.isActive && (pool as any).closureReason === "min_entries_not_met" && (
+              <div className="mb-6 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4">
+                <Ban className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bebas text-xl tracking-wide text-destructive">Pool Cancelled</p>
+                  <p className="text-sm text-muted-foreground">Minimum entries were not reached before the season started. No games were played.</p>
+                </div>
+              </div>
+            )}
 
             {isPickEmSeason ? (
               <PickEmSeasonView
@@ -485,7 +481,7 @@ export default function PoolHome() {
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} />
+                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} />
                 </TabsContent>
                 {isClassicSeason && (
                   <TabsContent value="standings" className="m-0 focus-visible:outline-none">

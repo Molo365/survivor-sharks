@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, Calendar } from "lucide-react";
 import { Pool, PoolPickEmStat } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -32,7 +33,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               variant={pool.isActive ? "default" : "secondary"}
               className={pool.isActive ? "bg-accent text-accent-foreground hover:bg-accent/80" : ""}
             >
-              {pool.isActive ? "Active" : "Ended"}
+              {pool.isActive ? "Active" : (pool as any).closureReason === "min_entries_not_met" ? "Cancelled" : "Ended"}
             </Badge>
           </div>
           <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">
@@ -47,7 +48,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
           <div className="flex gap-4 mt-auto">
             <div className="flex items-center gap-1.5 text-sm">
               <Users className="w-4 h-4 text-primary" />
-              <span>{pool.isActive ? `${pool.activeCount ?? 0} / ${pool.memberCount} Alive` : "Final"}</span>
+              <span>{pool.isActive ? `${pool.activeCount ?? 0} / ${pool.memberCount} Alive` : (pool as any).closureReason === "min_entries_not_met" ? "Cancelled" : "Final"}</span>
             </div>
             <div className="flex items-center gap-1.5 text-sm">
               <Calendar className="w-4 h-4 text-primary" />
@@ -224,12 +225,15 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             </div>
           )}
         </CardContent>
-        {pool.prizePot && pool.prizePot > 0 && (
+        {(pool.prizePot && pool.prizePot > 0 || !!((pool as any).prizeStructure as any)?.length) && (
           <CardFooter className="pt-0 pb-4">
-            <div className="w-full p-2 bg-primary/10 rounded border border-primary/20 text-center">
-              <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mr-2">Prize Pot</span>
-              <span className="font-bebas text-lg text-primary">${pool.prizePot}</span>
-            </div>
+            <PrizeDisplay
+              variant="pool-card"
+              prizeStructure={(pool as any).prizeStructure}
+              prizePot={pool.prizePot}
+              maxEntries={pool.maxEntries}
+              actualEntries={pool.memberCount}
+            />
           </CardFooter>
         )}
       </Card>

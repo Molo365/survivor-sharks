@@ -111,6 +111,8 @@ export interface PoolInput {
   startWeek?: number;
   description?: string;
   maxEntries?: number;
+  /** Minimum players required; pool auto-cancels if not met when week 1 results are processed */
+  minEntries?: number;
   entryFee?: number;
   prizePot?: number;
   currentWeek?: number;
@@ -154,6 +156,7 @@ export interface PoolUpdate {
   name?: string;
   description?: string;
   maxEntries?: number;
+  minEntries?: number;
   currentWeek?: number;
   season?: number;
   isActive?: boolean;
@@ -271,6 +274,16 @@ export interface Pool {
      * @nullable
      */
   endedAt?: string | null;
+  /**
+     * null = normal end / last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start
+     * @nullable
+     */
+  closureReason?: string | null;
+  /**
+     * Minimum entries required; null means no minimum enforced
+     * @nullable
+     */
+  minEntries?: number | null;
 }
 
 export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];
@@ -358,6 +371,16 @@ export interface PoolDetail {
      */
   endedAt?: string | null;
   prizeStructure?: PrizeEntry[] | null;
+  /**
+     * null = normal end / last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start
+     * @nullable
+     */
+  closureReason?: string | null;
+  /**
+     * Minimum entries required; null means no minimum enforced
+     * @nullable
+     */
+  minEntries?: number | null;
 }
 
 export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];

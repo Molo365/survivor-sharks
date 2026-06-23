@@ -1684,6 +1684,9 @@ components:
           type: string
         maxEntries:
           type: integer
+        minEntries:
+          type: integer
+          description: Minimum players required; pool auto-cancels if not met when week 1 results are processed
         entryFee:
           type: number
         prizePot:
@@ -1719,6 +1722,8 @@ components:
         description:
           type: string
         maxEntries:
+          type: integer
+        minEntries:
           type: integer
         currentWeek:
           type: integer
@@ -1884,6 +1889,12 @@ components:
         endedAt:
           type: ["string", "null"]
           description: "Timestamp when the pool ended (isActive flipped to false); null if still active"
+        closureReason:
+          type: ["string", "null"]
+          description: "null = normal end / last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start"
+        minEntries:
+          type: ["integer", "null"]
+          description: Minimum entries required; null means no minimum enforced
 
     PoolDetail:
       type: object
@@ -1949,6 +1960,12 @@ components:
           nullable: true
           items:
             $ref: '#/components/schemas/PrizeEntry'
+        closureReason:
+          type: ["string", "null"]
+          description: "null = normal end / last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start"
+        minEntries:
+          type: ["integer", "null"]
+          description: Minimum entries required; null means no minimum enforced
 
     PastPool:
       type: object

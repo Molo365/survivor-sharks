@@ -20,6 +20,7 @@ export const poolsTable = pgTable("pools", {
   isActive: boolean("is_active").notNull().default(true),
   commissionerId: integer("commissioner_id").notNull().references(() => usersTable.id),
   maxEntries: integer("max_entries"),
+  minEntries: integer("min_entries"),
   entryFee: real("entry_fee"),
   prizePot: real("prize_pot"),
   prizeStructure: jsonb("prize_structure").$type<Array<{ place: number; amount: number }>>(),
