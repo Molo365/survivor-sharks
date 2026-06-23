@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd artifacts/api-server && npm install && npm run build"
+buildCommand = "PORT=3000 BASE_PATH=/ pnpm --filter @workspace/survivor-sharks run build && pnpm --filter @workspace/api-server run build"
 
 [deploy]
 startCommand = "node artifacts/api-server/dist/index.mjs"
