@@ -9,7 +9,7 @@ export function calculatePayouts(
   actualEntries: number | null | undefined,
 ): Array<{ place: number; amount: number }> | null {
   if (!prizeStructure || prizeStructure.length === 0) return null;
-  if (!maxEntries || maxEntries <= 0 || actualEntries == null || actualEntries >= maxEntries) {
+  if (!maxEntries || maxEntries <= 0 || actualEntries == null || actualEntries <= 0 || actualEntries >= maxEntries) {
     return prizeStructure;
   }
   const scale = actualEntries / maxEntries;
@@ -25,7 +25,7 @@ export function scaledPrizePot(
   actualEntries: number | null | undefined,
 ): number | null {
   if (prizePot == null || prizePot <= 0) return null;
-  if (!maxEntries || maxEntries <= 0 || actualEntries == null || actualEntries >= maxEntries) {
+  if (!maxEntries || maxEntries <= 0 || actualEntries == null || actualEntries <= 0 || actualEntries >= maxEntries) {
     return prizePot;
   }
   return Math.round(prizePot * (actualEntries / maxEntries) * 100) / 100;
