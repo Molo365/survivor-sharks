@@ -1741,6 +1741,8 @@ components:
         pickFrequency:
           type: string
           enum: [weekly, daily]
+        isRecurring:
+          type: boolean
         prizeStructure:
           type: array
           items:

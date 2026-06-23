@@ -329,7 +329,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 
@@ -345,6 +345,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(startWeek !== undefined && { startWeek }),
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
+    ...(typeof isRecurring === "boolean" && { isRecurring }),
     ...setEndedAt,
   }).where(eq(poolsTable.id, poolId)).returning();
 

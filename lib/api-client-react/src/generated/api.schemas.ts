@@ -164,6 +164,7 @@ export interface PoolUpdate {
   startWeek?: number;
   doubleElimination?: boolean;
   pickFrequency?: PoolUpdatePickFrequency;
+  isRecurring?: boolean;
   prizeStructure?: PrizeEntry[];
 }
 

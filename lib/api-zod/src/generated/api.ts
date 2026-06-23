@@ -300,6 +300,7 @@ export const UpdatePoolBody = zod.object({
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
+  "isRecurring": zod.boolean().optional(),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')

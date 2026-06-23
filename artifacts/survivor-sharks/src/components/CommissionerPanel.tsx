@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { useGetPool, useGetSportTeams, useUpdatePool, useProcessResults, getGetPoolQueryKey, getGetResultsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3 } from "lucide-react";
+import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3, OctagonX } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -43,6 +44,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
   const [showAbbrevs, setShowAbbrevs] = useState(false);
   const [lastDebug, setLastDebug] = useState<ProcessDebug | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [confirmRecurringOpen, setConfirmRecurringOpen] = useState(false);
 
   // Sandbox controls state
   const [sandboxWeek, setSandboxWeek] = useState<number>(1);
@@ -343,6 +345,70 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
           </CardContent>
         </Card>
       </div>
+
+      {/* Stop Recurring — MLB Daily pools only */}
+      {pool.sport === "mlb" && (pool as any).pickFrequency === "daily" && (
+        pool.isRecurring ? (
+          <Card className="border-destructive/30 bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)]">
+            <CardHeader>
+              <CardTitle className="font-bebas text-2xl tracking-wide text-destructive flex items-center gap-2">
+                <OctagonX className="w-5 h-5" /> End Recurring Pool
+              </CardTitle>
+              <CardDescription className="text-muted-foreground/80">
+                Stop this pool from auto-generating new days. The current day will complete normally, then the pool closes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog open={confirmRecurringOpen} onOpenChange={setConfirmRecurringOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full font-bebas text-xl tracking-wider h-12">
+                    <OctagonX className="w-5 h-5 mr-2" /> End Recurring Pool
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>End Recurring Pool?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This pool will finish today's results normally, then stop generating new days.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bebas text-xl tracking-wider"
+                      disabled={updatePool.isPending}
+                      onClick={() => {
+                        updatePool.mutate({ poolId, data: { isRecurring: false } }, {
+                          onSuccess: () => {
+                            toast({ title: "Pool will end after today", description: "No new days will be generated after the current cycle closes." });
+                            queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+                            setConfirmRecurringOpen(false);
+                          },
+                          onError: (err: any) => {
+                            toast({ variant: "destructive", title: "Failed", description: (err as Error).message });
+                          },
+                        });
+                      }}
+                    >
+                      End Recurring Pool
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-border/30 bg-card">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3 text-muted-foreground">
+                <OctagonX className="w-5 h-5 text-destructive/60 shrink-0 mt-0.5" />
+                <p className="text-sm">This pool will end after the current cycle completes. No new days will be generated.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      )}
 
       {/* Sandbox Mode — NFL/NHL survivor + NHL weekly Pick'em, super admin only */}
       {(pool.sport === "nfl" || pool.sport === "nhl") && (
