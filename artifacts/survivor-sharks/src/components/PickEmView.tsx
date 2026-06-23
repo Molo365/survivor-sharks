@@ -2996,7 +2996,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 </div>
               </div>
 
-              {sport === "nhl" && pickFrequency === "weekly" && user?.role === "admin" && (
+              {isNhl && user?.role === "admin" && (
                 <PickEmSandboxPanel poolId={poolId} />
               )}
 
