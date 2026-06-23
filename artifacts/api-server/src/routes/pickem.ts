@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
   fetchIntlGamesForDate,
+  fetchNhlGamesByWeek,
+  getNhlWeekBounds,
+  NHL_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
 } from "../lib/espn";
@@ -66,10 +69,28 @@ router.get("/games", requireAuth, async (req, res) => {
   const requestedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayEt;
   const espnDate = requestedDate.replace(/-/g, "");
 
-  const allGames = isIntl
+  let allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
     : await fetchGamesForDate(sport, espnDate);
   allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Sandbox mode for NHL weekly Pick'em: map the requested day-of-week onto the anchor week
+  // and suppress real ESPN scores until simulate-grading runs.
+  let sandboxScoreMap = new Map<string, { homeScore: number; awayScore: number }>();
+  if (pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly") {
+    const [ry2, rm2, rd2] = requestedDate.split("-").map(Number);
+    const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay(); // 0=Sun…6=Sat
+    const mondayOffset = dow === 0 ? 6 : dow - 1; // Mon=0…Sun=6
+    const anchorBounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
+    const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+    const sandboxDay = sandboxDayDate.toISOString().slice(0, 10); // YYYY-MM-DD
+    allGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
+    allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sbRows = await db.select().from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+    sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+  }
+
   const games = allGames.filter((g) => g.status !== "suspended");
 
   const existingPicks = await db
@@ -85,13 +106,17 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const pickMap = new Map(existingPicks.map((p) => [p.gameId, p]));
 
+  const isSandboxNhl = pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly";
+
   const formattedGames = games.map((g, idx) => {
     const existing = pickMap.get(g.id);
-    const locked = isGameLocked(g.date);
+    const sbScore = sandboxScoreMap.get(g.id);
+    // In sandbox mode: locked iff the game has been graded (score exists). Otherwise always unlocked.
+    const locked = isSandboxNhl ? sbScore != null : isGameLocked(g.date);
     const base = {
       id: g.id,
       startTime: g.date,
-      status: g.status,
+      status: isSandboxNhl ? (sbScore ? "final" : "scheduled") : g.status,
       deadlinePassed: locked,
       isTiebreakerGame: !is3way && (
         (sport === "mlb" && idx === games.length - 1) ||
@@ -109,8 +134,8 @@ router.get("/games", requireAuth, async (req, res) => {
         abbreviation: g.homeTeam.abbreviation,
         logoUrl: g.homeTeam.logo ?? null,
       },
-      awayScore: g.awayScore ?? null,
-      homeScore: g.homeScore ?? null,
+      awayScore: isSandboxNhl ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
+      homeScore: isSandboxNhl ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
       userPickTeamId: is3way ? null : (existing?.pickedTeamId ?? null),
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
@@ -149,9 +174,12 @@ router.get("/games", requireAuth, async (req, res) => {
     day: "numeric",
   });
 
-  // Past dates are always fully locked; present/future: check actual game times
+  // Sandbox NHL: deadline passed iff every game has been graded (score in sandboxGameScoresTable).
+  // Live: past dates are always locked; present/future check actual game times.
   const isPastDate = requestedDate < todayEt;
-  const slateDeadlinePassed = isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
+  const slateDeadlinePassed = isSandboxNhl
+    ? games.every(g => sandboxScoreMap.has(g.id))
+    : isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
 
   // Format the label from the requested date (not always "today")
   const [ry, rm, rd] = requestedDate.split("-").map(Number);
@@ -298,6 +326,16 @@ router.post("/picks", requireAuth, async (req, res) => {
   } else if (isIntl) {
     const games = await fetchIntlGamesForDate(todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
+  } else if (pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly") {
+    // Sandbox: validate against anchor-week games mapped to today's day-of-week slot
+    const [ry2, rm2, rd2] = todayEt.split("-").map(Number);
+    const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay();
+    const mondayOffset = dow === 0 ? 6 : dow - 1;
+    const anchorBounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
+    const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+    const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
+    const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
+    for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
   } else {
     const games = await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
@@ -311,7 +349,8 @@ router.post("/picks", requireAuth, async (req, res) => {
     const game = gameMap.get(pick.gameId);
     if (!game) {
       unknownGameIds.push(pick.gameId);
-    } else if (isGameLocked(game.date)) {
+    } else if (!pool.sandboxMode && isGameLocked(game.date)) {
+      // Sandbox mode: never lock picks regardless of game start time
       lockedGameIds.push(pick.gameId);
     } else if (is3way && !WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption)) {
       invalidPickIds.push(pick.gameId);
@@ -854,6 +893,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
+    : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
     : fetchGamesForDate(sport, todayEspn),
     db.select().from(pickemPicksTable).where(picksWhereClause),
     db
@@ -913,6 +953,14 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
+  // Sandbox score map for NHL weekly Pick'em leaderboard — gates tiebreaker actuals and game status display
+  let lbSandboxScoreMap = new Map<string, { homeScore: number; awayScore: number }>();
+  if (isNhl && pool.sandboxMode && isWeekly) {
+    const sbRows = await db.select().from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+    lbSandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+  }
+
   // Build per-day breakdown map for weekly pools
   const dailyByUser = new Map<number, { date: string; correct: number; picked: number }[]>();
   if (dailyAggregates) {
@@ -966,9 +1014,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // game on today's slate — only applicable on Sunday (the final day of the week).
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
-  if (isNhl && isWeekly && espnGames.length > 0 && weekBounds && todayEt === weekBounds.weekEnd) {
+  // In sandbox mode: show tiebreaker whenever last game is graded (not tied to Sunday).
+  // In live mode: only on Sunday (last day of the week).
+  const nhlTiebreakerApplicable = isNhl && isWeekly && espnGames.length > 0 && weekBounds != null &&
+    (pool.sandboxMode ? true : todayEt === weekBounds.weekEnd);
+  if (nhlTiebreakerApplicable) {
     const tiebreakerGame = espnGames[espnGames.length - 1];
-    if (tiebreakerGame.isCompleted) {
+    // Sandbox: gate on sandboxGameScoresTable existence, not ESPN completion status.
+    // The anchor-week game ID is a real historical ESPN event — fetchNhlTiebreakerStats
+    // will return real shots-on-goal and penalty-minutes for it once grading runs.
+    const tbCompleted = pool.sandboxMode ? lbSandboxScoreMap.has(tiebreakerGame.id) : tiebreakerGame.isCompleted;
+    if (tbCompleted) {
       const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
       tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
       tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
@@ -1043,9 +1099,14 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : espnGames.map((g, idx) => ({
         id: g.id,
         startTime: g.date,
-        status: g.status,
+        status: (isNhl && pool.sandboxMode)
+          ? (lbSandboxScoreMap.has(g.id) ? "final" : "scheduled")
+          : g.status,
         group: null as string | null,
-        isTiebreakerGame: (isMlb && idx === espnGames.length - 1) || (isNhl && isWeekly && weekBounds != null && todayEt === weekBounds.weekEnd && idx === espnGames.length - 1),
+        isTiebreakerGame: (isMlb && idx === espnGames.length - 1) ||
+          (isNhl && isWeekly && weekBounds != null &&
+            (pool.sandboxMode || todayEt === weekBounds.weekEnd) &&
+            idx === espnGames.length - 1),
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
         homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
       }));
@@ -1170,6 +1231,80 @@ router.post("/process-results", requireAuth, async (req, res) => {
   }
 
   res.json({ processed, date: todayEt });
+});
+
+// POST /api/pools/:poolId/pickem/simulate-grading — sandbox grading for NHL Weekly Pick'em
+router.post("/simulate-grading", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+  if (pool.sport !== "nhl" || pool.poolType !== "pickem" || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "Simulate grading is only available for NHL weekly Pick'em pools" }); return;
+  }
+  if (!pool.sandboxMode) {
+    res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
+  }
+
+  const week = pool.currentWeek;
+
+  // Fetch all games for the anchor week
+  const weekGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+  type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
+  const gameList: SandboxGame[] = weekGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
+
+  // Load existing scores so outcomes stay stable across repeated calls
+  const existingScoreRows = await db
+    .select()
+    .from(sandboxGameScoresTable)
+    .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+  const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
+    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]),
+  );
+
+  // Generate scores for any unscored games (NHL: 0–7 goals, no ties)
+  for (const game of gameList) {
+    if (gameScores.has(game.id)) continue;
+    let homeScore = Math.floor(Math.random() * 8);
+    let awayScore = Math.floor(Math.random() * 8);
+    if (homeScore === awayScore) homeScore = Math.min(homeScore + 1, 7);
+    gameScores.set(game.id, { homeScore, awayScore });
+    await db
+      .insert(sandboxGameScoresTable)
+      .values({ poolId, week, gameId: game.id, homeScore, awayScore })
+      .onConflictDoNothing();
+  }
+
+  // Build winner map from the now-stable score map
+  const winnerByGameId = new Map<string, string>(); // gameId → winning teamId
+  for (const game of gameList) {
+    const scores = gameScores.get(game.id);
+    if (!scores) continue;
+    winnerByGameId.set(game.id, scores.homeScore > scores.awayScore ? game.homeTeamId : game.awayTeamId);
+  }
+
+  // Grade all pending picks for this pool/week as correct or incorrect
+  const pendingPicks = await db
+    .select()
+    .from(pickemPicksTable)
+    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week), eq(pickemPicksTable.result, "pending")));
+
+  let graded = 0;
+  for (const pick of pendingPicks) {
+    const winner = winnerByGameId.get(pick.gameId);
+    if (winner === undefined) continue;
+    const result: "correct" | "incorrect" = pick.pickedTeamId === winner ? "correct" : "incorrect";
+    await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+    graded++;
+  }
+
+  res.json({ graded, week });
 });
 
 export default router;
