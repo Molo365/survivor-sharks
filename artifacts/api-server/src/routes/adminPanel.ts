@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { db, pool as pgPool } from "@workspace/db";
-import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable } from "@workspace/db";
+import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable, groupStagePredictorPicksTable } from "@workspace/db";
 import { eq, count, gte, sql, and } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
 import { fetchWcStandings } from "../lib/wc";
+import { closePredictorPool, GSP_GROUP_COUNT } from "../lib/closePredictorPool";
 
 const router = Router();
 
@@ -353,7 +354,63 @@ router.post("/gsp/results", async (req, res) => {
       },
     });
 
-  res.json({ saved: results.length });
+  // ── Closure detection ─────────────────────────────────────────────────────
+  const [pool] = await db
+    .select({ id: poolsTable.id, isActive: poolsTable.isActive })
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+
+  let closedPool = false;
+  let closureWarning: string | undefined;
+
+  if (pool?.isActive) {
+    try {
+      const [countRows, allPicks, members] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(DISTINCT group_name)` })
+          .from(groupStageResultsTable)
+          .where(eq(groupStageResultsTable.poolId, poolId)),
+        db.select().from(groupStagePredictorPicksTable)
+          .where(eq(groupStagePredictorPicksTable.poolId, poolId)),
+        db.select({ userId: entriesTable.userId })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId)),
+      ]);
+
+      const distinctCount = Number(countRows[0]?.count ?? 0);
+
+      if (distinctCount >= GSP_GROUP_COUNT) {
+        const allSaved = await db
+          .select()
+          .from(groupStageResultsTable)
+          .where(eq(groupStageResultsTable.poolId, poolId));
+        const resultMap = new Map(allSaved.map((r) => [r.groupName, r]));
+
+        const outcome = await closePredictorPool({
+          poolId,
+          resultMap,
+          allPicks,
+          memberUserIds: members.map((m) => m.userId),
+          getPickKey: (pick) => pick.groupName,
+          log: req.log,
+        });
+
+        if (outcome.closed) {
+          closedPool = true;
+        } else {
+          closureWarning = outcome.detail ?? `Closure skipped (${outcome.reason})`;
+        }
+      }
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
+      req.log.error({ err, poolId }, "GSP admin-panel closure detection failed");
+      closureWarning = `Pool closure check failed: ${detail}. Results were saved — please retry or contact support.`;
+    }
+  }
+
+  res.json(closureWarning
+    ? { saved: results.length, closedPool, closureWarning }
+    : { saved: results.length, closedPool });
 });
 
 export default router;

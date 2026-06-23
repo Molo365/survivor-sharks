@@ -7,28 +7,12 @@ import {
   entriesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
+import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
 
 const router = Router({ mergeParams: true });
-
-function scoreDivision(
-  actual: [string, string, string, string],
-  predicted: [string, string, string, string],
-): number {
-  let pts = 0;
-  for (let i = 0; i < 4; i++) {
-    const team = actual[i];
-    const predictedPos = predicted.indexOf(team);
-    if (predictedPos === i) {
-      pts += 3;
-    } else if (i < 2 && predictedPos >= 0 && predictedPos < 2) {
-      pts += 1;
-    }
-  }
-  return pts;
-}
 
 // GET /api/pools/:poolId/ndp/divisions
 router.get("/divisions", requireAuth, async (req, res) => {
@@ -280,8 +264,11 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
   req.log.info({ poolId, count: saved.length }, "Admin entered NDP actual results");
 
   // ── Closure detection ────────────────────────────────────────────────────
-  // Guarded by pool.isActive so it only fires once even if results are re-saved.
-  // Queries the cumulative distinct-division count from the DB (not just this request).
+  // Threshold: NFL_DIVISIONS.length (static = 8 for NFL).
+  // Any failure surfaces in closureWarning rather than being swallowed.
+  let closedPool = false;
+  let closureWarning: string | undefined;
+
   if (pool.isActive) {
     try {
       const countRows = await db
@@ -297,59 +284,38 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
         ]);
 
         const resultMap = new Map(saved.map((r) => [r.divisionName, r]));
-        const picksByUser = new Map<number, typeof allPicks>();
-        for (const pick of allPicks) {
-          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
-          picksByUser.get(pick.userId)!.push(pick);
-        }
-
-        const scored = members.map(({ userId: uid }) => {
-          const picks = picksByUser.get(uid) ?? [];
-          let total = 0;
-          for (const pick of picks) {
-            const result = resultMap.get(pick.divisionName);
-            if (result) {
-              total += scoreDivision(
-                [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
-                [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
-              );
-            }
-          }
-          return { userId: uid, total };
+        const outcome = await closePredictorPool({
+          poolId,
+          resultMap,
+          allPicks,
+          memberUserIds: members.map((m) => m.userId),
+          getPickKey: (pick) => pick.divisionName,
+          log: req.log,
         });
 
-        const topScore = Math.max(0, ...scored.map((s) => s.total));
-        const winners = scored.filter((s) => s.total === topScore);
-        const winnerIds = winners.map((w) => w.userId);
-
-        await db
-          .update(entriesTable)
-          .set({ finalWinner: true })
-          .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
-
-        await db
-          .update(poolsTable)
-          .set({
-            isActive: false,
-            endedAt: new Date(),
-            closureReason: winners.length > 1 ? "co_winners" : null,
-          })
-          .where(eq(poolsTable.id, poolId));
-
-        req.log.info({ poolId, winnerIds, isTie: winners.length > 1 }, "NDP pool closed, winner(s) declared");
+        if (outcome.closed) {
+          closedPool = true;
+        } else {
+          closureWarning = outcome.detail ?? `Closure skipped (${outcome.reason})`;
+        }
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
       req.log.error({ err, poolId }, "NDP closure detection failed — results saved but pool not closed");
+      closureWarning = `Pool closure check failed: ${detail}. Results were saved — please retry or contact support.`;
     }
   }
 
-  res.json(saved.map((r) => ({
+  const savedRows = saved.map((r) => ({
     divisionName: r.divisionName,
     pos1Team: r.pos1Team,
     pos2Team: r.pos2Team,
     pos3Team: r.pos3Team,
     pos4Team: r.pos4Team,
-  })));
+  }));
+  res.json(closureWarning
+    ? { saved: savedRows, closedPool, closureWarning }
+    : { saved: savedRows, closedPool });
 });
 
 // GET /api/pools/:poolId/ndp/members/:userId/picks
@@ -475,7 +441,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       if (!actual) return { divisionName: divName, score: 0, hasResult: false };
       if (!pick)   return { divisionName: divName, score: 0, hasResult: true };
 
-      const score = scoreDivision(
+      const score = scorePositions(
         [actual.pos1Team, actual.pos2Team, actual.pos3Team, actual.pos4Team],
         [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
       );

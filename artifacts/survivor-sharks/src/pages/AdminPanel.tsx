@@ -124,12 +124,20 @@ function GspResultsSection() {
         const [pos1Team, pos2Team, pos3Team, pos4Team] = groupResults[g.name];
         return { groupName: g.name, pos1Team, pos2Team, pos3Team, pos4Team };
       });
-      await adminFetch("/gsp/results", {
+      const data = await adminFetch("/gsp/results", {
         method: "POST",
         body: JSON.stringify({ poolId: selectedPoolId, results: payload }),
-      });
+      }) as { saved: number; closedPool: boolean; closureWarning?: string };
       qc.invalidateQueries({ queryKey: ["admin-gsp-results", selectedPoolId] });
-      toast({ title: `Saved ${payload.length} group result${payload.length !== 1 ? "s" : ""}`, description: "Leaderboard scores will update automatically." });
+      if (data?.closureWarning) {
+        qc.invalidateQueries({ queryKey: ["admin-gsp-pools"] });
+        toast({ variant: "destructive", title: `Saved ${payload.length} group result${payload.length !== 1 ? "s" : ""} — pool closure failed`, description: data.closureWarning });
+      } else if (data?.closedPool) {
+        qc.invalidateQueries({ queryKey: ["admin-gsp-pools"] });
+        toast({ title: "Pool closed — winner declared!", description: "All group results are final. Leaderboard now shows the winner." });
+      } else {
+        toast({ title: `Saved ${payload.length} group result${payload.length !== 1 ? "s" : ""}`, description: "Leaderboard scores will update automatically." });
+      }
     } catch {
       toast({ variant: "destructive", title: "Failed to save results" });
     } finally {

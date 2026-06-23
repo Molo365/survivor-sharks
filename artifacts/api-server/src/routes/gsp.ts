@@ -7,28 +7,12 @@ import {
   entriesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchWcStandings } from "../lib/wc";
+import { closePredictorPool, GSP_GROUP_COUNT, scorePositions } from "../lib/closePredictorPool";
 
 const router = Router({ mergeParams: true });
-
-function scoreGroup(
-  actual: [string, string, string, string],
-  predicted: [string, string, string, string],
-): number {
-  let pts = 0;
-  for (let i = 0; i < 4; i++) {
-    const team = actual[i];
-    const predictedPos = predicted.indexOf(team);
-    if (predictedPos === i) {
-      pts += 3;
-    } else if (i < 2 && predictedPos >= 0 && predictedPos < 2) {
-      pts += 1;
-    }
-  }
-  return pts;
-}
 
 // GET /api/pools/:poolId/gsp/groups
 router.get("/groups", requireAuth, async (req, res) => {
@@ -288,9 +272,13 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
   req.log.info({ poolId, count: saved.length }, "Admin entered GSP actual results");
 
   // ── Closure detection ────────────────────────────────────────────────────
-  // Guarded by pool.isActive so it only fires once even if results are re-saved.
-  // Queries the cumulative distinct-group count from the DB (not just this request).
-  // Uses standings.length (live ESPN group count) as the expected total — no hardcoding.
+  // Threshold: GSP_GROUP_COUNT (fixed constant = 12 for FIFA 2026).
+  // Never use standings.length here — the ESPN API may be unavailable or
+  // return a different count at closure time, silently preventing closure.
+  // Any failure surfaces in closureWarning rather than being swallowed.
+  let closedPool = false;
+  let closureWarning: string | undefined;
+
   if (pool.isActive) {
     try {
       const countRows = await db
@@ -299,66 +287,45 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
         .where(eq(groupStageResultsTable.poolId, poolId));
       const distinctCount = Number(countRows[0]?.count ?? 0);
 
-      if (distinctCount >= standings.length) {
+      if (distinctCount >= GSP_GROUP_COUNT) {
         const [allPicks, members] = await Promise.all([
           db.select().from(groupStagePredictorPicksTable).where(eq(groupStagePredictorPicksTable.poolId, poolId)),
           db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
         ]);
 
         const resultMap = new Map(saved.map((r) => [r.groupName, r]));
-        const picksByUser = new Map<number, typeof allPicks>();
-        for (const pick of allPicks) {
-          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
-          picksByUser.get(pick.userId)!.push(pick);
-        }
-
-        const scored = members.map(({ userId: uid }) => {
-          const picks = picksByUser.get(uid) ?? [];
-          let total = 0;
-          for (const pick of picks) {
-            const result = resultMap.get(pick.groupName);
-            if (result) {
-              total += scoreGroup(
-                [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
-                [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
-              );
-            }
-          }
-          return { userId: uid, total };
+        const outcome = await closePredictorPool({
+          poolId,
+          resultMap,
+          allPicks,
+          memberUserIds: members.map((m) => m.userId),
+          getPickKey: (pick) => pick.groupName,
+          log: req.log,
         });
 
-        const topScore = Math.max(0, ...scored.map((s) => s.total));
-        const winners = scored.filter((s) => s.total === topScore);
-        const winnerIds = winners.map((w) => w.userId);
-
-        await db
-          .update(entriesTable)
-          .set({ finalWinner: true })
-          .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
-
-        await db
-          .update(poolsTable)
-          .set({
-            isActive: false,
-            endedAt: new Date(),
-            closureReason: winners.length > 1 ? "co_winners" : null,
-          })
-          .where(eq(poolsTable.id, poolId));
-
-        req.log.info({ poolId, winnerIds, isTie: winners.length > 1 }, "GSP pool closed, winner(s) declared");
+        if (outcome.closed) {
+          closedPool = true;
+        } else {
+          closureWarning = outcome.detail ?? `Closure skipped (${outcome.reason})`;
+        }
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
       req.log.error({ err, poolId }, "GSP closure detection failed — results saved but pool not closed");
+      closureWarning = `Pool closure check failed: ${detail}. Results were saved — please retry or contact support.`;
     }
   }
 
-  res.json(saved.map((r) => ({
+  const savedRows = saved.map((r) => ({
     groupName: r.groupName,
     pos1Team: r.pos1Team,
     pos2Team: r.pos2Team,
     pos3Team: r.pos3Team,
     pos4Team: r.pos4Team,
-  })));
+  }));
+  res.json(closureWarning
+    ? { saved: savedRows, closedPool, closureWarning }
+    : { saved: savedRows, closedPool });
 });
 
 // GET /api/pools/:poolId/gsp/members/:userId/picks
@@ -486,7 +453,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         return { groupName: letter, score: 0, hasResult: true };
       }
 
-      const score = scoreGroup(
+      const score = scorePositions(
         [actual.pos1Team, actual.pos2Team, actual.pos3Team, actual.pos4Team],
         [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
       );
