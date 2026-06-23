@@ -11,6 +11,7 @@ A full-stack NFL/multi-sport survivor pool web app where players pick one team p
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — session signing secret
+- Railway production build: `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/survivor-sharks run build && pnpm --filter @workspace/api-server run build` (defined in `railway.toml` — no Dockerfile, nixpacks only)
 
 ## Stack
 
