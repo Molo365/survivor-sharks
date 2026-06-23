@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Fragment } from "react";
+import React, { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import {
   useGetPickEmDailyPicks,
   useGetPickEmGames,
@@ -12,6 +12,8 @@ import {
   getGetPickEmYesterdayWinnerQueryKey,
   getGetPickEmDailyResultsQueryKey,
   getGetPickEmPrevWeekResultsQueryKey,
+  useGetPool,
+  getGetPoolQueryKey,
 } from "@workspace/api-client-react";
 import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import {
@@ -23,6 +25,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PickEmTiebreakerCard } from "@/components/PickEmTiebreakerCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -31,7 +36,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
@@ -1851,6 +1856,167 @@ function PrevWeekResultsModal({
   );
 }
 
+function PickEmSandboxPanel({ poolId }: { poolId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: pool } = useGetPool(poolId, {
+    query: { queryKey: getGetPoolQueryKey(poolId) },
+  });
+
+  const [sandboxWeek, setSandboxWeek] = useState<number>(1);
+  const [localSandboxMode, setLocalSandboxMode] = useState(false);
+  const [togglingMode, setTogglingMode] = useState(false);
+  const [loadingWeek, setLoadingWeek] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);
+
+  const initRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (pool && initRef.current !== pool.id) {
+      initRef.current = pool.id;
+      setSandboxWeek((pool as any).sandboxWeek ?? pool.currentWeek);
+      setLocalSandboxMode((pool as any).sandboxMode ?? false);
+    }
+  }, [pool]);
+
+  const handleToggleSandbox = async (enabled: boolean) => {
+    setTogglingMode(true);
+    try {
+      const res = await fetch(`/api/admin/pools/${poolId}/sandbox-mode`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sandboxMode: enabled }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      setLocalSandboxMode(enabled);
+      toast({
+        title: enabled ? "Sandbox enabled" : "Sandbox disabled",
+        description: enabled ? "Picks now use the 2025-26 NHL schedule." : "Picks now use the live schedule.",
+      });
+      queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+      queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId, undefined) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to toggle sandbox", description: (err as Error).message });
+    } finally {
+      setTogglingMode(false);
+    }
+  };
+
+  const handleLoadSandboxWeek = async () => {
+    setLoadingWeek(true);
+    try {
+      const res = await fetch(`/api/pools/${poolId}/schedule/sandbox-week`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: sandboxWeek }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast({ title: `Week ${sandboxWeek} loaded`, description: "Game slate updated for sandbox week." });
+      queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+      queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId, undefined) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to load week", description: (err as Error).message });
+    } finally {
+      setLoadingWeek(false);
+    }
+  };
+
+  const handleSimulateGrading = async () => {
+    setSimulating(true);
+    setSimResult(null);
+    try {
+      const res = await fetch(`/api/pools/${poolId}/pickem/simulate-grading`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: sandboxWeek }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data = await res.json();
+      setSimResult({ week: data.week, graded: data.graded });
+      toast({ title: "Grading complete", description: `${data.graded} picks graded for week ${data.week}.` });
+      queryClient.invalidateQueries({ queryKey: getGetPickEmLeaderboardQueryKey(poolId, undefined) });
+      queryClient.invalidateQueries({ queryKey: getGetPickEmGamesQueryKey(poolId, undefined) });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Simulation failed", description: (err as Error).message });
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  return (
+    <Card className="border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)]">
+      <CardHeader>
+        <CardTitle className="font-bebas text-2xl tracking-wide text-yellow-400 flex items-center gap-2">
+          <Zap className="w-5 h-5" /> Sandbox Mode
+        </CardTitle>
+        <CardDescription className="text-muted-foreground/80">
+          Use the 2025-26 NHL regular-season schedule for testing — picks are always unlocked in sandbox.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-sm text-foreground">Enable Sandbox</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Serve 2025-26 NHL games instead of live schedule</p>
+          </div>
+          <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
+        </div>
+        {localSandboxMode && (
+          <>
+            <div className="flex items-end gap-3">
+              <div className="grid gap-2 flex-1 max-w-[160px]">
+                <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">Week (1–26)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={26}
+                  value={sandboxWeek}
+                  onChange={e => setSandboxWeek(Math.min(26, Math.max(1, parseInt(e.target.value) || 1)))}
+                  className="bg-background/50 border-yellow-500/20 w-full"
+                />
+              </div>
+              <Button
+                onClick={handleLoadSandboxWeek}
+                disabled={loadingWeek}
+                className="h-10 font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black shrink-0"
+              >
+                <Play className="w-4 h-4 mr-1.5" />
+                {loadingWeek ? "Loading…" : "Load Week"}
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSimulateGrading}
+                disabled={simulating}
+                variant="outline"
+                className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
+              >
+                <BarChart3 className="w-4 h-4 mr-1.5" />
+                {simulating ? "Grading…" : "Simulate Grading"}
+              </Button>
+              {simResult && (
+                <span className="text-xs text-yellow-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {simResult.graded} picks graded for week {simResult.week}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">
+              "Load Week" updates the pool's current week so picks target that week's games.
+              "Simulate Grading" scores all pending picks against the sandbox schedule's final results.
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb", pickFrequency }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -2829,6 +2995,10 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                   </div>
                 </div>
               </div>
+
+              {sport === "nhl" && pickFrequency === "weekly" && user?.role === "admin" && (
+                <PickEmSandboxPanel poolId={poolId} />
+              )}
 
             </div>
           </TabsContent>
