@@ -533,7 +533,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
-  const [actualResults, members] = await Promise.all([
+  const [actualResults, members, tiebreakerRows] = await Promise.all([
     db.select().from(nflDivisionResultsTable).where(eq(nflDivisionResultsTable.poolId, poolId)),
     db
       .select({
@@ -545,11 +545,22 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       .from(entriesTable)
       .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
       .where(eq(entriesTable.poolId, poolId)),
+    db.select().from(nflDivisionPredictorTiebreakersTable).where(eq(nflDivisionPredictorTiebreakersTable.poolId, poolId)),
   ]);
 
-  if (members.length === 0) { res.json([]); return; }
+  if (members.length === 0) {
+    res.json({ entries: [], tb1Actual: null, tb2Actual: null });
+    return;
+  }
 
   const resultsByDivision = new Map(actualResults.map((r) => [r.divisionName, r]));
+
+  // Tiebreaker lookup maps
+  const tbByUser = new Map(tiebreakerRows.map((r) => [r.userId, r]));
+  // tb1Actual / tb2Actual are the same for all tied users — take from first non-null row
+  const tbSample = tiebreakerRows.find((r) => r.tb1Actual !== null || r.tb2Actual !== null);
+  const tb1Actual: number | null = tbSample?.tb1Actual ?? null;
+  const tb2Actual: number | null = tbSample?.tb2Actual ?? null;
 
   const allPicks = await db
     .select()
@@ -568,6 +579,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const entries = members.map((member) => {
     const userPicks = picksByUser.get(member.userId);
+    const tb = tbByUser.get(member.userId);
     let totalScore = 0;
 
     const divisionScores = divisionNames.map((divName) => {
@@ -585,6 +597,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       return { divisionName: divName, score, hasResult: true };
     });
 
+    const tb1Guess = tb?.tb1Guess ?? null;
+    const tb2Guess = tb?.tb2Guess ?? null;
+    const tiebreakerDiff1 = (tb1Actual !== null && tb1Guess !== null) ? Math.abs(tb1Guess - tb1Actual) : null;
+    const tiebreakerDiff2 = (tb2Actual !== null && tb2Guess !== null) ? Math.abs(tb2Guess - tb2Actual) : null;
+
     return {
       userId: member.userId,
       username: member.username,
@@ -593,6 +610,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       maxScore: MAX_SCORE,
       divisionScores,
       finalWinner: member.finalWinner ?? false,
+      tb1Guess,
+      tb2Guess,
+      tiebreakerDiff1,
+      tiebreakerDiff2,
     };
   });
 
@@ -616,7 +637,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     return null;
   })();
 
-  res.json(ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })));
+  res.json({
+    entries: ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })),
+    tb1Actual,
+    tb2Actual,
+  });
 });
 
 // POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random standings + optional tiebreaker injection + closure

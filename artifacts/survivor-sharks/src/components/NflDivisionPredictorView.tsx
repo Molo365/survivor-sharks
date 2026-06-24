@@ -12,7 +12,9 @@ import {
   useGetNdpWeek18Games,
   useGetNdpMyTiebreaker,
   getGetNdpMyTiebreakerQueryKey,
+  getGetPickEmDashboardStatsQueryKey,
 } from "@workspace/api-client-react";
+import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -248,7 +250,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
     );
   }
 
-  if (!leaderboard || leaderboard.length === 0) {
+  if (!leaderboard || leaderboard.entries.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-center">
         <Trophy className="w-10 h-10 text-muted-foreground/30" />
@@ -257,7 +259,20 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
     );
   }
 
-  const divisionsScored = leaderboard[0]?.divisionScores.filter((d) => d.hasResult).length ?? 0;
+  const entries = leaderboard.entries;
+  const divisionsScored = entries[0]?.divisionScores.filter((d) => d.hasResult).length ?? 0;
+
+  const tiebreakerCardPlayers = entries
+    .filter((e) => e.tb1Guess !== null || e.tb2Guess !== null)
+    .map((e) => ({
+      userId: e.userId,
+      username: e.username,
+      displayName: e.displayName ?? null,
+      tiebreakerPassingYardsGuess: e.tb1Guess,
+      tiebreakerRushingYardsGuess: e.tb2Guess,
+      tiebreakerDiff1: e.tiebreakerDiff1,
+      tiebreakerDiff2: e.tiebreakerDiff2,
+    }));
 
   return (
     <>
@@ -271,6 +286,14 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
       )}
 
       <div className="space-y-4 pt-4">
+        {tiebreakerCardPlayers.length > 0 && leaderboard.tb1Actual !== null && (
+          <TiebreakerActualsCard
+            actualPassingYards={leaderboard.tb1Actual}
+            actualRushingYards={leaderboard.tb2Actual}
+            tiedPlayers={tiebreakerCardPlayers}
+          />
+        )}
+
         <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card px-4 py-3">
           <div className="flex items-center gap-2">
             <Medal className="w-4 h-4 text-yellow-400" />
@@ -297,7 +320,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
         </p>
 
         <div className="space-y-2">
-          {leaderboard.map((entry) => {
+          {entries.map((entry) => {
             const isMe = entry.userId === user?.id;
             const rankStyle = RANK_STYLES[entry.rank - 1];
             const pct = divisionsScored > 0 ? (entry.totalScore / (divisionsScored * 12)) * 100 : 0;
@@ -458,6 +481,7 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
             : `${count} co-winner${count !== 1 ? "s" : ""} declared.`,
         });
         queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+        queryClient.invalidateQueries({ queryKey: getGetPickEmDashboardStatsQueryKey() });
       } else {
         toast({
           title: "Standings simulated",

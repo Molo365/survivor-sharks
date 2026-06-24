@@ -1440,7 +1440,23 @@ export interface NdpLeaderboardEntry {
   rank: number;
   finalWinner: boolean;
   prizeWon?: number | null;
+  /** Player's combined passing yards tiebreaker guess */
+  tb1Guess: number | null;
+  /** Player's combined rushing yards tiebreaker guess */
+  tb2Guess: number | null;
+  /** Absolute difference between tb1Guess and actual (null if no actual yet) */
+  tiebreakerDiff1: number | null;
+  /** Absolute difference between tb2Guess and actual (null if no actual yet) */
+  tiebreakerDiff2: number | null;
   divisionScores: NdpLeaderboardEntryDivisionScoresItem[];
+}
+
+export interface NdpLeaderboardResponse {
+  entries: NdpLeaderboardEntry[];
+  /** Actual combined passing yards for the designated tiebreaker game (null if not yet resolved) */
+  tb1Actual: number | null;
+  /** Actual combined rushing yards for the designated tiebreaker game (null if not yet resolved) */
+  tb2Actual: number | null;
 }
 
 export interface NflPickEmSeasonTeam {

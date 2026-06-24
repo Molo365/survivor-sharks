@@ -51,7 +51,7 @@ import type {
   LoginInput,
   NdpDivisionResult,
   NdpDivisionWithPick,
-  NdpLeaderboardEntry,
+  NdpLeaderboardResponse,
   NdpMyTiebreaker,
   NdpPick,
   NdpPicksInput,
@@ -3741,9 +3741,9 @@ export const getGetNdpLeaderboardUrl = (poolId: number,) => {
 /**
  * @summary Get leaderboard for an NFL Division Predictor pool
  */
-export const getNdpLeaderboard = async (poolId: number, options?: RequestInit): Promise<NdpLeaderboardEntry[]> => {
+export const getNdpLeaderboard = async (poolId: number, options?: RequestInit): Promise<NdpLeaderboardResponse> => {
 
-  return customFetch<NdpLeaderboardEntry[]>(getGetNdpLeaderboardUrl(poolId),
+  return customFetch<NdpLeaderboardResponse>(getGetNdpLeaderboardUrl(poolId),
   {
     ...options,
     method: 'GET'

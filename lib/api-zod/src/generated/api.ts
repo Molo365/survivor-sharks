@@ -1627,7 +1627,8 @@ export const GetNdpLeaderboardParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
-export const GetNdpLeaderboardResponseItem = zod.object({
+export const GetNdpLeaderboardResponse = zod.object({
+  "entries": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullable(),
@@ -1636,13 +1637,19 @@ export const GetNdpLeaderboardResponseItem = zod.object({
   "rank": zod.number(),
   "finalWinner": zod.boolean(),
   "prizeWon": zod.number().nullish(),
+  "tb1Guess": zod.number().nullable().describe('Player\'s combined passing yards tiebreaker guess'),
+  "tb2Guess": zod.number().nullable().describe('Player\'s combined rushing yards tiebreaker guess'),
+  "tiebreakerDiff1": zod.number().nullable().describe('Absolute difference between tb1Guess and actual (null if no actual yet)'),
+  "tiebreakerDiff2": zod.number().nullable().describe('Absolute difference between tb2Guess and actual (null if no actual yet)'),
   "divisionScores": zod.array(zod.object({
   "divisionName": zod.string(),
   "score": zod.number(),
   "hasResult": zod.boolean()
 }))
+})),
+  "tb1Actual": zod.number().nullable().describe('Actual combined passing yards for the designated tiebreaker game (null if not yet resolved)'),
+  "tb2Actual": zod.number().nullable().describe('Actual combined rushing yards for the designated tiebreaker game (null if not yet resolved)')
 })
-export const GetNdpLeaderboardResponse = zod.array(GetNdpLeaderboardResponseItem)
 
 
 /**

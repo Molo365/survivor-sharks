@@ -1241,13 +1241,11 @@ paths:
             type: integer
       responses:
         "200":
-          description: Ranked leaderboard entries
+          description: Ranked leaderboard entries with optional tiebreaker actuals
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NdpLeaderboardEntry"
+                $ref: "#/components/schemas/NdpLeaderboardResponse"
         "404":
           description: Pool not found
           content:
@@ -3417,9 +3415,26 @@ components:
           type: string
           description: Game start time (ISO 8601)
 
+    NdpLeaderboardResponse:
+      type: object
+      required: [entries, tb1Actual, tb2Actual]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NdpLeaderboardEntry"
+        tb1Actual:
+          type: integer
+          nullable: true
+          description: "Actual combined passing yards for the designated tiebreaker game (null if not yet resolved)"
+        tb2Actual:
+          type: integer
+          nullable: true
+          description: "Actual combined rushing yards for the designated tiebreaker game (null if not yet resolved)"
+
     NdpLeaderboardEntry:
       type: object
-      required: [userId, username, displayName, totalScore, maxScore, rank, finalWinner, divisionScores]
+      required: [userId, username, displayName, totalScore, maxScore, rank, finalWinner, divisionScores, tb1Guess, tb2Guess, tiebreakerDiff1, tiebreakerDiff2]
       properties:
         userId:
           type: integer
@@ -3439,6 +3454,22 @@ components:
         prizeWon:
           type: integer
           nullable: true
+        tb1Guess:
+          type: integer
+          nullable: true
+          description: "Player's combined passing yards tiebreaker guess"
+        tb2Guess:
+          type: integer
+          nullable: true
+          description: "Player's combined rushing yards tiebreaker guess"
+        tiebreakerDiff1:
+          type: integer
+          nullable: true
+          description: "Absolute difference between tb1Guess and actual (null if no actual yet)"
+        tiebreakerDiff2:
+          type: integer
+          nullable: true
+          description: "Absolute difference between tb2Guess and actual (null if no actual yet)"
         divisionScores:
           type: array
           items:
