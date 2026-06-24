@@ -771,7 +771,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   function handleSubmit() {
     if (!allConfirmed) return;
-    const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker !== undefined && myTiebreaker.tb1Guess == null;
+    const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker?.tb1Guess == null;
     if (needsTb) {
       setTbGuess1("");
       setTbGuess2("");
