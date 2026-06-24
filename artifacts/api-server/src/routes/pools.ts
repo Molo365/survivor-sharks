@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable } from "@workspace/db";
 import { eq, and, count, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
 import { nanoid } from "../lib/nanoid";
 
 const router = Router();
@@ -152,7 +153,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const resolvedPoolType = (poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor") ?? "season";
+  const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
   if (resolvedPoolType === "mid_season" && !startWeek) {
     res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;
@@ -169,6 +170,21 @@ router.post("/", requireAuth, async (req, res) => {
     ? resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0)
     : (prizePot ?? null);
 
+  const resolvedSeason = season ?? new Date().getFullYear();
+
+  // Auto-default the tiebreaker game for NDP pools — last game of Week 18 by start time.
+  // Only valid for season 2025 (the hardcoded schedule in nfl2025Schedule.ts covers 2025 only).
+  let ndpTb1GameIdDefault: string | null = null;
+  if (resolvedPoolType === "nfl_division_predictor") {
+    if (resolvedSeason === 2025) {
+      const week18Games = getSandboxGamesForWeek(18);
+      week18Games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
+      ndpTb1GameIdDefault = week18Games.at(-1)?.id ?? null;
+    } else {
+      req.log.warn({ poolId: "(new)", season: resolvedSeason }, "NDP pool created for a season without a hardcoded schedule — ndpTb1GameId left null; commissioner must set it manually");
+    }
+  }
+
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
@@ -178,7 +194,7 @@ router.post("/", requireAuth, async (req, res) => {
     description: description ?? null,
     inviteCode,
     currentWeek: currentWeek ?? (resolvedPoolType === "mid_season" ? (startWeek ?? 1) : 1),
-    season: season ?? new Date().getFullYear(),
+    season: resolvedSeason,
     isActive: true,
     commissionerId: req.user!.id,
     maxEntries: maxEntries ?? null,
@@ -191,6 +207,7 @@ router.post("/", requireAuth, async (req, res) => {
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
     // when the client does not send the field so new pools auto-advance by default.
     isRecurring: typeof isRecurring === 'boolean' ? isRecurring : true,
+    ...(resolvedPoolType === "nfl_division_predictor" && { ndpTb1GameId: ndpTb1GameIdDefault }),
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
