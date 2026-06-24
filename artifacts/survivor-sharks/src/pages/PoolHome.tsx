@@ -88,8 +88,8 @@ export default function PoolHome() {
       <NavBar />
       
       <main className="flex-1 container px-4 py-8 max-w-7xl mx-auto">
-        <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/40 bg-primary/10 hover:bg-primary/20 rounded-full px-4 py-2 mb-6 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> Back to Dashboard
         </Link>
         
         {isLoading || !pool ? (
