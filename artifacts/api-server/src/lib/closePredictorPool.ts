@@ -77,8 +77,11 @@ export async function closePredictorPool<P extends PositionPick>(params: {
   memberUserIds: number[];
   getPickKey: (pick: P) => string;
   log: Logger;
+  /** Optional tiebreaker resolver — called when multiple users share the top score.
+   *  Returns the narrowed winner set (same length = still tied, smaller = resolved). */
+  resolveTie?: (tiedUserIds: number[]) => Promise<number[]>;
 }): Promise<ClosureOutcome> {
-  const { poolId, resultMap, allPicks, memberUserIds, getPickKey, log } = params;
+  const { poolId, resultMap, allPicks, memberUserIds, getPickKey, log, resolveTie } = params;
 
   if (memberUserIds.length === 0) {
     log.warn({ poolId }, "closePredictorPool: pool has no members — skipping closure");
@@ -108,12 +111,24 @@ export async function closePredictorPool<P extends PositionPick>(params: {
 
   const topScore = Math.max(0, ...scored.map((s) => s.total));
   const winners = scored.filter((s) => s.total === topScore);
-  const winnerIds = winners.map((w) => w.userId);
+  let winnerIds = winners.map((w) => w.userId);
 
   if (winnerIds.length === 0) {
     const detail = "score resolution produced no winners (no picks submitted?)";
     log.warn({ poolId }, `closePredictorPool: ${detail}`);
     return { closed: false, reason: "no_members", detail };
+  }
+
+  // Tiebreaker resolution — narrows winnerIds before any DB writes
+  if (winnerIds.length > 1 && resolveTie) {
+    try {
+      const resolved = await resolveTie(winnerIds);
+      if (resolved.length > 0 && resolved.length <= winnerIds.length) {
+        winnerIds = resolved;
+      }
+    } catch (err: unknown) {
+      log.warn({ err, poolId }, "closePredictorPool: resolveTie threw — falling back to co-winners");
+    }
   }
 
   try {
@@ -127,12 +142,12 @@ export async function closePredictorPool<P extends PositionPick>(params: {
       .set({
         isActive: false,
         endedAt: new Date(),
-        closureReason: winners.length > 1 ? "co_winners" : null,
+        closureReason: winnerIds.length > 1 ? "co_winners" : null,
       })
       .where(eq(poolsTable.id, poolId));
 
-    log.info({ poolId, winnerIds, isTie: winners.length > 1 }, "closePredictorPool: pool closed, winner(s) declared");
-    return { closed: true, winnerIds, isTie: winners.length > 1 };
+    log.info({ poolId, winnerIds, isTie: winnerIds.length > 1 }, "closePredictorPool: pool closed, winner(s) declared");
+    return { closed: true, winnerIds, isTie: winnerIds.length > 1 };
   } catch (err: unknown) {
     const detail = err instanceof Error ? err.message : String(err);
     log.error({ err, poolId }, "closePredictorPool: DB update failed — pool stays active");

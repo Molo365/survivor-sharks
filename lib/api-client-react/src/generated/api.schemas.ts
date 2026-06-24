@@ -1399,10 +1399,19 @@ export interface NdpDivisionWithPick {
 
 export interface NdpPicksInput {
   picks: NdpPick[];
+  /** Player's combined-points guess for the primary tiebreaker game */
+  tb1Guess?: number | null;
+  /** Player's combined-points guess for the secondary tiebreaker game */
+  tb2Guess?: number | null;
 }
 
 export interface NdpResultsInput {
   results: NdpDivisionResult[];
+}
+
+export interface NdpMyTiebreaker {
+  tb1Guess: number | null;
+  tb2Guess: number | null;
 }
 
 export interface NdpWeek18Game {

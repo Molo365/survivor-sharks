@@ -52,6 +52,7 @@ import type {
   NdpDivisionResult,
   NdpDivisionWithPick,
   NdpLeaderboardEntry,
+  NdpMyTiebreaker,
   NdpPick,
   NdpPicksInput,
   NdpResultsInput,
@@ -3794,6 +3795,83 @@ export function useGetNdpLeaderboard<TData = Awaited<ReturnType<typeof getNdpLea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNdpLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNdpMyTiebreakerUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/my-tiebreaker`
+}
+
+/**
+ * @summary Get the current user's NDP tiebreaker guesses for this pool
+ */
+export const getNdpMyTiebreaker = async (poolId: number, options?: RequestInit): Promise<NdpMyTiebreaker> => {
+
+  return customFetch<NdpMyTiebreaker>(getGetNdpMyTiebreakerUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpMyTiebreakerQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/my-tiebreaker`
+    ] as const;
+    }
+
+
+export const getGetNdpMyTiebreakerQueryOptions = <TData = Awaited<ReturnType<typeof getNdpMyTiebreaker>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpMyTiebreaker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpMyTiebreakerQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpMyTiebreaker>>> = ({ signal }) => getNdpMyTiebreaker(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpMyTiebreaker>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpMyTiebreakerQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpMyTiebreaker>>>
+export type GetNdpMyTiebreakerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's NDP tiebreaker guesses for this pool
+ */
+
+export function useGetNdpMyTiebreaker<TData = Awaited<ReturnType<typeof getNdpMyTiebreaker>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpMyTiebreaker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpMyTiebreakerQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

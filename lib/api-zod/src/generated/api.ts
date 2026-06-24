@@ -1527,7 +1527,9 @@ export const SubmitNdpPicksBody = zod.object({
   "pos2Team": zod.string(),
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
-}))
+})),
+  "tb1Guess": zod.number().nullish().describe('Player\'s combined-points guess for the primary tiebreaker game'),
+  "tb2Guess": zod.number().nullish().describe('Player\'s combined-points guess for the secondary tiebreaker game')
 })
 
 export const SubmitNdpPicksResponseItem = zod.object({
@@ -1641,6 +1643,19 @@ export const GetNdpLeaderboardResponseItem = zod.object({
 }))
 })
 export const GetNdpLeaderboardResponse = zod.array(GetNdpLeaderboardResponseItem)
+
+
+/**
+ * @summary Get the current user's NDP tiebreaker guesses for this pool
+ */
+export const GetNdpMyTiebreakerParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpMyTiebreakerResponse = zod.object({
+  "tb1Guess": zod.number().nullable(),
+  "tb2Guess": zod.number().nullable()
+})
 
 
 /**

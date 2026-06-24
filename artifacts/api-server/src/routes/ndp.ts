@@ -3,18 +3,134 @@ import { db } from "@workspace/db";
 import {
   nflDivisionPredictorPicksTable,
   nflDivisionResultsTable,
+  nflDivisionPredictorTiebreakersTable,
   poolsTable,
   entriesTable,
   usersTable,
+  sandboxGameScoresTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
 import { fetchNflGamesByWeek } from "../lib/espn";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import type { Logger } from "pino";
 
 const router = Router({ mergeParams: true });
+
+// ── Tiebreaker helpers ──────────────────────────────────────────────────────
+
+function closestByAbsDiff(
+  userIds: number[],
+  guessMap: Map<number, { tb1Guess: number | null; tb2Guess: number | null }>,
+  field: "tb1Guess" | "tb2Guess",
+  actual: number,
+): number[] {
+  const diffs = userIds.map((uid) => {
+    const guess = guessMap.get(uid)?.[field];
+    return { uid, diff: guess != null ? Math.abs(guess - actual) : Infinity };
+  });
+  const minDiff = Math.min(...diffs.map((d) => d.diff));
+  if (!isFinite(minDiff)) return userIds; // no one has guessed — can't resolve
+  return diffs.filter((d) => d.diff === minDiff).map((d) => d.uid);
+}
+
+async function getActualNdpCombinedScore(
+  gameId: string,
+  poolId: number,
+  sandboxMode: boolean,
+  season: number,
+  log: Logger,
+): Promise<number | null> {
+  if (sandboxMode || gameId.startsWith("sandbox-")) {
+    const [row] = await db.select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.gameId, gameId)))
+      .limit(1);
+    return row ? row.homeScore + row.awayScore : null;
+  }
+  try {
+    const games = await fetchNflGamesByWeek(18, season);
+    const game = games.find((g) => g.id === gameId);
+    if (!game || !game.isCompleted || game.homeScore == null || game.awayScore == null) return null;
+    return game.homeScore + game.awayScore;
+  } catch (err) {
+    log.warn({ err, gameId }, "getActualNdpCombinedScore: ESPN fetch failed");
+    return null;
+  }
+}
+
+function makeNdpResolveTie(pool: typeof poolsTable.$inferSelect, log: Logger) {
+  const { id: poolId, ndpTb1GameId, ndpTb2GameId, sandboxMode, season } = pool;
+  if (!ndpTb1GameId && !ndpTb2GameId) return undefined;
+
+  return async (tiedUserIds: number[]): Promise<number[]> => {
+    const [tb1Actual, tb2Actual] = await Promise.all([
+      ndpTb1GameId
+        ? getActualNdpCombinedScore(ndpTb1GameId, poolId, sandboxMode, season, log)
+        : Promise.resolve(null),
+      ndpTb2GameId
+        ? getActualNdpCombinedScore(ndpTb2GameId, poolId, sandboxMode, season, log)
+        : Promise.resolve(null),
+    ]);
+
+    log.info(
+      { poolId, tb1Actual, tb2Actual, tiedCount: tiedUserIds.length },
+      "NDP tiebreaker: fetched actual scores",
+    );
+
+    // Upsert actual scores for every tied user row (creates row if missing)
+    if (tb1Actual !== null || tb2Actual !== null) {
+      for (const userId of tiedUserIds) {
+        await db
+          .insert(nflDivisionPredictorTiebreakersTable)
+          .values({
+            poolId,
+            userId,
+            ...(tb1Actual !== null && { tb1Actual }),
+            ...(tb2Actual !== null && { tb2Actual }),
+          })
+          .onConflictDoUpdate({
+            target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+            set: {
+              ...(tb1Actual !== null && { tb1Actual }),
+              ...(tb2Actual !== null && { tb2Actual }),
+            },
+          });
+      }
+    }
+
+    const rows = await db
+      .select()
+      .from(nflDivisionPredictorTiebreakersTable)
+      .where(
+        and(
+          eq(nflDivisionPredictorTiebreakersTable.poolId, poolId),
+          inArray(nflDivisionPredictorTiebreakersTable.userId, tiedUserIds),
+        ),
+      );
+
+    const guessMap = new Map(rows.map((r) => [r.userId, r]));
+    let candidates = tiedUserIds;
+
+    if (tb1Actual !== null) {
+      const filtered = closestByAbsDiff(candidates, guessMap, "tb1Guess", tb1Actual);
+      if (filtered.length > 0 && filtered.length < candidates.length) candidates = filtered;
+    }
+
+    if (candidates.length > 1 && tb2Actual !== null) {
+      const filtered = closestByAbsDiff(candidates, guessMap, "tb2Guess", tb2Actual);
+      if (filtered.length > 0 && filtered.length < candidates.length) candidates = filtered;
+    }
+
+    log.info(
+      { poolId, original: tiedUserIds, resolved: candidates },
+      "NDP tiebreaker resolution complete",
+    );
+    return candidates;
+  };
+}
 
 // GET /api/pools/:poolId/ndp/divisions
 router.get("/divisions", requireAuth, async (req, res) => {
@@ -92,7 +208,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  const { picks } = req.body as {
+  const { picks, tb1Guess, tb2Guess } = req.body as {
     picks: Array<{
       divisionName: string;
       pos1Team: string;
@@ -100,6 +216,8 @@ router.post("/picks", requireAuth, async (req, res) => {
       pos3Team: string;
       pos4Team: string;
     }>;
+    tb1Guess?: number | null;
+    tb2Guess?: number | null;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -152,6 +270,25 @@ router.post("/picks", requireAuth, async (req, res) => {
         updatedAt: new Date(),
       },
     });
+
+  // Upsert tiebreaker guesses if provided
+  if (typeof tb1Guess === "number" || typeof tb2Guess === "number") {
+    await db
+      .insert(nflDivisionPredictorTiebreakersTable)
+      .values({
+        poolId,
+        userId,
+        ...(typeof tb1Guess === "number" && { tb1Guess }),
+        ...(typeof tb2Guess === "number" && { tb2Guess }),
+      })
+      .onConflictDoUpdate({
+        target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+        set: {
+          ...(typeof tb1Guess === "number" && { tb1Guess }),
+          ...(typeof tb2Guess === "number" && { tb2Guess }),
+        },
+      });
+  }
 
   const result = await db
     .select()
@@ -293,6 +430,7 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
           memberUserIds: members.map((m) => m.userId),
           getPickKey: (pick) => pick.divisionName,
           log: req.log,
+          resolveTie: makeNdpResolveTie(pool, req.log),
         });
 
         if (outcome.closed) {
@@ -485,7 +623,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json(ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })));
 });
 
-// POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random division orderings
+// POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random standings + optional tiebreaker injection + closure
 router.post("/simulate-standings", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -499,6 +637,31 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
   const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (pool.commissionerId !== userId && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const { tb1CombinedScore, tb2CombinedScore } = req.body as {
+    tb1CombinedScore?: number;
+    tb2CombinedScore?: number;
+  };
+
+  // Inject tiebreaker game scores into sandbox_game_scores so resolveTie can read them
+  if (typeof tb1CombinedScore === "number" && pool.ndpTb1GameId) {
+    await db
+      .insert(sandboxGameScoresTable)
+      .values({ poolId, week: 18, gameId: pool.ndpTb1GameId, homeScore: tb1CombinedScore, awayScore: 0 })
+      .onConflictDoUpdate({
+        target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
+        set: { homeScore: tb1CombinedScore, awayScore: 0 },
+      });
+  }
+  if (typeof tb2CombinedScore === "number" && pool.ndpTb2GameId) {
+    await db
+      .insert(sandboxGameScoresTable)
+      .values({ poolId, week: 18, gameId: pool.ndpTb2GameId, homeScore: tb2CombinedScore, awayScore: 0 })
+      .onConflictDoUpdate({
+        target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
+        set: { homeScore: tb2CombinedScore, awayScore: 0 },
+      });
   }
 
   function shuffle<T>(arr: T[]): T[] {
@@ -536,7 +699,53 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
   });
 
   req.log.info({ poolId, divisions: values.length }, "Simulated NDP standings for sandbox");
-  res.json({ simulated: values.length, divisions: values.map(v => ({ divisionName: v.divisionName, pos1Team: v.pos1Team, pos2Team: v.pos2Team, pos3Team: v.pos3Team, pos4Team: v.pos4Team })) });
+
+  // Attempt pool closure (same logic as the real results-entry route)
+  let closedPool = false;
+  let closureWarning: string | undefined;
+  let winnerIds: number[] | undefined;
+
+  if (pool.isActive) {
+    try {
+      const [allPicks, members] = await Promise.all([
+        db.select().from(nflDivisionPredictorPicksTable).where(eq(nflDivisionPredictorPicksTable.poolId, poolId)),
+        db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
+      ]);
+      const resultMap = new Map(values.map((r) => [r.divisionName, r]));
+      const outcome = await closePredictorPool({
+        poolId,
+        resultMap,
+        allPicks,
+        memberUserIds: members.map((m) => m.userId),
+        getPickKey: (pick) => pick.divisionName,
+        log: req.log,
+        resolveTie: makeNdpResolveTie(pool, req.log),
+      });
+      if (outcome.closed) {
+        closedPool = true;
+        winnerIds = outcome.winnerIds;
+      } else {
+        closureWarning = outcome.detail ?? `Closure skipped (${outcome.reason})`;
+      }
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
+      closureWarning = `Closure check failed: ${detail}`;
+    }
+  }
+
+  res.json({
+    simulated: values.length,
+    divisions: values.map(v => ({
+      divisionName: v.divisionName,
+      pos1Team: v.pos1Team,
+      pos2Team: v.pos2Team,
+      pos3Team: v.pos3Team,
+      pos4Team: v.pos4Team,
+    })),
+    closedPool,
+    ...(winnerIds !== undefined && { winnerIds }),
+    ...(closureWarning !== undefined && { closureWarning }),
+  });
 });
 
 // GET /api/pools/:poolId/ndp/week18-games
@@ -581,6 +790,28 @@ router.get("/week18-games", requireAuth, async (req, res) => {
     homeTeam: NFL_TEAM_INFO[g.homeAbbr]?.displayName ?? g.homeAbbr,
     startTime: g.gameTime,
   })));
+});
+
+// GET /api/pools/:poolId/ndp/my-tiebreaker
+router.get("/my-tiebreaker", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [row] = await db
+    .select()
+    .from(nflDivisionPredictorTiebreakersTable)
+    .where(
+      and(
+        eq(nflDivisionPredictorTiebreakersTable.poolId, poolId),
+        eq(nflDivisionPredictorTiebreakersTable.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  res.json({
+    tb1Guess: row?.tb1Guess ?? null,
+    tb2Guess: row?.tb2Guess ?? null,
+  });
 });
 
 export default router;

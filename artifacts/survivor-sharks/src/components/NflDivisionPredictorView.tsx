@@ -10,6 +10,8 @@ import {
   useUpdatePool,
   getGetPoolQueryKey,
   useGetNdpWeek18Games,
+  useGetNdpMyTiebreaker,
+  getGetNdpMyTiebreakerQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   ChevronUp,
@@ -400,7 +402,9 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
   const [localSandboxMode, setLocalSandboxMode] = useState(initSandboxMode);
   const [togglingMode, setTogglingMode] = useState(false);
   const [simulating, setSimulating] = useState(false);
-  const [simResult, setSimResult] = useState<{ simulated: number } | null>(null);
+  const [simResult, setSimResult] = useState<{ simulated: number; closedPool?: boolean; winnerIds?: number[] } | null>(null);
+  const [simTb1Score, setSimTb1Score] = useState("");
+  const [simTb2Score, setSimTb2Score] = useState("");
   const [tb1, setTb1] = useState<string>("");
   const [tb2, setTb2] = useState<string>("");
   const [savingTb, setSavingTb] = useState(false);
@@ -433,14 +437,34 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
     setSimResult(null);
     try {
       const token = localStorage.getItem("auth_token");
+      const tb1 = simTb1Score !== "" ? parseInt(simTb1Score, 10) : undefined;
+      const tb2 = simTb2Score !== "" ? parseInt(simTb2Score, 10) : undefined;
       const res = await fetch(`/api/pools/${poolId}/ndp/simulate-standings`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          ...(tb1 !== undefined && !isNaN(tb1) && { tb1CombinedScore: tb1 }),
+          ...(tb2 !== undefined && !isNaN(tb2) && { tb2CombinedScore: tb2 }),
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
       const data = await res.json();
-      setSimResult({ simulated: data.simulated });
-      toast({ title: "Standings simulated", description: `${data.simulated} divisions randomized.` });
+      setSimResult({ simulated: data.simulated, closedPool: data.closedPool, winnerIds: data.winnerIds });
+      if (data.closedPool) {
+        const count = data.winnerIds?.length ?? 0;
+        toast({
+          title: "Pool closed!",
+          description: count === 1
+            ? "Single winner declared via tiebreaker."
+            : `${count} co-winner${count !== 1 ? "s" : ""} declared.`,
+        });
+        queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+      } else {
+        toast({
+          title: "Standings simulated",
+          description: `${data.simulated} divisions randomized.${data.closureWarning ? " Note: " + data.closureWarning : ""}`,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["ndp-leaderboard", poolId] });
     } catch (err) {
       toast({ variant: "destructive", title: "Simulation failed", description: (err as Error).message });
@@ -472,21 +496,57 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
             <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
           </div>
           {localSandboxMode && (
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleSimulateStandings}
-                disabled={simulating}
-                variant="outline"
-                className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
-              >
-                <BarChart3 className="w-4 h-4 mr-1.5" />
-                {simulating ? "Simulating…" : "Simulate Standings"}
-              </Button>
-              {simResult && (
-                <span className="text-xs text-yellow-400 font-semibold">
-                  {simResult.simulated} divisions randomized
-                </span>
+            <div className="space-y-3">
+              {pool?.ndpTb1GameId && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
+                      TB1 Combined Pts
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="e.g. 47"
+                      value={simTb1Score}
+                      onChange={(e) => setSimTb1Score(e.target.value)}
+                      className="h-8 text-sm bg-background/50 border-yellow-500/30"
+                    />
+                  </div>
+                  {pool.ndpTb2GameId && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
+                        TB2 Combined Pts
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="e.g. 38"
+                        value={simTb2Score}
+                        onChange={(e) => setSimTb2Score(e.target.value)}
+                        className="h-8 text-sm bg-background/50 border-yellow-500/30"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleSimulateStandings}
+                  disabled={simulating}
+                  variant="outline"
+                  className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
+                >
+                  <BarChart3 className="w-4 h-4 mr-1.5" />
+                  {simulating ? "Simulating…" : "Simulate Standings"}
+                </Button>
+                {simResult && (
+                  <span className="text-xs text-yellow-400 font-semibold">
+                    {simResult.closedPool
+                      ? `Pool closed — ${simResult.winnerIds?.length ?? 0} winner(s)`
+                      : `${simResult.simulated} divisions randomized`}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -609,11 +669,17 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   const { data: divisions, isLoading } = useGetNdpDivisions(poolId);
   const submitPicks = useSubmitNdpPicks();
+  const { data: poolForTb } = useGetPool(poolId);
+  const { data: myTiebreaker } = useGetNdpMyTiebreaker(poolId);
+  const { data: week18Games = [] } = useGetNdpWeek18Games(poolId);
 
   const [orders, setOrders] = useState<Record<string, TeamOrder>>({});
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
   const [savedOrders, setSavedOrders] = useState<Record<string, TeamOrder>>({});
   const [initialised, setInitialised] = useState(false);
+  const [showTbDialog, setShowTbDialog] = useState(false);
+  const [tbGuess1, setTbGuess1] = useState("");
+  const [tbGuess2, setTbGuess2] = useState("");
 
   useEffect(() => {
     if (!divisions || initialised) return;
@@ -672,8 +738,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     return current.some((t, i) => t !== saved[i]);
   });
 
-  async function handleSubmit() {
-    if (!allConfirmed) return;
+  function doFinalSubmit(tb1Guess?: number, tb2Guess?: number) {
     const picks = Object.entries(orders).map(([divisionName, order]) => ({
       divisionName,
       pos1Team: order[0],
@@ -682,18 +747,38 @@ function MyPicksTab({ poolId }: { poolId: number }) {
       pos4Team: order[3],
     }));
     submitPicks.mutate(
-      { poolId, data: { picks } },
+      {
+        poolId,
+        data: {
+          picks,
+          ...(typeof tb1Guess === "number" && { tb1Guess }),
+          ...(typeof tb2Guess === "number" && { tb2Guess }),
+        },
+      },
       {
         onSuccess: () => {
           toast({ title: "Picks locked in! 🏈", description: "All 8 division predictions have been saved." });
           setSavedOrders({ ...orders });
           queryClient.invalidateQueries({ queryKey: ["getNdpDivisions", poolId] });
+          queryClient.invalidateQueries({ queryKey: getGetNdpMyTiebreakerQueryKey(poolId) });
         },
         onError: () => {
           toast({ title: "Submission failed", description: "Something went wrong. Please try again.", variant: "destructive" });
         },
       },
     );
+  }
+
+  function handleSubmit() {
+    if (!allConfirmed) return;
+    const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker !== undefined && myTiebreaker.tb1Guess == null;
+    if (needsTb) {
+      setTbGuess1("");
+      setTbGuess2("");
+      setShowTbDialog(true);
+      return;
+    }
+    doFinalSubmit();
   }
 
   if (isLoading || !divisions) {
@@ -708,8 +793,80 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     );
   }
 
+  const tb1Game = week18Games.find((g) => g.id === poolForTb?.ndpTb1GameId);
+  const tb2Game = week18Games.find((g) => g.id === poolForTb?.ndpTb2GameId);
+
   return (
     <div className="space-y-6 pt-4">
+      {/* Tiebreaker Dialog — prompted once on first picks submission when games are designated */}
+      <Dialog open={showTbDialog} onOpenChange={(open) => { if (!open) setShowTbDialog(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" /> Tiebreaker Guess
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-snug">
+              In case of a score tie at pool close, your guess for the combined points scored in these final-week games decides the winner. Closest guess wins.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Primary Game{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Combined pts (e.g. 47)"
+                value={tbGuess1}
+                onChange={(e) => setTbGuess1(e.target.value)}
+                className="text-lg font-mono h-12"
+                autoFocus
+              />
+            </div>
+            {poolForTb?.ndpTb2GameId && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Secondary Game{tb2Game ? ` — ${tb2Game.awayTeam} @ ${tb2Game.homeTeam}` : ""}
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Combined pts (e.g. 38)"
+                  value={tbGuess2}
+                  onChange={(e) => setTbGuess2(e.target.value)}
+                  className="text-lg font-mono h-12"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowTbDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 font-bebas text-xl tracking-widest"
+              onClick={() => {
+                const g1 = parseInt(tbGuess1, 10);
+                if (isNaN(g1) || g1 < 0) {
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Primary tiebreaker guess must be ≥ 0." });
+                  return;
+                }
+                const g2 = tbGuess2 !== "" ? parseInt(tbGuess2, 10) : undefined;
+                if (g2 !== undefined && (isNaN(g2) || g2 < 0)) {
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Secondary tiebreaker guess must be ≥ 0." });
+                  return;
+                }
+                setShowTbDialog(false);
+                doFinalSubmit(g1, g2);
+              }}
+            >
+              Submit Picks
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {picksLocked ? (
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
           <span className="text-lg leading-none">🔒</span>
