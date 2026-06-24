@@ -11,6 +11,8 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
+import { fetchNflGamesByWeek } from "../lib/espn";
+import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -535,6 +537,50 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
 
   req.log.info({ poolId, divisions: values.length }, "Simulated NDP standings for sandbox");
   res.json({ simulated: values.length, divisions: values.map(v => ({ divisionName: v.divisionName, pos1Team: v.pos1Team, pos2Team: v.pos2Team, pos3Team: v.pos3Team, pos4Team: v.pos4Team })) });
+});
+
+// GET /api/pools/:poolId/ndp/week18-games
+router.get("/week18-games", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nfl_division_predictor") {
+    res.status(400).json({ error: "This pool is not an NFL Division Predictor pool" }); return;
+  }
+
+  if ((pool as any).sandboxMode) {
+    const games = getSandboxGamesForWeek(18);
+    res.json(games.map(g => ({
+      id: g.id,
+      awayTeam: NFL_TEAM_INFO[g.awayAbbr]?.displayName ?? g.awayAbbr,
+      homeTeam: NFL_TEAM_INFO[g.homeAbbr]?.displayName ?? g.homeAbbr,
+      startTime: g.gameTime,
+    })));
+    return;
+  }
+
+  try {
+    const liveGames = await fetchNflGamesByWeek(18, pool.season);
+    if (liveGames.length > 0) {
+      res.json(liveGames.map(g => ({
+        id: g.id,
+        awayTeam: g.awayTeam.displayName,
+        homeTeam: g.homeTeam.displayName,
+        startTime: g.date,
+      })));
+      return;
+    }
+  } catch (err) {
+    req.log.warn({ poolId, err }, "ESPN week 18 fetch failed, falling back to hardcoded schedule");
+  }
+
+  const games = getSandboxGamesForWeek(18);
+  res.json(games.map(g => ({
+    id: g.id,
+    awayTeam: NFL_TEAM_INFO[g.awayAbbr]?.displayName ?? g.awayAbbr,
+    homeTeam: NFL_TEAM_INFO[g.homeAbbr]?.displayName ?? g.homeAbbr,
+    startTime: g.gameTime,
+  })));
 });
 
 export default router;

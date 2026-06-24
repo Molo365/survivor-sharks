@@ -1255,6 +1255,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/ndp/week18-games:
+    get:
+      operationId: getNdpWeek18Games
+      tags: [ndp]
+      summary: Get Week 18 NFL games for tiebreaker game designation (commissioner)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Week 18 NFL game list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdpWeek18Game"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Admin ─────────────────────────────────────────────────────────────────
   /admin/pools:
     get:
@@ -1743,6 +1770,14 @@ components:
           enum: [weekly, daily]
         isRecurring:
           type: boolean
+        ndpTb1GameId:
+          type: string
+          nullable: true
+          description: "NDP only: game ID of the primary tiebreaker game"
+        ndpTb2GameId:
+          type: string
+          nullable: true
+          description: "NDP only: game ID of the secondary/fallback tiebreaker game"
         prizeStructure:
           type: array
           items:
@@ -1881,6 +1916,12 @@ components:
         isRecurring:
           type: boolean
           description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
+        ndpTb1GameId:
+          type: ["string", "null"]
+          description: "NDP only: game ID of the primary tiebreaker game"
+        ndpTb2GameId:
+          type: ["string", "null"]
+          description: "NDP only: game ID of the secondary/fallback tiebreaker game"
         prizeStructure:
           type: array
           nullable: true
@@ -1942,6 +1983,12 @@ components:
         isRecurring:
           type: boolean
           description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
+        ndpTb1GameId:
+          type: ["string", "null"]
+          description: "NDP only: game ID of the primary tiebreaker game"
+        ndpTb2GameId:
+          type: ["string", "null"]
+          description: "NDP only: game ID of the secondary/fallback tiebreaker game"
         activeCount:
           type: integer
           description: Number of members still alive (not eliminated)
@@ -3314,6 +3361,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NdpDivisionResult"
+
+    NdpWeek18Game:
+      type: object
+      required: [id, awayTeam, homeTeam, startTime]
+      properties:
+        id:
+          type: string
+          description: ESPN game ID (or sandbox game ID in sandbox mode)
+        awayTeam:
+          type: string
+          description: Away team display name
+        homeTeam:
+          type: string
+          description: Home team display name
+        startTime:
+          type: string
+          description: Game start time (ISO 8601)
 
     NdpLeaderboardEntry:
       type: object

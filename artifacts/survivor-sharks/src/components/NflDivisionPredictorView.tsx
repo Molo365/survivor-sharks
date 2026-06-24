@@ -6,6 +6,10 @@ import {
   getGetNdpLeaderboardQueryKey,
   useGetNdpMemberPicks,
   getGetNdpMemberPicksQueryKey,
+  useGetPool,
+  useUpdatePool,
+  getGetPoolQueryKey,
+  useGetNdpWeek18Games,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -389,10 +394,22 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: pool } = useGetPool(poolId);
+  const { data: week18Games = [], isLoading: loadingGames } = useGetNdpWeek18Games(poolId);
+  const updatePool = useUpdatePool();
   const [localSandboxMode, setLocalSandboxMode] = useState(initSandboxMode);
   const [togglingMode, setTogglingMode] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ simulated: number } | null>(null);
+  const [tb1, setTb1] = useState<string>("");
+  const [tb2, setTb2] = useState<string>("");
+  const [savingTb, setSavingTb] = useState(false);
+
+  useEffect(() => {
+    if (!pool) return;
+    setTb1((pool as any).ndpTb1GameId ?? "");
+    setTb2((pool as any).ndpTb2GameId ?? "");
+  }, [pool?.id]);
 
   const handleToggleSandbox = async (enabled: boolean) => {
     setTogglingMode(true);
@@ -474,6 +491,84 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
           )}
         </div>
       )}
+
+      {/* Tiebreaker Game Designation */}
+      <div className="rounded-xl border border-border/40 bg-card/60 p-5 space-y-4">
+        <div>
+          <h4 className="font-bebas text-xl tracking-wide text-foreground flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-primary" /> Tiebreaker Games
+          </h4>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Designate the final-week games used to break score ties at pool close.
+          </p>
+        </div>
+        {loadingGames ? (
+          <p className="text-xs text-muted-foreground">Loading games…</p>
+        ) : week18Games.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No Week 18 games available yet.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Primary</Label>
+              <Select value={tb1} onValueChange={setTb1}>
+                <SelectTrigger className="h-9 bg-background border-border/50 text-sm">
+                  <SelectValue placeholder="Pick primary tiebreaker game" />
+                </SelectTrigger>
+                <SelectContent>
+                  {week18Games.map(g => (
+                    <SelectItem key={g.id} value={g.id} disabled={g.id === tb2}>
+                      {g.awayTeam} @ {g.homeTeam}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Secondary (fallback)</Label>
+              <Select value={tb2} onValueChange={setTb2}>
+                <SelectTrigger className="h-9 bg-background border-border/50 text-sm">
+                  <SelectValue placeholder="Pick secondary tiebreaker game" />
+                </SelectTrigger>
+                <SelectContent>
+                  {week18Games.map(g => (
+                    <SelectItem key={g.id} value={g.id} disabled={g.id === tb1}>
+                      {g.awayTeam} @ {g.homeTeam}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              disabled={savingTb || (!tb1 && !tb2)}
+              onClick={() => {
+                setSavingTb(true);
+                updatePool.mutate({ poolId, data: { ndpTb1GameId: tb1 || null, ndpTb2GameId: tb2 || null } as any }, {
+                  onSuccess: () => {
+                    toast({ title: "Tiebreaker games saved" });
+                    queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+                  },
+                  onError: (err: any) => {
+                    toast({ variant: "destructive", title: "Save failed", description: (err as Error).message });
+                  },
+                  onSettled: () => setSavingTb(false),
+                });
+              }}
+              className="font-bebas tracking-wider"
+            >
+              {savingTb ? "Saving…" : "Save Tiebreaker Games"}
+            </Button>
+            {pool && ((pool as any).ndpTb1GameId || (pool as any).ndpTb2GameId) && (
+              <p className="text-xs text-muted-foreground">
+                Saved — Primary: {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.homeTeam ?? "—"}
+                {(pool as any).ndpTb2GameId && (
+                  <> · Secondary: {week18Games.find(g => g.id === (pool as any).ndpTb2GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb2GameId)?.homeTeam ?? "—"}</>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.08),transparent)] pointer-events-none" />

@@ -165,6 +165,10 @@ export interface PoolUpdate {
   doubleElimination?: boolean;
   pickFrequency?: PoolUpdatePickFrequency;
   isRecurring?: boolean;
+  /** NDP only: game ID of the primary tiebreaker game */
+  ndpTb1GameId?: string | null;
+  /** NDP only: game ID of the secondary/fallback tiebreaker game */
+  ndpTb2GameId?: string | null;
   prizeStructure?: PrizeEntry[];
 }
 
@@ -268,6 +272,16 @@ export interface Pool {
   pickFrequency?: PoolPickFrequency;
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
+  /**
+     * NDP only: game ID of the primary tiebreaker game
+     * @nullable
+     */
+  ndpTb1GameId?: string | null;
+  /**
+     * NDP only: game ID of the secondary/fallback tiebreaker game
+     * @nullable
+     */
+  ndpTb2GameId?: string | null;
   prizeStructure?: PrizeEntry[] | null;
   createdAt?: string;
   /**
@@ -360,6 +374,16 @@ export interface PoolDetail {
   pickFrequency?: PoolDetailPickFrequency;
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
+  /**
+     * NDP only: game ID of the primary tiebreaker game
+     * @nullable
+     */
+  ndpTb1GameId?: string | null;
+  /**
+     * NDP only: game ID of the secondary/fallback tiebreaker game
+     * @nullable
+     */
+  ndpTb2GameId?: string | null;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */
@@ -1379,6 +1403,17 @@ export interface NdpPicksInput {
 
 export interface NdpResultsInput {
   results: NdpDivisionResult[];
+}
+
+export interface NdpWeek18Game {
+  /** ESPN game ID (or sandbox game ID in sandbox mode) */
+  id: string;
+  /** Away team display name */
+  awayTeam: string;
+  /** Home team display name */
+  homeTeam: string;
+  /** Game start time (ISO 8601) */
+  startTime: string;
 }
 
 export type NdpLeaderboardEntryDivisionScoresItem = {

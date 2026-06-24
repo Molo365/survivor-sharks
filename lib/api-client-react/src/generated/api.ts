@@ -55,6 +55,7 @@ import type {
   NdpPick,
   NdpPicksInput,
   NdpResultsInput,
+  NdpWeek18Game,
   NflPickEmSeasonLeaderboard,
   NflPickEmSeasonPicksResult,
   NflPickEmSeasonProcessResult,
@@ -3793,6 +3794,83 @@ export function useGetNdpLeaderboard<TData = Awaited<ReturnType<typeof getNdpLea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNdpLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNdpWeek18GamesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/week18-games`
+}
+
+/**
+ * @summary Get Week 18 NFL games for tiebreaker game designation (commissioner)
+ */
+export const getNdpWeek18Games = async (poolId: number, options?: RequestInit): Promise<NdpWeek18Game[]> => {
+
+  return customFetch<NdpWeek18Game[]>(getGetNdpWeek18GamesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpWeek18GamesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/week18-games`
+    ] as const;
+    }
+
+
+export const getGetNdpWeek18GamesQueryOptions = <TData = Awaited<ReturnType<typeof getNdpWeek18Games>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpWeek18Games>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpWeek18GamesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpWeek18Games>>> = ({ signal }) => getNdpWeek18Games(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpWeek18Games>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpWeek18GamesQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpWeek18Games>>>
+export type GetNdpWeek18GamesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get Week 18 NFL games for tiebreaker game designation (commissioner)
+ */
+
+export function useGetNdpWeek18Games<TData = Awaited<ReturnType<typeof getNdpWeek18Games>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpWeek18Games>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpWeek18GamesQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

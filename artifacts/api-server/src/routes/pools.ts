@@ -36,6 +36,8 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
+    ndpTb1GameId: pool.ndpTb1GameId ?? null,
+    ndpTb2GameId: pool.ndpTb2GameId ?? null,
     minEntries: pool.minEntries ?? null,
     closureReason: pool.closureReason ?? null,
     createdAt: pool.createdAt.toISOString(),
@@ -329,7 +331,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, ndpTb1GameId, ndpTb2GameId } = req.body;
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 
@@ -346,6 +348,8 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
     ...(typeof isRecurring === "boolean" && { isRecurring }),
+    ...(ndpTb1GameId !== undefined && { ndpTb1GameId: ndpTb1GameId ?? null }),
+    ...(ndpTb2GameId !== undefined && { ndpTb2GameId: ndpTb2GameId ?? null }),
     ...setEndedAt,
   }).where(eq(poolsTable.id, poolId)).returning();
 
