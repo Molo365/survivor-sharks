@@ -4,3 +4,4 @@
 - [isRecurring pool lifecycle](is-recurring-pool.md) — non-recurring MLB Daily pools set isActive=false (not currentWeek+1) when day closes; poolClosed flag in slate response drives read-only UI.
 - [Pass 2 auto-eliminator design](pass2-eliminator-design.md) — correct algorithm is two-query in-memory running-loss walk; "most recent pick" anchor is wrong for multi-life pools.
 - [Hooks-after-early-returns](hooks-after-early-returns.md) — useState/useCallback after isLoading/null-guard returns violates Rules of Hooks and blanks the page with no ErrorBoundary.
+- [Pool detail GET vs list GET divergence](pool-detail-response.md) — GET /api/pools/:poolId builds its own response object separately from formatPool(); new pool-level fields must be added to BOTH places.

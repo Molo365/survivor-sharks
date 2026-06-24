@@ -738,6 +738,8 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     return current.some((t, i) => t !== saved[i]);
   });
 
+  const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker?.tb1Guess == null;
+
   function doFinalSubmit(tb1Guess?: number, tb2Guess?: number) {
     const picks = Object.entries(orders).map(([divisionName, order]) => ({
       divisionName,
@@ -771,7 +773,6 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   function handleSubmit() {
     if (!allConfirmed) return;
-    const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker?.tb1Guess == null;
     if (needsTb) {
       setTbGuess1("");
       setTbGuess2("");
@@ -1039,12 +1040,18 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         })}
       </div>
 
-      {!picksLocked && hasPendingChanges && (
+      {!picksLocked && (hasPendingChanges || (allConfirmed && needsTb)) && (
         <div className="sticky bottom-4 flex justify-center pt-2">
           <div className="flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10">
             <div className="text-center sm:text-left">
-              <p className="font-bebas text-xl tracking-wider text-yellow-300">All divisions predicted!</p>
-              <p className="text-xs text-muted-foreground">Lock in your picks for all 8 NFL divisions</p>
+              <p className="font-bebas text-xl tracking-wider text-yellow-300">
+                {needsTb && !hasPendingChanges ? "Tiebreaker guess required!" : "All divisions predicted!"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {needsTb && !hasPendingChanges
+                  ? "The commissioner has designated tiebreaker games — add your guess to finalise your entry"
+                  : "Lock in your picks for all 8 NFL divisions"}
+              </p>
             </div>
             <Button
               onClick={handleSubmit}
@@ -1052,7 +1059,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               className="gap-2 font-bebas text-xl tracking-wider px-8 py-5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20"
             >
               <Send className="w-5 h-5" />
-              {submitPicks.isPending ? "Saving..." : "Submit All Picks"}
+              {submitPicks.isPending ? "Saving..." : needsTb ? "Submit & Add Tiebreaker" : "Submit All Picks"}
             </Button>
           </div>
         </div>
