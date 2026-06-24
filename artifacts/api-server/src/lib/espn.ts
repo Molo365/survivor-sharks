@@ -664,3 +664,118 @@ export async function getGameMarginsByTeam(sport: string, week?: number, poolCre
  * Fetch this week's schedule — used by commissioner panel and pick grid.
  */
 export { fetchGames };
+
+// ---------------------------------------------------------------------------
+// NFL Division Standings — live division records from ESPN
+// https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3
+// Returns 2 conferences → 4 divisions each → 4 teams each.
+// 5-minute in-memory cache with stale-on-error fallback (mirrors wc.ts pattern).
+// ---------------------------------------------------------------------------
+
+export interface NflDivisionStandingsTeam {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  logo: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  winPercent: string;      // e.g. ".824" or "—"
+  gamesBehind: string;     // e.g. "-" (leader) or "2"
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  playoffSeed: number;
+  divisionRecord: string;  // e.g. "4-2-0"
+  streak: string;          // e.g. "W3" or "L1"
+  clincher: string | null; // "z" division | "x" playoff | "y" conf | "e" eliminated | null
+}
+
+export interface NflDivisionStandingsGroup {
+  divisionName: string;    // e.g. "AFC East"
+  teams: NflDivisionStandingsTeam[];
+}
+
+const NFL_STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3";
+const NFL_STANDINGS_TTL_MS = 5 * 60 * 1000; // 5 min
+
+let _nflStandingsCache: { data: NflDivisionStandingsGroup[]; fetchedAt: number } | null = null;
+
+/**
+ * Fetch and cache NFL division standings from ESPN.
+ * Teams are sorted by playoff seed (1 = leader).
+ * Falls back to stale cache if ESPN is unreachable.
+ */
+export async function fetchNflDivisionStandings(): Promise<NflDivisionStandingsGroup[]> {
+  const now = Date.now();
+  if (_nflStandingsCache && now - _nflStandingsCache.fetchedAt < NFL_STANDINGS_TTL_MS) {
+    return _nflStandingsCache.data;
+  }
+
+  try {
+    const res = await fetch(NFL_STANDINGS_URL, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`ESPN NFL standings HTTP ${res.status}`);
+
+    const raw = await res.json() as {
+      children?: Array<{
+        name: string;
+        children?: Array<{
+          name: string;
+          standings?: {
+            entries?: Array<{
+              team: { id: string; displayName: string; abbreviation: string; logos?: { href: string }[] };
+              stats?: Array<{ name: string; displayValue: string; value?: number }>;
+            }>;
+          };
+        }>;
+      }>;
+    };
+
+    const getStat = (
+      stats: Array<{ name: string; displayValue: string; value?: number }> | undefined,
+      name: string,
+    ) => stats?.find(s => s.name === name);
+
+    const groups: NflDivisionStandingsGroup[] = [];
+
+    for (const conf of raw.children ?? []) {
+      for (const div of conf.children ?? []) {
+        const entries = div.standings?.entries ?? [];
+        const teams: NflDivisionStandingsTeam[] = entries.map(e => {
+          const st = e.stats ?? [];
+          const clinchRaw = getStat(st, "clincher")?.displayValue ?? "";
+          return {
+            id: e.team.id,
+            displayName: e.team.displayName,
+            abbreviation: e.team.abbreviation,
+            logo: e.team.logos?.[0]?.href ?? null,
+            wins: getStat(st, "wins")?.value ?? 0,
+            losses: getStat(st, "losses")?.value ?? 0,
+            ties: getStat(st, "ties")?.value ?? 0,
+            winPercent: getStat(st, "winPercent")?.displayValue ?? ".000",
+            gamesBehind: getStat(st, "gamesBehind")?.displayValue ?? "-",
+            pointsFor: getStat(st, "pointsFor")?.value ?? 0,
+            pointsAgainst: getStat(st, "pointsAgainst")?.value ?? 0,
+            pointDifferential: getStat(st, "pointDifferential")?.value ?? 0,
+            playoffSeed: getStat(st, "playoffSeed")?.value ?? 99,
+            divisionRecord: getStat(st, "divisionRecord")?.displayValue ?? "0-0-0",
+            streak: getStat(st, "streak")?.displayValue ?? "-",
+            clincher: clinchRaw.trim() !== "" ? clinchRaw.trim() : null,
+          };
+        });
+
+        // Sort by playoff seed ascending (ESPN usually returns them pre-sorted, but be safe)
+        teams.sort((a, b) => a.playoffSeed - b.playoffSeed);
+
+        groups.push({ divisionName: div.name, teams });
+      }
+    }
+
+    _nflStandingsCache = { data: groups, fetchedAt: now };
+    return groups;
+  } catch {
+    // Stale-on-error fallback
+    if (_nflStandingsCache) return _nflStandingsCache.data;
+    return [];
+  }
+}

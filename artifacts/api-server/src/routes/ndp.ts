@@ -13,7 +13,7 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
-import { fetchNflGamesByWeek } from "../lib/espn";
+import { fetchNflGamesByWeek, fetchNflDivisionStandings } from "../lib/espn";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import type { Logger } from "pino";
 
@@ -836,6 +836,22 @@ router.get("/my-tiebreaker", requireAuth, async (req, res) => {
     tb1Guess: row?.tb1Guess ?? null,
     tb2Guess: row?.tb2Guess ?? null,
   });
+});
+
+// GET /api/pools/:poolId/ndp/live-standings
+router.get("/live-standings", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [member] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!member) { res.status(403).json({ error: "Not a pool member" }); return; }
+
+  const divisions = await fetchNflDivisionStandings();
+  res.json(divisions);
 });
 
 export default router;

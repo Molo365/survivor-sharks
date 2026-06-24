@@ -57,6 +57,7 @@ import type {
   NdpPicksInput,
   NdpResultsInput,
   NdpWeek18Game,
+  NflDivisionStandingsGroup,
   NflPickEmSeasonLeaderboard,
   NflPickEmSeasonPicksResult,
   NflPickEmSeasonProcessResult,
@@ -3795,6 +3796,83 @@ export function useGetNdpLeaderboard<TData = Awaited<ReturnType<typeof getNdpLea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNdpLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNdpLiveStandingsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/live-standings`
+}
+
+/**
+ * @summary Get live ESPN NFL division standings for an NDP pool
+ */
+export const getNdpLiveStandings = async (poolId: number, options?: RequestInit): Promise<NflDivisionStandingsGroup[]> => {
+
+  return customFetch<NflDivisionStandingsGroup[]>(getGetNdpLiveStandingsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpLiveStandingsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/live-standings`
+    ] as const;
+    }
+
+
+export const getGetNdpLiveStandingsQueryOptions = <TData = Awaited<ReturnType<typeof getNdpLiveStandings>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLiveStandings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpLiveStandingsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpLiveStandings>>> = ({ signal }) => getNdpLiveStandings(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpLiveStandings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpLiveStandingsQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpLiveStandings>>>
+export type GetNdpLiveStandingsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get live ESPN NFL division standings for an NDP pool
+ */
+
+export function useGetNdpLiveStandings<TData = Awaited<ReturnType<typeof getNdpLiveStandings>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLiveStandings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpLiveStandingsQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

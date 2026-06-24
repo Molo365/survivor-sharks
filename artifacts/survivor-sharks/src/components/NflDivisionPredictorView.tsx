@@ -13,7 +13,9 @@ import {
   useGetNdpMyTiebreaker,
   getGetNdpMyTiebreakerQueryKey,
   getGetPickEmDashboardStatsQueryKey,
+  useGetNdpLiveStandings,
 } from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,6 +42,8 @@ import {
   ShieldAlert,
   Copy,
   X,
+  Globe,
+  RefreshCw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -406,6 +410,229 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
         )}
       </div>
     </>
+  );
+}
+
+// ── Live Standings tab ────────────────────────────────────────────────────────
+
+// Seed → visual zone within a conference (1-4 div winners, 5-7 wild card, 8+ out)
+function seedZone(seed: number): "div" | "wild" | "out" {
+  if (seed <= 4) return "div";
+  if (seed <= 7) return "wild";
+  return "out";
+}
+
+const ZONE_BADGE: Record<string, string> = {
+  div:  "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  wild: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  out:  "bg-transparent text-muted-foreground border-border/30",
+};
+
+const CLINCHER_LABEL: Record<string, { label: string; cls: string }> = {
+  z: { label: "z", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
+  x: { label: "x", cls: "bg-blue-500/15 text-blue-400 border-blue-500/25" },
+  y: { label: "y", cls: "bg-purple-500/15 text-purple-400 border-purple-500/25" },
+  e: { label: "e", cls: "bg-red-500/15 text-red-400 border-red-500/20" },
+};
+
+function LiveStandingsTab({ poolId }: { poolId: number }) {
+  const {
+    data: groups,
+    isLoading,
+    isFetching,
+    refetch,
+    dataUpdatedAt,
+  } = useGetNdpLiveStandings(poolId, {
+    query: { queryKey: ["ndp-live-standings", poolId], refetchInterval: 60_000, staleTime: 55_000 },
+  });
+
+  const updatedLabel = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  const preseason = groups?.every(g => g.teams.every(t => t.wins === 0 && t.losses === 0 && t.ties === 0));
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-44 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!groups?.length) {
+    return (
+      <div className="mt-10 text-center text-muted-foreground text-sm">
+        Standings unavailable — ESPN API may be unreachable. Try again shortly.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 mt-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5" />
+          <span>Live data from ESPN · auto-refreshes every 60 s</span>
+          {preseason && (
+            <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 text-[10px] font-semibold tracking-wide uppercase">
+              Pre-season
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded-md border border-border/40 hover:border-border/70 hover:bg-muted/30 transition-colors",
+            isFetching && "opacity-60 pointer-events-none",
+          )}
+        >
+          <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+          {updatedLabel ? `Updated ${updatedLabel}` : "Refresh"}
+        </button>
+      </div>
+
+      {/* Legend */}
+      {!preseason && (
+        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground/60">
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full border bg-emerald-500/20 border-emerald-500/30 inline-block" />
+            Division leader
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full border bg-blue-500/10 border-blue-500/20 inline-block" />
+            Wild card
+          </span>
+          <span className="flex items-center gap-3 ml-2 gap-y-1">
+            {Object.entries(CLINCHER_LABEL).map(([k, v]) => (
+              <span key={k} className="flex items-center gap-1">
+                <span className={cn("px-1 rounded border text-[9px] font-bold", v.cls)}>{v.label}</span>
+                {k === "z" ? "div. clinched" : k === "x" ? "playoff" : k === "y" ? "conf. seed" : "eliminated"}
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
+
+      {/* 8-division card grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {groups.map(group => (
+          <Card key={group.divisionName} className="bg-card border-border/50 overflow-hidden">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="font-bebas text-lg tracking-wider text-foreground leading-none">
+                {group.divisionName}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 pb-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 border-b border-border/20">
+                <span className="w-5 text-center">#</span>
+                <span>Team</span>
+                <span className="w-14 text-center">W-L{group.teams.some(t => t.ties > 0) ? "-T" : ""}</span>
+                <span className="w-6 text-center">GB</span>
+              </div>
+
+              {/* Team rows */}
+              {group.teams.map((team, idx) => {
+                const zone = seedZone(team.playoffSeed);
+                const clinch = team.clincher ? CLINCHER_LABEL[team.clincher] : null;
+                const pdStr = team.pointDifferential > 0 ? `+${team.pointDifferential}` : String(team.pointDifferential);
+                const record = team.ties > 0
+                  ? `${team.wins}-${team.losses}-${team.ties}`
+                  : `${team.wins}-${team.losses}`;
+
+                return (
+                  <div
+                    key={team.id}
+                    className={cn(
+                      "grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 px-4 py-1.5",
+                      idx < group.teams.length - 1 && "border-b border-border/10",
+                    )}
+                  >
+                    {/* Seed-zone badge (position within division) */}
+                    <span
+                      className={cn(
+                        "w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 border",
+                        ZONE_BADGE[zone],
+                      )}
+                    >
+                      {idx + 1}
+                    </span>
+
+                    {/* Logo + name + clincher */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {team.logo ? (
+                        <img src={team.logo} alt={team.abbreviation} className="w-4 h-4 object-contain shrink-0" />
+                      ) : (
+                        <span className="w-4 h-4 shrink-0 rounded-full bg-muted/40" />
+                      )}
+                      <span className={cn(
+                        "text-xs truncate",
+                        zone === "div" ? "text-foreground font-medium" : "text-foreground/80",
+                      )}>
+                        {team.abbreviation}
+                      </span>
+                      {clinch && (
+                        <span className={cn(
+                          "shrink-0 px-1 py-px rounded border text-[9px] font-bold leading-none",
+                          clinch.cls,
+                        )}>
+                          {clinch.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* W-L(-T) record */}
+                    <span className="text-[11px] text-muted-foreground tabular-nums w-14 text-center">
+                      {preseason ? "—" : record}
+                    </span>
+
+                    {/* GB */}
+                    <span className={cn(
+                      "text-[11px] tabular-nums w-6 text-center",
+                      team.gamesBehind === "-" ? "text-muted-foreground/40" : "text-muted-foreground",
+                    )}>
+                      {preseason ? "—" : team.gamesBehind === "-" ? "-" : team.gamesBehind}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Point diff footer — only when games played */}
+              {!preseason && (
+                <div className="mt-1.5 px-4 flex flex-col gap-0.5">
+                  {group.teams.map(team => {
+                    const pdStr = team.pointDifferential > 0
+                      ? `+${team.pointDifferential}`
+                      : String(team.pointDifferential);
+                    return (
+                      <div key={team.id} className="flex items-center justify-between text-[9px] text-muted-foreground/40">
+                        <span>{team.abbreviation}</span>
+                        <span className={cn(
+                          team.pointDifferential > 0 ? "text-emerald-500/50" :
+                          team.pointDifferential < 0 ? "text-red-500/40" : "",
+                        )}>
+                          {pdStr} pts diff
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {preseason && (
+        <p className="text-center text-xs text-muted-foreground/50 pt-2">
+          Standings will update once the NFL regular season begins.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1095,6 +1322,9 @@ export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode, s
             <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
               <Trophy className="w-4 h-4" /> Leaderboard
             </TabsTrigger>
+            <TabsTrigger value="standings" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+              <Globe className="w-4 h-4" /> Live Standings
+            </TabsTrigger>
             {isCommissioner && (
               <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2 text-muted-foreground hover:text-foreground md:ml-auto">
                 <ShieldAlert className="w-4 h-4" /> Commissioner
@@ -1111,6 +1341,10 @@ export function NflDivisionPredictorView({ poolId, isCommissioner, inviteCode, s
 
         <TabsContent value="leaderboard">
           <LeaderboardTab poolId={poolId} />
+        </TabsContent>
+
+        <TabsContent value="standings">
+          <LiveStandingsTab poolId={poolId} />
         </TabsContent>
 
         {isCommissioner && inviteCode && (

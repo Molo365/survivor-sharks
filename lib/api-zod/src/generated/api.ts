@@ -1653,6 +1653,37 @@ export const GetNdpLeaderboardResponse = zod.object({
 
 
 /**
+ * @summary Get live ESPN NFL division standings for an NDP pool
+ */
+export const GetNdpLiveStandingsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpLiveStandingsResponseItem = zod.object({
+  "divisionName": zod.string().describe('Division name, e.g. \'AFC East\''),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "abbreviation": zod.string(),
+  "logo": zod.string().nullable(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "ties": zod.number(),
+  "winPercent": zod.string().describe('Win percentage display string, e.g. \'.824\''),
+  "gamesBehind": zod.string().describe('Games behind division leader, \'-\' for the leader'),
+  "pointsFor": zod.number(),
+  "pointsAgainst": zod.number(),
+  "pointDifferential": zod.number(),
+  "playoffSeed": zod.number().describe('Conference playoff seed (1–16)'),
+  "divisionRecord": zod.string().describe('Division record, e.g. \'4-2-0\''),
+  "streak": zod.string().describe('Current streak, e.g. \'W3\' or \'L1\''),
+  "clincher": zod.string().nullable().describe('Clincher code: \'z\'=division, \'x\'=playoff, \'y\'=conf, \'e\'=eliminated, null=none')
+}))
+})
+export const GetNdpLiveStandingsResponse = zod.array(GetNdpLiveStandingsResponseItem)
+
+
+/**
  * @summary Get the current user's NDP tiebreaker guesses for this pool
  */
 export const GetNdpMyTiebreakerParams = zod.object({

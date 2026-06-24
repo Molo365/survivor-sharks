@@ -1459,6 +1459,37 @@ export interface NdpLeaderboardResponse {
   tb2Actual: number | null;
 }
 
+export interface NflDivisionStandingsTeam {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  logo: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  /** Win percentage display string, e.g. '.824' */
+  winPercent: string;
+  /** Games behind division leader, '-' for the leader */
+  gamesBehind: string;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  /** Conference playoff seed (1–16) */
+  playoffSeed: number;
+  /** Division record, e.g. '4-2-0' */
+  divisionRecord: string;
+  /** Current streak, e.g. 'W3' or 'L1' */
+  streak: string;
+  /** Clincher code: 'z'=division, 'x'=playoff, 'y'=conf, 'e'=eliminated, null=none */
+  clincher: string | null;
+}
+
+export interface NflDivisionStandingsGroup {
+  /** Division name, e.g. 'AFC East' */
+  divisionName: string;
+  teams: NflDivisionStandingsTeam[];
+}
+
 export interface NflPickEmSeasonTeam {
   id: string;
   name: string;

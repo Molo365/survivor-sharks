@@ -1253,6 +1253,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/ndp/live-standings:
+    get:
+      operationId: getNdpLiveStandings
+      tags: [ndp]
+      summary: Get live ESPN NFL division standings for an NDP pool
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Live division standings (8 groups, 4 teams each)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NflDivisionStandingsGroup"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/ndp/my-tiebreaker:
     get:
       operationId: getNdpMyTiebreaker
@@ -3482,6 +3515,63 @@ components:
                 type: integer
               hasResult:
                 type: boolean
+
+    NflDivisionStandingsTeam:
+      type: object
+      required: [id, displayName, abbreviation, logo, wins, losses, ties, winPercent, gamesBehind, pointsFor, pointsAgainst, pointDifferential, playoffSeed, divisionRecord, streak, clincher]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        abbreviation:
+          type: string
+        logo:
+          type: string
+          nullable: true
+        wins:
+          type: integer
+        losses:
+          type: integer
+        ties:
+          type: integer
+        winPercent:
+          type: string
+          description: "Win percentage display string, e.g. '.824'"
+        gamesBehind:
+          type: string
+          description: "Games behind division leader, '-' for the leader"
+        pointsFor:
+          type: integer
+        pointsAgainst:
+          type: integer
+        pointDifferential:
+          type: integer
+        playoffSeed:
+          type: integer
+          description: "Conference playoff seed (1–16)"
+        divisionRecord:
+          type: string
+          description: "Division record, e.g. '4-2-0'"
+        streak:
+          type: string
+          description: "Current streak, e.g. 'W3' or 'L1'"
+        clincher:
+          type: string
+          nullable: true
+          description: "Clincher code: 'z'=division, 'x'=playoff, 'y'=conf, 'e'=eliminated, null=none"
+
+    NflDivisionStandingsGroup:
+      type: object
+      required: [divisionName, teams]
+      properties:
+        divisionName:
+          type: string
+          description: "Division name, e.g. 'AFC East'"
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflDivisionStandingsTeam"
 
     # ── NFL Pick-Ems Season schemas ─────────────────────────────────────────────
     NflPickEmSeasonTeam:
