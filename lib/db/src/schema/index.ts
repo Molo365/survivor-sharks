@@ -7,6 +7,7 @@ export * from "./pickem_picks";
 export * from "./group_stage_predictor_picks";
 export * from "./group_stage_results";
 export * from "./nfl_division_predictor_picks";
+export * from "./nfl_division_predictor_tiebreakers";
 export * from "./nfl_division_results";
 export * from "./nfl_confidence_results";
 export * from "./sandbox_game_scores";
