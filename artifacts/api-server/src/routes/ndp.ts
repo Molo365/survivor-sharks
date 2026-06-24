@@ -43,7 +43,10 @@ async function getActualNdpCombinedScore(
   season: number,
   log: Logger,
 ): Promise<number | null> {
-  if (sandboxMode || gameId.startsWith("sandbox-")) {
+  // Synthetic keys (sandbox-* prefix, or any "realGameId:stat" suffix) always resolve from
+  // sandbox_game_scores so commissioners can inject actuals for both sandbox AND live pools.
+  // ESPN game IDs are plain integers; a colon never appears in a real ESPN ID.
+  if (sandboxMode || gameId.startsWith("sandbox-") || gameId.includes(":")) {
     const [row] = await db.select()
       .from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.gameId, gameId)))
