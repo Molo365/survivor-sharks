@@ -412,7 +412,6 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
   useEffect(() => {
     if (!pool) return;
     setTb1((pool as any).ndpTb1GameId ?? "");
-    setTb2((pool as any).ndpTb2GameId ?? "");
   }, [pool?.id]);
 
   const handleToggleSandbox = async (enabled: boolean) => {
@@ -501,32 +500,30 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                      TB1 Combined Pts
+                      Combined Passing Yds
                     </label>
                     <Input
                       type="number"
                       min={0}
-                      placeholder="e.g. 47"
+                      placeholder="e.g. 520"
                       value={simTb1Score}
                       onChange={(e) => setSimTb1Score(e.target.value)}
                       className="h-8 text-sm bg-background/50 border-yellow-500/30"
                     />
                   </div>
-                  {pool.ndpTb2GameId && (
-                    <div className="space-y-1">
-                      <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                        TB2 Combined Pts
-                      </label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="e.g. 38"
-                        value={simTb2Score}
-                        onChange={(e) => setSimTb2Score(e.target.value)}
-                        className="h-8 text-sm bg-background/50 border-yellow-500/30"
-                      />
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
+                      Combined Rushing Yds
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="e.g. 140"
+                      value={simTb2Score}
+                      onChange={(e) => setSimTb2Score(e.target.value)}
+                      className="h-8 text-sm bg-background/50 border-yellow-500/30"
+                    />
+                  </div>
                 </div>
               )}
               <div className="flex items-center gap-3">
@@ -556,10 +553,10 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
       <div className="rounded-xl border border-border/40 bg-card/60 p-5 space-y-4">
         <div>
           <h4 className="font-bebas text-xl tracking-wide text-foreground flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" /> Tiebreaker Games
+            <Trophy className="w-4 h-4 text-primary" /> Tiebreaker Game
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Designate the final-week games used to break score ties at pool close.
+            Designate one final-week game. Players will guess its combined passing and rushing yards to break ties at pool close.
           </p>
         </div>
         {loadingGames ? (
@@ -569,29 +566,14 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
         ) : (
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Primary</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Tiebreaker Game</Label>
               <Select value={tb1} onValueChange={setTb1}>
                 <SelectTrigger className="h-9 bg-background border-border/50 text-sm">
-                  <SelectValue placeholder="Pick primary tiebreaker game" />
+                  <SelectValue placeholder="Pick tiebreaker game" />
                 </SelectTrigger>
                 <SelectContent>
                   {week18Games.map(g => (
-                    <SelectItem key={g.id} value={g.id} disabled={g.id === tb2}>
-                      {g.awayTeam} @ {g.homeTeam}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Secondary (fallback)</Label>
-              <Select value={tb2} onValueChange={setTb2}>
-                <SelectTrigger className="h-9 bg-background border-border/50 text-sm">
-                  <SelectValue placeholder="Pick secondary tiebreaker game" />
-                </SelectTrigger>
-                <SelectContent>
-                  {week18Games.map(g => (
-                    <SelectItem key={g.id} value={g.id} disabled={g.id === tb1}>
+                    <SelectItem key={g.id} value={g.id}>
                       {g.awayTeam} @ {g.homeTeam}
                     </SelectItem>
                   ))}
@@ -600,12 +582,12 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
             </div>
             <Button
               size="sm"
-              disabled={savingTb || (!tb1 && !tb2)}
+              disabled={savingTb || !tb1}
               onClick={() => {
                 setSavingTb(true);
-                updatePool.mutate({ poolId, data: { ndpTb1GameId: tb1 || null, ndpTb2GameId: tb2 || null } as any }, {
+                updatePool.mutate({ poolId, data: { ndpTb1GameId: tb1 || null } as any }, {
                   onSuccess: () => {
-                    toast({ title: "Tiebreaker games saved" });
+                    toast({ title: "Tiebreaker game saved" });
                     queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
                   },
                   onError: (err: any) => {
@@ -616,14 +598,11 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
               }}
               className="font-bebas tracking-wider"
             >
-              {savingTb ? "Saving…" : "Save Tiebreaker Games"}
+              {savingTb ? "Saving…" : "Save Tiebreaker Game"}
             </Button>
-            {pool && ((pool as any).ndpTb1GameId || (pool as any).ndpTb2GameId) && (
+            {pool && (pool as any).ndpTb1GameId && (
               <p className="text-xs text-muted-foreground">
-                Saved — Primary: {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.homeTeam ?? "—"}
-                {(pool as any).ndpTb2GameId && (
-                  <> · Secondary: {week18Games.find(g => g.id === (pool as any).ndpTb2GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb2GameId)?.homeTeam ?? "—"}</>
-                )}
+                Saved — {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.homeTeam ?? "—"}
               </p>
             )}
           </div>
@@ -795,7 +774,6 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   }
 
   const tb1Game = week18Games.find((g) => g.id === poolForTb?.ndpTb1GameId);
-  const tb2Game = week18Games.find((g) => g.id === poolForTb?.ndpTb2GameId);
 
   return (
     <div className="space-y-6 pt-4">
@@ -807,39 +785,37 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               <Trophy className="w-5 h-5 text-yellow-400" /> Tiebreaker Guess
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-snug">
-              In case of a score tie at pool close, your guess for the combined points scored in these final-week games decides the winner. Closest guess wins.
+              In case of a score tie at pool close, your guesses for the combined passing and rushing yards in this game decide the winner. Closest guess wins — passing yards first, rushing yards as fallback.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Primary Game{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
+                Combined Passing Yards{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
               </label>
               <Input
                 type="number"
                 min={0}
-                placeholder="Combined pts (e.g. 47)"
+                placeholder="e.g. 520"
                 value={tbGuess1}
                 onChange={(e) => setTbGuess1(e.target.value)}
                 className="text-lg font-mono h-12"
                 autoFocus
               />
             </div>
-            {poolForTb?.ndpTb2GameId && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Secondary Game{tb2Game ? ` — ${tb2Game.awayTeam} @ ${tb2Game.homeTeam}` : ""}
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="Combined pts (e.g. 38)"
-                  value={tbGuess2}
-                  onChange={(e) => setTbGuess2(e.target.value)}
-                  className="text-lg font-mono h-12"
-                />
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Combined Rushing Yards{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="e.g. 140"
+                value={tbGuess2}
+                onChange={(e) => setTbGuess2(e.target.value)}
+                className="text-lg font-mono h-12"
+              />
+            </div>
           </div>
           <DialogFooter className="flex flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setShowTbDialog(false)}>
@@ -850,12 +826,12 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               onClick={() => {
                 const g1 = parseInt(tbGuess1, 10);
                 if (isNaN(g1) || g1 < 0) {
-                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Primary tiebreaker guess must be ≥ 0." });
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Combined passing yards guess must be ≥ 0." });
                   return;
                 }
                 const g2 = tbGuess2 !== "" ? parseInt(tbGuess2, 10) : undefined;
                 if (g2 !== undefined && (isNaN(g2) || g2 < 0)) {
-                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Secondary tiebreaker guess must be ≥ 0." });
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Combined rushing yards guess must be ≥ 0." });
                   return;
                 }
                 setShowTbDialog(false);

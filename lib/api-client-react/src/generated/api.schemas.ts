@@ -165,9 +165,9 @@ export interface PoolUpdate {
   doubleElimination?: boolean;
   pickFrequency?: PoolUpdatePickFrequency;
   isRecurring?: boolean;
-  /** NDP only: game ID of the primary tiebreaker game */
+  /** NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking) */
   ndpTb1GameId?: string | null;
-  /** NDP only: game ID of the secondary/fallback tiebreaker game */
+  /** NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game */
   ndpTb2GameId?: string | null;
   prizeStructure?: PrizeEntry[];
 }
@@ -273,12 +273,12 @@ export interface Pool {
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
   /**
-     * NDP only: game ID of the primary tiebreaker game
+     * NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)
      * @nullable
      */
   ndpTb1GameId?: string | null;
   /**
-     * NDP only: game ID of the secondary/fallback tiebreaker game
+     * NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game
      * @nullable
      */
   ndpTb2GameId?: string | null;
@@ -375,12 +375,12 @@ export interface PoolDetail {
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
   /**
-     * NDP only: game ID of the primary tiebreaker game
+     * NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)
      * @nullable
      */
   ndpTb1GameId?: string | null;
   /**
-     * NDP only: game ID of the secondary/fallback tiebreaker game
+     * NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game
      * @nullable
      */
   ndpTb2GameId?: string | null;
@@ -1399,9 +1399,9 @@ export interface NdpDivisionWithPick {
 
 export interface NdpPicksInput {
   picks: NdpPick[];
-  /** Player's combined-points guess for the primary tiebreaker game */
+  /** Player's combined passing yards guess for the designated tiebreaker game (TB1 — primary) */
   tb1Guess?: number | null;
-  /** Player's combined-points guess for the secondary tiebreaker game */
+  /** Player's combined rushing yards guess for the designated tiebreaker game (TB2 — fallback) */
   tb2Guess?: number | null;
 }
 

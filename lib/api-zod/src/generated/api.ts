@@ -133,8 +133,8 @@ export const ListPoolsResponseItem = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -206,8 +206,8 @@ export const JoinPoolResponse = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -264,8 +264,8 @@ export const GetPoolResponse = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "activeCount": zod.number().describe('Number of members still alive (not eliminated)'),
   "totalMembers": zod.number().describe('Total number of members in the pool'),
   "members": zod.array(zod.object({
@@ -307,8 +307,8 @@ export const UpdatePoolBody = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
   "isRecurring": zod.boolean().optional(),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -336,8 +336,8 @@ export const UpdatePoolResponse = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
@@ -1528,8 +1528,8 @@ export const SubmitNdpPicksBody = zod.object({
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
 })),
-  "tb1Guess": zod.number().nullish().describe('Player\'s combined-points guess for the primary tiebreaker game'),
-  "tb2Guess": zod.number().nullish().describe('Player\'s combined-points guess for the secondary tiebreaker game')
+  "tb1Guess": zod.number().nullish().describe('Player\'s combined passing yards guess for the designated tiebreaker game (TB1 — primary)'),
+  "tb2Guess": zod.number().nullish().describe('Player\'s combined rushing yards guess for the designated tiebreaker game (TB2 — fallback)')
 })
 
 export const SubmitNdpPicksResponseItem = zod.object({
@@ -1698,8 +1698,8 @@ export const AdminListPoolsResponseItem = zod.object({
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional().describe('MLB only: pick frequency for this pool'),
   "isRecurring": zod.boolean().describe('MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely'),
-  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the primary tiebreaker game'),
-  "ndpTb2GameId": zod.string().nullish().describe('NDP only: game ID of the secondary\/fallback tiebreaker game'),
+  "ndpTb1GameId": zod.string().nullish().describe('NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)'),
+  "ndpTb2GameId": zod.string().nullish().describe('NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game'),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')

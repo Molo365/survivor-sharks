@@ -62,22 +62,18 @@ async function getActualNdpCombinedScore(
 }
 
 function makeNdpResolveTie(pool: typeof poolsTable.$inferSelect, log: Logger) {
-  const { id: poolId, ndpTb1GameId, ndpTb2GameId, sandboxMode, season } = pool;
-  if (!ndpTb1GameId && !ndpTb2GameId) return undefined;
+  const { id: poolId, ndpTb1GameId, sandboxMode, season } = pool;
+  if (!ndpTb1GameId) return undefined;
 
   return async (tiedUserIds: number[]): Promise<number[]> => {
     const [tb1Actual, tb2Actual] = await Promise.all([
-      ndpTb1GameId
-        ? getActualNdpCombinedScore(ndpTb1GameId, poolId, sandboxMode, season, log)
-        : Promise.resolve(null),
-      ndpTb2GameId
-        ? getActualNdpCombinedScore(ndpTb2GameId, poolId, sandboxMode, season, log)
-        : Promise.resolve(null),
+      getActualNdpCombinedScore(ndpTb1GameId, poolId, sandboxMode, season, log),
+      getActualNdpCombinedScore(`${ndpTb1GameId}:rushing`, poolId, sandboxMode, season, log),
     ]);
 
     log.info(
       { poolId, tb1Actual, tb2Actual, tiedCount: tiedUserIds.length },
-      "NDP tiebreaker: fetched actual scores",
+      "NDP tiebreaker: fetched actual passing/rushing yards",
     );
 
     // Upsert actual scores for every tied user row (creates row if missing)
@@ -644,7 +640,9 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
     tb2CombinedScore?: number;
   };
 
-  // Inject tiebreaker game scores into sandbox_game_scores so resolveTie can read them
+  // Inject tiebreaker actuals into sandbox_game_scores so makeNdpResolveTie can read them.
+  // tb1 = combined passing yards (stored under ndpTb1GameId key)
+  // tb2 = combined rushing yards (stored under synthetic "${ndpTb1GameId}:rushing" key — same game, second stat)
   if (typeof tb1CombinedScore === "number" && pool.ndpTb1GameId) {
     await db
       .insert(sandboxGameScoresTable)
@@ -654,10 +652,11 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
         set: { homeScore: tb1CombinedScore, awayScore: 0 },
       });
   }
-  if (typeof tb2CombinedScore === "number" && pool.ndpTb2GameId) {
+  if (typeof tb2CombinedScore === "number" && pool.ndpTb1GameId) {
+    const rushingKey = `${pool.ndpTb1GameId}:rushing`;
     await db
       .insert(sandboxGameScoresTable)
-      .values({ poolId, week: 18, gameId: pool.ndpTb2GameId, homeScore: tb2CombinedScore, awayScore: 0 })
+      .values({ poolId, week: 18, gameId: rushingKey, homeScore: tb2CombinedScore, awayScore: 0 })
       .onConflictDoUpdate({
         target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
         set: { homeScore: tb2CombinedScore, awayScore: 0 },
