@@ -173,10 +173,10 @@ router.post("/", requireAuth, async (req, res) => {
   const resolvedSeason = season ?? new Date().getFullYear();
 
   // Auto-default the tiebreaker game for NDP pools — last game of Week 18 by start time.
-  // Only valid for season 2025 (the hardcoded schedule in nfl2025Schedule.ts covers 2025 only).
+  // Only valid for season 2026 (the hardcoded schedule in nfl2025Schedule.ts covers the 2025/2026 NFL season).
   let ndpTb1GameIdDefault: string | null = null;
   if (resolvedPoolType === "nfl_division_predictor") {
-    if (resolvedSeason === 2025) {
+    if (resolvedSeason === 2026) {
       const week18Games = getSandboxGamesForWeek(18);
       week18Games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
       ndpTb1GameIdDefault = week18Games.at(-1)?.id ?? null;
