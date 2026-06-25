@@ -57,6 +57,37 @@ async function fetchGameStrikeouts(gamePk: number): Promise<number | null> {
 }
 
 /**
+ * Returns the combined total strikeouts for a single specific ESPN game.
+ * Used for Crazy 8's MLB tiebreaker resolution (last game of the day only).
+ * Returns null if the game isn't final, can't be matched, or the API fails.
+ */
+export async function fetchSingleGameStrikeouts(
+  espnGame: EspnGame,
+  isoDate: string, // YYYY-MM-DD
+): Promise<number | null> {
+  if (!espnGame.isCompleted) return null;
+  const [y, m, d] = isoDate.split("-");
+  const mlbDateStr = `${m}/${d}/${y}`;
+  let schedule: MlbScheduleGame[];
+  try {
+    schedule = await fetchMlbSchedule(mlbDateStr);
+  } catch {
+    return null;
+  }
+  const mlbGame = schedule.find(
+    (s) =>
+      teamsMatch(espnGame.awayTeam.displayName, s.awayTeamName) &&
+      teamsMatch(espnGame.homeTeam.displayName, s.homeTeamName),
+  );
+  if (!mlbGame) return null;
+  try {
+    return await fetchGameStrikeouts(mlbGame.gamePk);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns the combined total strikeouts for all completed ESPN games on `dateStr`.
  *
  * Strategy:

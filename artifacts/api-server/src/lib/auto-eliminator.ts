@@ -27,6 +27,7 @@ import {
   getTodayEtDate,
   formatDateEt,
   formatDateEtDash,
+  getNhlWeekBounds,
   type EspnGame,
   getMlbWeekBounds,
   getMlbProcessingTrigger,
@@ -41,6 +42,8 @@ import {
   wcOutcome as wcOutcomeFromWc,
   type WcGame,
 } from "./wc";
+import { fetchNhlTiebreakerStats } from "./nhl-stats";
+import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -1210,13 +1213,248 @@ export async function processPickEmResults(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
-// Crazy 8's auto-grading (MLB daily confidence-pick pools)
+// Crazy 8's — period resolution helpers
 // ---------------------------------------------------------------------------
 //
-// Grades pickemPicksTable rows for poolType = "crazy_8s".
-// Logic mirrors the MLB block of processPickEmResults():
+// After all picks in a period are graded, resolveCrazyEightsPeriod() declares
+// the winner by writing finalWinner = true on the winning entry.
+//
+// Tie-break order:
+//   1. Outright top scorer              → finalWinner = true
+//   2. Tie → primary tiebreaker diff    → closest guess wins
+//   3. Still tied → secondary diff      → closest guess wins
+//   4. All equal / stats unavailable    → split pot (all tied get finalWinner)
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrows a tied set of players to the winner(s) using closest-guess logic.
+ * `primary` is checked first; `secondary` breaks any remaining tie.
+ * Returns the full input set (split pot) when both actuals are null.
+ */
+function resolveTiebreakerByProximity(
+  players: Array<{ userId: number; primary: number | null; secondary: number | null }>,
+  actual: { primary: number | null; secondary: number | null },
+): number[] {
+  if (actual.primary !== null) {
+    const withPrimary = players.map((p) => ({
+      ...p,
+      diff: p.primary != null ? Math.abs(p.primary - actual.primary!) : Infinity,
+    }));
+    const minDiff = Math.min(...withPrimary.map((p) => p.diff));
+    const primaryWinners = withPrimary.filter((p) => p.diff === minDiff);
+    if (primaryWinners.length === 1) return [primaryWinners[0].userId];
+
+    if (actual.secondary !== null) {
+      const withSecondary = primaryWinners.map((p) => ({
+        ...p,
+        diff2: p.secondary != null ? Math.abs(p.secondary - actual.secondary!) : Infinity,
+      }));
+      const minDiff2 = Math.min(...withSecondary.map((p) => p.diff2));
+      return withSecondary.filter((p) => p.diff2 === minDiff2).map((p) => p.userId);
+    }
+    return primaryWinners.map((p) => p.userId);
+  }
+
+  if (actual.secondary !== null) {
+    const withSecondary = players.map((p) => ({
+      ...p,
+      diff: p.secondary != null ? Math.abs(p.secondary - actual.secondary!) : Infinity,
+    }));
+    const minDiff = Math.min(...withSecondary.map((p) => p.diff));
+    return withSecondary.filter((p) => p.diff === minDiff).map((p) => p.userId);
+  }
+
+  return players.map((p) => p.userId); // both null → split pot
+}
+
+async function declareCrazyEightsWinners(
+  poolId: number,
+  winnerIds: number[],
+  reason: string,
+): Promise<void> {
+  await db
+    .update(entriesTable)
+    .set({ finalWinner: true })
+    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+  logger.info(
+    { poolId, winnerIds, isTie: winnerIds.length > 1, reason },
+    "Crazy 8's: period winner(s) declared",
+  );
+}
+
+/**
+ * MLB tiebreaker: total runs (ESPN scores) + total strikeouts (MLB Stats API)
+ * for the last completed game of the day.
+ */
+async function resolveMlbTiebreakerForPeriod(
+  poolId: number,
+  tiedUserIds: number[],
+  lastGame: EspnGame,
+  periodDate: string, // YYYY-MM-DD
+): Promise<number[]> {
+  const actualRuns =
+    lastGame.homeScore != null && lastGame.awayScore != null
+      ? lastGame.homeScore + lastGame.awayScore
+      : null;
+  const actualStrikeouts = await fetchSingleGameStrikeouts(lastGame, periodDate);
+
+  if (actualRuns === null && actualStrikeouts === null) {
+    logger.warn({ poolId, gameId: lastGame.id }, "Crazy 8's MLB: tiebreaker stats unavailable → split pot");
+    return tiedUserIds;
+  }
+
+  const entries = await db
+    .select({ userId: entriesTable.userId, runs: entriesTable.tiebreakerRuns, so: entriesTable.tiebreakerStrikeouts })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, tiedUserIds)));
+
+  return resolveTiebreakerByProximity(
+    entries.map((e) => ({ userId: e.userId, primary: e.runs, secondary: e.so })),
+    { primary: actualRuns, secondary: actualStrikeouts },
+  );
+}
+
+/**
+ * NHL tiebreaker: combined shots on goal + combined penalty minutes for the
+ * last completed game of the weekend (fetched from ESPN boxscore).
+ */
+async function resolveNhlTiebreakerForPeriod(
+  poolId: number,
+  tiedUserIds: number[],
+  lastGame: EspnGame,
+): Promise<number[]> {
+  const stats = await fetchNhlTiebreakerStats(lastGame.id);
+  if (stats.shotsOnGoal === null && stats.penaltyMinutes === null) {
+    logger.warn({ poolId, gameId: lastGame.id }, "Crazy 8's NHL: tiebreaker stats unavailable → split pot");
+    return tiedUserIds;
+  }
+
+  const entries = await db
+    .select({ userId: entriesTable.userId, sog: entriesTable.tiebreakerShotsOnGoal, pim: entriesTable.tiebreakerPenaltyMinutes })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, tiedUserIds)));
+
+  return resolveTiebreakerByProximity(
+    entries.map((e) => ({ userId: e.userId, primary: e.sog, secondary: e.pim })),
+    { primary: stats.shotsOnGoal, secondary: stats.penaltyMinutes },
+  );
+}
+
+/**
+ * After grading completes for a period, declares winner(s) and writes
+ * finalWinner = true. Safe to call every poll cycle — idempotent.
+ *
+ * @param pool         Active crazy_8s pool.
+ * @param periodDates  YYYY-MM-DD date(s) for this period.
+ *                     MLB: single day [dateEt]
+ *                     NHL: weekend pair [satDate, sunDate]
+ * @param periodGames  Pre-fetched EspnGames for these dates.
+ */
+async function resolveCrazyEightsPeriod(
+  pool: typeof poolsTable.$inferSelect,
+  periodDates: string[],
+  periodGames: EspnGame[],
+): Promise<void> {
+  // 1. Any picks submitted for this period?
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(pickemPicksTable)
+    .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)));
+  if (total === 0) return;
+
+  // 2. All picks graded? (no pending = grading cycle finished)
+  const [{ pending }] = await db
+    .select({ pending: count() })
+    .from(pickemPicksTable)
+    .where(and(
+      eq(pickemPicksTable.poolId, pool.id),
+      inArray(pickemPicksTable.gameDate, periodDates),
+      eq(pickemPicksTable.result, "pending"),
+    ));
+  if (pending > 0) return;
+
+  // 3. Idempotency: already resolved for this period?
+  const alreadyResolved = await db
+    .selectDistinct({ userId: pickemPicksTable.userId })
+    .from(pickemPicksTable)
+    .innerJoin(
+      entriesTable,
+      and(
+        eq(entriesTable.userId, pickemPicksTable.userId),
+        eq(entriesTable.poolId, pool.id),
+        eq(entriesTable.finalWinner, true),
+      ),
+    )
+    .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)))
+    .limit(1);
+  if (alreadyResolved.length > 0) return;
+
+  // 4. Compute per-user confidence-point totals in JS (avoids sql`` dependency)
+  const allPicks = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      cp: (pickemPicksTable as any).confidencePoints,
+      result: pickemPicksTable.result,
+    })
+    .from(pickemPicksTable)
+    .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)));
+
+  const scoreByUser = new Map<number, number>();
+  for (const pick of allPicks) {
+    if (!scoreByUser.has(pick.userId)) scoreByUser.set(pick.userId, 0);
+    if (pick.result === "correct" && pick.cp != null) {
+      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + (pick.cp as number));
+    }
+  }
+  if (scoreByUser.size === 0) return;
+
+  const maxScore = Math.max(...scoreByUser.values());
+  const topScorers = [...scoreByUser.entries()]
+    .filter(([, score]) => score === maxScore)
+    .map(([userId]) => userId);
+
+  // 5. Single outright winner
+  if (topScorers.length === 1) {
+    await declareCrazyEightsWinners(pool.id, topScorers, "outright winner");
+    return;
+  }
+
+  // 6. Tie → find last completed game, fetch tiebreaker stats, resolve
+  logger.info(
+    { poolId: pool.id, tiedUserIds: topScorers, score: maxScore },
+    "Crazy 8's: tie detected — resolving tiebreaker",
+  );
+
+  const completedGames = periodGames
+    .filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const lastGame = completedGames.at(-1);
+
+  if (!lastGame) {
+    await declareCrazyEightsWinners(pool.id, topScorers, "split-pot: no completed tiebreaker game");
+    return;
+  }
+
+  const winnerIds =
+    pool.sport === "nhl"
+      ? await resolveNhlTiebreakerForPeriod(pool.id, topScorers, lastGame)
+      : await resolveMlbTiebreakerForPeriod(pool.id, topScorers, lastGame, periodDates[0]);
+
+  await declareCrazyEightsWinners(
+    pool.id,
+    winnerIds,
+    winnerIds.length > 1 ? "split-pot: tiebreaker exhausted" : "tiebreaker resolved",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Crazy 8's auto-grading (MLB daily + NHL weekend confidence-pick pools)
+// ---------------------------------------------------------------------------
+//
+// Grades pickemPicksTable rows for poolType = "crazy_8s":
 //  - Compare pickedTeamId against the ESPN winning teamId
 //  - Mark "correct" / "incorrect" / "postponed"
+//  - After grading, call resolveCrazyEightsPeriod() to auto-declare winner
 //  - No elimination — Crazy 8's is a scoring game, not a survival game
 // ---------------------------------------------------------------------------
 
@@ -1232,108 +1470,144 @@ export async function processCrazyEightsResults(): Promise<{
 
   if (crazyPools.length === 0) return { picksGraded };
 
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const mlbPools = crazyPools.filter((p) => p.sport !== "nhl");
+  const nhlPools = crazyPools.filter((p) => p.sport === "nhl");
 
-  const todayEspn = formatDateEt(now);
-  const todayEt = getTodayEtDate();
-  const yesterdayEspn = formatDateEt(yesterday);
-  const yesterdayEt = formatDateEtDash(yesterday);
+  // ── MLB ────────────────────────────────────────────────────────────────────
+  if (mlbPools.length > 0) {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const todayEspn = formatDateEt(now);
+    const todayEt = getTodayEtDate();
+    const yesterdayEspn = formatDateEt(yesterday);
+    const yesterdayEt = formatDateEtDash(yesterday);
 
-  // Both dates so West Coast games finishing after midnight ET are still graded
-  const datesToCheck = [todayEt, yesterdayEt];
+    const [todayGames, yesterdayGames] = await Promise.all([
+      fetchGamesForDate("mlb", todayEspn),
+      fetchGamesForDate("mlb", yesterdayEspn),
+    ]);
 
-  const [todayGames, yesterdayGames] = await Promise.all([
-    fetchGamesForDate("mlb", todayEspn),
-    fetchGamesForDate("mlb", yesterdayEspn),
-  ]);
-  const allGames = [...todayGames, ...yesterdayGames];
+    const winnerByGameId = new Map<string, string>();
+    const postponedIds: string[] = [];
+    for (const game of [...todayGames, ...yesterdayGames]) {
+      if (game.isPostponed) {
+        postponedIds.push(game.id);
+        continue;
+      }
+      if (game.isCompleted && game.homeScore != null && game.awayScore != null && game.homeScore !== game.awayScore) {
+        const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
+        winnerByGameId.set(game.id, winningTeamId);
+        logger.info(
+          { gameId: game.id, winner: winningTeamId, score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}` },
+          "Crazy 8's: completed game found",
+        );
+      }
+    }
 
-  // Build gameId → winning teamId for all completed, non-tied games
-  const winnerByGameId = new Map<string, string>();
-  for (const game of allGames) {
-    if (
-      game.isCompleted &&
-      game.homeScore != null &&
-      game.awayScore != null &&
-      game.homeScore !== game.awayScore
-    ) {
-      const winningTeamId =
-        game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
-      winnerByGameId.set(game.id, winningTeamId);
-      logger.info(
-        {
-          gameId: game.id,
-          winner: winningTeamId,
-          score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
-        },
-        "Crazy 8's: completed game found",
-      );
+    for (const pool of mlbPools) {
+      // Grade correct / incorrect
+      for (const [gameId, winningTeamId] of winnerByGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, gameId),
+            inArray(pickemPicksTable.gameDate, [todayEt, yesterdayEt]),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+          await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+          picksGraded++;
+          logger.info({ poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result }, "Crazy 8's: auto-graded pick");
+        }
+      }
+      // Mark postponed
+      for (const gameId of postponedIds) {
+        const updated = await db
+          .update(pickemPicksTable)
+          .set({ result: "postponed", updatedAt: new Date() })
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, gameId),
+            eq(pickemPicksTable.result, "pending"),
+          ))
+          .returning({ id: pickemPicksTable.id });
+        if (updated.length > 0) logger.info({ poolId: pool.id, gameId, count: updated.length }, "Crazy 8's: marked picks as postponed");
+      }
+
+      // Resolve each day separately (yesterday first — most likely complete)
+      await resolveCrazyEightsPeriod(pool, [yesterdayEt], yesterdayGames);
+      await resolveCrazyEightsPeriod(pool, [todayEt], todayGames);
     }
   }
 
-  const postponedIds = allGames.filter((g) => g.isPostponed).map((g) => g.id);
+  // ── NHL ────────────────────────────────────────────────────────────────────
+  for (const pool of nhlPools) {
+    const { days, espnDates } = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+    const satDate = days[5];
+    const sunDate = days[6];
+    const satEspn = espnDates[5];
+    const sunEspn = espnDates[6];
+    const periodDates = [satDate, sunDate];
 
-  for (const pool of crazyPools) {
-    // Grade correct / incorrect
+    const [satGames, sunGames] = await Promise.all([
+      fetchGamesForDate("nhl", satEspn),
+      fetchGamesForDate("nhl", sunEspn),
+    ]);
+    const allNhlGames = [...satGames, ...sunGames];
+
+    const winnerByGameId = new Map<string, string>();
+    const postponedIds: string[] = [];
+    for (const game of allNhlGames) {
+      if (game.isPostponed) {
+        postponedIds.push(game.id);
+        continue;
+      }
+      if (game.isCompleted && game.homeScore != null && game.awayScore != null && game.homeScore !== game.awayScore) {
+        const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
+        winnerByGameId.set(game.id, winningTeamId);
+        logger.info(
+          { gameId: game.id, winner: winningTeamId, score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}` },
+          "Crazy 8's NHL: completed game found",
+        );
+      }
+    }
+
+    // Grade picks
     for (const [gameId, winningTeamId] of winnerByGameId) {
       const gamePicks = await db
         .select()
         .from(pickemPicksTable)
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, gameId),
-            inArray(pickemPicksTable.gameDate, datesToCheck),
-            eq(pickemPicksTable.result, "pending"),
-          ),
-        );
-
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.gameId, gameId),
+          inArray(pickemPicksTable.gameDate, periodDates),
+          eq(pickemPicksTable.result, "pending"),
+        ));
       for (const pick of gamePicks) {
-        const result: "correct" | "incorrect" =
-          pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
-
-        await db
-          .update(pickemPicksTable)
-          .set({ result, updatedAt: new Date() })
-          .where(eq(pickemPicksTable.id, pick.id));
-
+        const result: "correct" | "incorrect" = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+        await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
         picksGraded++;
-        logger.info(
-          {
-            poolId: pool.id,
-            userId: pick.userId,
-            gameId,
-            pickedTeamId: pick.pickedTeamId,
-            winningTeamId,
-            result,
-          },
-          "Crazy 8's: auto-graded pick",
-        );
+        logger.info({ poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result }, "Crazy 8's NHL: auto-graded pick");
       }
     }
-
-    // Mark postponed picks
     for (const gameId of postponedIds) {
       const updated = await db
         .update(pickemPicksTable)
         .set({ result: "postponed", updatedAt: new Date() })
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, gameId),
-            eq(pickemPicksTable.result, "pending"),
-          ),
-        )
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.gameId, gameId),
+          eq(pickemPicksTable.result, "pending"),
+        ))
         .returning({ id: pickemPicksTable.id });
-
-      if (updated.length > 0) {
-        logger.info(
-          { poolId: pool.id, gameId, count: updated.length },
-          "Crazy 8's: marked picks as postponed",
-        );
-      }
+      if (updated.length > 0) logger.info({ poolId: pool.id, gameId, count: updated.length }, "Crazy 8's NHL: marked picks as postponed");
     }
+
+    // Resolve the full Sat+Sun weekend as one period
+    await resolveCrazyEightsPeriod(pool, periodDates, allNhlGames);
   }
 
   return { picksGraded };
