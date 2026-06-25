@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Trophy, Users } from "lucide-react";
 
-// ── Types (shared shape with CrazyEightsGrid response) ────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface PlayerPick {
   pickedTeamId: string;
@@ -42,6 +42,17 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Returns the Saturday of the current (most recently started) NHL week. */
+function getCurrentNhlSat(): string {
+  const today = getTodayEt();
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysBack = (dow + 1) % 7;
+  const satDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  return satDt.toISOString().slice(0, 10);
+}
+
 function authedFetch<T>(url: string): Promise<T> {
   const token = localStorage.getItem("auth_token");
   return fetch(url, {
@@ -64,9 +75,11 @@ function RankBadge({ rank }: { rank: number }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
+export function CrazyEightsLeaderboard({ poolId, sport = "mlb" }: { poolId: number; sport?: string }) {
   const { user } = useAuth();
-  const [date, setDate] = useState(getTodayEt);
+  const isNhl = sport === "nhl";
+
+  const [date, setDate] = useState(() => isNhl ? getCurrentNhlSat() : getTodayEt());
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, date],
@@ -76,16 +89,15 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
     refetchInterval: 60_000,
   });
 
-  const today = getTodayEt();
-  const isToday = date === today;
+  const maxDate = isNhl ? getCurrentNhlSat() : getTodayEt();
+  const isAtMax = date >= maxDate;
 
-  // Build ranked list: points earned = sum of confidencePoints where result === "win"
   const ranked = (data?.players ?? [])
     .map((p) => {
       const picks = Object.values(p.picks);
-      const won = picks.filter((pk) => pk.result === "win");
+      const won = picks.filter((pk) => pk.result === "correct");
       const pending = picks.filter((pk) => pk.result == null || pk.result === "pending");
-      const lost = picks.filter((pk) => pk.result === "loss");
+      const lost = picks.filter((pk) => pk.result === "incorrect");
       const pointsEarned = won.reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
       const pointsPossible = picks.reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
       return { ...p, won: won.length, lost: lost.length, pending: pending.length, total: picks.length, pointsEarned, pointsPossible };
@@ -104,10 +116,10 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
 
   return (
     <div className="space-y-4">
-      {/* Date nav */}
+      {/* Date / week nav */}
       <div className="flex items-center justify-between gap-3">
         <button
-          onClick={() => setDate((d) => offsetDate(d, -1))}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? -7 : -1))}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -117,14 +129,16 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
           <p className="font-bebas text-lg tracking-wide leading-none">
             {data?.dateLabel ?? date}
           </p>
-          {isToday && (
-            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">Today</span>
+          {isAtMax && (
+            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">
+              {isNhl ? "This Weekend" : "Today"}
+            </span>
           )}
         </div>
 
         <button
-          onClick={() => setDate((d) => offsetDate(d, 1))}
-          disabled={isToday}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? 7 : 1))}
+          disabled={isAtMax}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-4 h-4" />
@@ -135,7 +149,11 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
         <div className="text-center py-16 text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-bebas text-2xl tracking-wide mb-1">No Picks Yet</p>
-          <p className="text-sm">Nobody has submitted picks for this date.</p>
+          <p className="text-sm">
+            {isNhl
+              ? "Nobody has submitted picks for this weekend."
+              : "Nobody has submitted picks for this date."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -155,12 +173,10 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
                   rank === 1 ? "border-yellow-500/30 bg-yellow-500/5" : "",
                 )}
               >
-                {/* Rank */}
                 <div className="w-8 flex items-center justify-center shrink-0">
                   <RankBadge rank={rank} />
                 </div>
 
-                {/* Player name */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className={cn("font-semibold truncate", isMe ? "text-purple-300" : "text-foreground")}>
@@ -180,7 +196,6 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
                   </div>
                 </div>
 
-                {/* Points */}
                 <div className="text-right shrink-0">
                   <div className="font-bebas text-2xl leading-none">
                     <span className={cn(
@@ -202,7 +217,6 @@ export function CrazyEightsLeaderboard({ poolId }: { poolId: number }) {
         </div>
       )}
 
-      {/* Note */}
       {ranked.length > 0 && (
         <p className="text-[11px] text-muted-foreground/40 text-center">
           Points earned = confidence points from correct picks only

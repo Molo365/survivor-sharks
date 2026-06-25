@@ -146,7 +146,7 @@ export default function PoolHome() {
                   )}
                   {isCrazyEights && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
-                      <Dice5 className="w-3 h-3" /> Crazy 8's
+                      <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Crazy Ice 8s" : "Crazy 8's"}
                     </span>
                   )}
                   {isNflConfidence && (
@@ -263,13 +263,13 @@ export default function PoolHome() {
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
                       <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
-                        <Dice5 className="w-4 h-4 md:w-5 md:h-5" /> Today's Picks
+                        <Dice5 className="w-4 h-4 md:w-5 md:h-5" /> {pool.sport === "nhl" ? "Weekend Picks" : "Today's Picks"}
                       </TabsTrigger>
                       <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                         <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                       </TabsTrigger>
                       <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                        Daily Grid
+                        {pool.sport === "nhl" ? "Weekend Grid" : "Daily Grid"}
                       </TabsTrigger>
                       <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Stats
@@ -285,13 +285,13 @@ export default function PoolHome() {
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsView poolId={pool.id} />
+                    <CrazyEightsView poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsLeaderboard poolId={pool.id} />
+                    <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsGrid poolId={pool.id} />
+                    <CrazyEightsGrid poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
                     <CrazyEightsStats poolId={pool.id} />

@@ -59,6 +59,17 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Returns the Saturday of the current (most recently started) NHL week. */
+function getCurrentNhlSat(): string {
+  const today = getTodayEt();
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysBack = (dow + 1) % 7; // Sat→0, Sun→1, Mon→2 …
+  const satDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  return satDt.toISOString().slice(0, 10);
+}
+
 function formatTime(iso: string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -68,8 +79,8 @@ function formatTime(iso: string) {
   }).format(new Date(iso));
 }
 
-function teamLogoSrc(team: TeamInfo) {
-  return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/mlb/500/${team.abbreviation.toLowerCase()}.png`;
+function teamLogoSrc(team: TeamInfo, sport: string) {
+  return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/${sport}/500/${team.abbreviation.toLowerCase()}.png`;
 }
 
 function authedFetch<T>(url: string): Promise<T> {
@@ -85,7 +96,7 @@ function authedFetch<T>(url: string): Promise<T> {
 
 // ── Game column header ────────────────────────────────────────────────────────
 
-function GameHeader({ game }: { game: GameSummary }) {
+function GameHeader({ game, sport }: { game: GameSummary; sport: string }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
 
@@ -93,7 +104,7 @@ function GameHeader({ game }: { game: GameSummary }) {
     <div className="flex flex-col items-center gap-1 px-1 min-w-[76px]">
       <div className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground/70 leading-none">
         <img
-          src={teamLogoSrc(game.awayTeam)}
+          src={teamLogoSrc(game.awayTeam, sport)}
           alt={game.awayTeam.abbreviation}
           className="w-4 h-4 object-contain"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -101,7 +112,7 @@ function GameHeader({ game }: { game: GameSummary }) {
         <span>{game.awayTeam.abbreviation}</span>
         <span className="text-muted-foreground/40 mx-0.5">@</span>
         <img
-          src={teamLogoSrc(game.homeTeam)}
+          src={teamLogoSrc(game.homeTeam, sport)}
           alt={game.homeTeam.abbreviation}
           className="w-4 h-4 object-contain"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -128,7 +139,7 @@ function GameHeader({ game }: { game: GameSummary }) {
 
 // ── Pick cell ─────────────────────────────────────────────────────────────────
 
-function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSummary }) {
+function PickCell({ pick, game, sport }: { pick: PlayerPick | undefined; game: GameSummary; sport: string }) {
   if (!pick) {
     return (
       <div className="flex items-center justify-center min-w-[76px] h-full">
@@ -148,7 +159,7 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
       isWin ? "bg-green-500/10" : isLoss ? "bg-red-500/10" : "bg-purple-500/5",
     )}>
       <img
-        src={teamLogoSrc(team)}
+        src={teamLogoSrc(team, sport)}
         alt={team.abbreviation}
         className="w-6 h-6 object-contain"
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -173,9 +184,22 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initialDate?: string }) {
+export function CrazyEightsGrid({
+  poolId,
+  sport = "mlb",
+  initialDate,
+}: {
+  poolId: number;
+  sport?: string;
+  initialDate?: string;
+}) {
   const { user } = useAuth();
-  const [date, setDate] = useState(() => initialDate ?? getTodayEt());
+  const isNhl = sport === "nhl";
+
+  const [date, setDate] = useState(() => {
+    if (initialDate) return initialDate;
+    return isNhl ? getCurrentNhlSat() : getTodayEt();
+  });
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, date],
@@ -185,8 +209,9 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
     refetchInterval: 60_000,
   });
 
-  const today = getTodayEt();
-  const isToday = date === today;
+  // Max navigable date: today (MLB) or current NHL Saturday
+  const maxDate = isNhl ? getCurrentNhlSat() : getTodayEt();
+  const isAtMax = date >= maxDate;
 
   // Only show columns for games at least one player picked
   const pickedGameIds = new Set(
@@ -206,10 +231,10 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
 
   return (
     <div className="space-y-4">
-      {/* Date nav */}
+      {/* Date / week nav */}
       <div className="flex items-center justify-between gap-3">
         <button
-          onClick={() => setDate((d) => offsetDate(d, -1))}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? -7 : -1))}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -219,14 +244,16 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
           <p className="font-bebas text-lg tracking-wide leading-none">
             {data?.dateLabel ?? date}
           </p>
-          {isToday && (
-            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">Today</span>
+          {isAtMax && (
+            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">
+              {isNhl ? "This Weekend" : "Today"}
+            </span>
           )}
         </div>
 
         <button
-          onClick={() => setDate((d) => offsetDate(d, 1))}
-          disabled={isToday}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? 7 : 1))}
+          disabled={isAtMax}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-4 h-4" />
@@ -238,25 +265,27 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
         <div className="text-center py-16 text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-bebas text-2xl tracking-wide mb-1">No Picks Yet</p>
-          <p className="text-sm">No players have submitted picks for this date.</p>
+          <p className="text-sm">
+            {isNhl
+              ? "No players have submitted picks for this weekend."
+              : "No players have submitted picks for this date."}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto [scrollbar-width:thin] rounded-lg border border-border/40">
           <table className="w-full border-collapse text-sm">
-            {/* Column headers */}
             <thead>
               <tr className="border-b border-border/40 bg-muted/30">
-                {/* Player name column */}
                 <th className="sticky left-0 z-10 bg-muted/60 backdrop-blur-sm text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap min-w-[130px] border-r border-border/40">
                   Player
                 </th>
                 {displayGames.map((game) => (
-                  <th key={game.id} className="px-1 py-0 border-r border-border/20 last:border-r-0" />
+                  <th key={game.id} className="px-1 py-2 border-r border-border/20 last:border-r-0">
+                    <GameHeader game={game} sport={sport} />
+                  </th>
                 ))}
               </tr>
             </thead>
-
-            {/* Player rows */}
             <tbody>
               {(data?.players ?? []).map((player, rowIdx) => {
                 const totalPts = Object.values(player.picks).reduce(
@@ -270,7 +299,6 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
                       rowIdx % 2 === 0 ? "bg-card/30" : "bg-card/10",
                     )}
                   >
-                    {/* Player name */}
                     <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm border-r border-border/40 px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold text-sm truncate max-w-[90px]">
@@ -281,11 +309,9 @@ export function CrazyEightsGrid({ poolId, initialDate }: { poolId: number; initi
                         </span>
                       </div>
                     </td>
-
-                    {/* Pick cells */}
                     {displayGames.map((game) => (
                       <td key={game.id} className="px-1 py-1 border-r border-border/20 last:border-r-0">
-                        <PickCell pick={player.picks[game.id]} game={game} />
+                        <PickCell pick={player.picks[game.id]} game={game} sport={sport} />
                       </td>
                     ))}
                   </tr>

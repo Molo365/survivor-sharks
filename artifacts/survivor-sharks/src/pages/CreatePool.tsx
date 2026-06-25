@@ -60,10 +60,10 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["pickem"],
+  [PoolInputSport.mlb]: ["pickem", "dirty_dozen", "crazy_8s"],
   [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
-  [PoolInputSport.nhl]: ["season", "pickem"],
+  [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
 };
 
@@ -174,6 +174,18 @@ const POOL_TYPES = [
     cardClass:
       "border-green-500/60 bg-[linear-gradient(145deg,rgba(34,197,94,0.08)_0%,transparent_100%)]",
   },
+  {
+    id: "crazy_8s" as const,
+    label: "Crazy 8's",
+    icon: Dice5,
+    tagline: "8 Games. 8 Confidence Points.",
+    description:
+      "Pick any 8 games from the slate, choose a winner for each, and assign confidence points 1–8. Highest total wins. NHL version uses the weekend (Sat+Sun) slate.",
+    badge: "MLB/NHL",
+    badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    cardClass:
+      "border-purple-500/60 bg-[linear-gradient(145deg,rgba(168,85,247,0.08)_0%,transparent_100%)]",
+  },
 ] as const;
 
 // ── Prize helpers ──────────────────────────────────────────────────────────────
@@ -273,6 +285,8 @@ export default function CreatePool() {
       ? "MLB DIRTY DOZEN"
       : selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s"
       ? "MLB CRAZY 8'S"
+      : selectedSport === PoolInputSport.nhl && selectedType === "crazy_8s"
+      ? "CRAZY ICE 8S"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
@@ -280,6 +294,8 @@ export default function CreatePool() {
   const pageSubtitle =
     selectedType === "dirty_dozen"
       ? "12 curated games per week. Assign confidence points 1–12."
+      : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl
+      ? "Pick any 8 games from the weekend NHL slate. Assign confidence points 1–8."
       : selectedType === "crazy_8s"
       ? "Pick any 8 games from today's slate. Assign confidence points 1–8."
       : selectedType === "pickem"
