@@ -286,7 +286,7 @@ export default function CreatePool() {
       : selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s"
       ? "MLB CRAZY 8'S"
       : selectedSport === PoolInputSport.nhl && selectedType === "crazy_8s"
-      ? "CRAZY ICE 8S"
+      ? "HIT THE ICE!"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
@@ -465,10 +465,17 @@ export default function CreatePool() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                     <span className={cn("font-bebas text-xl tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
-                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL Pick-Ems" : type.label}
+                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL Pick-Ems"
+                                        : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Hit the Ice!"
+                                        : type.label}
                                     </span>
-                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5", type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "bg-sky-500/20 text-sky-300 border-sky-500/30" : type.badgeClass)}>
-                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL" : type.badge}
+                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5",
+                                      type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
+                                        : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                        : type.badgeClass)}>
+                                      {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL"
+                                        : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "NHL"
+                                        : type.badge}
                                     </span>
                                   </div>
                                   <p className={cn(
@@ -476,8 +483,12 @@ export default function CreatePool() {
                                     isSelected
                                       ? type.id === "season" ? "text-amber-400/80" : "text-primary/70"
                                       : "text-muted-foreground/50",
-                                  )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week" : type.tagline}</p>
-                                  <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — most correct by Sunday wins the prize pot. Tiebreaker on the last game of the week." : type.description}</p>
+                                  )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week"
+                                    : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "8 Games. 8 Confidence Points."
+                                    : type.tagline}</p>
+                                  <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — most correct by Sunday wins the prize pot. Tiebreaker on the last game of the week."
+                                    : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
+                                    : type.description}</p>
                                 </div>
                                 <div className={cn(
                                   "mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all",
@@ -592,8 +603,12 @@ export default function CreatePool() {
                             <Dice5 className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "crazy_8s" ? "text-purple-400" : "text-muted-foreground")} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "crazy_8s" ? "text-foreground" : "text-muted-foreground")}>Crazy 8's</span>
-                                <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-purple-500/20 text-purple-400 border-purple-500/30">MLB</span>
+                                <span className={cn("font-bebas text-lg tracking-wide", selectedType === "crazy_8s" ? "text-foreground" : "text-muted-foreground")}>
+                                  Crazy 8's
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-purple-500/20 text-purple-400 border-purple-500/30">
+                                  MLB
+                                </span>
                               </div>
                               <p className="text-xs text-muted-foreground leading-snug">Pick any 8 games from today's slate. Assign confidence points 1–8. Highest total wins.</p>
                             </div>

@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, entriesTable, usersTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, EspnGame } from "../lib/espn";
+import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -14,7 +14,11 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   satDate: string;
   sunDate: string;
 }> {
-  const { espnDates, days } = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+  // Sandbox mode: use the fixed NHL_SANDBOX_ANCHOR so Week N always maps to the
+  // 2025-26 season opener regardless of when the pool was actually created.
+  const isSandbox = (pool as any).sandboxMode as boolean;
+  const anchor = isSandbox ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+  const { espnDates, days } = getNhlWeekBounds(anchor, pool.currentWeek);
   const satEspn = espnDates[5];
   const sunEspn = espnDates[6];
   const satDate = days[5];
@@ -61,7 +65,17 @@ router.get("/slate", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   if (pool.sport === "nhl") {
+    const isSandbox = (pool as any).sandboxMode as boolean;
     const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
+
+    // Load sandbox scores so graded cards display final results
+    const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
+    if (isSandbox) {
+      const rows = await db.select().from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+      for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore });
+    }
+
     const [sy, sm, sd] = satDate.split("-").map(Number);
     const [ny, nm, nd] = sunDate.split("-").map(Number);
     const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -72,7 +86,16 @@ router.get("/slate", requireAuth, async (req, res) => {
       weekLabel,
       satDate,
       sunDate,
-      games: games.map(toSlateShape),
+      sandboxMode: isSandbox,
+      games: games.map(g => {
+        const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
+        return {
+          ...toSlateShape(g),
+          homeScore: isSandbox ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
+          awayScore: isSandbox ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
+          status: isSandbox ? (sbScore ? "final" : "scheduled") : g.status,
+        };
+      }),
     });
     return;
   }
@@ -294,6 +317,7 @@ router.get("/picks", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   if (pool.sport === "nhl") {
+    const isSandbox = (pool as any).sandboxMode as boolean;
     const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
     const lastGame = games.at(-1);
@@ -306,9 +330,19 @@ router.get("/picks", requireAuth, async (req, res) => {
       ),
     );
 
+    // In sandbox mode, overlay scores from sandboxGameScoresTable so the
+    // picks view shows the same simulated results used for grading.
+    const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
+    if (isSandbox) {
+      const sbRows = await db.select().from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+      for (const r of sbRows) sandboxScores.set(r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore });
+    }
+
     const details = picks.map((pick) => {
       const game = gameMap.get(pick.gameId);
       const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+      const sbScore = isSandbox ? sandboxScores.get(pick.gameId) : undefined;
       return {
         gameId: pick.gameId,
         pickedTeamId: pick.pickedTeamId,
@@ -324,10 +358,10 @@ router.get("/picks", requireAuth, async (req, res) => {
         awayTeam: game
           ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
           : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
-        homeScore: game?.homeScore ?? null,
-        awayScore: game?.awayScore ?? null,
+        homeScore: isSandbox ? (sbScore?.homeScore ?? null) : (game?.homeScore ?? null),
+        awayScore: isSandbox ? (sbScore?.awayScore ?? null) : (game?.awayScore ?? null),
         startTime: game?.date ?? "",
-        status: (game?.status ?? "unknown") as string,
+        status: isSandbox ? (sbScore ? "final" : "scheduled") : ((game?.status ?? "unknown") as string),
       };
     });
 
@@ -473,11 +507,15 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
+    const isSandbox = (pool as any).sandboxMode as boolean;
     const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
-    const earliestStartMs = Math.min(...selectedGames.map(g => new Date(g.date).getTime()));
-    if (Date.now() >= earliestStartMs) {
-      res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
-      return;
+    // In sandbox mode the anchor games are historical; skip the real-time lock.
+    if (!isSandbox) {
+      const earliestStartMs = Math.min(...selectedGames.map(g => new Date(g.date).getTime()));
+      if (Date.now() >= earliestStartMs) {
+        res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
+        return;
+      }
     }
 
     let saved = 0;
@@ -516,7 +554,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
       .where(eq(entriesTable.id, entry.id));
 
-    res.status(201).json({ ok: true, saved, message: "Crazy Ice 8s picks submitted successfully" });
+    res.status(201).json({ ok: true, saved, message: "Hit the Ice! picks submitted successfully" });
     return;
   }
 
