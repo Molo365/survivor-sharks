@@ -25,5 +25,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startAutoEliminator();
-  startPoolCleanup();
+  if (process.env["ENABLE_POOL_CLEANUP"] === "true") {
+    startPoolCleanup();
+  }
 });
