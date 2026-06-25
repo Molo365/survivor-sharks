@@ -1887,10 +1887,11 @@ function PickEmSandboxPanel({ poolId }: { poolId: number }) {
   const handleToggleSandbox = async (enabled: boolean) => {
     setTogglingMode(true);
     try {
+      const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/admin/pools/${poolId}/sandbox-mode`, {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sandboxMode: enabled }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
@@ -1911,10 +1912,11 @@ function PickEmSandboxPanel({ poolId }: { poolId: number }) {
   const handleLoadSandboxWeek = async () => {
     setLoadingWeek(true);
     try {
+      const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/pools/${poolId}/schedule/sandbox-week`, {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ week: sandboxWeek }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
@@ -1932,10 +1934,11 @@ function PickEmSandboxPanel({ poolId }: { poolId: number }) {
     setSimulating(true);
     setSimResult(null);
     try {
+      const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/pools/${poolId}/pickem/simulate-grading`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ week: sandboxWeek }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
