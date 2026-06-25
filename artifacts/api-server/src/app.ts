@@ -36,8 +36,16 @@ app.use("/api", router);
 app.use("/api/admin-html", adminHtmlRouter);
 
 const frontendDist = path.resolve(process.cwd(), "artifacts/survivor-sharks/dist/public");
+// Hashed assets (content-addressed filenames) — aggressive long-lived caching
+app.use("/assets", express.static(path.join(frontendDist, "assets"), {
+  maxAge: "1y",
+  immutable: true,
+}));
+// Other static files (images, fonts, robots.txt) — Express defaults (ETag + Last-Modified)
 app.use(express.static(frontendDist));
+// index.html — always revalidate so deploys are picked up on next page load
 app.get("*splat", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 
