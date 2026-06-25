@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, usersTable, entriesTable, pickemPicksTable, picksTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { requireAuth, requireAdmin, requireCommissioner } from "../middlewares/auth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
 
@@ -43,7 +43,7 @@ router.get("/pools", requireAuth, requireAdmin, async (_req, res) => {
 });
 
 // PATCH /api/admin/pools/:poolId/sandbox-mode
-router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireAdmin, async (req, res) => {
+router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireCommissioner, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
   const { sandboxMode } = req.body as { sandboxMode: boolean };
