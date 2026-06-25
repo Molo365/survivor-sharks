@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -97,10 +97,15 @@ function StatCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsStats({ poolId, sport = "mlb" }: { poolId: number; sport?: string }) {
+export function CrazyEightsStats({ poolId, sport = "mlb", sandboxMode = false }: { poolId: number; sport?: string; sandboxMode?: boolean }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
-  const [date, setDate] = useState(() => isNhl ? getCurrentNhlSat() : getTodayEt());
+
+  const [date, setDate] = useState(() => {
+    if (!isNhl) return getTodayEt();
+    if (sandboxMode) return "";
+    return getCurrentNhlSat();
+  });
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, date],
@@ -110,8 +115,12 @@ export function CrazyEightsStats({ poolId, sport = "mlb" }: { poolId: number; sp
     refetchInterval: 120_000,
   });
 
-  const maxDate = isNhl ? getCurrentNhlSat() : getTodayEt();
-  const isAtMax = date >= maxDate;
+  useEffect(() => {
+    if (date === "" && data?.date) setDate(data.date);
+  }, [date, data?.date]);
+
+  const maxDate = !isNhl ? getTodayEt() : sandboxMode ? (data?.date ?? "") : getCurrentNhlSat();
+  const isAtMax = date === "" || date >= maxDate;
 
   // Derived stats
   const players = data?.players ?? [];

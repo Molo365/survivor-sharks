@@ -288,13 +288,13 @@ export default function PoolHome() {
                     <CrazyEightsView poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} />
+                    <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsGrid poolId={pool.id} sport={pool.sport} />
+                    <CrazyEightsGrid poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsStats poolId={pool.id} sport={pool.sport} />
+                    <CrazyEightsStats poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">

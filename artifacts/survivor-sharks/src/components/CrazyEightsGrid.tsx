@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -182,15 +182,17 @@ function PickCell({ pick, game, sport }: { pick: PlayerPick | undefined; game: G
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export function CrazyEightsGrid({
   poolId,
   sport = "mlb",
+  sandboxMode = false,
   initialDate,
 }: {
   poolId: number;
   sport?: string;
+  sandboxMode?: boolean;
   initialDate?: string;
 }) {
   const { user } = useAuth();
@@ -198,7 +200,9 @@ export function CrazyEightsGrid({
 
   const [date, setDate] = useState(() => {
     if (initialDate) return initialDate;
-    return isNhl ? getCurrentNhlSat() : getTodayEt();
+    if (!isNhl) return getTodayEt();
+    if (sandboxMode) return ""; // backend resolves anchor Saturday
+    return getCurrentNhlSat();
   });
 
   const { data, isLoading } = useQuery<GridResponse>({
@@ -209,9 +213,14 @@ export function CrazyEightsGrid({
     refetchInterval: 60_000,
   });
 
-  // Max navigable date: today (MLB) or current NHL Saturday
-  const maxDate = isNhl ? getCurrentNhlSat() : getTodayEt();
-  const isAtMax = date >= maxDate;
+  // Lock in the anchor date the first time the backend resolves it
+  useEffect(() => {
+    if (date === "" && data?.date) setDate(data.date);
+  }, [date, data?.date]);
+
+  // Sandbox NHL caps at the anchor Saturday (not the real current weekend)
+  const maxDate = !isNhl ? getTodayEt() : sandboxMode ? (data?.date ?? "") : getCurrentNhlSat();
+  const isAtMax = date === "" || date >= maxDate;
 
   // Only show columns for games at least one player picked
   const pickedGameIds = new Set(

@@ -125,19 +125,33 @@ router.get("/slate", requireAuth, async (req, res) => {
 // ── GET /api/pools/:poolId/crazy-eights/grid?date=YYYY-MM-DD ─────────────────
 // MLB:  date = the day to display
 // NHL:  date = Saturday of the weekend to display (Sunday auto-derived)
+// Omit date for NHL sandbox pools — backend resolves the anchor Saturday automatically.
 
 router.get("/grid", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const date = String(req.query.date ?? getTodayEtDate());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const rawDate = String(req.query.date ?? "");
+
+  // If a date was provided, validate it eagerly before hitting the DB
+  if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
     res.status(400).json({ error: "date must be YYYY-MM-DD" });
     return;
   }
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  // Resolve missing date: NHL sandbox → anchor Saturday for pool.currentWeek; else today
+  let date = rawDate;
+  if (!date) {
+    if (pool.sport === "nhl" && (pool as any).sandboxMode) {
+      const { days } = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
+      date = days[5]; // index 5 = Saturday
+    } else {
+      date = getTodayEtDate();
+    }
+  }
 
   const [entry] = await db
     .select()
