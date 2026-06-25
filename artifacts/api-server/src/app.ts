@@ -42,7 +42,9 @@ app.use("/assets", express.static(path.join(frontendDist, "assets"), {
   immutable: true,
 }));
 // Other static files (images, fonts, robots.txt) — Express defaults (ETag + Last-Modified)
-app.use(express.static(frontendDist));
+// index: false ensures index.html is never auto-served here; the catch-all below handles it
+// with the correct Cache-Control: no-cache header so deploys are picked up on next page load.
+app.use(express.static(frontendDist, { index: false }));
 // index.html — always revalidate so deploys are picked up on next page load
 app.get("*splat", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache");
