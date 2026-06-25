@@ -117,8 +117,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
     setSimResult(null);
     try {
       const token = localStorage.getItem("auth_token");
-      // Pick'em pools have their own simulate-grading route that grades pickemPicksTable
-      const simulateUrl = pool?.poolType === "pickem"
+      // Pick'em and NHL Crazy 8s both use the pickem simulate-grading route
+      const simulateUrl = (pool?.poolType === "pickem" || (pool?.poolType as string) === "crazy_8s")
         ? `/api/pools/${poolId}/pickem/simulate-grading`
         : `/api/pools/${poolId}/picks/simulate-grading`;
       const res = await fetch(simulateUrl, {
@@ -410,10 +410,11 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
         )
       )}
 
-      {/* Sandbox Mode — NFL/NHL survivor + NHL weekly Pick'em, super admin only */}
+      {/* Sandbox Mode — NFL/NHL survivor + NHL weekly Pick'em + NHL Crazy 8s, super admin only */}
       {(pool.sport === "nfl" || pool.sport === "nhl") && (
         ["season", "weekly", "mid_season"].includes(pool.poolType) ||
-        (pool.poolType === "pickem" && (pool as any).pickFrequency === "weekly")
+        (pool.poolType === "pickem" && (pool as any).pickFrequency === "weekly") ||
+        ((pool.poolType as string) === "crazy_8s" && pool.sport === "nhl")
       ) && isSuperAdmin && (
         <Card className="border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)]">
           <CardHeader>
