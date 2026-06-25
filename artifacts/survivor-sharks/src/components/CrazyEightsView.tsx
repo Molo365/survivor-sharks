@@ -61,6 +61,7 @@ interface SlateResponse {
   satDate?: string;
   sunDate?: string;
   tiebreakerGame?: TiebreakerGame | null;
+  sandboxMode?: boolean;
 }
 
 interface SubmittedPick {
@@ -642,6 +643,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
   });
 
   const games: SlateGame[] = slateData?.games ?? [];
+  const sandboxMode = slateData?.sandboxMode ?? false;
 
   const existingPicks = myPicksData?.picks ?? [];
   const hasPicks = existingPicks.length > 0;
@@ -653,7 +655,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
     return times.length > 0 ? Math.min(...times) : Infinity;
   }, [games, selectedIds]);
 
-  const isLocked = Date.now() >= earliestSelectedStart;
+  const isLocked = !sandboxMode && Date.now() >= earliestSelectedStart;
 
   const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
 
