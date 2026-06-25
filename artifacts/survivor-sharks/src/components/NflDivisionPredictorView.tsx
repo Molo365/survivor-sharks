@@ -1122,6 +1122,28 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         </div>
       )}
 
+      {/* Tiebreaker guess receipt — logged-in player only, shown pre-close once submitted */}
+      {myTiebreaker?.tb1Guess != null && poolForTb?.ndpTb1GameId && (
+        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Your Tiebreaker Guess</p>
+          {tb1Game && (
+            <p className="text-[10px] text-muted-foreground/50 -mt-1 mb-2">
+              {tb1Game.awayTeam} @ {tb1Game.homeTeam}
+            </p>
+          )}
+          <div className="flex gap-6">
+            <div>
+              <p className="text-[10px] text-muted-foreground/60">Combined passing yards</p>
+              <p className="font-bebas text-xl text-yellow-300">{myTiebreaker.tb1Guess}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground/60">Combined rushing yards</p>
+              <p className="font-bebas text-xl text-yellow-300">{myTiebreaker.tb2Guess ?? "—"}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Division cards grid — 2 cols on md, 4 on xl */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {divisions.map((div) => {
