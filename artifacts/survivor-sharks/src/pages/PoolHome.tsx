@@ -294,7 +294,7 @@ export default function PoolHome() {
                     <CrazyEightsGrid poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsStats poolId={pool.id} />
+                    <CrazyEightsStats poolId={pool.id} sport={pool.sport} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">

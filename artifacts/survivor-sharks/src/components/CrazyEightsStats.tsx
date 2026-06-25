@@ -42,6 +42,19 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Returns the Saturday of the current (most recently started) NHL week. */
+function getCurrentNhlSat(): string {
+  const now = new Date();
+  const etOffset = -5 * 60;
+  const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const etMin = ((utcMin + etOffset) % (24 * 60) + 24 * 60) % (24 * 60);
+  const etDate = new Date(now.getTime() + (etMin - utcMin) * 60_000);
+  const dow = etDate.getUTCDay();
+  const diffToSat = dow >= 6 ? 0 : dow === 0 ? -1 : -(dow + 1);
+  const sat = new Date(Date.UTC(etDate.getUTCFullYear(), etDate.getUTCMonth(), etDate.getUTCDate() + diffToSat));
+  return sat.toISOString().slice(0, 10);
+}
+
 function authedFetch<T>(url: string): Promise<T> {
   const token = localStorage.getItem("auth_token");
   return fetch(url, {
@@ -84,9 +97,10 @@ function StatCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsStats({ poolId }: { poolId: number }) {
+export function CrazyEightsStats({ poolId, sport = "mlb" }: { poolId: number; sport?: string }) {
   const { user } = useAuth();
-  const [date, setDate] = useState(getTodayEt);
+  const isNhl = sport === "nhl";
+  const [date, setDate] = useState(() => isNhl ? getCurrentNhlSat() : getTodayEt());
 
   const { data, isLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, date],
@@ -96,8 +110,8 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
     refetchInterval: 120_000,
   });
 
-  const today = getTodayEt();
-  const isToday = date === today;
+  const maxDate = isNhl ? getCurrentNhlSat() : getTodayEt();
+  const isAtMax = date >= maxDate;
 
   // Derived stats
   const players = data?.players ?? [];
@@ -105,9 +119,9 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
 
   const playerScores = playersWithPicks.map((p) => {
     const picks = Object.values(p.picks);
-    const pointsEarned = picks.filter((pk) => pk.result === "win").reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
-    const totalWins = picks.filter((pk) => pk.result === "win").length;
-    const totalSettled = picks.filter((pk) => pk.result === "win" || pk.result === "loss").length;
+    const pointsEarned = picks.filter((pk) => pk.result === "correct").reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
+    const totalWins = picks.filter((pk) => pk.result === "correct").length;
+    const totalSettled = picks.filter((pk) => pk.result === "correct" || pk.result === "incorrect").length;
     return { player: p, pointsEarned, totalWins, totalSettled, totalPicks: picks.length };
   });
 
@@ -135,10 +149,10 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
 
   return (
     <div className="space-y-5">
-      {/* Date nav */}
+      {/* Date / week nav */}
       <div className="flex items-center justify-between gap-3">
         <button
-          onClick={() => setDate((d) => offsetDate(d, -1))}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? -7 : -1))}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -148,14 +162,16 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
           <p className="font-bebas text-lg tracking-wide leading-none">
             {data?.dateLabel ?? date}
           </p>
-          {isToday && (
-            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">Today</span>
+          {isAtMax && (
+            <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">
+              {isNhl ? "This Weekend" : "Today"}
+            </span>
           )}
         </div>
 
         <button
-          onClick={() => setDate((d) => offsetDate(d, 1))}
-          disabled={isToday}
+          onClick={() => setDate((d) => offsetDate(d, isNhl ? 7 : 1))}
+          disabled={isAtMax}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-4 h-4" />
@@ -176,7 +192,7 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
               icon={Users}
               label="Players Picked"
               value={playersWithPicks.length}
-              sub="submitted picks today"
+              sub={isNhl ? "submitted picks this weekend" : "submitted picks today"}
               accent="text-purple-400"
             />
             <StatCard
@@ -208,7 +224,7 @@ export function CrazyEightsStats({ poolId }: { poolId: number }) {
               icon={Target}
               label="Total Picks"
               value={playerScores.reduce((s, p) => s + p.totalPicks, 0)}
-              sub="across all players today"
+              sub={isNhl ? "across all players this weekend" : "across all players today"}
               accent="text-foreground"
             />
           </div>
