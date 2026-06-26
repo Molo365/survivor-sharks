@@ -46,9 +46,17 @@ router.get("/games", requireAuth, async (req, res) => {
     const formattedGames = sandboxGames.map(g => {
       const shaped = sandboxGameToPickEmShape(g);
       const existing = pickMap.get(g.id);
+      // Merge stored scores from grading — required for locked pick display
+      const awayScore = existing?.awayScore ?? null;
+      const homeScore = existing?.homeScore ?? null;
+      const isGraded = existing?.result != null && existing.result !== "pending";
       return {
         ...shaped,
-        deadlinePassed: false,
+        // Graded games: mark final so NflGameCard renders scores + winner highlight
+        status: isGraded && awayScore != null ? "final" : shaped.status,
+        deadlinePassed: isGraded,
+        awayScore,
+        homeScore,
         userPickTeamId: existing?.pickedTeamId ?? null,
         userPickResult: existing?.result ?? null,
         homeRecord: null,
@@ -664,8 +672,9 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   const week = pool.sandboxWeek ?? pool.currentWeek;
   const games = getSandboxGamesForWeek(week);
 
-  // Random NFL-realistic scores (10–45, no ties)
+  // Random NFL-realistic scores (10–45, no ties), stored per game for display
   const winnerByTeamId = new Map<string, string>();
+  const gameScores = new Map<string, { awayScore: number; homeScore: number; winnerTeamId: string }>();
   for (const game of games) {
     let homeScore = 10 + Math.floor(Math.random() * 36);
     let awayScore = 10 + Math.floor(Math.random() * 36);
@@ -673,6 +682,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     winnerByTeamId.set(game.homeTeamId, winner);
     winnerByTeamId.set(game.awayTeamId, winner);
+    gameScores.set(game.id, { awayScore, homeScore, winnerTeamId: winner });
   }
 
   const completedGameIds = Array.from(new Set(games.map(g => g.id)));
@@ -690,8 +700,19 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const winner = winnerByTeamId.get(pick.pickedTeamId);
     if (winner === undefined) continue;
     const result: "correct" | "incorrect" = pick.pickedTeamId === winner ? "correct" : "incorrect";
-    await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+    const scores = gameScores.get(pick.gameId);
+    await db.update(pickemPicksTable).set({
+      result,
+      updatedAt: new Date(),
+      ...(scores ? { awayScore: scores.awayScore, homeScore: scores.homeScore, winnerTeamId: scores.winnerTeamId } : {}),
+    }).where(eq(pickemPicksTable.id, pick.id));
     graded++;
+  }
+
+  // Bug 2 fix: advance currentWeek so the WeekStrip unlocks the next week
+  const nextWeek = Math.min(week + 1, NFL_TOTAL_WEEKS);
+  if (nextWeek > pool.currentWeek) {
+    await db.update(poolsTable).set({ currentWeek: nextWeek }).where(eq(poolsTable.id, poolId));
   }
 
   // Week 18 sandbox: generate random tiebreaker actuals so resolution can be tested end-to-end
