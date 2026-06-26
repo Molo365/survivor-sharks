@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat } from "lucide-react";
+import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -374,10 +374,6 @@ export default function CreatePool() {
       <NavBar />
 
       <main className="flex-1 container px-4 py-8 max-w-3xl mx-auto">
-        <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-6 transition-colors">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
-        </Link>
-
         <div className="mb-8">
           <h1 className="font-bebas text-4xl tracking-wide text-primary">{pageTitle}</h1>
           <p className="text-muted-foreground text-sm uppercase tracking-wider">{pageSubtitle}</p>

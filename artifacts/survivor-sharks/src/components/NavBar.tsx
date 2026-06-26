@@ -1,19 +1,33 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, ChevronLeft } from "lucide-react";
+
+const NO_BACK_PATHS = new Set(["/", "/dashboard", "/login", "/register"]);
 
 export function NavBar() {
   const { user, isLoading, logout } = useAuth();
+  const [location] = useLocation();
+
+  const showBack = user && !NO_BACK_PATHS.has(location);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        {/* Left side: Logo */}
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2" data-testid="nav-logo">
-            <img src="/logo.png" alt="Survivor Sharks" className="h-10 w-10 object-contain drop-shadow-[0_0_6px_rgba(30,144,255,0.5)]" />
-            <span className="font-bebas text-2xl tracking-widest text-primary hidden sm:inline">SURVIVOR SHARKS</span>
+        {/* Left side: wordmark + optional Back button */}
+        <div className="flex items-center gap-3">
+          {showBack && (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+              data-testid="nav-back"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+          )}
+          <Link href="/" className="flex items-center" data-testid="nav-logo">
+            <span className="font-bebas text-2xl tracking-widest text-primary">SURVIVOR SHARKS</span>
           </Link>
         </div>
 

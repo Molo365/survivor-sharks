@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Ban, ChevronLeft, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
+import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -88,9 +88,6 @@ export default function PoolHome() {
       <NavBar />
       
       <main className="flex-1 container px-4 py-8 max-w-7xl mx-auto">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/40 bg-primary/10 hover:bg-primary/20 rounded-full px-4 py-2 mb-6 transition-colors">
-          <ChevronLeft className="w-4 h-4" /> Back to Dashboard
-        </Link>
         
         {isLoading || !pool ? (
           <div className="space-y-8">

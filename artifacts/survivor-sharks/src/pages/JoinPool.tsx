@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft } from "lucide-react";
 
 const formSchema = z.object({
   inviteCode: z.string().min(1, "Invite code is required"),
@@ -63,10 +62,6 @@ export default function JoinPool() {
       <NavBar />
       
       <main className="flex-1 container px-4 py-12 max-w-2xl mx-auto flex flex-col justify-center">
-        <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-6 transition-colors self-start">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
-        </Link>
-        
         <div className="shark-card rounded-lg p-8 md:p-12 border-border/50 text-center">
           <h1 className="font-bebas text-5xl tracking-widest text-primary mb-2">JOIN A POOL</h1>
           <p className="text-muted-foreground mb-8">Enter the invite code from your commissioner to join the action.</p>
