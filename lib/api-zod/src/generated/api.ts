@@ -1900,6 +1900,8 @@ export const GetNflPickEmSeasonLeaderboardParams = zod.object({
 export const GetNflPickEmSeasonLeaderboardResponse = zod.object({
   "currentWeek": zod.number(),
   "totalWeeks": zod.number(),
+  "actualPassingYards": zod.number().nullish().describe('Week 18 tiebreaker actual passing yards (null if not yet resolved)'),
+  "actualRushingYards": zod.number().nullish().describe('Week 18 tiebreaker actual rushing yards (null if not yet resolved)'),
   "entries": zod.array(zod.object({
   "rank": zod.number(),
   "userId": zod.number(),

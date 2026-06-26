@@ -466,7 +466,7 @@ export default function CreatePool() {
                                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                     <span className={cn("font-bebas text-xl tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
                                       {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL Pick-Ems"
-                                        : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Crazy Ice 8s"
+                                        : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Hit the Ice!"
                                         : type.label}
                                     </span>
                                     <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5",

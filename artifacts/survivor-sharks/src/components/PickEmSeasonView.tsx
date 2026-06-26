@@ -1145,6 +1145,9 @@ export function PickEmSeasonView({
   const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
   const entries = leaderboard?.entries ?? [];
+  const actualPassingYards = leaderboard?.actualPassingYards ?? null;
+  const actualRushingYards = leaderboard?.actualRushingYards ?? null;
+  const tbActualsKnown = actualPassingYards !== null && actualRushingYards !== null;
 
   return (
     <>
@@ -1405,6 +1408,15 @@ export function PickEmSeasonView({
                     {entries.length} player{entries.length !== 1 ? "s" : ""}
                   </span>
                 </div>
+                {tbActualsKnown && (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300 flex items-center gap-2">
+                    <span className="font-bold uppercase tracking-widest text-yellow-400">Tiebreaker resolved</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>Actual passing: <span className="font-mono text-foreground">{actualPassingYards} yds</span></span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>Actual rushing: <span className="font-mono text-foreground">{actualRushingYards} yds</span></span>
+                  </div>
+                )}
                 <div className="rounded-xl border border-border/40 overflow-hidden">
                   {entries.map((entry, idx) => {
                     const isMe = entry.userId === user?.id;
@@ -1413,6 +1425,13 @@ export function PickEmSeasonView({
                         ? Math.round(
                             (entry.seasonCorrect / entry.seasonTotal) * 100,
                           )
+                        : null;
+                    const tbDelta =
+                      tbActualsKnown &&
+                      entry.tiebreakerPassingYards != null &&
+                      entry.tiebreakerRushingYards != null
+                        ? Math.abs(entry.tiebreakerPassingYards - actualPassingYards!) +
+                          Math.abs(entry.tiebreakerRushingYards - actualRushingYards!)
                         : null;
                     return (
                       <div
@@ -1450,6 +1469,11 @@ export function PickEmSeasonView({
                           {isMe && (
                             <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                               you
+                            </span>
+                          )}
+                          {tbDelta !== null && (
+                            <span className="ml-2 text-[10px] font-mono text-muted-foreground/50">
+                              TB Δ{tbDelta}
                             </span>
                           )}
                         </span>

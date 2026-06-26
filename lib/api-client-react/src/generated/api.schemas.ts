@@ -1551,6 +1551,10 @@ export interface NflPickEmSeasonLeaderboardEntry {
 export interface NflPickEmSeasonLeaderboard {
   currentWeek: number;
   totalWeeks: number;
+  /** Week 18 tiebreaker actual passing yards (null if not yet resolved) */
+  actualPassingYards?: number | null;
+  /** Week 18 tiebreaker actual rushing yards (null if not yet resolved) */
+  actualRushingYards?: number | null;
   entries: NflPickEmSeasonLeaderboardEntry[];
 }
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek } from "../lib/espn";
@@ -156,6 +156,14 @@ router.post("/picks", requireAuth, async (req, res) => {
       });
       saved++;
     }
+    // Week 18 sandbox: optionally save tiebreaker guesses (not required in sandbox)
+    if (numWeek === NFL_TOTAL_WEEKS &&
+        typeof tiebreakerPassingYards === "number" && isFinite(tiebreakerPassingYards) &&
+        typeof tiebreakerRushingYards === "number" && isFinite(tiebreakerRushingYards)) {
+      await db.update(entriesTable)
+        .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards), tiebreakerRushingYards: Math.round(tiebreakerRushingYards) } as any)
+        .where(eq(entriesTable.id, entry.id));
+    }
     res.status(201).json({ saved, skipped: 0 });
     return;
   }
@@ -244,7 +252,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const [seasonAggregates, weeklyAggregates, tiebreakers] = await Promise.all([
+  const [seasonAggregates, weeklyAggregates, tiebreakers, actualsRow] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -280,13 +288,38 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       })
       .from(entriesTable)
       .where(eq(entriesTable.poolId, poolId)),
+    db
+      .select({
+        actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
+        actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+      })
+      .from(nflConfidenceResultsTable)
+      .where(and(eq(nflConfidenceResultsTable.poolId, poolId), eq(nflConfidenceResultsTable.week, NFL_TOTAL_WEEKS)))
+      .limit(1),
   ]);
+
+  const actualPassingYards: number | null = actualsRow[0]?.actualPassingYards ?? null;
+  const actualRushingYards: number | null = actualsRow[0]?.actualRushingYards ?? null;
 
   const tiebreakerMap = new Map(tiebreakers.map(t => [t.userId, {
     tiebreakerPrediction: t.tiebreakerPrediction,
     tiebreakerPassingYards: t.tiebreakerPassingYards,
     tiebreakerRushingYards: t.tiebreakerRushingYards,
   }]));
+
+  // When Week 18 actuals exist, re-sort to break ties by closest tiebreaker guess
+  if (actualPassingYards !== null && actualRushingYards !== null) {
+    const tbDelta = (uid: number) => {
+      const g = tiebreakerMap.get(uid);
+      if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return Infinity;
+      return Math.abs(g.tiebreakerPassingYards - actualPassingYards) + Math.abs(g.tiebreakerRushingYards - actualRushingYards);
+    };
+    seasonAggregates.sort((a, b) => {
+      const diff = Number(b.seasonCorrect) - Number(a.seasonCorrect);
+      if (diff !== 0) return diff;
+      return tbDelta(a.userId) - tbDelta(b.userId);
+    });
+  }
 
   const weeklyMap = new Map<number, Record<number, { correct: number; total: number }>>();
   for (const row of weeklyAggregates) {
@@ -297,10 +330,26 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   }
 
+  const tbDeltaFn = (uid: number) => {
+    if (actualPassingYards === null || actualRushingYards === null) return null;
+    const g = tiebreakerMap.get(uid);
+    if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return null;
+    return Math.abs(g.tiebreakerPassingYards - actualPassingYards) + Math.abs(g.tiebreakerRushingYards - actualRushingYards);
+  };
+
   let rank = 1;
   const entries = seasonAggregates.map((u, i) => {
-    if (i > 0 && Number(u.seasonCorrect) < Number(seasonAggregates[i - 1].seasonCorrect)) {
-      rank = i + 1;
+    if (i > 0) {
+      const prev = seasonAggregates[i - 1];
+      const sameCorrect = Number(u.seasonCorrect) === Number(prev.seasonCorrect);
+      if (!sameCorrect) {
+        rank = i + 1;
+      } else if (actualPassingYards !== null && actualRushingYards !== null) {
+        // Tiebreaker is active — share rank only if delta is identical
+        const prevDelta = tbDeltaFn(prev.userId);
+        const currDelta = tbDeltaFn(u.userId);
+        if (prevDelta !== currDelta) rank = i + 1;
+      }
     }
     return {
       rank,
@@ -316,7 +365,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
-  res.json({ currentWeek: pool.currentWeek, totalWeeks: NFL_TOTAL_WEEKS, entries });
+  res.json({ currentWeek: pool.currentWeek, totalWeeks: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards, entries });
 });
 
 // POST /api/pools/:poolId/pickem-season/process-results
@@ -595,7 +644,22 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     graded++;
   }
 
-  res.json({ graded, week });
+  // Week 18 sandbox: generate random tiebreaker actuals so resolution can be tested end-to-end
+  let tiebreakerActuals: { actualPassingYards: number; actualRushingYards: number } | null = null;
+  if (week === NFL_TOTAL_WEEKS) {
+    const actualPassingYards = 200 + Math.floor(Math.random() * 201); // 200–400
+    const actualRushingYards = 50 + Math.floor(Math.random() * 151);  // 50–200
+    await db
+      .insert(nflConfidenceResultsTable)
+      .values({ poolId, week: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards })
+      .onConflictDoUpdate({
+        target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
+        set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
+      });
+    tiebreakerActuals = { actualPassingYards, actualRushingYards };
+  }
+
+  res.json({ graded, week, ...(tiebreakerActuals ? { tiebreakerActuals } : {}) });
 });
 
 export default router;

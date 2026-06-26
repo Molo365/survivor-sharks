@@ -326,7 +326,7 @@ function LockedPicksView({
         <div>
           <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
             <Lock className="w-5 h-5 text-purple-400" />
-            {isNhl ? "Your Crazy Ice 8s Picks" : "Your Crazy 8's Picks"}
+            {isNhl ? "Your Hit the Ice! Picks" : "Your Crazy 8's Picks"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isNhl ? "Weekend picks are submitted and locked." : "Today's picks are submitted and locked."}
@@ -342,7 +342,7 @@ function LockedPicksView({
         <div>
           <p className="font-semibold text-sm">Picks submitted!</p>
           <p className="text-xs text-muted-foreground">
-            {isNhl ? "Your Crazy Ice 8s picks are locked in. Good luck this weekend!" : "Your Crazy 8's picks are locked in. Good luck!"}
+            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : "Your Crazy 8's picks are locked in. Good luck!"}
           </p>
         </div>
       </div>
@@ -832,7 +832,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
             {isNhl ? <Snowflake className="w-6 h-6 text-cyan-400" /> : <Dice5 className="w-6 h-6 text-purple-400" />}
             {isNhl
-              ? `Crazy Ice 8s — ${slateData?.weekLabel ?? "This Weekend"}`
+              ? `Hit the Ice! — ${slateData?.weekLabel ?? "This Weekend"}`
               : "Crazy 8's — Today's Slate"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">

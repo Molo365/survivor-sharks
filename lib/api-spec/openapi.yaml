@@ -3703,6 +3703,14 @@ components:
           type: integer
         totalWeeks:
           type: integer
+        actualPassingYards:
+          type: integer
+          nullable: true
+          description: "Week 18 tiebreaker actual passing yards (null if not yet resolved)"
+        actualRushingYards:
+          type: integer
+          nullable: true
+          description: "Week 18 tiebreaker actual rushing yards (null if not yet resolved)"
         entries:
           type: array
           items:
