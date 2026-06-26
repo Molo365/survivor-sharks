@@ -64,10 +64,18 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const formattedGames = games.map(g => {
     const existing = pickMap.get(g.id);
+    // Use stored scores as fallback when ESPN returns null (e.g. season-ID mismatch
+    // causes ESPN to return future scheduled games with no scores).
+    const awayScore = g.awayScore ?? existing?.awayScore ?? null;
+    const homeScore = g.homeScore ?? existing?.homeScore ?? null;
+    // If ESPN says "scheduled" but we have stored scores from grading, treat as final.
+    const status = (g.status !== "final" && awayScore != null && homeScore != null)
+      ? "final"
+      : g.status;
     return {
       id: g.id,
       startTime: g.date,
-      status: g.status,
+      status,
       deadlinePassed: isGameLocked(g.date),
       awayTeam: {
         id: g.awayTeam.id,
@@ -81,8 +89,8 @@ router.get("/games", requireAuth, async (req, res) => {
         abbreviation: g.homeTeam.abbreviation,
         logoUrl: g.homeTeam.logo ?? null,
       },
-      awayScore: g.awayScore ?? null,
-      homeScore: g.homeScore ?? null,
+      awayScore,
+      homeScore,
       userPickTeamId: existing?.pickedTeamId ?? null,
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
@@ -451,15 +459,32 @@ router.post("/process-results", requireAuth, async (req, res) => {
       )
     );
 
+  // Build a score/winner map for storage alongside each pick's result
+  const gameScoreMap = new Map<string, { awayScore: number; homeScore: number; winnerTeamId: string | null }>();
+  for (const game of completedGames) {
+    if (game.homeScore != null && game.awayScore != null) {
+      gameScoreMap.set(game.id, {
+        awayScore: game.awayScore,
+        homeScore: game.homeScore,
+        winnerTeamId: winnerMap.get(game.id) ?? null,
+      });
+    }
+  }
+
   let graded = 0;
   for (const pick of pendingPicks) {
     const winner = winnerMap.get(pick.gameId);
     if (winner === undefined) continue;
     const result: "correct" | "incorrect" =
       winner !== null && pick.pickedTeamId === winner ? "correct" : "incorrect";
+    const scores = gameScoreMap.get(pick.gameId);
     await db
       .update(pickemPicksTable)
-      .set({ result, updatedAt: new Date() })
+      .set({
+        result,
+        updatedAt: new Date(),
+        ...(scores ? { awayScore: scores.awayScore, homeScore: scores.homeScore, winnerTeamId: scores.winnerTeamId } : {}),
+      })
       .where(eq(pickemPicksTable.id, pick.id));
     graded++;
   }
