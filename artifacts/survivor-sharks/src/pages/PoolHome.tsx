@@ -146,7 +146,7 @@ export default function PoolHome() {
                   )}
                   {isCrazyEights && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
-                      <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Hit the Ice!" : "Crazy 8's"}
+                      <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Crazy Ice 8s" : "Crazy 8's"}
                     </span>
                   )}
                   {isNflConfidence && (

@@ -568,7 +568,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
       .where(eq(entriesTable.id, entry.id));
 
-    res.status(201).json({ ok: true, saved, message: "Hit the Ice! picks submitted successfully" });
+    res.status(201).json({ ok: true, saved, message: "Crazy Ice 8s picks submitted successfully" });
     return;
   }
 
