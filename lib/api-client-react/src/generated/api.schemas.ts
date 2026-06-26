@@ -1555,6 +1555,12 @@ export interface NflPickEmSeasonLeaderboardEntry {
   seasonTotal: number;
   tiebreakerPassingYards?: number | null;
   tiebreakerRushingYards?: number | null;
+  /** Absolute difference between passing-yards guess and actual (null until Week 18 actuals recorded) */
+  tiebreakerDiff1?: number | null;
+  /** Absolute difference between rushing-yards guess and actual (null until Week 18 actuals recorded) */
+  tiebreakerDiff2?: number | null;
+  /** True when this player shares an identical rank after both tiebreakers — prize pot should be split */
+  potSplit: boolean;
   weeklyScores: NflPickEmSeasonLeaderboardEntryWeeklyScores;
 }
 
@@ -1572,6 +1578,10 @@ export interface NflPickEmSeasonProcessResult {
   graded: number;
   week: number;
   completedGames: number;
+  /** Week 18 combined passing yards across all games (only present when week=18) */
+  actualPassingYards?: number | null;
+  /** Week 18 combined rushing yards across all games (only present when week=18) */
+  actualRushingYards?: number | null;
 }
 
 export interface NflPickEmSeasonPlayerPick {

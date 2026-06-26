@@ -309,6 +309,11 @@ export function PickEmSeasonLeaderboard({
             {pct}%
           </div>
         )}
+        {player.potSplit && (
+          <div className="text-[9px] font-bold uppercase tracking-wide text-yellow-400/80 leading-none mt-0.5">
+            Split
+          </div>
+        )}
       </div>
     );
   }
@@ -329,32 +334,25 @@ export function PickEmSeasonLeaderboard({
     );
   }
 
+  // Show tiebreaker actuals card when Week 18 results are known
   const tbActualsKnown = actualPassingYards != null && actualRushingYards != null;
-  const footer = tbActualsKnown ? (
+  // Candidates: rank-1 players who submitted tiebreaker guesses
+  const tbCandidates = entries.filter(
+    (e) => e.rank === 1 && (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null),
+  );
+  const footer = tbActualsKnown && tbCandidates.length > 0 ? (
     <TiebreakerActualsCard
       actualPassingYards={actualPassingYards!}
       actualRushingYards={actualRushingYards}
-      tiedPlayers={entries
-        .filter(
-          (e) =>
-            e.rank === 1 &&
-            (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null),
-        )
-        .map((e) => ({
-          userId: e.userId,
-          username: e.username,
-          displayName: e.displayName ?? null,
-          tiebreakerPassingYardsGuess: e.tiebreakerPassingYards ?? null,
-          tiebreakerRushingYardsGuess: e.tiebreakerRushingYards ?? null,
-          tiebreakerDiff1:
-            e.tiebreakerPassingYards != null
-              ? Math.abs(e.tiebreakerPassingYards - actualPassingYards!)
-              : null,
-          tiebreakerDiff2:
-            e.tiebreakerRushingYards != null && actualRushingYards != null
-              ? Math.abs(e.tiebreakerRushingYards - actualRushingYards)
-              : null,
-        }))}
+      tiedPlayers={tbCandidates.map((e) => ({
+        userId: e.userId,
+        username: e.username,
+        displayName: e.displayName ?? null,
+        tiebreakerPassingYardsGuess: e.tiebreakerPassingYards ?? null,
+        tiebreakerRushingYardsGuess: e.tiebreakerRushingYards ?? null,
+        tiebreakerDiff1: e.tiebreakerDiff1 ?? null,
+        tiebreakerDiff2: e.tiebreakerDiff2 ?? null,
+      }))}
     />
   ) : undefined;
 

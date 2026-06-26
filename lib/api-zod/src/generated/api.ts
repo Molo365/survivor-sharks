@@ -1922,6 +1922,9 @@ export const GetNflPickEmSeasonLeaderboardResponse = zod.object({
   "seasonTotal": zod.number(),
   "tiebreakerPassingYards": zod.number().nullish(),
   "tiebreakerRushingYards": zod.number().nullish(),
+  "tiebreakerDiff1": zod.number().nullish().describe('Absolute difference between passing-yards guess and actual (null until Week 18 actuals recorded)'),
+  "tiebreakerDiff2": zod.number().nullish().describe('Absolute difference between rushing-yards guess and actual (null until Week 18 actuals recorded)'),
+  "potSplit": zod.boolean().describe('True when this player shares an identical rank after both tiebreakers — prize pot should be split'),
   "weeklyScores": zod.record(zod.string(), zod.object({
   "correct": zod.number(),
   "total": zod.number()
@@ -1944,7 +1947,9 @@ export const ProcessNflPickEmSeasonResultsBody = zod.object({
 export const ProcessNflPickEmSeasonResultsResponse = zod.object({
   "graded": zod.number(),
   "week": zod.number(),
-  "completedGames": zod.number()
+  "completedGames": zod.number(),
+  "actualPassingYards": zod.number().nullish().describe('Week 18 combined passing yards across all games (only present when week=18)'),
+  "actualRushingYards": zod.number().nullish().describe('Week 18 combined rushing yards across all games (only present when week=18)')
 })
 
 

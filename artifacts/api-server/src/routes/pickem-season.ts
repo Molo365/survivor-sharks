@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { fetchNflGamesByWeek } from "../lib/espn";
+import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
@@ -371,40 +371,113 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   }
 
-  const tbDeltaFn = (uid: number) => {
-    if (actualPassingYards === null || actualRushingYards === null) return null;
+  // Per-field TB delta helpers (Infinity when guess or actuals are missing)
+  const tbPassingDelta = (uid: number): number => {
+    if (actualPassingYards === null) return Infinity;
     const g = tiebreakerMap.get(uid);
-    if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return null;
-    return Math.abs(g.tiebreakerPassingYards - actualPassingYards) + Math.abs(g.tiebreakerRushingYards - actualRushingYards);
+    if (g?.tiebreakerPassingYards == null) return Infinity;
+    return Math.abs(g.tiebreakerPassingYards - actualPassingYards);
+  };
+  const tbRushingDelta = (uid: number): number => {
+    if (actualRushingYards === null) return Infinity;
+    const g = tiebreakerMap.get(uid);
+    if (g?.tiebreakerRushingYards == null) return Infinity;
+    return Math.abs(g.tiebreakerRushingYards - actualRushingYards);
   };
 
-  let rank = 1;
-  const entries = seasonAggregates.map((u, i) => {
-    if (i > 0) {
-      const prev = seasonAggregates[i - 1];
-      const sameCorrect = Number(u.seasonCorrect) === Number(prev.seasonCorrect);
-      if (!sameCorrect) {
-        rank = i + 1;
-      } else if (actualPassingYards !== null && actualRushingYards !== null) {
-        // Tiebreaker is active — share rank only if delta is identical
-        const prevDelta = tbDeltaFn(prev.userId);
-        const currDelta = tbDeltaFn(u.userId);
-        if (prevDelta !== currDelta) rank = i + 1;
+  // Group players by seasonCorrect, sorted descending
+  const groupMap = new Map<number, typeof seasonAggregates>();
+  for (const u of seasonAggregates) {
+    const k = Number(u.seasonCorrect);
+    if (!groupMap.has(k)) groupMap.set(k, []);
+    groupMap.get(k)!.push(u);
+  }
+  const sortedKeys = [...groupMap.keys()].sort((a, b) => b - a);
+
+  type LeaderboardEntry = {
+    rank: number;
+    userId: number;
+    username: string;
+    displayName: string | null;
+    seasonCorrect: number;
+    seasonTotal: number;
+    tiebreakerPassingYards: number | null;
+    tiebreakerRushingYards: number | null;
+    tiebreakerDiff1: number | null;
+    tiebreakerDiff2: number | null;
+    potSplit: boolean;
+    weeklyScores: Record<string, { correct: number; total: number }>;
+  };
+  const entries: LeaderboardEntry[] = [];
+  let currentRank = 1;
+
+  for (const key of sortedKeys) {
+    const group = groupMap.get(key)!;
+
+    if (group.length === 1 || actualPassingYards === null) {
+      // Single player, or actuals not yet available — no tiebreaker to apply
+      for (const u of group) {
+        const tb = tiebreakerMap.get(u.userId);
+        entries.push({
+          rank: currentRank,
+          userId: u.userId,
+          username: u.username,
+          displayName: u.displayName ?? null,
+          seasonCorrect: Number(u.seasonCorrect),
+          seasonTotal: Number(u.seasonTotal),
+          tiebreakerPassingYards: tb?.tiebreakerPassingYards ?? null,
+          tiebreakerRushingYards: tb?.tiebreakerRushingYards ?? null,
+          tiebreakerDiff1: null,
+          tiebreakerDiff2: null,
+          potSplit: group.length > 1,
+          weeklyScores: weeklyMap.get(u.userId) ?? {},
+        });
       }
+      currentRank += group.length;
+      continue;
     }
-    return {
-      rank,
-      userId: u.userId,
-      username: u.username,
-      displayName: u.displayName ?? null,
-      seasonCorrect: Number(u.seasonCorrect),
-      seasonTotal: Number(u.seasonTotal),
-      tiebreakerPrediction: tiebreakerMap.get(u.userId)?.tiebreakerPrediction ?? null,
-      tiebreakerPassingYards: tiebreakerMap.get(u.userId)?.tiebreakerPassingYards ?? null,
-      tiebreakerRushingYards: tiebreakerMap.get(u.userId)?.tiebreakerRushingYards ?? null,
-      weeklyScores: weeklyMap.get(u.userId) ?? {},
-    };
-  });
+
+    // Sort within tied group: TB1 (passing delta) first, TB2 (rushing delta) second
+    group.sort((a, b) => {
+      const d1 = tbPassingDelta(a.userId) - tbPassingDelta(b.userId);
+      if (d1 !== 0) return d1;
+      return tbRushingDelta(a.userId) - tbRushingDelta(b.userId);
+    });
+
+    // Assign sub-ranks; flag sub-groups that are still tied after both TBs
+    let i = 0;
+    while (i < group.length) {
+      const d1 = tbPassingDelta(group[i].userId);
+      const d2 = tbRushingDelta(group[i].userId);
+      let j = i + 1;
+      while (j < group.length &&
+             tbPassingDelta(group[j].userId) === d1 &&
+             tbRushingDelta(group[j].userId) === d2) {
+        j++;
+      }
+      const subGroup = group.slice(i, j);
+      const potSplit = subGroup.length > 1;
+      for (const u of subGroup) {
+        const tb = tiebreakerMap.get(u.userId);
+        entries.push({
+          rank: currentRank + i,
+          userId: u.userId,
+          username: u.username,
+          displayName: u.displayName ?? null,
+          seasonCorrect: Number(u.seasonCorrect),
+          seasonTotal: Number(u.seasonTotal),
+          tiebreakerPassingYards: tb?.tiebreakerPassingYards ?? null,
+          tiebreakerRushingYards: tb?.tiebreakerRushingYards ?? null,
+          tiebreakerDiff1: isFinite(d1) ? d1 : null,
+          tiebreakerDiff2: isFinite(d2) ? d2 : null,
+          potSplit,
+          weeklyScores: weeklyMap.get(u.userId) ?? {},
+        });
+      }
+      i = j;
+    }
+    currentRank += group.length;
+  }
 
   res.json({ currentWeek: pool.currentWeek, totalWeeks: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards, entries });
 });
@@ -497,7 +570,37 @@ router.post("/process-results", requireAuth, async (req, res) => {
     graded++;
   }
 
-  res.json({ graded, week, completedGames: completedGameIds.length });
+  // Week 18: fetch real tiebreaker actuals from ESPN and write to nfl_confidence_results
+  let actualPassingYards: number | null = null;
+  let actualRushingYards: number | null = null;
+  if (week === NFL_TOTAL_WEEKS && completedGameIds.length > 0) {
+    try {
+      const stats = await fetchNflWeek18TiebreakerStats(completedGameIds);
+      if (stats) {
+        actualPassingYards = stats.actualPassingYards;
+        actualRushingYards = stats.actualRushingYards;
+        await db
+          .insert(nflConfidenceResultsTable)
+          .values({ poolId, week: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards })
+          .onConflictDoUpdate({
+            target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
+            set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
+          });
+        req.log.info({ poolId, week, actualPassingYards, actualRushingYards }, "pickem-season Week 18 tiebreaker actuals recorded");
+      } else {
+        req.log.warn({ poolId, week }, "pickem-season Week 18: ESPN stats unavailable, tiebreaker actuals not recorded");
+      }
+    } catch (err) {
+      req.log.error({ err, poolId, week }, "pickem-season Week 18: failed to fetch ESPN tiebreaker stats");
+    }
+  }
+
+  res.json({
+    graded,
+    week,
+    completedGames: completedGameIds.length,
+    ...(actualPassingYards != null ? { actualPassingYards, actualRushingYards } : {}),
+  });
 });
 
 // GET /api/pools/:poolId/pickem-season/week-results?week=N

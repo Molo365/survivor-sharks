@@ -779,3 +779,65 @@ export async function fetchNflDivisionStandings(): Promise<NflDivisionStandingsG
     return [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// NFL Week 18 tiebreaker stats
+// ---------------------------------------------------------------------------
+
+const NFL_SUMMARY_BASE = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary";
+
+/**
+ * Fetch combined passing + rushing yards across multiple completed NFL games.
+ * Calls the ESPN summary (boxscore) endpoint for each game ID in parallel and
+ * sums both teams' stats. Returns null if ESPN data is unavailable for all
+ * games (soft failure — caller should skip writing actuals).
+ */
+export async function fetchNflWeek18TiebreakerStats(
+  gameIds: string[]
+): Promise<{ actualPassingYards: number; actualRushingYards: number } | null> {
+  if (gameIds.length === 0) return null;
+
+  const results = await Promise.allSettled(
+    gameIds.map(async (id) => {
+      const res = await fetch(`${NFL_SUMMARY_BASE}?event=${id}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        boxscore?: {
+          teams?: Array<{
+            statistics?: Array<{ name: string; displayValue: string }>;
+          }>;
+        };
+      };
+    })
+  );
+
+  let totalPassing = 0;
+  let totalRushing = 0;
+  let passingFound = false;
+  let rushingFound = false;
+
+  for (const result of results) {
+    if (result.status !== "fulfilled" || !result.value) continue;
+    const teams = result.value.boxscore?.teams ?? [];
+    for (const team of teams) {
+      for (const stat of team.statistics ?? []) {
+        if (stat.name === "passingYards" || stat.name === "netPassingYards") {
+          const v = parseInt(stat.displayValue, 10);
+          if (!isNaN(v)) { totalPassing += v; passingFound = true; }
+        }
+        if (stat.name === "rushingYards") {
+          const v = parseInt(stat.displayValue, 10);
+          if (!isNaN(v)) { totalRushing += v; rushingFound = true; }
+        }
+      }
+    }
+  }
+
+  if (!passingFound && !rushingFound) return null;
+  return {
+    actualPassingYards: passingFound ? totalPassing : 0,
+    actualRushingYards: rushingFound ? totalRushing : 0,
+  };
+}

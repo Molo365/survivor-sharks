@@ -3678,7 +3678,7 @@ components:
 
     NflPickEmSeasonLeaderboardEntry:
       type: object
-      required: [rank, userId, username, seasonCorrect, seasonTotal, weeklyScores]
+      required: [rank, userId, username, seasonCorrect, seasonTotal, weeklyScores, potSplit]
       properties:
         rank:
           type: integer
@@ -3699,6 +3699,17 @@ components:
         tiebreakerRushingYards:
           type: integer
           nullable: true
+        tiebreakerDiff1:
+          type: integer
+          nullable: true
+          description: "Absolute difference between passing-yards guess and actual (null until Week 18 actuals recorded)"
+        tiebreakerDiff2:
+          type: integer
+          nullable: true
+          description: "Absolute difference between rushing-yards guess and actual (null until Week 18 actuals recorded)"
+        potSplit:
+          type: boolean
+          description: "True when this player shares an identical rank after both tiebreakers — prize pot should be split"
         weeklyScores:
           type: object
           additionalProperties:
@@ -3741,6 +3752,14 @@ components:
           type: integer
         completedGames:
           type: integer
+        actualPassingYards:
+          type: integer
+          nullable: true
+          description: "Week 18 combined passing yards across all games (only present when week=18)"
+        actualRushingYards:
+          type: integer
+          nullable: true
+          description: "Week 18 combined rushing yards across all games (only present when week=18)"
 
     NflPickEmSeasonPlayerPick:
       type: object
