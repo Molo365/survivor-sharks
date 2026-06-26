@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 const SECRET = process.env.SESSION_SECRET ?? "survivor-sharks-jwt-secret-change-in-prod";
-const EXPIRES_IN = "30d";
+const EXPIRES_IN = "2d";
 
 export interface JwtPayload {
   sub: number;

@@ -2,7 +2,7 @@ import { type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
 import { usersTable, poolsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { verifyToken } from "../lib/jwt";
+import { verifyToken, signToken } from "../lib/jwt";
 
 declare global {
   namespace Express {
@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-export async function loadUser(req: Request, _res: Response, next: NextFunction) {
+export async function loadUser(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
@@ -20,7 +20,13 @@ export async function loadUser(req: Request, _res: Response, next: NextFunction)
     if (payload) {
       try {
         const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.sub)).limit(1);
-        if (user) req.user = user;
+        if (user) {
+          req.user = user;
+          // Sliding-window: re-issue a fresh 2-day token on every authenticated
+          // request so the clock resets with each activity.
+          const refreshed = signToken({ sub: user.id, username: user.username, role: user.role });
+          res.setHeader("X-Refresh-Token", refreshed);
+        }
       } catch {
         // token valid but user not found
       }
