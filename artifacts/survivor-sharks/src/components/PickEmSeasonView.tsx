@@ -303,13 +303,15 @@ function WeekStrip({
             <button
               key={w}
               type="button"
-              onClick={() => onWeekChange(w)}
+              onClick={isFuture ? undefined : () => onWeekChange(w)}
+              disabled={isFuture}
+              aria-disabled={isFuture}
               className={cn(
                 "shrink-0 flex flex-col items-center justify-center rounded-lg border min-w-[48px] px-2 py-1.5 transition-all",
-                isActive
-                  ? "border-primary/60 bg-primary/10 text-primary"
-                  : isFuture
-                    ? "border-border/15 bg-transparent text-muted-foreground/30 hover:border-border/30"
+                isFuture
+                  ? "border-border/10 bg-transparent text-muted-foreground/20 cursor-not-allowed opacity-40"
+                  : isActive
+                    ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/30 bg-transparent text-muted-foreground/70 hover:border-border/50 hover:text-foreground",
               )}
             >
