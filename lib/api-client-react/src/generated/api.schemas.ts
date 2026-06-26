@@ -167,10 +167,6 @@ export interface PoolUpdate {
   isRecurring?: boolean;
   /** Enable sandbox mode (uses hardcoded schedule + simulated scores). Super-admin only. */
   sandboxMode?: boolean;
-  /** NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking) */
-  ndpTb1GameId?: string | null;
-  /** NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game */
-  ndpTb2GameId?: string | null;
   prizeStructure?: PrizeEntry[];
 }
 
@@ -274,16 +270,6 @@ export interface Pool {
   pickFrequency?: PoolPickFrequency;
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
-  /**
-     * NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)
-     * @nullable
-     */
-  ndpTb1GameId?: string | null;
-  /**
-     * NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game
-     * @nullable
-     */
-  ndpTb2GameId?: string | null;
   prizeStructure?: PrizeEntry[] | null;
   createdAt?: string;
   /**
@@ -380,16 +366,6 @@ export interface PoolDetail {
   pickFrequency?: PoolDetailPickFrequency;
   /** MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely */
   isRecurring: boolean;
-  /**
-     * NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)
-     * @nullable
-     */
-  ndpTb1GameId?: string | null;
-  /**
-     * NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game
-     * @nullable
-     */
-  ndpTb2GameId?: string | null;
   /** Number of members still alive (not eliminated) */
   activeCount: number;
   /** Total number of members in the pool */
@@ -1527,6 +1503,8 @@ export interface NflPickEmSeasonSlate {
   week: number;
   totalWeeks: number;
   currentWeek: number;
+  /** Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks */
+  tiebreakerGameId?: string | null;
   games: NflPickEmSeasonGame[];
 }
 

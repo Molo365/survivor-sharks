@@ -70,6 +70,9 @@ router.get("/games", requireAuth, async (req, res) => {
   const games = await fetchNflGamesByWeek(week, pool.season);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+  // Auto-designate: last game of the week by start time is the tiebreaker reference game (Week 18 only)
+  const tiebreakerGameId = week === NFL_TOTAL_WEEKS ? (games.at(-1)?.id ?? null) : null;
+
   const formattedGames = games.map(g => {
     const existing = pickMap.get(g.id);
     // Use stored scores as fallback when ESPN returns null (e.g. season-ID mismatch
@@ -112,6 +115,7 @@ router.get("/games", requireAuth, async (req, res) => {
     totalWeeks: NFL_TOTAL_WEEKS,
     currentWeek: pool.currentWeek,
     games: formattedGames,
+    ...(tiebreakerGameId !== null && { tiebreakerGameId }),
   });
 });
 
@@ -570,28 +574,37 @@ router.post("/process-results", requireAuth, async (req, res) => {
     graded++;
   }
 
-  // Week 18: fetch real tiebreaker actuals from ESPN and write to nfl_confidence_results
+  // Week 18: fetch tiebreaker actuals for the auto-designated last game only.
+  // Auto-designate: last game of Week 18 by start time (same pattern as NFL Confidence Season).
+  // Only write actuals once that specific game is complete — commissioner can re-run after it finishes.
   let actualPassingYards: number | null = null;
   let actualRushingYards: number | null = null;
-  if (week === NFL_TOTAL_WEEKS && completedGameIds.length > 0) {
-    try {
-      const stats = await fetchNflWeek18TiebreakerStats(completedGameIds);
-      if (stats) {
-        actualPassingYards = stats.actualPassingYards;
-        actualRushingYards = stats.actualRushingYards;
-        await db
-          .insert(nflConfidenceResultsTable)
-          .values({ poolId, week: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards })
-          .onConflictDoUpdate({
-            target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
-            set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
-          });
-        req.log.info({ poolId, week, actualPassingYards, actualRushingYards }, "pickem-season Week 18 tiebreaker actuals recorded");
-      } else {
-        req.log.warn({ poolId, week }, "pickem-season Week 18: ESPN stats unavailable, tiebreaker actuals not recorded");
+  if (week === NFL_TOTAL_WEEKS) {
+    const sortedAllGames = [...games].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const lastGame = sortedAllGames.at(-1);
+    const isLastGameComplete = lastGame ? completedGames.some(g => g.id === lastGame.id) : false;
+    if (lastGame && isLastGameComplete) {
+      try {
+        const stats = await fetchNflWeek18TiebreakerStats([lastGame.id]);
+        if (stats) {
+          actualPassingYards = stats.actualPassingYards;
+          actualRushingYards = stats.actualRushingYards;
+          await db
+            .insert(nflConfidenceResultsTable)
+            .values({ poolId, week: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards })
+            .onConflictDoUpdate({
+              target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
+              set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
+            });
+          req.log.info({ poolId, week, lastGameId: lastGame.id, actualPassingYards, actualRushingYards }, "pickem-season Week 18 tiebreaker actuals recorded for last game");
+        } else {
+          req.log.warn({ poolId, week, lastGameId: lastGame.id }, "pickem-season Week 18: ESPN stats unavailable, tiebreaker actuals not recorded");
+        }
+      } catch (err) {
+        req.log.error({ err, poolId, week }, "pickem-season Week 18: failed to fetch ESPN tiebreaker stats");
       }
-    } catch (err) {
-      req.log.error({ err, poolId, week }, "pickem-season Week 18: failed to fetch ESPN tiebreaker stats");
+    } else if (lastGame) {
+      req.log.info({ poolId, week, lastGameId: lastGame.id }, "pickem-season Week 18: last game not yet complete, tiebreaker actuals deferred");
     }
   }
 

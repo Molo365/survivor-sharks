@@ -6,10 +6,8 @@ import {
   getGetNdpLeaderboardQueryKey,
   useGetNdpMemberPicks,
   getGetNdpMemberPicksQueryKey,
-  useGetPool,
-  useUpdatePool,
-  getGetPoolQueryKey,
   useGetNdpWeek18Games,
+  getGetPoolQueryKey,
   useGetNdpMyTiebreaker,
   getGetNdpMyTiebreakerQueryKey,
   getGetPickEmDashboardStatsQueryKey,
@@ -23,8 +21,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -646,23 +642,13 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: pool } = useGetPool(poolId);
-  const { data: week18Games = [], isLoading: loadingGames } = useGetNdpWeek18Games(poolId);
-  const updatePool = useUpdatePool();
+  const { data: week18Games = [] } = useGetNdpWeek18Games(poolId);
   const [localSandboxMode, setLocalSandboxMode] = useState(initSandboxMode);
   const [togglingMode, setTogglingMode] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ simulated: number; closedPool?: boolean; winnerIds?: number[] } | null>(null);
   const [simTb1Score, setSimTb1Score] = useState("");
   const [simTb2Score, setSimTb2Score] = useState("");
-  const [tb1, setTb1] = useState<string>("");
-  const [tb2, setTb2] = useState<string>("");
-  const [savingTb, setSavingTb] = useState(false);
-
-  useEffect(() => {
-    if (!pool) return;
-    setTb1((pool as any).ndpTb1GameId ?? "");
-  }, [pool?.id]);
 
   const handleToggleSandbox = async (enabled: boolean) => {
     setTogglingMode(true);
@@ -747,36 +733,35 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
           </div>
           {localSandboxMode && (
             <div className="space-y-3">
-              {pool?.ndpTb1GameId && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                      Combined Passing Yds
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="e.g. 520"
-                      value={simTb1Score}
-                      onChange={(e) => setSimTb1Score(e.target.value)}
-                      className="h-8 text-sm bg-background/50 border-yellow-500/30"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                      Combined Rushing Yds
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="e.g. 140"
-                      value={simTb2Score}
-                      onChange={(e) => setSimTb2Score(e.target.value)}
-                      className="h-8 text-sm bg-background/50 border-yellow-500/30"
-                    />
-                  </div>
+              {/* Tiebreaker inputs — always shown; auto-designated last game is used */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
+                    Combined Passing Yds
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="e.g. 520"
+                    value={simTb1Score}
+                    onChange={(e) => setSimTb1Score(e.target.value)}
+                    className="h-8 text-sm bg-background/50 border-yellow-500/30"
+                  />
                 </div>
-              )}
+                <div className="space-y-1">
+                  <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
+                    Combined Rushing Yds
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="e.g. 140"
+                    value={simTb2Score}
+                    onChange={(e) => setSimTb2Score(e.target.value)}
+                    className="h-8 text-sm bg-background/50 border-yellow-500/30"
+                  />
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 <Button
                   onClick={handleSimulateStandings}
@@ -800,64 +785,24 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
         </div>
       )}
 
-      {/* Tiebreaker Game Designation */}
-      <div className="rounded-xl border border-border/40 bg-card/60 p-5 space-y-4">
+      {/* Tiebreaker Game — auto-designated: last game of Week 18 by start time */}
+      <div className="rounded-xl border border-border/40 bg-card/60 p-5 space-y-2">
         <div>
           <h4 className="font-bebas text-xl tracking-wide text-foreground flex items-center gap-2">
             <Trophy className="w-4 h-4 text-primary" /> Tiebreaker Game
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Designate one final-week game. Players will guess its combined passing and rushing yards to break ties at pool close.
+            The last game of Week 18 by start time is automatically used as the tiebreaker reference — no action required.
           </p>
         </div>
-        {loadingGames ? (
-          <p className="text-xs text-muted-foreground">Loading games…</p>
-        ) : week18Games.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No Week 18 games available yet.</p>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Tiebreaker Game</Label>
-              <Select value={tb1} onValueChange={setTb1}>
-                <SelectTrigger className="h-9 bg-background border-border/50 text-sm">
-                  <SelectValue placeholder="Pick tiebreaker game" />
-                </SelectTrigger>
-                <SelectContent>
-                  {week18Games.map(g => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.awayTeam} @ {g.homeTeam}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              size="sm"
-              disabled={savingTb || !tb1}
-              onClick={() => {
-                setSavingTb(true);
-                updatePool.mutate({ poolId, data: { ndpTb1GameId: tb1 || null } as any }, {
-                  onSuccess: () => {
-                    toast({ title: "Tiebreaker game saved" });
-                    queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
-                  },
-                  onError: (err: any) => {
-                    toast({ variant: "destructive", title: "Save failed", description: (err as Error).message });
-                  },
-                  onSettled: () => setSavingTb(false),
-                });
-              }}
-              className="font-bebas tracking-wider"
-            >
-              {savingTb ? "Saving…" : "Save Tiebreaker Game"}
-            </Button>
-            {pool && (pool as any).ndpTb1GameId && (
-              <p className="text-xs text-muted-foreground">
-                Saved — {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.awayTeam ?? "—"} @ {week18Games.find(g => g.id === (pool as any).ndpTb1GameId)?.homeTeam ?? "—"}
-              </p>
-            )}
-          </div>
-        )}
+        {week18Games.length > 0 && (() => {
+          const lastGame = [...week18Games].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).at(-1);
+          return lastGame ? (
+            <p className="text-sm font-medium text-foreground">
+              {lastGame.awayTeam} @ {lastGame.homeTeam}
+            </p>
+          ) : null;
+        })()}
       </div>
 
       <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
@@ -899,7 +844,6 @@ function MyPicksTab({ poolId }: { poolId: number }) {
 
   const { data: divisions, isLoading } = useGetNdpDivisions(poolId);
   const submitPicks = useSubmitNdpPicks();
-  const { data: poolForTb } = useGetPool(poolId);
   const { data: myTiebreaker } = useGetNdpMyTiebreaker(poolId);
   const { data: week18Games = [] } = useGetNdpWeek18Games(poolId);
 
@@ -968,7 +912,9 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     return current.some((t, i) => t !== saved[i]);
   });
 
-  const needsTb = !!(poolForTb?.ndpTb1GameId) && myTiebreaker?.tb1Guess == null;
+  // Auto-designated tiebreaker: last game of Week 18. Show the guess prompt whenever Week 18
+  // games are available and the player hasn't submitted a guess yet.
+  const needsTb = week18Games.length > 0 && myTiebreaker?.tb1Guess == null;
 
   function doFinalSubmit(tb1Guess?: number, tb2Guess?: number) {
     const picks = Object.entries(orders).map(([divisionName, order]) => ({
@@ -1024,7 +970,8 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     );
   }
 
-  const tb1Game = week18Games.find((g) => g.id === poolForTb?.ndpTb1GameId);
+  // Auto-designated: last game of Week 18 by start time (no commissioner input needed)
+  const tb1Game = [...week18Games].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).at(-1) ?? null;
 
   return (
     <div className="space-y-6 pt-4">
@@ -1123,7 +1070,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
       )}
 
       {/* Tiebreaker guess receipt — logged-in player only, shown pre-close once submitted */}
-      {myTiebreaker?.tb1Guess != null && poolForTb?.ndpTb1GameId && (
+      {myTiebreaker?.tb1Guess != null && tb1Game && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Your Tiebreaker Guess</p>
           {tb1Game && (
@@ -1298,7 +1245,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               </p>
               <p className="text-xs text-muted-foreground">
                 {needsTb && !hasPendingChanges
-                  ? "The commissioner has designated tiebreaker games — add your guess to finalise your entry"
+                  ? "The last game of Week 18 is the tiebreaker reference game — add your guess to finalise your entry"
                   : "Lock in your picks for all 8 NFL divisions"}
               </p>
             </div>

@@ -1420,8 +1420,12 @@ export function PickEmSeasonView({
                           Week 18 Tiebreaker
                         </h4>
                         <p className="text-sm text-muted-foreground">
-                          For tiebreaking purposes, guess the combined totals for
-                          all Week 18 games.
+                          For tiebreaking purposes, guess the combined passing
+                          and rushing yards for the last scheduled game of Week
+                          18{slate.tiebreakerGameId ? (() => {
+                            const tbGame = slate.games.find(g => g.id === slate.tiebreakerGameId);
+                            return tbGame ? ` (${tbGame.awayTeam.name} @ ${tbGame.homeTeam.name})` : "";
+                          })() : ""}.
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">

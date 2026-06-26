@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable } from "@workspace/db";
 import { eq, and, count, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
 import { nanoid } from "../lib/nanoid";
 
 const router = Router();
@@ -37,8 +36,6 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
-    ndpTb1GameId: pool.ndpTb1GameId ?? null,
-    ndpTb2GameId: pool.ndpTb2GameId ?? null,
     minEntries: pool.minEntries ?? null,
     closureReason: pool.closureReason ?? null,
     createdAt: pool.createdAt.toISOString(),
@@ -190,19 +187,6 @@ router.post("/", requireAuth, async (req, res) => {
 
   const resolvedSeason = season ?? new Date().getFullYear();
 
-  // Auto-default the tiebreaker game for NDP pools — last game of Week 18 by start time.
-  // Only valid for season 2026 (the hardcoded schedule in nfl2025Schedule.ts covers the 2025/2026 NFL season).
-  let ndpTb1GameIdDefault: string | null = null;
-  if (resolvedPoolType === "nfl_division_predictor") {
-    if (resolvedSeason === 2026) {
-      const week18Games = getSandboxGamesForWeek(18);
-      week18Games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
-      ndpTb1GameIdDefault = week18Games.at(-1)?.id ?? null;
-    } else {
-      req.log.warn({ poolId: "(new)", season: resolvedSeason }, "NDP pool created for a season without a hardcoded schedule — ndpTb1GameId left null; commissioner must set it manually");
-    }
-  }
-
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
@@ -226,7 +210,6 @@ router.post("/", requireAuth, async (req, res) => {
     // when the client does not send the field so new pools auto-advance by default.
     isRecurring: typeof isRecurring === 'boolean' ? isRecurring : true,
     sandboxMode: sandboxMode === true,
-    ...(resolvedPoolType === "nfl_division_predictor" && { ndpTb1GameId: ndpTb1GameIdDefault }),
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
@@ -345,8 +328,6 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
-    ndpTb1GameId: pool.ndpTb1GameId ?? null,
-    ndpTb2GameId: pool.ndpTb2GameId ?? null,
     sandboxMode: (pool as any).sandboxMode ?? false,
     sandboxWeek: (pool as any).sandboxWeek ?? 1,
     totalMembers: members.length,
@@ -369,7 +350,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, ndpTb1GameId, ndpTb2GameId, sandboxMode } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 
@@ -387,8 +368,6 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
     ...(typeof isRecurring === "boolean" && { isRecurring }),
     ...(typeof sandboxMode === "boolean" && { sandboxMode }),
-    ...(ndpTb1GameId !== undefined && { ndpTb1GameId: ndpTb1GameId ?? null }),
-    ...(ndpTb2GameId !== undefined && { ndpTb2GameId: ndpTb2GameId ?? null }),
     ...setEndedAt,
   }).where(eq(poolsTable.id, poolId)).returning();
 

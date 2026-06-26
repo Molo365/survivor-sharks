@@ -1823,14 +1823,6 @@ components:
         sandboxMode:
           type: boolean
           description: "Enable sandbox mode (uses hardcoded schedule + simulated scores). Super-admin only."
-        ndpTb1GameId:
-          type: string
-          nullable: true
-          description: "NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)"
-        ndpTb2GameId:
-          type: string
-          nullable: true
-          description: "NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game"
         prizeStructure:
           type: array
           items:
@@ -1969,12 +1961,6 @@ components:
         isRecurring:
           type: boolean
           description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
-        ndpTb1GameId:
-          type: ["string", "null"]
-          description: "NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)"
-        ndpTb2GameId:
-          type: ["string", "null"]
-          description: "NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game"
         prizeStructure:
           type: array
           nullable: true
@@ -2042,12 +2028,6 @@ components:
         isRecurring:
           type: boolean
           description: "MLB Daily only: false = one-off pool that stops after day 1; true = auto-advances indefinitely"
-        ndpTb1GameId:
-          type: ["string", "null"]
-          description: "NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking)"
-        ndpTb2GameId:
-          type: ["string", "null"]
-          description: "NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game"
         activeCount:
           type: integer
           description: Number of members still alive (not eliminated)
@@ -3651,6 +3631,10 @@ components:
           type: integer
         currentWeek:
           type: integer
+        tiebreakerGameId:
+          type: string
+          nullable: true
+          description: "Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks"
         games:
           type: array
           items:

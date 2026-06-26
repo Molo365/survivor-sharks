@@ -17,6 +17,33 @@ import { fetchNflGamesByWeek, fetchNflDivisionStandings } from "../lib/espn";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import type { Logger } from "pino";
 
+// Auto-designate the last game of Week 18 by start time — same pattern as NFL Confidence Season.
+// For sandbox pools use the hardcoded schedule; for live pools fetch from ESPN with hardcoded fallback.
+async function autoGetLastWeek18GameId(
+  sandboxMode: boolean,
+  season: number,
+  poolId: number,
+  log: Logger,
+): Promise<string | null> {
+  if (sandboxMode) {
+    const games = getSandboxGamesForWeek(18);
+    games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
+    return games.at(-1)?.id ?? null;
+  }
+  try {
+    const games = await fetchNflGamesByWeek(18, season);
+    if (games.length > 0) {
+      games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      return games.at(-1)?.id ?? null;
+    }
+  } catch (err) {
+    log.warn({ err, poolId }, "autoGetLastWeek18GameId: ESPN fetch failed, falling back to hardcoded schedule");
+  }
+  const fallback = getSandboxGamesForWeek(18);
+  fallback.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
+  return fallback.at(-1)?.id ?? null;
+}
+
 const router = Router({ mergeParams: true });
 
 // ── Tiebreaker helpers ──────────────────────────────────────────────────────
@@ -65,13 +92,19 @@ async function getActualNdpCombinedScore(
 }
 
 function makeNdpResolveTie(pool: typeof poolsTable.$inferSelect, log: Logger) {
-  const { id: poolId, ndpTb1GameId, sandboxMode, season } = pool;
-  if (!ndpTb1GameId) return undefined;
+  const { id: poolId, sandboxMode, season } = pool;
 
   return async (tiedUserIds: number[]): Promise<number[]> => {
+    // Auto-designate: last game of Week 18 by start time — no commissioner input needed
+    const tbGameId = await autoGetLastWeek18GameId(sandboxMode, season, poolId, log);
+    if (!tbGameId) {
+      log.warn({ poolId }, "NDP tiebreaker: no Week 18 games found — cannot resolve tie");
+      return tiedUserIds;
+    }
+
     const [tb1Actual, tb2Actual] = await Promise.all([
-      getActualNdpCombinedScore(ndpTb1GameId, poolId, sandboxMode, season, log),
-      getActualNdpCombinedScore(`${ndpTb1GameId}:rushing`, poolId, sandboxMode, season, log),
+      getActualNdpCombinedScore(tbGameId, poolId, sandboxMode, season, log),
+      getActualNdpCombinedScore(`${tbGameId}:rushing`, poolId, sandboxMode, season, log),
     ]);
 
     log.info(
@@ -669,19 +702,23 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
   };
 
   // Inject tiebreaker actuals into sandbox_game_scores so makeNdpResolveTie can read them.
-  // tb1 = combined passing yards (stored under ndpTb1GameId key)
-  // tb2 = combined rushing yards (stored under synthetic "${ndpTb1GameId}:rushing" key — same game, second stat)
-  if (typeof tb1CombinedScore === "number" && pool.ndpTb1GameId) {
+  // Auto-designate last game of Week 18 (same pattern as NFL Confidence Season — no commissioner input needed).
+  // tb1 = combined passing yards, tb2 = combined rushing yards (stored under synthetic ":rushing" suffix key).
+  const sandboxWeek18Games = getSandboxGamesForWeek(18);
+  sandboxWeek18Games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
+  const autoTbGameId = sandboxWeek18Games.at(-1)?.id ?? null;
+
+  if (typeof tb1CombinedScore === "number" && autoTbGameId) {
     await db
       .insert(sandboxGameScoresTable)
-      .values({ poolId, week: 18, gameId: pool.ndpTb1GameId, homeScore: tb1CombinedScore, awayScore: 0 })
+      .values({ poolId, week: 18, gameId: autoTbGameId, homeScore: tb1CombinedScore, awayScore: 0 })
       .onConflictDoUpdate({
         target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
         set: { homeScore: tb1CombinedScore, awayScore: 0 },
       });
   }
-  if (typeof tb2CombinedScore === "number" && pool.ndpTb1GameId) {
-    const rushingKey = `${pool.ndpTb1GameId}:rushing`;
+  if (typeof tb2CombinedScore === "number" && autoTbGameId) {
+    const rushingKey = `${autoTbGameId}:rushing`;
     await db
       .insert(sandboxGameScoresTable)
       .values({ poolId, week: 18, gameId: rushingKey, homeScore: tb2CombinedScore, awayScore: 0 })
