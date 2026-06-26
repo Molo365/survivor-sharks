@@ -17,6 +17,8 @@ import type {
   NflPickEmSeasonGame,
   NflPickEmSeasonLeaderboardEntry,
   NflPickEmSeasonSlate,
+  NflPickEmSeasonWeekResults,
+  NflPickEmSeasonPlayerPick,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,13 +33,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
   Target,
   Trophy,
   LayoutGrid,
@@ -50,6 +45,8 @@ import {
   Clock,
   Copy,
   Wifi,
+  Loader2,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -345,220 +342,187 @@ function WeekStrip({
   );
 }
 
-// ── WeekResultsModal ──────────────────────────────────────────────────────────
+// ── PickEmPickCard ────────────────────────────────────────────────────────────
 
-function WeekResultsModal({
-  open,
-  onClose,
-  poolId,
-  week,
-  currentUserId,
+function PickEmPickCard({
+  game,
+  pick,
 }: {
-  open: boolean;
-  onClose: () => void;
-  poolId: number;
-  week: number;
-  currentUserId: number | null;
+  game: NflPickEmSeasonGame;
+  pick: NflPickEmSeasonPlayerPick;
 }) {
-  const params = useMemo(() => ({ week }), [week]);
-  const { data, isLoading } = useGetNflPickEmSeasonWeekResults(poolId, params, {
-    query: {
-      queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(poolId, params),
-      enabled: open && week > 0,
-      staleTime: 5 * 60 * 1000,
-    },
-  });
-
-  const games = data?.games ?? [];
-  const players = data?.players ?? [];
-
-  const teamAbbrMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const g of games) {
-      m.set(g.awayTeam.id, g.awayTeam.abbreviation);
-      m.set(g.homeTeam.id, g.homeTeam.abbreviation);
-    }
-    return m;
-  }, [games]);
+  const isCorrect = pick.result === "correct";
+  const isIncorrect = pick.result === "incorrect";
+  const isPicked = (teamId: string) => pick.pickedTeamId === teamId;
+  const pickedTeam = isPicked(game.awayTeam.id) ? game.awayTeam : game.homeTeam;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-[min(95vw,960px)] p-0 gap-0 flex flex-col overflow-hidden max-h-[90vh]">
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/40 shrink-0">
-          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-400" />
-            Week {week} Results
-          </DialogTitle>
-          {data && (
-            <DialogDescription>
-              {players.length} player{players.length !== 1 ? "s" : ""} ·{" "}
-              {games.length} game{games.length !== 1 ? "s" : ""}
-              {!data.hasResults && " · not yet graded"}
-            </DialogDescription>
-          )}
-        </DialogHeader>
-
-        <div className="overflow-auto flex-1 p-4">
-          {isLoading ? (
-            <div className="space-y-2 p-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-9 w-full rounded-lg" />
-              ))}
-            </div>
-          ) : !data?.hasResults || players.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <Trophy className="w-9 h-9 text-muted-foreground/20" />
-              <p className="text-sm text-muted-foreground">
-                {players.length === 0
-                  ? "No picks recorded for this week."
-                  : "Results haven't been graded yet."}
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border/40 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-sm border-collapse"
-                  style={{
-                    minWidth: `${Math.max(400, 200 + games.length * 72)}px`,
-                  }}
-                >
-                  <thead>
-                    <tr className="border-b border-border/30 bg-muted/20">
-                      <th className="px-3 py-2.5 text-left font-bebas text-base text-muted-foreground/70 tracking-wide sticky left-0 bg-muted/20 z-10">
-                        Player
-                      </th>
-                      {games.map((g) => (
-                        <th
-                          key={g.id}
-                          className="px-2 py-2.5 text-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider"
-                        >
-                          {g.awayTeam.abbreviation} @ {g.homeTeam.abbreviation}
-                        </th>
-                      ))}
-                      <th className="px-3 py-2.5 text-right font-bebas text-base text-muted-foreground/70 tracking-wide">
-                        Score
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {players.map((player, idx) => {
-                      const isMe = player.userId === currentUserId;
-                      const pickMap = new Map(
-                        player.picks.map((p) => [p.gameId, p]),
-                      );
-                      const rowBg = isMe
-                        ? "bg-primary/5"
-                        : idx % 2 === 0
-                          ? "bg-transparent"
-                          : "bg-muted/[0.03]";
-                      return (
-                        <tr
-                          key={player.userId}
-                          className={cn(
-                            "border-b border-border/10 last:border-0",
-                            rowBg,
-                          )}
-                        >
-                          <td
-                            className={cn(
-                              "px-3 py-2.5 font-medium whitespace-nowrap sticky left-0 z-10",
-                              isMe ? "text-primary" : "text-foreground",
-                              rowBg,
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "font-bebas text-base mr-2 w-5 inline-block text-center",
-                                player.rank === 1
-                                  ? "text-yellow-400"
-                                  : player.rank === 2
-                                    ? "text-zinc-300"
-                                    : player.rank === 3
-                                      ? "text-amber-600"
-                                      : "text-muted-foreground/40",
-                              )}
-                            >
-                              {player.rank}
-                            </span>
-                            {player.displayName || player.username}
-                            {isMe && (
-                              <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
-                                you
-                              </span>
-                            )}
-                          </td>
-                          {games.map((g) => {
-                            const pick = pickMap.get(g.id);
-                            if (!pick)
-                              return (
-                                <td
-                                  key={g.id}
-                                  className="px-2 py-2.5 text-center"
-                                >
-                                  <span className="text-muted-foreground/20 text-xs">
-                                    —
-                                  </span>
-                                </td>
-                              );
-                            const abbr =
-                              teamAbbrMap.get(pick.pickedTeamId) ??
-                              pick.pickedTeamName.slice(0, 3).toUpperCase();
-                            return (
-                              <td
-                                key={g.id}
-                                className="px-2 py-2.5 text-center"
-                              >
-                                <span
-                                  className={cn(
-                                    "text-[11px] font-semibold rounded px-1 py-0.5",
-                                    pick.result === "correct"
-                                      ? "text-green-300 bg-green-500/15"
-                                      : pick.result === "incorrect"
-                                        ? "text-red-400 bg-red-500/10"
-                                        : "text-muted-foreground/60 bg-muted/20",
-                                  )}
-                                >
-                                  {abbr}
-                                </span>
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                            <span className="font-bebas text-xl text-green-400">
-                              {player.correct}
-                            </span>
-                            <span className="font-bebas text-base text-muted-foreground/40">
-                              /{player.total}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+    <div
+      className={cn(
+        "flex items-center gap-2.5 px-3 py-2 rounded-lg border",
+        isCorrect
+          ? "border-green-500/25 bg-green-500/[0.06]"
+          : isIncorrect
+            ? "border-destructive/25 bg-destructive/[0.06]"
+            : "border-border/30 bg-muted/10",
+      )}
+    >
+      {pickedTeam.logoUrl ? (
+        <div className="shrink-0 w-7 h-7 rounded-full bg-white/90 p-0.5 flex items-center justify-center">
+          <img
+            src={pickedTeam.logoUrl}
+            alt={pickedTeam.abbreviation}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+      ) : (
+        <div className="shrink-0 w-7 h-7 rounded-full bg-muted/30 flex items-center justify-center">
+          <span className="text-[9px] font-bold uppercase">
+            {pickedTeam.abbreviation}
+          </span>
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-foreground truncate leading-tight">
+          {pickedTeam.name}
+        </p>
+        <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">
+          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+        </p>
+      </div>
+
+      <span
+        className={cn(
+          "shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded border leading-none",
+          isCorrect
+            ? "text-green-400 bg-green-500/10 border-green-500/25"
+            : isIncorrect
+              ? "text-destructive/80 bg-destructive/10 border-destructive/25"
+              : "text-muted-foreground/40 bg-muted/10 border-border/30",
+        )}
+      >
+        {isCorrect ? "✓" : isIncorrect ? "✗" : "–"}
+      </span>
+    </div>
+  );
+}
+
+// ── PickEmPickDetailPanel ─────────────────────────────────────────────────────
+
+function PickEmPickDetailPanel({
+  playerName,
+  week,
+  weekData,
+  isLoading,
+  userId,
+  onClose,
+}: {
+  playerName: string;
+  week: number;
+  weekData: NflPickEmSeasonWeekResults | undefined;
+  isLoading: boolean;
+  userId: number;
+  onClose: () => void;
+}) {
+  const content = useMemo(() => {
+    if (!weekData) return null;
+    const player = weekData.players.find((p) => p.userId === userId);
+    if (!player) return null;
+    const pickMap = new Map<string, NflPickEmSeasonPlayerPick>(
+      player.picks.map((p) => [p.gameId, p]),
+    );
+    return weekData.games
+      .map((game) => ({ game, pick: pickMap.get(game.id) ?? null }))
+      .filter(({ pick }) => pick !== null) as {
+        game: NflPickEmSeasonGame;
+        pick: NflPickEmSeasonPlayerPick;
+      }[];
+  }, [weekData, userId]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
+          Week {week} picks — {playerName}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1 text-muted-foreground/40 hover:text-foreground hover:bg-muted/30 transition-colors"
+          aria-label="Close picks panel"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {isLoading || !weekData ? (
+        <div className="flex items-center gap-2 py-2">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
+          <span className="text-sm text-muted-foreground/40">
+            Loading picks…
+          </span>
+        </div>
+      ) : content && content.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          {content.map(({ game, pick }) => (
+            <PickEmPickCard key={game.id} game={game} pick={pick} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground/50 italic py-1">
+          No picks submitted this week.
+        </p>
+      )}
+    </div>
   );
 }
 
 // ── WeeklyGrid ────────────────────────────────────────────────────────────────
 
 function WeeklyGrid({
+  poolId,
   entries,
   currentWeek,
   currentUserId,
-  onWeekClick,
 }: {
+  poolId: number;
   entries: NflPickEmSeasonLeaderboardEntry[];
   currentWeek: number;
   currentUserId: number | null;
-  onWeekClick: (week: number) => void;
 }) {
+  const hintKey = `pickem-season-grid-hint-${poolId}`;
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(hintKey) !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const [selectedCell, setSelectedCell] = useState<{
+    userId: number;
+    week: number;
+  } | null>(null);
+
+  const weekResultsParams = useMemo(
+    () => (selectedCell ? { week: selectedCell.week } : undefined),
+    [selectedCell],
+  );
+  const { data: weekData, isLoading: weekLoading } =
+    useGetNflPickEmSeasonWeekResults(poolId, weekResultsParams, {
+      query: {
+        queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(
+          poolId,
+          weekResultsParams,
+        ),
+        enabled: !!selectedCell,
+        staleTime: 5 * 60 * 1000,
+      },
+    });
+
   const playedWeeks = useMemo(() => {
     const set = new Set<number>();
     for (const e of entries) {
@@ -568,6 +532,16 @@ function WeeklyGrid({
     }
     return Array.from(set).sort((a, b) => a - b);
   }, [entries]);
+
+  const colSpan = playedWeeks.length + 2;
+
+  function handleCellClick(userId: number, week: number) {
+    if (selectedCell?.userId === userId && selectedCell?.week === week) {
+      setSelectedCell(null);
+    } else {
+      setSelectedCell({ userId, week });
+    }
+  }
 
   if (entries.length === 0) {
     return (
@@ -580,143 +554,218 @@ function WeeklyGrid({
   }
 
   return (
-    <div className="rounded-xl border border-border/40 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table
-          className="w-full text-sm border-collapse"
-          style={{
-            minWidth: `${Math.max(340, 200 + playedWeeks.length * 60)}px`,
-          }}
-        >
-          <thead>
-            <tr className="border-b border-border/30 bg-muted/20">
-              <th className="px-3 py-2.5 text-left font-bebas text-base text-muted-foreground/70 tracking-wide sticky left-0 bg-muted/20 z-10">
-                Player
-              </th>
-              {playedWeeks.map((w) => (
-                <th key={w} className="px-1 py-2.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => onWeekClick(w)}
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wider rounded px-1.5 py-0.5 hover:bg-muted/30 transition-colors",
-                      w === currentWeek
-                        ? "text-primary"
-                        : "text-muted-foreground/60",
-                    )}
-                  >
-                    W{w}
-                  </button>
+    <div className="space-y-3">
+      {showHint && (
+        <div className="relative flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] px-4 py-3 pr-10">
+          <Info className="w-4 h-4 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200/80">
+            Click any week&apos;s result to see that player&apos;s picks for
+            that week.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.setItem(hintKey, "1");
+              } catch {
+                /* ignore */
+              }
+              setShowHint(false);
+            }}
+            className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-border/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm border-collapse"
+            style={{
+              minWidth: `${Math.max(340, 200 + playedWeeks.length * 60)}px`,
+            }}
+          >
+            <thead>
+              <tr className="border-b border-border/30 bg-muted/20">
+                <th className="px-3 py-2.5 text-left font-bebas text-base text-muted-foreground/70 tracking-wide sticky left-0 bg-muted/20 z-10">
+                  Player
                 </th>
-              ))}
-              <th className="px-3 py-2.5 text-right font-bebas text-base text-muted-foreground/70 tracking-wide">
-                Season
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry, idx) => {
-              const isMe = entry.userId === currentUserId;
-              const rowBg = isMe
-                ? "bg-primary/5"
-                : idx % 2 === 0
-                  ? "bg-transparent"
-                  : "bg-muted/[0.03]";
-              const seasonPct =
-                entry.seasonTotal > 0
-                  ? Math.round((entry.seasonCorrect / entry.seasonTotal) * 100)
-                  : null;
-              return (
-                <Fragment key={entry.userId}>
-                  <tr className={cn("border-b border-border/10 last:border-0", rowBg)}>
-                    <td
+                {playedWeeks.map((w) => (
+                  <th
+                    key={w}
+                    className="px-1 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider"
+                  >
+                    <span
                       className={cn(
-                        "px-3 py-2.5 font-medium whitespace-nowrap sticky left-0 z-10",
-                        isMe ? "text-primary" : "text-foreground",
+                        w === currentWeek
+                          ? "text-primary"
+                          : "text-muted-foreground/60",
+                      )}
+                    >
+                      W{w}
+                    </span>
+                  </th>
+                ))}
+                <th className="px-3 py-2.5 text-right font-bebas text-base text-muted-foreground/70 tracking-wide">
+                  Season
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, idx) => {
+                const isMe = entry.userId === currentUserId;
+                const isExpanded = selectedCell?.userId === entry.userId;
+                const rowBg = isMe
+                  ? "bg-primary/5"
+                  : idx % 2 === 0
+                    ? "bg-transparent"
+                    : "bg-muted/[0.03]";
+                const seasonPct =
+                  entry.seasonTotal > 0
+                    ? Math.round(
+                        (entry.seasonCorrect / entry.seasonTotal) * 100,
+                      )
+                    : null;
+
+                return (
+                  <Fragment key={entry.userId}>
+                    <tr
+                      className={cn(
+                        "border-b border-border/10",
+                        isExpanded ? "border-border/20" : "last:border-0",
                         rowBg,
                       )}
                     >
-                      <span
+                      <td
                         className={cn(
-                          "font-bebas text-base mr-2 w-5 inline-block text-center",
-                          entry.rank === 1
-                            ? "text-yellow-400"
-                            : entry.rank === 2
-                              ? "text-zinc-300"
-                              : entry.rank === 3
-                                ? "text-amber-600"
-                                : "text-muted-foreground/40",
+                          "px-3 py-2.5 font-medium whitespace-nowrap sticky left-0 z-10",
+                          isMe ? "text-primary" : "text-foreground",
+                          rowBg,
                         )}
                       >
-                        {entry.rank}
-                      </span>
-                      {entry.displayName || entry.username}
-                      {isMe && (
-                        <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
-                          you
+                        <span
+                          className={cn(
+                            "font-bebas text-base mr-2 w-5 inline-block text-center",
+                            entry.rank === 1
+                              ? "text-yellow-400"
+                              : entry.rank === 2
+                                ? "text-zinc-300"
+                                : entry.rank === 3
+                                  ? "text-amber-600"
+                                  : "text-muted-foreground/40",
+                          )}
+                        >
+                          {entry.rank}
                         </span>
-                      )}
-                    </td>
-                    {playedWeeks.map((w) => {
-                      const ws = entry.weeklyScores?.[String(w)] as
-                        | { correct: number; total: number }
-                        | undefined;
-                      if (!ws) {
+                        {entry.displayName || entry.username}
+                        {isMe && (
+                          <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                            you
+                          </span>
+                        )}
+                      </td>
+
+                      {playedWeeks.map((w) => {
+                        const ws = entry.weeklyScores?.[String(w)] as
+                          | { correct: number; total: number }
+                          | undefined;
+                        const isCellActive =
+                          isExpanded && selectedCell?.week === w;
+
+                        if (!ws) {
+                          return (
+                            <td
+                              key={w}
+                              className={cn("px-1 py-2.5 text-center", rowBg)}
+                            >
+                              <span className="text-muted-foreground/20 text-xs">
+                                —
+                              </span>
+                            </td>
+                          );
+                        }
+
+                        const pct =
+                          ws.total > 0
+                            ? Math.round((ws.correct / ws.total) * 100)
+                            : null;
+
                         return (
-                          <td key={w} className={cn("px-1 py-2.5 text-center", rowBg)}>
-                            <span className="text-muted-foreground/20 text-xs">—</span>
+                          <td
+                            key={w}
+                            onClick={() => handleCellClick(entry.userId, w)}
+                            title={`${entry.displayName ?? entry.username} — Wk${w}: ${ws.correct}/${ws.total}`}
+                            className={cn(
+                              "px-1 py-2.5 text-center cursor-pointer select-none transition-colors",
+                              isCellActive
+                                ? "bg-primary/15 ring-1 ring-inset ring-primary/40"
+                                : "hover:bg-muted/40",
+                            )}
+                          >
+                            <div className="flex flex-col items-center min-w-[38px] mx-auto">
+                              <span
+                                className={cn(
+                                  "font-bebas text-lg leading-none",
+                                  pct !== null && pct >= 60
+                                    ? "text-green-400"
+                                    : pct !== null && pct < 40
+                                      ? "text-red-400/70"
+                                      : "text-foreground",
+                                )}
+                              >
+                                {ws.correct}
+                              </span>
+                              <span className="text-[8px] text-muted-foreground/50 leading-none">
+                                /{ws.total}
+                              </span>
+                            </div>
                           </td>
                         );
-                      }
-                      const pct =
-                        ws.total > 0
-                          ? Math.round((ws.correct / ws.total) * 100)
-                          : null;
-                      return (
-                        <td key={w} className={cn("px-1 py-2.5 text-center", rowBg)}>
-                          <button
-                            type="button"
-                            onClick={() => onWeekClick(w)}
-                            className="flex flex-col items-center min-w-[38px] rounded hover:bg-muted/20 transition-colors px-1 py-0.5 mx-auto"
-                          >
-                            <span
-                              className={cn(
-                                "font-bebas text-lg leading-none",
-                                pct !== null && pct >= 60
-                                  ? "text-green-400"
-                                  : pct !== null && pct < 40
-                                    ? "text-red-400/70"
-                                    : "text-foreground",
-                              )}
-                            >
-                              {ws.correct}
-                            </span>
-                            <span className="text-[8px] text-muted-foreground/50 leading-none">
-                              /{ws.total}
-                            </span>
-                          </button>
+                      })}
+
+                      <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                        <span className="font-bebas text-xl text-foreground">
+                          {entry.seasonCorrect}
+                        </span>
+                        <span className="font-bebas text-sm text-muted-foreground/40">
+                          /{entry.seasonTotal}
+                        </span>
+                        {seasonPct !== null && (
+                          <div className="text-[10px] text-muted-foreground/50 leading-none">
+                            {seasonPct}%
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr className="bg-muted/[0.04]">
+                        <td
+                          colSpan={colSpan}
+                          className="px-4 py-4 border-b border-border/30"
+                        >
+                          <PickEmPickDetailPanel
+                            playerName={
+                              entry.displayName ?? entry.username ?? "Player"
+                            }
+                            week={selectedCell!.week}
+                            weekData={weekData}
+                            isLoading={weekLoading}
+                            userId={entry.userId}
+                            onClose={() => setSelectedCell(null)}
+                          />
                         </td>
-                      );
-                    })}
-                    <td className={cn("px-3 py-2.5 text-right", rowBg)}>
-                      <span className="font-bebas text-xl text-foreground">
-                        {entry.seasonCorrect}
-                      </span>
-                      <span className="font-bebas text-sm text-muted-foreground/40">
-                        /{entry.seasonTotal}
-                      </span>
-                      {seasonPct !== null && (
-                        <div className="text-[10px] text-muted-foreground/50 leading-none">
-                          {seasonPct}%
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -893,7 +942,6 @@ export function PickEmSeasonView({
 
   const [displayWeek, setDisplayWeek] = useState<number>(currentWeek);
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
-  const [resultsModalWeek, setResultsModalWeek] = useState<number | null>(null);
   const [tbPassingYards, setTbPassingYards] = useState<string>("");
   const [tbRushingYards, setTbRushingYards] = useState<string>("");
   const [sandboxWeekInput, setSandboxWeekInput] = useState<string>(
@@ -1163,16 +1211,6 @@ export function PickEmSeasonView({
 
   return (
     <>
-      {resultsModalWeek !== null && (
-        <WeekResultsModal
-          open
-          onClose={() => setResultsModalWeek(null)}
-          poolId={poolId}
-          week={resultsModalWeek}
-          currentUserId={user?.id ?? null}
-        />
-      )}
-
       <Tabs defaultValue="picks" className="w-full">
         <div className="relative">
           <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1238,13 +1276,6 @@ export function PickEmSeasonView({
                       correct
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setResultsModalWeek(prevWeek)}
-                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
-                  >
-                    View Results →
-                  </button>
                 </div>
               )}
 
@@ -1528,10 +1559,10 @@ export function PickEmSeasonView({
               </div>
             ) : (
               <WeeklyGrid
+                poolId={poolId}
                 entries={entries}
                 currentWeek={currentWeek}
                 currentUserId={user?.id ?? null}
-                onWeekClick={setResultsModalWeek}
               />
             )}
           </TabsContent>
