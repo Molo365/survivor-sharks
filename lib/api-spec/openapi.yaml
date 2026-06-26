@@ -1820,6 +1820,9 @@ components:
           enum: [weekly, daily]
         isRecurring:
           type: boolean
+        sandboxMode:
+          type: boolean
+          description: "Enable sandbox mode (uses hardcoded schedule + simulated scores). Super-admin only."
         ndpTb1GameId:
           type: string
           nullable: true
@@ -1988,6 +1991,12 @@ components:
         minEntries:
           type: ["integer", "null"]
           description: Minimum entries required; null means no minimum enforced
+        sandboxMode:
+          type: boolean
+          description: "True when the pool uses a hardcoded schedule + simulated scores for testing"
+        sandboxWeek:
+          type: integer
+          description: "Active week when sandboxMode is true"
 
     PoolDetail:
       type: object
@@ -2065,6 +2074,12 @@ components:
         minEntries:
           type: ["integer", "null"]
           description: Minimum entries required; null means no minimum enforced
+        sandboxMode:
+          type: boolean
+          description: "True when the pool uses a hardcoded schedule + simulated scores for testing"
+        sandboxWeek:
+          type: integer
+          description: "Active week when sandboxMode is true"
 
     PastPool:
       type: object

@@ -165,6 +165,8 @@ export interface PoolUpdate {
   doubleElimination?: boolean;
   pickFrequency?: PoolUpdatePickFrequency;
   isRecurring?: boolean;
+  /** Enable sandbox mode (uses hardcoded schedule + simulated scores). Super-admin only. */
+  sandboxMode?: boolean;
   /** NDP only: game ID of the designated tiebreaker game (players guess combined passing and rushing yards for tie-breaking) */
   ndpTb1GameId?: string | null;
   /** NDP only: no longer used; set ndpTb1GameId for the single designated tiebreaker game */
@@ -299,6 +301,10 @@ export interface Pool {
      * @nullable
      */
   minEntries?: number | null;
+  /** True when the pool uses a hardcoded schedule + simulated scores for testing */
+  sandboxMode?: boolean;
+  /** Active week when sandboxMode is true */
+  sandboxWeek?: number;
 }
 
 export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];
@@ -406,6 +412,10 @@ export interface PoolDetail {
      * @nullable
      */
   minEntries?: number | null;
+  /** True when the pool uses a hardcoded schedule + simulated scores for testing */
+  sandboxMode?: boolean;
+  /** Active week when sandboxMode is true */
+  sandboxWeek?: number;
 }
 
 export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];

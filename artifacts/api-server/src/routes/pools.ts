@@ -43,6 +43,8 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     closureReason: pool.closureReason ?? null,
     createdAt: pool.createdAt.toISOString(),
     endedAt: pool.endedAt?.toISOString() ?? null,
+    sandboxMode: pool.sandboxMode ?? false,
+    sandboxWeek: pool.sandboxWeek ?? 1,
   };
 }
 
@@ -146,7 +148,7 @@ router.get("/past", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
-  const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring } = req.body;
+  const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -207,6 +209,7 @@ router.post("/", requireAuth, async (req, res) => {
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
     // when the client does not send the field so new pools auto-advance by default.
     isRecurring: typeof isRecurring === 'boolean' ? isRecurring : true,
+    sandboxMode: sandboxMode === true,
     ...(resolvedPoolType === "nfl_division_predictor" && { ndpTb1GameId: ndpTb1GameIdDefault }),
   }).returning();
 
@@ -350,7 +353,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, ndpTb1GameId, ndpTb2GameId } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, ndpTb1GameId, ndpTb2GameId, sandboxMode } = req.body;
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 
@@ -367,6 +370,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
     ...(typeof isRecurring === "boolean" && { isRecurring }),
+    ...(typeof sandboxMode === "boolean" && { sandboxMode }),
     ...(ndpTb1GameId !== undefined && { ndpTb1GameId: ndpTb1GameId ?? null }),
     ...(ndpTb2GameId !== undefined && { ndpTb2GameId: ndpTb2GameId ?? null }),
     ...setEndedAt,

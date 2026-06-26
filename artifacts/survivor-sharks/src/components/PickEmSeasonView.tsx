@@ -7,9 +7,11 @@ import {
   useGetNflPickEmSeasonWeekResults,
   useSetNflPickEmSeasonSandboxWeek,
   useSimulateNflPickEmSeasonGrading,
+  useUpdatePool,
   getGetNflPickEmSeasonGamesQueryKey,
   getGetNflPickEmSeasonLeaderboardQueryKey,
   getGetNflPickEmSeasonWeekResultsQueryKey,
+  getGetPoolQueryKey,
 } from "@workspace/api-client-react";
 import type {
   NflPickEmSeasonGame,
@@ -987,6 +989,14 @@ export function PickEmSeasonView({
   const processResults = useProcessNflPickEmSeasonResults();
   const setSandboxWeekMutation = useSetNflPickEmSeasonSandboxWeek();
   const simulateGrading = useSimulateNflPickEmSeasonGrading();
+  const updatePoolMutation = useUpdatePool({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+        queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId) });
+      },
+    },
+  });
 
   function handleSubmit() {
     if (!slate) return;
@@ -1634,51 +1644,76 @@ export function PickEmSeasonView({
                   </Button>
                 </div>
 
-                {/* Sandbox tools */}
-                {sandboxMode && isSuperAdmin && (
+                {/* Sandbox tools — visible to super admins regardless of current sandboxMode */}
+                {isSuperAdmin && (
                   <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.05] p-6 space-y-4">
-                    <div>
-                      <h4 className="font-bebas text-2xl tracking-wide text-yellow-300 mb-0.5">
-                        Sandbox Tools
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        Sandbox mode is active — Week {sandboxWeek}. Super admin
-                        only.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={NFL_TOTAL_WEEKS}
-                        value={sandboxWeekInput}
-                        onChange={(e) => setSandboxWeekInput(e.target.value)}
-                        className="w-24 bg-background/60"
-                        placeholder="Week"
-                      />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-bebas text-2xl tracking-wide text-yellow-300 mb-0.5">
+                          Sandbox Tools
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {sandboxMode
+                            ? `Sandbox mode is active — Week ${sandboxWeek}. Super admin only.`
+                            : "Sandbox mode is off. Enable to use hardcoded schedule + simulated scores."}
+                        </p>
+                      </div>
                       <Button
-                        onClick={handleSetSandboxWeek}
-                        disabled={setSandboxWeekMutation.isPending}
+                        onClick={() =>
+                          updatePoolMutation.mutate({ poolId, data: { sandboxMode: !sandboxMode } })
+                        }
+                        disabled={updatePoolMutation.isPending}
                         variant="outline"
-                        className="font-bebas text-lg tracking-wider border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
+                        size="sm"
+                        className={
+                          sandboxMode
+                            ? "font-bebas tracking-wider border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 shrink-0"
+                            : "font-bebas tracking-wider border-yellow-500/60 text-yellow-200 bg-yellow-500/10 hover:bg-yellow-500/20 shrink-0"
+                        }
                       >
-                        {setSandboxWeekMutation.isPending && (
-                          <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                        )}
-                        Load Week
+                        {updatePoolMutation.isPending ? (
+                          <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                        ) : null}
+                        {sandboxMode ? "Disable Sandbox" : "Enable Sandbox"}
                       </Button>
                     </div>
-                    <Button
-                      onClick={handleSimulateGrading}
-                      disabled={simulateGrading.isPending}
-                      variant="outline"
-                      className="font-bebas text-xl tracking-wider border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
-                    >
-                      {simulateGrading.isPending ? (
-                        <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                      ) : null}
-                      Simulate Grading
-                    </Button>
+                    {sandboxMode && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={NFL_TOTAL_WEEKS}
+                            value={sandboxWeekInput}
+                            onChange={(e) => setSandboxWeekInput(e.target.value)}
+                            className="w-24 bg-background/60"
+                            placeholder="Week"
+                          />
+                          <Button
+                            onClick={handleSetSandboxWeek}
+                            disabled={setSandboxWeekMutation.isPending}
+                            variant="outline"
+                            className="font-bebas text-lg tracking-wider border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
+                          >
+                            {setSandboxWeekMutation.isPending && (
+                              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                            )}
+                            Load Week
+                          </Button>
+                        </div>
+                        <Button
+                          onClick={handleSimulateGrading}
+                          disabled={simulateGrading.isPending}
+                          variant="outline"
+                          className="font-bebas text-xl tracking-wider border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10"
+                        >
+                          {simulateGrading.isPending ? (
+                            <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                          ) : null}
+                          Simulate Grading
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
