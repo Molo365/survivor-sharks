@@ -116,11 +116,13 @@ export function PrizeDisplay({
   }
 
   if (variant === "pool-card") {
-    const structureTotal =
-      scaled && scaled.length > 0
+    // Use scaledPrizePot (same source as pool-home/leaderboard) so all surfaces
+    // agree. Re-sum structure amounts only when prizePot itself is absent.
+    const structureFallback =
+      pot == null && scaled && scaled.length > 0
         ? Math.round(scaled.reduce((s, p) => s + p.amount, 0) * 100) / 100
         : null;
-    const total = structureTotal ?? pot;
+    const total = pot ?? structureFallback;
     if (!total || total <= 0) return null;
     return (
       <div className="space-y-1">

@@ -306,9 +306,23 @@ export default function CreatePool() {
     const prizeStructure = prizes
       .map((p, i) => ({ place: i + 1, amount: parseFloat(p.amount) || 0 }))
       .filter(p => p.amount > 0);
-    const prizePot = prizeStructure.length > 0
-      ? prizeStructure.reduce((sum, p) => sum + p.amount, 0)
-      : undefined;
+    // Round total to nearest whole dollar; absorb the cent difference into the
+    // last place so all amounts still sum exactly to the rounded whole-dollar total.
+    let prizePot: number | undefined;
+    if (prizeStructure.length > 0) {
+      const rawSum = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+      if (prizeStructure.length > 1) {
+        const rounded = Math.round(rawSum);
+        const diff = Math.round((rounded - rawSum) * 100) / 100;
+        if (diff !== 0) {
+          const last = prizeStructure[prizeStructure.length - 1];
+          last.amount = Math.round((last.amount + diff) * 100) / 100;
+        }
+        prizePot = rounded;
+      } else {
+        prizePot = rawSum;
+      }
+    }
 
     createPool.mutate(
       {

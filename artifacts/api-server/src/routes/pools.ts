@@ -164,13 +164,29 @@ router.post("/", requireAuth, async (req, res) => {
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
 
-  // Auto-calculate prizePot from prizeStructure if provided
+  // Auto-calculate prizePot from prizeStructure if provided.
+  // Round to the nearest whole dollar and absorb any cent difference into the
+  // last place so the stored amounts always sum exactly to the rounded total.
   const resolvedPrizeStructure = Array.isArray(prizeStructure) && prizeStructure.length > 0
     ? prizeStructure as Array<{ place: number; amount: number }>
     : null;
-  const resolvedPrizePot = resolvedPrizeStructure
-    ? resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0)
-    : (prizePot ?? null);
+  let resolvedPrizePot: number | null;
+  if (resolvedPrizeStructure) {
+    const rawSum = resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    if (resolvedPrizeStructure.length > 1) {
+      const rounded = Math.round(rawSum);
+      const diff = Math.round((rounded - rawSum) * 100) / 100;
+      if (diff !== 0) {
+        const last = resolvedPrizeStructure[resolvedPrizeStructure.length - 1];
+        last.amount = Math.round((last.amount + diff) * 100) / 100;
+      }
+      resolvedPrizePot = rounded;
+    } else {
+      resolvedPrizePot = rawSum;
+    }
+  } else {
+    resolvedPrizePot = prizePot ?? null;
+  }
 
   const resolvedSeason = season ?? new Date().getFullYear();
 
