@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
+import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -348,13 +349,24 @@ function PickEmPickCard({
   game,
   pick,
 }: {
-  game: NflPickEmSeasonGame;
+  game?: NflPickEmSeasonGame | null;
   pick: NflPickEmSeasonPlayerPick;
 }) {
   const isCorrect = pick.result === "correct";
   const isIncorrect = pick.result === "incorrect";
-  const isPicked = (teamId: string) => pick.pickedTeamId === teamId;
-  const pickedTeam = isPicked(game.awayTeam.id) ? game.awayTeam : game.homeTeam;
+
+  const pickedTeam = game
+    ? pick.pickedTeamId === game.awayTeam.id
+      ? game.awayTeam
+      : game.homeTeam
+    : null;
+
+  const logoUrl = pickedTeam?.logoUrl ?? null;
+  const teamName = pickedTeam?.name ?? pick.pickedTeamName;
+  const abbr = pickedTeam?.abbreviation ?? pick.pickedTeamName.slice(0, 3).toUpperCase();
+  const matchup = game
+    ? `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
+    : null;
 
   return (
     <div
@@ -367,11 +379,11 @@ function PickEmPickCard({
             : "border-border/30 bg-muted/10",
       )}
     >
-      {pickedTeam.logoUrl ? (
+      {logoUrl ? (
         <div className="shrink-0 w-7 h-7 rounded-full bg-white/90 p-0.5 flex items-center justify-center">
           <img
-            src={pickedTeam.logoUrl}
-            alt={pickedTeam.abbreviation}
+            src={logoUrl}
+            alt={abbr}
             className="w-full h-full object-contain"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -380,19 +392,19 @@ function PickEmPickCard({
         </div>
       ) : (
         <div className="shrink-0 w-7 h-7 rounded-full bg-muted/30 flex items-center justify-center">
-          <span className="text-[9px] font-bold uppercase">
-            {pickedTeam.abbreviation}
-          </span>
+          <span className="text-[9px] font-bold uppercase">{abbr}</span>
         </div>
       )}
 
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-foreground truncate leading-tight">
-          {pickedTeam.name}
+          {teamName}
         </p>
-        <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">
-          {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
-        </p>
+        {matchup && (
+          <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">
+            {matchup}
+          </p>
+        )}
       </div>
 
       <span
@@ -432,15 +444,28 @@ function PickEmPickDetailPanel({
     if (!weekData) return null;
     const player = weekData.players.find((p) => p.userId === userId);
     if (!player) return null;
+    if (player.picks.length === 0) return [];
+
     const pickMap = new Map<string, NflPickEmSeasonPlayerPick>(
       player.picks.map((p) => [p.gameId, p]),
     );
-    return weekData.games
-      .map((game) => ({ game, pick: pickMap.get(game.id) ?? null }))
+    const joined = weekData.games
+      .map((game) => ({ game: game as NflPickEmSeasonGame | null, pick: pickMap.get(game.id) ?? null }))
       .filter(({ pick }) => pick !== null) as {
-        game: NflPickEmSeasonGame;
+        game: NflPickEmSeasonGame | null;
         pick: NflPickEmSeasonPlayerPick;
       }[];
+
+    // Fallback: if game-join yields nothing but picks exist (ESPN ID mismatch or empty
+    // game list for this week), render picks directly from player data without game context.
+    if (joined.length === 0) {
+      return player.picks.map((pick) => ({
+        game: null as NflPickEmSeasonGame | null,
+        pick,
+      }));
+    }
+
+    return joined;
   }, [weekData, userId]);
 
   return (
@@ -469,7 +494,7 @@ function PickEmPickDetailPanel({
       ) : content && content.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
           {content.map(({ game, pick }) => (
-            <PickEmPickCard key={game.id} game={game} pick={pick} />
+            <PickEmPickCard key={pick.gameId} game={game} pick={pick} />
           ))}
         </div>
       ) : (
@@ -589,27 +614,24 @@ function WeeklyGrid({
             }}
           >
             <thead>
-              <tr className="border-b border-border/30 bg-muted/20">
-                <th className="px-3 py-2.5 text-left font-bebas text-base text-muted-foreground/70 tracking-wide sticky left-0 bg-muted/20 z-10">
+              <tr className="border-b border-border/20">
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 sticky left-0 bg-card z-10">
                   Player
                 </th>
                 {playedWeeks.map((w) => (
                   <th
                     key={w}
-                    className="px-1 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider"
+                    className={cn(
+                      "px-0.5 py-2 text-center text-[10px] font-bold uppercase tracking-widest",
+                      w === currentWeek
+                        ? "text-primary/70"
+                        : "text-muted-foreground/50",
+                    )}
                   >
-                    <span
-                      className={cn(
-                        w === currentWeek
-                          ? "text-primary"
-                          : "text-muted-foreground/60",
-                      )}
-                    >
-                      W{w}
-                    </span>
+                    W{w}
                   </th>
                 ))}
-                <th className="px-3 py-2.5 text-right font-bebas text-base text-muted-foreground/70 tracking-wide">
+                <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
                   Season
                 </th>
               </tr>
@@ -1451,14 +1473,28 @@ export function PickEmSeasonView({
                     {entries.length} player{entries.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-                {tbActualsKnown && (
-                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300 flex items-center gap-2">
-                    <span className="font-bold uppercase tracking-widest text-yellow-400">Tiebreaker resolved</span>
-                    <span className="text-muted-foreground">·</span>
-                    <span>Actual passing: <span className="font-mono text-foreground">{actualPassingYards} yds</span></span>
-                    <span className="text-muted-foreground">·</span>
-                    <span>Actual rushing: <span className="font-mono text-foreground">{actualRushingYards} yds</span></span>
-                  </div>
+                {tbActualsKnown && actualPassingYards != null && (
+                  <TiebreakerActualsCard
+                    actualPassingYards={actualPassingYards}
+                    actualRushingYards={actualRushingYards}
+                    tiedPlayers={entries
+                      .filter((e) => e.rank === 1 && (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null))
+                      .map((e) => ({
+                        userId: e.userId,
+                        username: e.username,
+                        displayName: e.displayName ?? null,
+                        tiebreakerPassingYardsGuess: e.tiebreakerPassingYards ?? null,
+                        tiebreakerRushingYardsGuess: e.tiebreakerRushingYards ?? null,
+                        tiebreakerDiff1:
+                          e.tiebreakerPassingYards != null
+                            ? Math.abs(e.tiebreakerPassingYards - actualPassingYards)
+                            : null,
+                        tiebreakerDiff2:
+                          e.tiebreakerRushingYards != null && actualRushingYards != null
+                            ? Math.abs(e.tiebreakerRushingYards - actualRushingYards)
+                            : null,
+                      }))}
+                  />
                 )}
                 <div className="rounded-xl border border-border/40 overflow-hidden">
                   {entries.map((entry, idx) => {
