@@ -1496,91 +1496,12 @@ export function PickEmSeasonView({
                       }))}
                   />
                 )}
-                <div className="rounded-xl border border-border/40 overflow-hidden">
-                  {entries.map((entry, idx) => {
-                    const isMe = entry.userId === user?.id;
-                    const pct =
-                      entry.seasonTotal > 0
-                        ? Math.round(
-                            (entry.seasonCorrect / entry.seasonTotal) * 100,
-                          )
-                        : null;
-                    const tbDelta =
-                      tbActualsKnown &&
-                      entry.tiebreakerPassingYards != null &&
-                      entry.tiebreakerRushingYards != null
-                        ? Math.abs(entry.tiebreakerPassingYards - actualPassingYards!) +
-                          Math.abs(entry.tiebreakerRushingYards - actualRushingYards!)
-                        : null;
-                    return (
-                      <div
-                        key={entry.userId}
-                        className={cn(
-                          "flex items-center gap-3 px-4 py-3.5 border-b border-border/20 last:border-0",
-                          isMe
-                            ? "bg-primary/5"
-                            : idx % 2 === 0
-                              ? "bg-transparent"
-                              : "bg-muted/[0.03]",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "font-bebas text-xl w-7 shrink-0 text-center",
-                            entry.rank === 1
-                              ? "text-yellow-400"
-                              : entry.rank === 2
-                                ? "text-zinc-300"
-                                : entry.rank === 3
-                                  ? "text-amber-600"
-                                  : "text-muted-foreground/40",
-                          )}
-                        >
-                          {entry.rank}
-                        </span>
-                        <span
-                          className={cn(
-                            "flex-1 font-medium truncate",
-                            isMe ? "text-primary" : "text-foreground",
-                          )}
-                        >
-                          {entry.displayName || entry.username}
-                          {isMe && (
-                            <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
-                              you
-                            </span>
-                          )}
-                          {tbDelta !== null && (
-                            <span className="ml-2 text-[10px] font-mono text-muted-foreground/50">
-                              TB Δ{tbDelta}
-                            </span>
-                          )}
-                        </span>
-                        <div className="hidden sm:flex items-center gap-2 shrink-0">
-                          <div className="w-28 h-1.5 bg-muted/30 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-green-500/60 rounded-full transition-all"
-                              style={{ width: `${pct ?? 0}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-bebas text-2xl text-green-400">
-                            {entry.seasonCorrect}
-                          </span>
-                          <span className="font-bebas text-xl text-muted-foreground/40">
-                            /{entry.seasonTotal}
-                          </span>
-                          {pct !== null && (
-                            <span className="ml-2 text-xs font-mono text-muted-foreground/60">
-                              {pct}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <WeeklyGrid
+                  poolId={poolId}
+                  entries={entries}
+                  currentWeek={currentWeek}
+                  currentUserId={user?.id ?? null}
+                />
               </div>
             )}
           </TabsContent>
