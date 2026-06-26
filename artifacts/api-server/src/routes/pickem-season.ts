@@ -259,7 +259,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         username: usersTable.username,
         displayName: usersTable.displayName,
         seasonCorrect: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
-        seasonTotal: sql<string>`COUNT(*)`,
+        seasonTotal: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IN ('correct', 'incorrect'))`,
       })
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
@@ -267,7 +267,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
       .orderBy(
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
-        sql`COUNT(*) DESC`,
+        sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IN ('correct', 'incorrect')) DESC`,
       ),
     db
       .select({

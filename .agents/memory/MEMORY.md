@@ -5,3 +5,4 @@
 - [Pass 2 auto-eliminator design](pass2-eliminator-design.md) — correct algorithm is two-query in-memory running-loss walk; "most recent pick" anchor is wrong for multi-life pools.
 - [Hooks-after-early-returns](hooks-after-early-returns.md) — useState/useCallback after isLoading/null-guard returns violates Rules of Hooks and blanks the page with no ErrorBoundary.
 - [Pool detail GET vs list GET divergence](pool-detail-response.md) — GET /api/pools/:poolId builds its own response object separately from formatPool(); new pool-level fields must be added to BOTH places.
+- [Generic JSX in TSX files](generic-jsx-tsx.md) — explicit generic params on JSX elements (`<Comp<T>`) crash Babel/Vite; drop the generic and let TypeScript infer TPlayer from the `players` prop instead.

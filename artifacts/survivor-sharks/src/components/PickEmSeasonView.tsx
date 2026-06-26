@@ -51,6 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
+import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -1447,63 +1448,27 @@ export function PickEmSeasonView({
             value="leaderboard"
             className="m-0 focus-visible:outline-none"
           >
-            {lbLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-14 w-full rounded-lg" />
-                ))}
-              </div>
-            ) : entries.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-bebas text-2xl tracking-wide">
-                  No picks yet this season
-                </p>
-                <p className="text-sm mt-1">
-                  Make picks to appear on the leaderboard.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bebas text-2xl tracking-wide">
-                    Season Standings
-                  </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bebas text-2xl tracking-wide">
+                  Season Standings
+                </h3>
+                {!lbLoading && entries.length > 0 && (
                   <span className="text-xs text-muted-foreground">
                     {entries.length} player{entries.length !== 1 ? "s" : ""}
                   </span>
-                </div>
-                {tbActualsKnown && actualPassingYards != null && (
-                  <TiebreakerActualsCard
-                    actualPassingYards={actualPassingYards}
-                    actualRushingYards={actualRushingYards}
-                    tiedPlayers={entries
-                      .filter((e) => e.rank === 1 && (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null))
-                      .map((e) => ({
-                        userId: e.userId,
-                        username: e.username,
-                        displayName: e.displayName ?? null,
-                        tiebreakerPassingYardsGuess: e.tiebreakerPassingYards ?? null,
-                        tiebreakerRushingYardsGuess: e.tiebreakerRushingYards ?? null,
-                        tiebreakerDiff1:
-                          e.tiebreakerPassingYards != null
-                            ? Math.abs(e.tiebreakerPassingYards - actualPassingYards)
-                            : null,
-                        tiebreakerDiff2:
-                          e.tiebreakerRushingYards != null && actualRushingYards != null
-                            ? Math.abs(e.tiebreakerRushingYards - actualRushingYards)
-                            : null,
-                      }))}
-                  />
                 )}
-                <WeeklyGrid
-                  poolId={poolId}
-                  entries={entries}
-                  currentWeek={currentWeek}
-                  currentUserId={user?.id ?? null}
-                />
               </div>
-            )}
+              <PickEmSeasonLeaderboard
+                poolId={poolId}
+                entries={entries}
+                currentWeek={currentWeek}
+                currentUserId={user?.id ?? null}
+                actualPassingYards={actualPassingYards}
+                actualRushingYards={actualRushingYards}
+                isLoading={lbLoading}
+              />
+            </div>
           </TabsContent>
 
           {/* ── Weekly Grid ── */}
