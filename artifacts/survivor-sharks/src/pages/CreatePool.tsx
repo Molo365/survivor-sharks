@@ -324,10 +324,16 @@ export default function CreatePool() {
       }
     }
 
+    // Round entry fee to nearest whole dollar — prevents spinner float drift
+    // (step="0.01" arithmetic with 0.01 not exactly representable in IEEE 754).
+    const cleanEntryFee =
+      values.entryFee != null ? Math.round(values.entryFee) : undefined;
+
     createPool.mutate(
       {
         data: {
           ...values,
+          ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...(prizePot !== undefined && { prizePot }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
@@ -833,7 +839,7 @@ export default function CreatePool() {
                           <Input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             placeholder="Free"
                             {...field}
                             value={field.value ?? ""}
