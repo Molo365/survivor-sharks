@@ -196,6 +196,29 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(400).json({ error: `Games already locked (kickoff passed): ${lockedIds.join(", ")}` }); return;
   }
 
+  // Reject picks for games that already have a graded result (correct / incorrect).
+  // This is a defence-in-depth check: even if the time-lock above is bypassed (e.g.
+  // clock skew, future-season game IDs) we must never overwrite a graded result.
+  const submittedGameIds = picks.map((p) => p.gameId);
+  const existingGradedPicks = await db
+    .select({ gameId: pickemPicksTable.gameId })
+    .from(pickemPicksTable)
+    .where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.userId, userId),
+        inArray(pickemPicksTable.gameId, submittedGameIds),
+        sql`${pickemPicksTable.result} != 'pending'`,
+      ),
+    );
+  if (existingGradedPicks.length > 0) {
+    const gradedIds = existingGradedPicks.map((p) => p.gameId);
+    res.status(400).json({
+      error: `Cannot change picks for already-graded games: ${gradedIds.join(", ")}`,
+    });
+    return;
+  }
+
   let saved = 0;
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId)!;
@@ -215,9 +238,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
+          // Intentionally omit result — never overwrite a graded (correct/incorrect) result.
+          // New inserts start as "pending" via .values() above; updates preserve whatever
+          // result the grading process already wrote.
           pickedTeamId: pick.pickedTeamId,
           pickedTeamName: pick.pickedTeamName,
-          result: "pending",
           updatedAt: new Date(),
         },
       });

@@ -77,15 +77,17 @@ function NflGameCard({
   game,
   pickedTeamId,
   onPick,
+  forceReadOnly = false,
 }: {
   game: NflPickEmSeasonGame;
   pickedTeamId: string | null;
   onPick: (gameId: string, teamId: string) => void;
+  forceReadOnly?: boolean;
 }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
   const isPPD = game.status === "postponed";
-  const isLocked = game.deadlinePassed;
+  const isLocked = game.deadlinePassed || forceReadOnly;
 
   const awayWon =
     isFinal &&
@@ -134,10 +136,10 @@ function NflGameCard({
           <X className="w-2.5 h-2.5" />
         ) : null}
         {result === "correct"
-          ? "Correct"
+          ? "Correct · My Pick"
           : result === "incorrect"
-            ? "Wrong"
-            : "Your pick"}
+            ? "Wrong · My Pick"
+            : "My Pick"}
       </div>
     );
   }
@@ -1227,6 +1229,14 @@ export function PickEmSeasonView({
 
   const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
+  // "Locked" = all games in the current slate have passed their deadline,
+  // OR at least one game has a graded result (defence against future-season IDs).
+  const allGamesLocked =
+    !!slate && slate.games.length > 0 && openGames.length === 0;
+  const hasGradedResult = slate?.games.some((g) => g.userPickResult !== null) ?? false;
+  const weekIsLocked = allGamesLocked || hasGradedResult;
+  const hasAnySubmittedPick =
+    slate?.games.some((g) => g.userPickTeamId !== null) ?? false;
   const entries = leaderboard?.entries ?? [];
   const actualPassingYards = leaderboard?.actualPassingYards ?? null;
   const actualRushingYards = leaderboard?.actualRushingYards ?? null;
@@ -1333,10 +1343,13 @@ export function PickEmSeasonView({
                   {/* Week header */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-bebas text-2xl tracking-wide leading-none">
+                      <h3 className="font-bebas text-2xl tracking-wide leading-none flex items-center gap-2">
+                        {weekIsLocked && (
+                          <Lock className="w-5 h-5 text-yellow-400/80" />
+                        )}
                         Week {slate.week}
                         {slate.week === slate.currentWeek && (
-                          <span className="ml-2 text-sm font-sans font-normal text-primary/50 tracking-normal">
+                          <span className="text-sm font-sans font-normal text-primary/50 tracking-normal">
                             Current
                           </span>
                         )}
@@ -1352,10 +1365,32 @@ export function PickEmSeasonView({
                         )}
                       </p>
                     </div>
-                    {slatesFetching && !slateLoading && (
-                      <Wifi className="w-4 h-4 text-muted-foreground/40 animate-pulse" />
-                    )}
+                    <div className="flex items-center gap-2">
+                      {slatesFetching && !slateLoading && (
+                        <Wifi className="w-4 h-4 text-muted-foreground/40 animate-pulse" />
+                      )}
+                      {weekIsLocked && (
+                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 rounded-full px-2.5 py-1">
+                          <Lock className="w-3 h-3" /> Locked
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Submitted + locked confirmation banner */}
+                  {weekIsLocked && hasAnySubmittedPick && (
+                    <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.04] px-4 py-3">
+                      <Trophy className="w-4 h-4 text-primary shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-primary/90">
+                          Picks submitted!
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Your picks are locked in for Week {slate.week}. Good luck!
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {!isActive && (
                     <div className="rounded-lg border border-muted/40 bg-muted/10 px-4 py-3 flex items-center gap-3 text-sm text-muted-foreground">
@@ -1372,7 +1407,8 @@ export function PickEmSeasonView({
                       key={game.id}
                       game={game}
                       pickedTeamId={localPicks.get(game.id) ?? null}
-                      onPick={isActive ? togglePick : () => {}}
+                      onPick={isActive && !weekIsLocked ? togglePick : () => {}}
+                      forceReadOnly={weekIsLocked}
                     />
                   ))}
 
