@@ -527,8 +527,11 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
   const picksByDivision = new Map(targetPicks.map((p) => [p.divisionName, p]));
   const resultsByDivision = new Map(actualResults.map((r) => [r.divisionName, r]));
 
+  // Visibility rule: another player's picks are hidden until they've ranked all divisions.
+  const picksVisible = targetUserId === requesterId || targetPicks.length >= NFL_DIVISIONS.length;
+
   const divisions = NFL_DIVISIONS.map((div) => {
-    const pick = picksByDivision.get(div.name) ?? null;
+    const pick = picksVisible ? (picksByDivision.get(div.name) ?? null) : null;
     const result = resultsByDivision.get(div.name) ?? null;
     return {
       name: div.name,

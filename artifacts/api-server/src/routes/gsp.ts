@@ -367,8 +367,11 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
 
   const picksByGroup = new Map(targetPicks.map((p) => [p.groupName, p]));
 
+  // Visibility rule: another player's picks are hidden until they've submitted all group rankings.
+  const picksVisible = targetUserId === requesterId || targetPicks.length >= standings.length;
+
   const groups = standings.map((group) => {
-    const pick = picksByGroup.get(group.groupLetter) ?? null;
+    const pick = picksVisible ? (picksByGroup.get(group.groupLetter) ?? null) : null;
     return {
       name: group.groupLetter,
       teams: group.teams.map((t) => ({

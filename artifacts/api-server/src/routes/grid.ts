@@ -9,6 +9,7 @@ const router = Router({ mergeParams: true });
 // GET /api/pools/:poolId/grid
 router.get("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
@@ -41,11 +42,20 @@ router.get("/", requireAuth, async (req, res) => {
     .innerJoin(usersTable, eq(picksTable.userId, usersTable.id))
     .where(eq(picksTable.poolId, poolId));
 
+  // Visibility rule: hide another player's current-week pick until it has been graded
+  // (result !== null). Past weeks are always visible — those games are over.
+  // Own picks are always visible regardless of state.
+  const visiblePicks = picksWithUsername.filter(({ pick }) =>
+    pick.userId === userId ||
+    pick.week < pool.currentWeek ||
+    pick.result !== null,
+  );
+
   res.json({
     poolId,
     weeks,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
-    picks: picksWithUsername.map(({ pick, username }) => ({
+    picks: visiblePicks.map(({ pick, username }) => ({
       id: pick.id,
       entryId: pick.entryId,
       poolId: pick.poolId,

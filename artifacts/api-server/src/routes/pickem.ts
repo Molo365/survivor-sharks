@@ -591,6 +591,27 @@ router.get("/daily-results", requireAuth, async (req, res) => {
     });
   }
 
+  // Visibility rule: hide another player's picks until they've locked their full slate for the day.
+  // Once any game has started the slate is live and full transparency resumes.
+  {
+    const totalGamesDay = espnGames.length;
+    const now = Date.now();
+    const slateIsLive =
+      totalGamesDay === 0 ||
+      espnGames.some(
+        (g: any) =>
+          new Date(g.date).getTime() <= now ||
+          (g.status && g.status !== "scheduled" && g.status !== "pre"),
+      );
+    if (!slateIsLive) {
+      for (const [uid, player] of userMap) {
+        if (uid === userId) continue;
+        if (player.picks.size >= totalGamesDay) continue;
+        player.picks.clear();
+      }
+    }
+  }
+
   // Compute scores and sort
   const scored = Array.from(userMap.values()).map((u) => {
     const picks = Array.from(u.picks.entries());

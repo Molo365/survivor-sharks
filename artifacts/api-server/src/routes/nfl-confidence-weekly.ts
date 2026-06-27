@@ -372,6 +372,26 @@ router.get("/grid", requireAuth, async (req, res) => {
     });
   }
 
+  // Visibility rule: hide another player's picks until they've locked their full slate.
+  {
+    const totalGamesInWeek = typedGameMap.size;
+    const now = Date.now();
+    const slateIsLive =
+      totalGamesInWeek === 0 ||
+      [...typedGameMap.values()].some(
+        (g: any) =>
+          new Date(g.startTime).getTime() <= now ||
+          (g.status && g.status !== "scheduled" && g.status !== "pre"),
+      );
+    if (!slateIsLive) {
+      for (const [uid, player] of userMap) {
+        if (uid === userId) continue;
+        if (player.picks.size >= totalGamesInWeek) continue;
+        player.picks.clear();
+      }
+    }
+  }
+
   const games = [...typedGameMap.values()].map((g: any) => ({
     id: g.id,
     awayTeam: g.awayTeam,
