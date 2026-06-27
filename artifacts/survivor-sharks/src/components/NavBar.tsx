@@ -13,9 +13,15 @@ export function NavBar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        {/* Left side: wordmark + optional Back button */}
-        <div className="flex items-center gap-3">
+      {/*
+        3-column grid: [left] [center] [right]
+        Left and right are 1fr each so the center wordmark is always
+        exactly in the middle of the header, regardless of content width.
+      */}
+      <div className="container grid grid-cols-[1fr_auto_1fr] h-16 items-center">
+
+        {/* Left: optional Back → Dashboard link, inset from the edge */}
+        <div className="flex items-center pl-1">
           {showBack && (
             <Link
               href="/dashboard"
@@ -26,18 +32,22 @@ export function NavBar() {
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
           )}
-          <Link href="/" className="flex items-center" data-testid="nav-logo">
-            <span className="font-bebas text-2xl tracking-widest text-primary">SURVIVOR SHARKS</span>
-          </Link>
         </div>
 
-        {/* Right side: user nav */}
-        <div className="flex items-center gap-4">
+        {/* Center: wordmark — always horizontally centred */}
+        <Link href="/" className="flex items-center justify-center" data-testid="nav-logo">
+          <span className="font-bebas text-2xl tracking-widest text-primary whitespace-nowrap">
+            SURVIVOR SHARKS
+          </span>
+        </Link>
+
+        {/* Right: user nav — justify-end keeps it flush right */}
+        <div className="flex items-center justify-end gap-4">
           {isLoading ? (
             <div className="h-8 w-32 rounded-md bg-muted/30 animate-pulse" />
           ) : user ? (
             <>
-              <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors" data-testid="nav-dashboard">
+              <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors hidden sm:inline" data-testid="nav-dashboard">
                 Dashboard
               </Link>
               {user.role === "admin" && (
@@ -45,14 +55,14 @@ export function NavBar() {
                   href="/admin/dashboard"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-accent hover:text-primary transition-colors"
+                  className="text-sm font-medium text-accent hover:text-primary transition-colors hidden sm:inline"
                   data-testid="nav-admin"
                 >
                   Super Admin
                 </a>
               )}
-              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                <span className="text-sm text-muted-foreground truncate max-w-[90px]">
+              <div className="flex items-center gap-2 sm:ml-4 sm:pl-4 sm:border-l sm:border-border">
+                <span className="text-sm text-muted-foreground truncate max-w-[90px] hidden sm:inline">
                   {user.displayName || user.username}
                 </span>
                 <Button variant="ghost" size="icon" onClick={logout} data-testid="button-logout" title="Log out">
@@ -75,6 +85,7 @@ export function NavBar() {
             </div>
           )}
         </div>
+
       </div>
     </header>
   );
