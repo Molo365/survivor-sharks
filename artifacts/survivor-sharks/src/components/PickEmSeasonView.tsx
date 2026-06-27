@@ -33,6 +33,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
   Target,
   Trophy,
   LayoutGrid,
@@ -1234,7 +1244,9 @@ export function PickEmSeasonView({
     },
   });
 
-  function handleSubmit() {
+  const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
+
+  function handleSubmit(force = false) {
     if (!slate) return;
 
     const picks = Array.from(localPicks.entries()).flatMap(
@@ -1258,6 +1270,11 @@ export function PickEmSeasonView({
         title: "No open picks to submit",
         description: "All games may have already started.",
       });
+      return;
+    }
+
+    if (!force && picks.length < openGames.length) {
+      setShowIncompleteWarning(true);
       return;
     }
 
@@ -1624,7 +1641,7 @@ export function PickEmSeasonView({
                   {isActive && openGames.length > 0 && (
                     <div className="pt-1">
                       <Button
-                        onClick={handleSubmit}
+                        onClick={() => handleSubmit()}
                         disabled={
                           submitPicks.isPending || localPicks.size === 0
                         }
@@ -1639,6 +1656,40 @@ export function PickEmSeasonView({
                       </Button>
                     </div>
                   )}
+
+                  {/* Incomplete-picks confirmation dialog */}
+                  <AlertDialog
+                    open={showIncompleteWarning}
+                    onOpenChange={setShowIncompleteWarning}
+                  >
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Incomplete picks</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You&apos;ve only picked{" "}
+                          <strong>
+                            {openGames.length - pendingPickCount} of{" "}
+                            {openGames.length}
+                          </strong>{" "}
+                          games this week. Submit anyway? Any unpicked games
+                          won&apos;t count toward your score.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>
+                          Go back and finish picking
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            setShowIncompleteWarning(false);
+                            handleSubmit(true);
+                          }}
+                        >
+                          Submit anyway
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               )}
             </div>
