@@ -125,7 +125,7 @@ export function PrizeDisplay({
     const total = pot ?? structureFallback;
     if (!total || total <= 0) return null;
     return (
-      <div className="space-y-1">
+      <div className="w-full space-y-1">
         <div className="w-full p-2 bg-primary/10 rounded border border-primary/20 text-center">
           <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mr-2">
             Prize Pot{isScaled ? " (est.)" : ""}
