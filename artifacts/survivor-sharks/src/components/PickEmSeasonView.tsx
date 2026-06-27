@@ -47,6 +47,7 @@ import {
   Wifi,
   Loader2,
   Info,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -843,17 +844,18 @@ function WeeklyGrid({
 function StatsView({
   entries,
   currentUserId,
-  gamesThisWeek,
+  weekResults,
 }: {
   entries: NflPickEmSeasonLeaderboardEntry[];
   currentUserId: number | null;
-  gamesThisWeek: number;
+  weekResults: NflPickEmSeasonWeekResults | undefined;
 }) {
   const totalPlayers = entries.length;
   const totalPicks = entries.reduce((s, e) => s + e.seasonTotal, 0);
   const totalCorrect = entries.reduce((s, e) => s + e.seasonCorrect, 0);
   const avgAccuracy =
     totalPicks > 0 ? Math.round((totalCorrect / totalPicks) * 100) : null;
+  const gamesThisWeek = weekResults?.games.length ?? 0;
 
   const sortedByAccuracy = useMemo(
     () =>
@@ -870,40 +872,73 @@ function StatsView({
     [entries],
   );
 
+  const gamePickStats = useMemo(() => {
+    if (!weekResults?.games || !weekResults?.players) return [];
+    return weekResults.games
+      .map((game) => {
+        const awayCount = weekResults.players.filter((p) =>
+          p.picks.some(
+            (pick) =>
+              pick.gameId === game.id &&
+              pick.pickedTeamId === game.awayTeam.id,
+          ),
+        ).length;
+        const homeCount = weekResults.players.filter((p) =>
+          p.picks.some(
+            (pick) =>
+              pick.gameId === game.id &&
+              pick.pickedTeamId === game.homeTeam.id,
+          ),
+        ).length;
+        const total = awayCount + homeCount;
+        return {
+          game,
+          awayCount,
+          homeCount,
+          total,
+          awayPct: total > 0 ? Math.round((awayCount / total) * 100) : 50,
+          homePct: total > 0 ? Math.round((homeCount / total) * 100) : 50,
+        };
+      })
+      .filter((g) => g.total > 0);
+  }, [weekResults]);
+
   return (
     <div className="space-y-6">
+      {/* Summary cards — value first, label below (matches MLB) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border border-border/40 bg-card p-4 text-center">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-            Players
+          <p className="font-bebas text-3xl text-accent">{totalPlayers}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1 flex items-center justify-center gap-1">
+            <Users className="w-3 h-3" /> Players
           </p>
-          <p className="font-bebas text-3xl text-foreground">{totalPlayers}</p>
         </div>
         <div className="rounded-xl border border-border/40 bg-card p-4 text-center">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+          <p className="font-bebas text-3xl text-primary">{gamesThisWeek}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Games This Week
           </p>
-          <p className="font-bebas text-3xl text-foreground">{gamesThisWeek}</p>
         </div>
         <div className="rounded-xl border border-border/40 bg-card p-4 text-center">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-            Avg Accuracy
-          </p>
-          <p className="font-bebas text-3xl text-foreground">
+          <p className="font-bebas text-3xl text-green-400">
             {avgAccuracy !== null ? `${avgAccuracy}%` : "—"}
           </p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
+            Avg Accuracy
+          </p>
         </div>
         <div className="rounded-xl border border-border/40 bg-card p-4 text-center">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+          <p className="font-bebas text-3xl text-yellow-400">{totalPicks}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Total Picks
           </p>
-          <p className="font-bebas text-3xl text-foreground">{totalPicks}</p>
         </div>
       </div>
 
+      {/* Accuracy leaderboard */}
       {sortedByAccuracy.length > 0 && (
         <div className="space-y-2">
-          <h3 className="font-bebas text-xl tracking-wide text-foreground">
+          <h3 className="font-bebas text-xl tracking-wide text-muted-foreground uppercase">
             Accuracy Leaderboard
           </h3>
           <div className="rounded-xl border border-border/40 overflow-hidden">
@@ -970,6 +1005,72 @@ function StatsView({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Pick distribution */}
+      {gamePickStats.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-bebas text-xl tracking-wide text-muted-foreground uppercase">
+            Pick Distribution
+          </h3>
+          <div className="space-y-2">
+            {gamePickStats.map(({ game, awayCount, homeCount, awayPct, homePct }) => (
+              <div key={game.id} className="rounded-xl border border-border/40 bg-card/60 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    {game.awayTeam.logoUrl && (
+                      <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                        <img
+                          src={game.awayTeam.logoUrl}
+                          alt={game.awayTeam.abbreviation}
+                          className="w-4 h-4 object-contain"
+                        />
+                      </div>
+                    )}
+                    <span className="font-bebas tracking-wide">{game.awayTeam.abbreviation}</span>
+                    <span className="text-muted-foreground ml-auto">
+                      {awayCount} {awayCount === 1 ? "pick" : "picks"}
+                    </span>
+                  </div>
+                  <span className="text-muted-foreground/40 shrink-0">@</span>
+                  <div className="flex items-center gap-1.5 flex-1 flex-row-reverse">
+                    {game.homeTeam.logoUrl && (
+                      <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                        <img
+                          src={game.homeTeam.logoUrl}
+                          alt={game.homeTeam.abbreviation}
+                          className="w-4 h-4 object-contain"
+                        />
+                      </div>
+                    )}
+                    <span className="font-bebas tracking-wide">{game.homeTeam.abbreviation}</span>
+                    <span className="text-muted-foreground mr-auto">
+                      {homeCount} {homeCount === 1 ? "pick" : "picks"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex rounded-full overflow-hidden h-3">
+                  <div
+                    className="bg-blue-500/50 h-full transition-all flex items-center justify-end pr-1"
+                    style={{ width: `${awayPct}%` }}
+                  >
+                    {awayPct >= 25 && (
+                      <span className="text-[8px] font-bold text-white">{awayPct}%</span>
+                    )}
+                  </div>
+                  <div
+                    className="bg-green-500/50 h-full transition-all flex items-center justify-start pl-1"
+                    style={{ width: `${homePct}%` }}
+                  >
+                    {homePct >= 25 && (
+                      <span className="text-[8px] font-bold text-white">{homePct}%</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1069,6 +1170,24 @@ export function PickEmSeasonView({
         ),
         enabled: prevWeek !== null,
         staleTime: 10 * 60 * 1000,
+      },
+    },
+  );
+
+  const currentWeekResultsParams = useMemo(
+    () => ({ week: currentWeek }),
+    [currentWeek],
+  );
+  const { data: currentWeekResults } = useGetNflPickEmSeasonWeekResults(
+    poolId,
+    currentWeekResultsParams,
+    {
+      query: {
+        queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(
+          poolId,
+          currentWeekResultsParams,
+        ),
+        staleTime: 2 * 60 * 1000,
       },
     },
   );
@@ -1588,7 +1707,7 @@ export function PickEmSeasonView({
               <StatsView
                 entries={entries}
                 currentUserId={user?.id ?? null}
-                gamesThisWeek={slate?.games.length ?? 0}
+                weekResults={currentWeekResults}
               />
             )}
           </TabsContent>
