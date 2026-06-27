@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
@@ -297,7 +297,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const [seasonAggregates, weeklyAggregates, tiebreakers, actualsRow] = await Promise.all([
+  const [seasonAggregates, weeklyAggregates, tiebreakers, actualsRow, storedGameCounts, fallbackDistinctCounts] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -341,6 +341,27 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       .from(nflConfidenceResultsTable)
       .where(and(eq(nflConfidenceResultsTable.poolId, poolId), eq(nflConfidenceResultsTable.week, NFL_TOTAL_WEEKS)))
       .limit(1),
+    // Stored game counts written by process-results / simulate-grading
+    db
+      .select({
+        week: pickemSeasonWeekGameCountsTable.week,
+        gameCount: pickemSeasonWeekGameCountsTable.gameCount,
+      })
+      .from(pickemSeasonWeekGameCountsTable)
+      .where(eq(pickemSeasonWeekGameCountsTable.poolId, poolId)),
+    // Fallback for historical weeks (before this fix): count distinct game IDs
+    // from graded picks — accurate as long as at least one player picked each game
+    db
+      .select({
+        week: pickemPicksTable.week,
+        gameCount: sql<string>`COUNT(DISTINCT ${pickemPicksTable.gameId})`,
+      })
+      .from(pickemPicksTable)
+      .where(and(
+        eq(pickemPicksTable.poolId, poolId),
+        sql`${pickemPicksTable.result} IN ('correct', 'incorrect')`,
+      ))
+      .groupBy(pickemPicksTable.week),
   ]);
 
   const actualPassingYards: number | null = actualsRow[0]?.actualPassingYards ?? null;
@@ -366,13 +387,37 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     });
   }
 
+  // Build a week → gameCount map: prefer stored counts, fall back to distinct-gameId count
+  // from graded picks (covers historical weeks graded before this fix was deployed).
+  const weekGameCountMap = new Map<number, number>();
+  for (const row of storedGameCounts) {
+    weekGameCountMap.set(row.week, row.gameCount);
+  }
+  for (const row of fallbackDistinctCounts) {
+    if (!weekGameCountMap.has(row.week)) {
+      weekGameCountMap.set(row.week, Number(row.gameCount));
+    }
+  }
+
+  // weeklyMap: per-user per-week scores.  The denominator (total) is always the
+  // full game count for that week — not just the picks the player submitted.
+  // For ungraded/pending weeks the total falls back to submitted pick count.
   const weeklyMap = new Map<number, Record<number, { correct: number; total: number }>>();
+  const userSeasonTotals = new Map<number, number>();
+
   for (const row of weeklyAggregates) {
     if (!weeklyMap.has(row.userId)) weeklyMap.set(row.userId, {});
-    weeklyMap.get(row.userId)![row.week] = {
-      correct: Number(row.correct),
-      total: Number(row.total),
-    };
+    const correct = Number(row.correct);
+    const storedTotal = weekGameCountMap.get(row.week);
+    // Use the full game count for graded weeks; fall back to submitted count for pending weeks
+    const weekTotal = storedTotal ?? Number(row.total);
+
+    weeklyMap.get(row.userId)![row.week] = { correct, total: weekTotal };
+
+    // Season total: accumulate only for graded weeks (those with a known game count)
+    if (storedTotal !== undefined) {
+      userSeasonTotals.set(row.userId, (userSeasonTotals.get(row.userId) ?? 0) + storedTotal);
+    }
   }
 
   // Per-field TB delta helpers (Infinity when guess or actuals are missing)
@@ -428,7 +473,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           username: u.username,
           displayName: u.displayName ?? null,
           seasonCorrect: Number(u.seasonCorrect),
-          seasonTotal: Number(u.seasonTotal),
+          seasonTotal: userSeasonTotals.get(u.userId) ?? Number(u.seasonTotal),
           tiebreakerPassingYards: tb?.tiebreakerPassingYards ?? null,
           tiebreakerRushingYards: tb?.tiebreakerRushingYards ?? null,
           tiebreakerDiff1: null,
@@ -469,7 +514,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           username: u.username,
           displayName: u.displayName ?? null,
           seasonCorrect: Number(u.seasonCorrect),
-          seasonTotal: Number(u.seasonTotal),
+          seasonTotal: userSeasonTotals.get(u.userId) ?? Number(u.seasonTotal),
           tiebreakerPassingYards: tb?.tiebreakerPassingYards ?? null,
           tiebreakerRushingYards: tb?.tiebreakerRushingYards ?? null,
           tiebreakerDiff1: isFinite(d1) ? d1 : null,
@@ -608,6 +653,16 @@ router.post("/process-results", requireAuth, async (req, res) => {
     }
   }
 
+  // Record the full game count for this week so the leaderboard can use the
+  // correct denominator even when players submitted incomplete picks.
+  await db
+    .insert(pickemSeasonWeekGameCountsTable)
+    .values({ poolId, week, gameCount: games.length })
+    .onConflictDoUpdate({
+      target: [pickemSeasonWeekGameCountsTable.poolId, pickemSeasonWeekGameCountsTable.week],
+      set: { gameCount: games.length, recordedAt: new Date() },
+    });
+
   res.json({
     graded,
     week,
@@ -702,9 +757,12 @@ router.get("/week-results", requireAuth, async (req, res) => {
 
   const hasResults = allPicks.some(p => p.result === "correct" || p.result === "incorrect");
 
+  // total is always the full game count for the week, regardless of how many
+  // picks the player submitted — unpicked games count as incorrect (0 correct).
+  const totalGamesInSlate = games.length;
   const players = Array.from(picksByUser.entries()).map(([uid, data]) => {
     const correct = data.picks.filter(p => p.result === "correct").length;
-    const total = data.picks.length;
+    const total = totalGamesInSlate;
     return {
       userId: uid,
       username: data.username,
@@ -844,6 +902,15 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     }).where(eq(pickemPicksTable.id, pick.id));
     graded++;
   }
+
+  // Record the full game count for this week (same as process-results does for real games)
+  await db
+    .insert(pickemSeasonWeekGameCountsTable)
+    .values({ poolId, week, gameCount: games.length })
+    .onConflictDoUpdate({
+      target: [pickemSeasonWeekGameCountsTable.poolId, pickemSeasonWeekGameCountsTable.week],
+      set: { gameCount: games.length, recordedAt: new Date() },
+    });
 
   // Bug 2 fix: advance currentWeek so the WeekStrip unlocks the next week
   const nextWeek = Math.min(week + 1, NFL_TOTAL_WEEKS);

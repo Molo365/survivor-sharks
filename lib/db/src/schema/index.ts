@@ -11,3 +11,4 @@ export * from "./nfl_division_predictor_tiebreakers";
 export * from "./nfl_division_results";
 export * from "./nfl_confidence_results";
 export * from "./sandbox_game_scores";
+export * from "./pickem_season_week_game_counts";
