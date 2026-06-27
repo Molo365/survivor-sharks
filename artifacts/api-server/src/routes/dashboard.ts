@@ -37,13 +37,28 @@ function offsetDateStr(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-// Returns the prize per winner: sole winner takes the 1st-place tier; tied winners split the total equally.
-function computeSplitPrize(pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null }, winnerCount: number): number | null {
+// Returns the prize per winner, scaled for actual entries vs max capacity.
+// Mirrors the scaledPrizePot() logic already used on the client for "Prize Pot (Est.)".
+function computeSplitPrize(
+  pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null; maxEntries?: number | null },
+  winnerCount: number,
+  memberCount: number,
+): number | null {
+  // Scale down proportionally when fewer members than max capacity
+  const scale =
+    pool.maxEntries && pool.maxEntries > 0 && memberCount > 0 && memberCount < pool.maxEntries
+      ? memberCount / pool.maxEntries
+      : 1;
+
   if (pool.prizeStructure && pool.prizeStructure.length > 0) {
     const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-    return winnerCount === 1 ? pool.prizeStructure[0].amount : Math.floor(total / winnerCount);
+    const scaledTotal = Math.round(total * scale);
+    const scaledFirst = Math.round(pool.prizeStructure[0].amount * scale);
+    return winnerCount === 1 ? scaledFirst : Math.floor(scaledTotal / winnerCount);
   }
-  if (pool.prizePot && pool.prizePot > 0) return Math.floor(pool.prizePot / winnerCount);
+  if (pool.prizePot && pool.prizePot > 0) {
+    return Math.floor(pool.prizePot * scale / winnerCount);
+  }
   return null;
 }
 
@@ -95,6 +110,16 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
     res.json([]);
     return;
   }
+
+  // Batch-fetch actual member counts for all pools in one query so every
+  // computeSplitPrize call can scale the prize for real vs max entries.
+  const poolIds = pools.map((p) => p.id);
+  const memberCountRows = await db
+    .select({ poolId: entriesTable.poolId, cnt: sql<string>`COUNT(*)` })
+    .from(entriesTable)
+    .where(inArray(entriesTable.poolId, poolIds))
+    .groupBy(entriesTable.poolId);
+  const memberCountMap = new Map(memberCountRows.map((r) => [r.poolId, Number(r.cnt)]));
 
   const currentWeekBounds = getWeekBoundsEt(todayEt);
   const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
@@ -230,7 +255,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: 0,
               picked: 0,
               score: Number(r.weekPoints),
-              prizeWon: computeSplitPrize(pool, tiedRows.length),
+              prizeWon: computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
             }));
           }
         }
@@ -302,7 +327,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: Number(r.correct),
               picked: Number(r.picked),
               score: null,
-              prizeWon: computeSplitPrize(pool, tiedRows.length),
+              prizeWon: computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
             }));
           }
         }
@@ -387,7 +412,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               score: scoreMap.get(w.userId) ?? null,
               correct: null,
               picked: null,
-              prizeWon: computeSplitPrize(pool, winnerRows.length),
+              prizeWon: computeSplitPrize(pool, winnerRows.length, memberCountMap.get(pool.id) ?? 0),
             }));
           }
         }
@@ -453,7 +478,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               score: scoreMap.get(w.userId) ?? null,
               correct: null,
               picked: null,
-              prizeWon: computeSplitPrize(pool, winnerRows.length),
+              prizeWon: computeSplitPrize(pool, winnerRows.length, memberCountMap.get(pool.id) ?? 0),
             }));
           }
         }
@@ -547,7 +572,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               displayName: r.displayName ?? null,
               correct: Number(r.correct),
               picked: Number(r.picked),
-              prizeWon: computeSplitPrize(pool, tiedPrevRows.length),
+              prizeWon: computeSplitPrize(pool, tiedPrevRows.length, memberCountMap.get(pool.id) ?? 0),
             }))
           : null;
 
