@@ -327,7 +327,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: Number(r.correct),
               picked: Number(r.picked),
               score: null,
-              prizeWon: computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
+              // Only show the dollar amount once the season is fully closed — no real
+              // payout exists mid-season. Mirrors the !pool.isActive gate already used
+              // by nfl_division_predictor and group_stage_predictor.
+              prizeWon: pool.isActive ? null : computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
             }));
           }
         }
