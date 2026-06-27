@@ -668,7 +668,9 @@ function WeeklyGrid({
                         className={cn(
                           "px-3 py-2.5 font-medium whitespace-nowrap sticky left-0 z-10",
                           isMe ? "text-primary" : "text-foreground",
-                          rowBg,
+                          isMe
+                            ? "bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-primary)_3%)]"
+                            : "bg-card",
                         )}
                       >
                         <span

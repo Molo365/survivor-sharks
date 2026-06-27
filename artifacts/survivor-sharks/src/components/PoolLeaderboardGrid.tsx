@@ -170,7 +170,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
               <th className="sticky left-0 bg-card z-10 w-8 px-1 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center">
                 #
               </th>
-              <th className="w-44 px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-left">
+              <th className="sticky left-8 bg-card z-10 w-44 px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-left">
                 Player
               </th>
               {weekColumns.map((wk) => (
@@ -215,8 +215,17 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                       <RankBadge rank={player.rank} />
                     </td>
 
-                    {/* Player name */}
-                    <td className="px-2 py-2.5">
+                    {/* Player name — sticky at left-8 (= rank col width) so rank+name scroll together */}
+                    <td
+                      className={cn(
+                        "sticky left-8 z-10 px-2 py-2.5",
+                        isMe
+                          ? "bg-[color-mix(in_srgb,var(--color-card)_95%,rgba(168,85,247,0.15)_5%)]"
+                          : player.rank === 1
+                            ? "bg-[color-mix(in_srgb,var(--color-card)_95%,rgba(234,179,8,0.1)_5%)]"
+                            : "bg-card",
+                      )}
+                    >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={cn(

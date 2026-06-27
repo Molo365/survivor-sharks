@@ -190,7 +190,7 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border/40 bg-muted/20">
-                <th className="sticky left-0 z-10 bg-muted/20 border-r border-border/40 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                <th className="sticky left-0 z-10 bg-card border-r border-border/40 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                   Player
                 </th>
                 {displayGames.map((game) => {
@@ -249,7 +249,7 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
                       rowIdx % 2 === 0 ? "bg-card/30" : "bg-card/10",
                     )}
                   >
-                    <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm border-r border-border/40 px-3 py-2 whitespace-nowrap">
+                    <td className="sticky left-0 z-10 bg-card border-r border-border/40 px-3 py-2 whitespace-nowrap">
                       <span className="font-semibold text-sm truncate max-w-[100px] block">
                         {player.displayName ?? player.username}
                       </span>
