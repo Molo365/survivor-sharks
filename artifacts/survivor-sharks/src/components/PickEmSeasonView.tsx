@@ -105,17 +105,14 @@ function NflGameCard({
   const awayResult = pickedAway ? (game.userPickResult ?? null) : null;
   const homeResult = pickedHome ? (game.userPickResult ?? null) : null;
 
-  function teamBorderClass(isPicked: boolean, result: string | null) {
-    if (isPicked) {
-      if (result === "correct")
-        return "border-green-500/60 bg-green-500/[0.08]";
-      if (result === "incorrect")
-        return "border-destructive/50 bg-destructive/[0.05]";
-      return "border-primary/60 bg-primary/[0.08]";
-    }
-    if (isLocked)
-      return "border-border/20 bg-transparent";
-    return "border-border/30 bg-transparent hover:border-border/60 hover:bg-muted/10";
+  function teamBtnClass(isPicked: boolean, result: string | null) {
+    if (isPicked && result === "correct")
+      return "border-green-500 bg-green-500/10 ring-2 ring-green-500/40";
+    if (isPicked && result === "incorrect")
+      return "border-destructive bg-destructive/10 ring-2 ring-destructive/30";
+    if (isPicked)
+      return "border-primary bg-primary/10 ring-2 ring-primary/40";
+    return "border-border/40 bg-card/60 hover:border-border";
   }
 
   function PickBadge({ result }: { result: string | null }) {
@@ -144,126 +141,169 @@ function NflGameCard({
     );
   }
 
-  return (
-    <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
-      <div className="flex items-stretch min-h-[92px]">
-        {/* Away team */}
-        <button
-          type="button"
-          disabled={isLocked}
-          onClick={() => !isLocked && onPick(game.id, game.awayTeam.id)}
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center gap-1.5 px-3 py-4 text-center transition-all border-2 rounded-l-xl",
-            teamBorderClass(pickedAway, awayResult),
-            isLocked && !pickedAway ? "cursor-default opacity-70" : "cursor-pointer",
-          )}
-        >
-          {game.awayTeam.logoUrl && (
-            <img
-              src={game.awayTeam.logoUrl}
-              alt={game.awayTeam.abbreviation}
-              className="w-9 h-9 object-contain"
-            />
-          )}
-          <span className="font-bebas text-lg tracking-wide leading-none">
-            {game.awayTeam.abbreviation}
-          </span>
-          {game.awayRecord && (
-            <span className="text-[10px] text-muted-foreground/60 leading-none">
-              {game.awayRecord}
-            </span>
-          )}
-          {isFinal && game.awayScore != null && (
-            <span
-              className={cn(
-                "font-bebas text-2xl leading-none",
-                awayWon ? "text-green-400" : "text-muted-foreground/50",
-              )}
-            >
-              {game.awayScore}
-            </span>
-          )}
-          {pickedAway && <PickBadge result={awayResult} />}
-        </button>
+  function TeamBtn({
+    team,
+    side,
+    score,
+    record,
+    isPicked,
+    result,
+  }: {
+    team: NflPickEmSeasonGame["awayTeam"];
+    side: "away" | "home";
+    score: number | null | undefined;
+    record: string | null | undefined;
+    isPicked: boolean;
+    result: string | null;
+  }) {
+    const isHome = side === "home";
+    const isCorrect = result === "correct";
+    const isWrong = result === "incorrect";
 
-        {/* Center column */}
-        <div className="flex flex-col items-center justify-center gap-1 min-w-[72px] sm:min-w-[88px] px-2 border-x border-border/20 bg-muted/[0.02] shrink-0">
+    return (
+      <button
+        type="button"
+        disabled={isLocked}
+        onClick={() => !isLocked && onPick(game.id, team.id)}
+        className={cn(
+          "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
+          isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+          teamBtnClass(isPicked, result),
+          isHome ? "flex-row-reverse" : "flex-row",
+        )}
+      >
+        {/* Logo in white circle */}
+        <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+          {team.logoUrl ? (
+            <img
+              src={team.logoUrl}
+              alt={team.name}
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-muted/40 flex items-center justify-center">
+              <span className="font-bebas text-xs text-muted-foreground">
+                {team.abbreviation.slice(0, 2)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Team info */}
+        <div className={cn(
+          "flex-1 flex flex-col gap-0.5 min-w-0",
+          isHome ? "items-end text-right" : "items-start text-left",
+        )}>
+          <span className={cn(
+            "font-bebas tracking-wide text-base sm:text-xl leading-tight",
+            isPicked ? "text-foreground" : "text-muted-foreground",
+          )}>
+            {team.name}
+          </span>
+
+          {record && (
+            <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
+              {record}
+            </span>
+          )}
+
+          {(isFinal || isLive) && score != null && (
+            <span className={cn(
+              "font-bebas text-3xl leading-none mt-0.5",
+              isLive
+                ? "text-white"
+                : isPicked && isCorrect
+                  ? "text-green-400"
+                  : isPicked && isWrong
+                    ? "text-destructive/70"
+                    : "text-foreground/60",
+            )}>
+              {score}
+            </span>
+          )}
+
+          {isPicked && <PickBadge result={result} />}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "shark-card rounded-xl border overflow-hidden relative",
+      isLive
+        ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]"
+        : "border-border/40",
+    )}>
+      {/* Pulsing live border overlay */}
+      {isLive && (
+        <span className="absolute inset-0 rounded-xl border-2 border-red-500/50 animate-pulse pointer-events-none z-10" />
+      )}
+      {/* LIVE badge */}
+      {isLive && (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none shadow-md">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse inline-block" />
+          Live
+        </span>
+      )}
+
+      <div className="flex items-stretch gap-0">
+        <TeamBtn
+          team={game.awayTeam}
+          side="away"
+          score={game.awayScore}
+          record={game.awayRecord}
+          isPicked={pickedAway}
+          result={awayResult}
+        />
+
+        {/* Center divider */}
+        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[72px] sm:px-3 sm:min-w-[88px] shrink-0">
           {isLive ? (
             <>
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-red-400 leading-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                Live
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
+                ● LIVE
               </span>
               {game.liveDetail && (
-                <span className="text-[10px] text-muted-foreground/70 text-center leading-tight">
+                <span className="font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
                   {game.liveDetail}
                 </span>
               )}
             </>
           ) : isFinal ? (
-            <span className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
               Final
             </span>
           ) : isPPD ? (
-            <span className="text-xs font-semibold text-yellow-400/80 uppercase tracking-wider">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
               PPD
             </span>
           ) : (
             <>
-              <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-medium leading-none">
+              <span className="font-bebas text-xs text-muted-foreground/70 tracking-widest uppercase">
                 vs
               </span>
               <div className="flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-                <span className="text-[11px] font-semibold text-foreground/80 leading-none whitespace-nowrap">
+                <Clock className="w-3 h-3 text-primary/60 shrink-0" />
+                <span className="text-[11px] sm:text-xs text-muted-foreground leading-tight font-semibold whitespace-nowrap">
                   {formatGameTimeEt(game.startTime)}
                 </span>
               </div>
-              {isLocked && (
-                <Lock className="w-3 h-3 text-yellow-400/60 mt-0.5" />
-              )}
             </>
           )}
         </div>
 
-        {/* Home team */}
-        <button
-          type="button"
-          disabled={isLocked}
-          onClick={() => !isLocked && onPick(game.id, game.homeTeam.id)}
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center gap-1.5 px-3 py-4 text-center transition-all border-2 rounded-r-xl",
-            teamBorderClass(pickedHome, homeResult),
-            isLocked && !pickedHome ? "cursor-default opacity-70" : "cursor-pointer",
-          )}
-        >
-          {game.homeTeam.logoUrl && (
-            <img
-              src={game.homeTeam.logoUrl}
-              alt={game.homeTeam.abbreviation}
-              className="w-9 h-9 object-contain"
-            />
-          )}
-          <span className="font-bebas text-lg tracking-wide leading-none">
-            {game.homeTeam.abbreviation}
-          </span>
-          {game.homeRecord && (
-            <span className="text-[10px] text-muted-foreground/60 leading-none">
-              {game.homeRecord}
-            </span>
-          )}
-          {isFinal && game.homeScore != null && (
-            <span
-              className={cn(
-                "font-bebas text-2xl leading-none",
-                homeWon ? "text-green-400" : "text-muted-foreground/50",
-              )}
-            >
-              {game.homeScore}
-            </span>
-          )}
-          {pickedHome && <PickBadge result={homeResult} />}
-        </button>
+        <TeamBtn
+          team={game.homeTeam}
+          side="home"
+          score={game.homeScore}
+          record={game.homeRecord}
+          isPicked={pickedHome}
+          result={homeResult}
+        />
       </div>
     </div>
   );
