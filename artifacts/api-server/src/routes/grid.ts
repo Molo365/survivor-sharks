@@ -43,12 +43,12 @@ router.get("/", requireAuth, async (req, res) => {
     .where(eq(picksTable.poolId, poolId));
 
   // Visibility rule: hide another player's current-week pick until it has been graded
-  // (result !== null). Past weeks are always visible — those games are over.
+  // (result !== "pending"). Past weeks are always visible — those games are over.
   // Own picks are always visible regardless of state.
   const visiblePicks = picksWithUsername.filter(({ pick }) =>
     pick.userId === userId ||
     pick.week < pool.currentWeek ||
-    pick.result !== null,
+    pick.result !== "pending",
   );
 
   res.json({
