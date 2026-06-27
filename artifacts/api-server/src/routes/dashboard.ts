@@ -146,6 +146,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         let closureReason: string | null = null;
         let sovRank: number | null = null;
+        let sovPrizeWon: number | null = null;
         let coWinnerCount: number | null = null;
         let coWinnerPrize: number | null = null;
 
@@ -161,6 +162,22 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             winnerEntries.sort((a, b) => (b.sovTotal ?? 0) - (a.sovTotal ?? 0));
             const idx = winnerEntries.findIndex((e) => e.userId === userId);
             sovRank = idx >= 0 ? idx + 1 : null;
+
+            // Compute this player's actual payout from their rank in the prize structure.
+            // Scale by (actualMembers / maxEntries) so partially-filled pools pay correctly.
+            if (sovRank != null) {
+              const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+              const memberCount = memberCountMap.get(pool.id) ?? 0;
+              const scale = pool.maxEntries && pool.maxEntries > 0 ? memberCount / pool.maxEntries : 1;
+              if (ps && ps.length > 0) {
+                const placeEntry = ps.find(p => p.place === sovRank) ?? null;
+                if (placeEntry) {
+                  sovPrizeWon = Math.round(placeEntry.amount * scale * 100) / 100;
+                }
+              } else if (sovRank === 1 && pool.prizePot && pool.prizePot > 0) {
+                sovPrizeWon = Math.round(pool.prizePot * scale * 100) / 100;
+              }
+            }
           } else if (pool.closureReason === "co_winners") {
             // Use finalWinner flag — live status may have been flipped by auto-eliminator
             const winnerEntries = await db
@@ -187,6 +204,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             maxScore: null,
             closureReason,
             sovRank,
+            sovPrizeWon,
             coWinnerCount,
             coWinnerPrize,
           },

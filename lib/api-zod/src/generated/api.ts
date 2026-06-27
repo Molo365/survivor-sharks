@@ -102,6 +102,7 @@ export const GetPickEmDashboardStatsResponseItem = zod.object({
   "maxScore": zod.number().nullish(),
   "closureReason": zod.string().nullish().describe('Survivor season pools only: null = last survivor standing, sov_tiebreaker = SOV decided winner, co_winners = prize split'),
   "sovRank": zod.number().nullish().describe('Survivor SOV tiebreaker only: this user\'s rank by cumulative margin (1 = winner)'),
+  "sovPrizeWon": zod.number().nullish().describe('Survivor SOV tiebreaker only: this user\'s actual prize won based on their rank and prize structure (scaled to actual entries)'),
   "coWinnerCount": zod.number().nullish().describe('Co-winner scenario: total number of co-champions sharing the prize'),
   "coWinnerPrize": zod.number().nullish().describe('Co-winner scenario: each champion\'s share of the prize pot in dollars')
 })

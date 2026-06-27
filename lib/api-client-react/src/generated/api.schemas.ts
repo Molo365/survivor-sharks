@@ -200,6 +200,8 @@ export type PoolPickEmStatMyStanding = {
   closureReason?: string | null;
   /** Survivor SOV tiebreaker only: this user's rank by cumulative margin (1 = winner) */
   sovRank?: number | null;
+  /** Survivor SOV tiebreaker only: this user's actual prize won based on their rank and prize structure (scaled to actual entries) */
+  sovPrizeWon?: number | null;
   /** Co-winner scenario: total number of co-champions sharing the prize */
   coWinnerCount?: number | null;
   /** Co-winner scenario: each champion's share of the prize pot in dollars */

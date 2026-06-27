@@ -102,11 +102,23 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                           <span className="font-medium">You won!</span>
                           <span className="text-muted-foreground/40">·</span>
                           <span className="opacity-70">Tiebreaker: SOV</span>
+                          {pickEmStat.myStanding.sovPrizeWon != null && (
+                            <>
+                              <span className="text-muted-foreground/40">·</span>
+                              <span className="text-yellow-400">${pickEmStat.myStanding.sovPrizeWon}</span>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span aria-hidden>📊</span>
                           <span>Tiebreaker: {ordinal(pickEmStat.myStanding.sovRank ?? 0)} place</span>
+                          {pickEmStat.myStanding.sovPrizeWon != null && (
+                            <>
+                              <span className="text-muted-foreground/40">·</span>
+                              <span className="text-yellow-400">${pickEmStat.myStanding.sovPrizeWon}</span>
+                            </>
+                          )}
                         </div>
                       )
                     ) : (
@@ -225,7 +237,8 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             </div>
           )}
         </CardContent>
-        {(pool.prizePot && pool.prizePot > 0 || !!((pool as any).prizeStructure as any)?.length) && (
+        {(pool.prizePot && pool.prizePot > 0 || !!((pool as any).prizeStructure as any)?.length) &&
+         !(!pool.isActive && SURVIVOR_TYPES.has(pt) && pickEmStat?.myStanding?.sovPrizeWon != null) && (
           <CardFooter className="pt-0 pb-4">
             <PrizeDisplay
               variant="pool-card"

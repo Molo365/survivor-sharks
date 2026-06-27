@@ -1904,6 +1904,10 @@ components:
               type: integer
               nullable: true
               description: "Survivor SOV tiebreaker only: this user's rank by cumulative margin (1 = winner)"
+            sovPrizeWon:
+              type: number
+              nullable: true
+              description: "Survivor SOV tiebreaker only: this user's actual prize won based on their rank and prize structure (scaled to actual entries)"
             coWinnerCount:
               type: integer
               nullable: true
