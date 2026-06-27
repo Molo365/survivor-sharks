@@ -1246,6 +1246,15 @@ export function PickEmSeasonView({
 
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
 
+  const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    try { return localStorage.getItem(welcomeKey) !== "1"; } catch { return false; }
+  });
+  function dismissWelcome() {
+    try { localStorage.setItem(welcomeKey, "1"); } catch { /* ignore */ }
+    setShowWelcome(false);
+  }
+
   function handleSubmit(force = false) {
     if (!slate) return;
 
@@ -1468,6 +1477,29 @@ export function PickEmSeasonView({
           {/* ── This Week's Picks ── */}
           <TabsContent value="picks" className="m-0 focus-visible:outline-none">
             <div className="space-y-5">
+              {/* Welcome banner — shown once per user per pool */}
+              {showWelcome && (
+                <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+                  <span className="text-xl leading-none mt-0.5">🏈</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-foreground leading-snug">
+                      Welcome to {poolName}!
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+                      Pick the winner of every NFL game each week. Points accumulate all season — whoever has the most correct picks after Week 18 wins. Each game locks at kickoff. In Week 18, enter a passing and rushing yards tiebreaker to settle any ties. Good luck! 🦈🏈
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={dismissWelcome}
+                    className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+                    aria-label="Dismiss welcome message"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Week winner banner */}
               {prevWeekWinners && prevWeek !== null && (
                 <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/[0.08] px-4 py-3">
