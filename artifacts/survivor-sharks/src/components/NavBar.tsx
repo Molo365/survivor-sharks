@@ -14,14 +14,18 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {/*
-        3-column grid: [left] [center] [right]
-        Left and right are 1fr each so the center wordmark is always
-        exactly in the middle of the header, regardless of content width.
+        Mobile  (< sm): [auto][1fr][auto]
+          – back button takes its natural width
+          – wordmark fills the middle, left-aligned with a small indent
+            (sits left-of-centre because the right column is wider than the left)
+          – username + logout flush right
+        Desktop (≥ sm): [1fr][auto][1fr]
+          – classic perfectly-centred wordmark, unchanged
       */}
-      <div className="container grid grid-cols-[1fr_auto_1fr] h-16 items-center">
+      <div className="container grid grid-cols-[auto_1fr_auto] sm:grid-cols-[1fr_auto_1fr] h-16 items-center">
 
         {/* Left: optional Back → Dashboard link, inset from the edge */}
-        <div className="flex items-center pl-1">
+        <div className="flex items-center pl-1 sm:pl-0">
           {showBack && (
             <Link
               href="/dashboard"
@@ -34,9 +38,9 @@ export function NavBar() {
           )}
         </div>
 
-        {/* Center: wordmark — always horizontally centred */}
-        <Link href="/" className="flex items-center justify-center" data-testid="nav-logo">
-          <span className="font-bebas text-2xl tracking-widest text-primary whitespace-nowrap">
+        {/* Center: wordmark — left-leaning on mobile, centred on desktop */}
+        <Link href="/" className="flex items-center justify-start pl-3 sm:justify-center sm:pl-0" data-testid="nav-logo">
+          <span className="font-bebas text-lg tracking-wide text-primary whitespace-nowrap sm:text-2xl sm:tracking-widest">
             SURVIVOR SHARKS
           </span>
         </Link>
@@ -62,7 +66,7 @@ export function NavBar() {
                 </a>
               )}
               <div className="flex items-center gap-2 sm:ml-4 sm:pl-4 sm:border-l sm:border-border">
-                <span className="text-sm text-muted-foreground truncate max-w-[90px] hidden sm:inline">
+                <span className="text-sm text-muted-foreground truncate max-w-[72px] sm:max-w-[90px]">
                   {user.displayName || user.username}
                 </span>
                 <Button variant="ghost" size="icon" onClick={logout} data-testid="button-logout" title="Log out">
