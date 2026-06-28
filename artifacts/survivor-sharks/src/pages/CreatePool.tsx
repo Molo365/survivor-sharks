@@ -54,8 +54,7 @@ const SPORTS = [
     id: PoolInputSport.worldcup,
     label: "WC",
     sublabel: "World Cup",
-    logoImg: 'https://a.espncdn.com/i/teamlogos/soccer/500/FIFA.png',
-    logoFallback: '/logo.png',
+    logoImg: '/WorldCup2026.png',
   },
 ] as const;
 
