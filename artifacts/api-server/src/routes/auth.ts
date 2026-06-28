@@ -23,7 +23,8 @@ function formatUser(user: typeof usersTable.$inferSelect) {
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
-  const { username, email, password, displayName } = req.body;
+  const { username, password, displayName } = req.body;
+  const email = typeof req.body.email === "string" ? req.body.email.trim() : req.body.email;
 
   if (!username || !email || !password) {
     res.status(400).json({ error: "username, email, and password are required" });
@@ -74,7 +75,8 @@ router.post("/register", async (req, res) => {
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = typeof req.body.email === "string" ? req.body.email.trim() : req.body.email;
 
   if (!email || !password) {
     res.status(400).json({ error: "email and password are required" });
