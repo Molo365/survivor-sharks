@@ -43,6 +43,14 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Target,
   Trophy,
   LayoutGrid,
@@ -58,6 +66,7 @@ import {
   Loader2,
   Info,
   Users,
+  Shuffle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -1245,6 +1254,8 @@ export function PickEmSeasonView({
   });
 
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
+  const [showTbModal, setShowTbModal] = useState(false);
+  const pendingPicksRef = useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -1253,6 +1264,40 @@ export function PickEmSeasonView({
   function dismissWelcome() {
     try { localStorage.setItem(welcomeKey, "1"); } catch { /* ignore */ }
     setShowWelcome(false);
+  }
+
+  function doFinalSubmit(
+    picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
+    py?: number,
+    ry?: number,
+  ) {
+    submitPicks.mutate(
+      {
+        poolId,
+        data: {
+          week: displayWeek,
+          picks,
+          ...(py != null && ry != null
+            ? { tiebreakerPassingYards: py, tiebreakerRushingYards: ry }
+            : {}),
+        },
+      },
+      {
+        onSuccess: (r) => {
+          toast({
+            title: "Picks saved!",
+            description: `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved.`,
+          });
+          void invalidatePoolQueries(queryClient, poolId);
+        },
+        onError: () =>
+          toast({
+            variant: "destructive",
+            title: "Failed to save picks",
+            description: "Please try again.",
+          }),
+      },
+    );
   }
 
   function handleSubmit(force = false) {
@@ -1287,67 +1332,15 @@ export function PickEmSeasonView({
       return;
     }
 
-    if (isWeek18) {
-      const py = parseInt(tbPassingYards, 10);
-      const ry = parseInt(tbRushingYards, 10);
-      const hasTiebreaker = !isNaN(py) && py > 0 && !isNaN(ry) && ry > 0;
-      if (!sandboxMode && !hasTiebreaker) {
-        toast({
-          variant: "destructive",
-          title: "Tiebreaker required",
-          description:
-            "Enter combined passing and rushing yards for Week 18.",
-        });
-        return;
-      }
-      submitPicks.mutate(
-        {
-          poolId,
-          data: {
-            week: displayWeek,
-            picks,
-            ...(hasTiebreaker
-              ? { tiebreakerPassingYards: py, tiebreakerRushingYards: ry }
-              : {}),
-          },
-        },
-        {
-          onSuccess: (r) => {
-            toast({
-              title: "Picks saved!",
-              description: `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved.`,
-            });
-            void invalidatePoolQueries(queryClient, poolId);
-          },
-          onError: () =>
-            toast({
-              variant: "destructive",
-              title: "Failed to save picks",
-              description: "Please try again.",
-            }),
-        },
-      );
+    if (isWeek18 && !sandboxMode) {
+      pendingPicksRef.current = picks;
+      setTbPassingYards("");
+      setTbRushingYards("");
+      setShowTbModal(true);
       return;
     }
 
-    submitPicks.mutate(
-      { poolId, data: { week: displayWeek, picks } },
-      {
-        onSuccess: (r) => {
-          toast({
-            title: "Picks saved!",
-            description: `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved.`,
-          });
-          void invalidatePoolQueries(queryClient, poolId);
-        },
-        onError: () =>
-          toast({
-            variant: "destructive",
-            title: "Failed to save picks",
-            description: "Please try again.",
-          }),
-      },
-    );
+    doFinalSubmit(picks);
   }
 
   function handleGradeResults() {
@@ -1433,6 +1426,92 @@ export function PickEmSeasonView({
 
   return (
     <>
+      {/* Tiebreaker modal — Week 18 intercept */}
+      <Dialog open={showTbModal} onOpenChange={(open) => { if (!open) setShowTbModal(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+              <Shuffle className="w-5 h-5 text-yellow-400" />
+              Tiebreaker Guess
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-snug">
+              It&apos;s Week 18 — the final week of the season! In case of a tie, your tiebreaker guess decides the winner.{" "}
+              Guess the <strong className="text-foreground">combined passing yards</strong> and{" "}
+              <strong className="text-foreground">combined rushing yards</strong> for the last scheduled game of the week. Closest guess wins.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Combined Passing Yards — Tiebreaker Game
+              </label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="e.g. 4200"
+                value={tbPassingYards}
+                onChange={(e) => setTbPassingYards(e.target.value)}
+                className="text-lg font-mono h-12"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Combined Rushing Yards — Tiebreaker Game
+              </label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="e.g. 2100"
+                value={tbRushingYards}
+                onChange={(e) => setTbRushingYards(e.target.value)}
+                className="text-lg font-mono h-12"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const py = parseInt(tbPassingYards, 10);
+                    const ry = parseInt(tbRushingYards, 10);
+                    if (!isNaN(py) && py >= 0 && !isNaN(ry) && ry >= 0) {
+                      setShowTbModal(false);
+                      doFinalSubmit(pendingPicksRef.current, py, ry);
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowTbModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 font-bebas text-xl tracking-widest"
+              disabled={submitPicks.isPending}
+              onClick={() => {
+                const py = parseInt(tbPassingYards, 10);
+                const ry = parseInt(tbRushingYards, 10);
+                if (isNaN(py) || py < 0 || isNaN(ry) || ry < 0) {
+                  toast({
+                    variant: "destructive",
+                    title: "Enter valid guesses",
+                    description: "Both fields are required and must be 0 or greater.",
+                  });
+                  return;
+                }
+                setShowTbModal(false);
+                doFinalSubmit(pendingPicksRef.current, py, ry);
+              }}
+            >
+              {submitPicks.isPending ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+              ) : (
+                "Submit Picks"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Tabs defaultValue="picks" className="w-full">
         <div className="relative">
           <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1520,6 +1599,21 @@ export function PickEmSeasonView({
                       {prevWeekWinners[0].correct}/{prevWeekWinners[0].total}{" "}
                       correct
                     </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tiebreaker warning banner — Week 18 only, while games are open */}
+              {isWeek18 && openGames.length > 0 && !weekIsLocked && (
+                <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.08] px-4 py-3">
+                  <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-yellow-200 leading-snug">
+                      Week 18 — tiebreaker required
+                    </p>
+                    <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
+                      When you submit your picks you&apos;ll be asked to guess combined passing yards + rushing yards for the last game of the week. The closest guess breaks any end-of-season tie.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1624,69 +1718,30 @@ export function PickEmSeasonView({
                     />
                   ))}
 
-                  {/* Week 18 tiebreaker */}
-                  {isWeek18 && openGames.length > 0 && (
-                    <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.05] p-5 space-y-3">
-                      <div>
-                        <h4 className="font-bebas text-xl tracking-wide text-yellow-300 mb-0.5">
-                          Week 18 Tiebreaker
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          For tiebreaking purposes, guess the combined passing
-                          and rushing yards for the last scheduled game of Week
-                          18{slate.tiebreakerGameId ? (() => {
-                            const tbGame = slate.games.find(g => g.id === slate.tiebreakerGameId);
-                            return tbGame ? ` (${tbGame.awayTeam.name} @ ${tbGame.homeTeam.name})` : "";
-                          })() : ""}.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                            Combined Passing Yards
-                          </label>
-                          <Input
-                            type="number"
-                            min={0}
-                            placeholder="e.g. 4200"
-                            value={tbPassingYards}
-                            onChange={(e) => setTbPassingYards(e.target.value)}
-                            className="bg-background/60"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                            Combined Rushing Yards
-                          </label>
-                          <Input
-                            type="number"
-                            min={0}
-                            placeholder="e.g. 2100"
-                            value={tbRushingYards}
-                            onChange={(e) => setTbRushingYards(e.target.value)}
-                            className="bg-background/60"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Submit */}
                   {isActive && openGames.length > 0 && (
-                    <div className="pt-1">
+                    <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
+                      <p className="text-sm text-muted-foreground">
+                        {pendingPickCount > 0 ? (
+                          <span className="text-yellow-400/80">
+                            {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
+                          </span>
+                        ) : (
+                          <span className="text-green-400/80 flex items-center gap-1">
+                            <Check className="w-4 h-4" /> All open games picked
+                          </span>
+                        )}
+                      </p>
                       <Button
                         onClick={() => handleSubmit()}
-                        disabled={
-                          submitPicks.isPending || localPicks.size === 0
-                        }
-                        className="w-full font-bebas text-xl tracking-wider h-12"
+                        disabled={submitPicks.isPending || localPicks.size === 0}
+                        className="font-bebas text-xl tracking-widest px-8 h-12"
                       >
-                        {submitPicks.isPending && (
-                          <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                        {submitPicks.isPending ? (
+                          <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                        ) : (
+                          "Submit Picks"
                         )}
-                        {pendingPickCount > 0
-                          ? `${pendingPickCount} game${pendingPickCount !== 1 ? "s" : ""} unpicked · Save All Picks`
-                          : "Save Picks"}
                       </Button>
                     </div>
                   )}
