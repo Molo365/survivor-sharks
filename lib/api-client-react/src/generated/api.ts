@@ -3581,6 +3581,88 @@ export function useGetWcBracketLeaderboard<TData = Awaited<ReturnType<typeof get
 
 
 
+export const getGetWcBracketMemberPicksUrl = (poolId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket/members/${userId}/picks`
+}
+
+/**
+ * @summary Get bracket picks for a specific pool member
+ */
+export const getWcBracketMemberPicks = async (poolId: number,
+    userId: number, options?: RequestInit): Promise<WcBracketMatch[]> => {
+
+  return customFetch<WcBracketMatch[]>(getGetWcBracketMemberPicksUrl(poolId,userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcBracketMemberPicksQueryKey = (poolId: number,
+    userId: number,) => {
+    return [
+    `/api/pools/${poolId}/bracket/members/${userId}/picks`
+    ] as const;
+    }
+
+
+export const getGetWcBracketMemberPicksQueryOptions = <TData = Awaited<ReturnType<typeof getWcBracketMemberPicks>>, TError = ErrorType<ErrorResponse>>(poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcBracketMemberPicksQueryKey(poolId,userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcBracketMemberPicks>>> = ({ signal }) => getWcBracketMemberPicks(poolId,userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId && userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcBracketMemberPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcBracketMemberPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getWcBracketMemberPicks>>>
+export type GetWcBracketMemberPicksQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get bracket picks for a specific pool member
+ */
+
+export function useGetWcBracketMemberPicks<TData = Awaited<ReturnType<typeof getWcBracketMemberPicks>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcBracketMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetNdpDivisionsUrl = (poolId: number,) => {
 
 

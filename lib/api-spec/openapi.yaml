@@ -1175,6 +1175,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/bracket/members/{userId}/picks:
+    get:
+      operationId: getWcBracketMemberPicks
+      tags: [bracket]
+      summary: Get bracket picks for a specific pool member
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member's bracket picks (same shape as GET /bracket but for another user)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WcBracketMatch"
+        "400":
+          description: Not a WC bracket pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── NFL Division Predictor ───────────────────────────────────────────────
   /pools/{poolId}/ndp/divisions:
     get:

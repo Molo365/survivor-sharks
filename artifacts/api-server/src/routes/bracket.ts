@@ -246,4 +246,69 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   res.json(ranked);
 });
 
+// GET /api/pools/:poolId/bracket/members/:userId/picks
+// Returns all R32 matchups enriched with the specified member's picks + results.
+// Any authenticated pool member can view any other member's picks.
+router.get("/members/:userId/picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const targetUserId = parseInt(String(req.params.userId));
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "wc_bracket") {
+    res.status(400).json({ error: "Not a WC bracket pool" }); return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, req.user!.id)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const [matches, memberPicks, results] = await Promise.all([
+    fetchWcBracketMatches(),
+    db.select().from(wcBracketPicksTable).where(
+      and(eq(wcBracketPicksTable.poolId, poolId), eq(wcBracketPicksTable.userId, targetUserId)),
+    ),
+    db.select().from(wcBracketResultsTable).where(eq(wcBracketResultsTable.poolId, poolId)),
+  ]);
+
+  if (matches.length === 0) {
+    res.status(503).json({ error: "Bracket data unavailable — ESPN API unreachable" });
+    return;
+  }
+
+  const r32 = matches.filter((m) => m.round === "round_of_32");
+  const picksByEvent = new Map(memberPicks.map((p) => [p.espnEventId, p]));
+  const resultsByEvent = new Map(results.map((r) => [r.espnEventId, r]));
+  const now = new Date();
+
+  const payload = r32.map((match) => {
+    const pick = picksByEvent.get(match.espnEventId) ?? null;
+    const result = resultsByEvent.get(match.espnEventId) ?? null;
+    const isLocked = now >= new Date(match.matchDate);
+
+    return {
+      espnEventId: match.espnEventId,
+      round: match.round,
+      matchSlot: match.matchSlot,
+      team1: match.team1,
+      team2: match.team2,
+      team1Logo: match.team1Logo,
+      team2Logo: match.team2Logo,
+      matchDate: match.matchDate,
+      isLocked,
+      isCompleted: match.isCompleted,
+      pickedTeam: pick?.pickedTeam ?? null,
+      isCorrect: pick?.isCorrect ?? null,
+      result: result
+        ? { winner: result.winner, winType: result.winType, gradedAt: result.gradedAt }
+        : null,
+    };
+  });
+
+  res.json(payload);
+});
+
 export default router;

@@ -1565,6 +1565,36 @@ export const GetWcBracketLeaderboardResponse = zod.array(GetWcBracketLeaderboard
 
 
 /**
+ * @summary Get bracket picks for a specific pool member
+ */
+export const GetWcBracketMemberPicksParams = zod.object({
+  "poolId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const GetWcBracketMemberPicksResponseItem = zod.object({
+  "espnEventId": zod.string(),
+  "round": zod.string(),
+  "matchSlot": zod.number(),
+  "team1": zod.string(),
+  "team2": zod.string(),
+  "team1Logo": zod.string().nullish(),
+  "team2Logo": zod.string().nullish(),
+  "matchDate": zod.coerce.date(),
+  "isLocked": zod.boolean(),
+  "isCompleted": zod.boolean(),
+  "pickedTeam": zod.string().nullable(),
+  "isCorrect": zod.boolean().nullable(),
+  "result": zod.object({
+  "winner": zod.string(),
+  "winType": zod.string().describe('normal | aet | penalties'),
+  "gradedAt": zod.coerce.date()
+}).nullable()
+})
+export const GetWcBracketMemberPicksResponse = zod.array(GetWcBracketMemberPicksResponseItem)
+
+
+/**
  * @summary Get NFL division definitions with team info and the user's existing picks
  */
 export const GetNdpDivisionsParams = zod.object({

@@ -1,17 +1,26 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   useGetWcBracket,
   useSubmitWcBracketPicks,
   useGetWcBracketLeaderboard,
+  useGetWcBracketMemberPicks,
   getGetWcBracketQueryKey,
   getGetWcBracketLeaderboardQueryKey,
+  getGetWcBracketMemberPicksQueryKey,
 } from "@workspace/api-client-react";
-import type { WcBracketMatch } from "@workspace/api-client-react";
+import type { WcBracketMatch, WcBracketLeaderboardEntry } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Check,
   X,
@@ -20,6 +29,7 @@ import {
   Activity,
   Target,
   Loader2,
+  Save,
 } from "lucide-react";
 
 // ── ESPN country flag CDN slug map ────────────────────────────────────────────
@@ -101,7 +111,20 @@ function formatDateHeading(dateStr: string): string {
 
 // ── PickBadge ─────────────────────────────────────────────────────────────────
 
-function PickBadge({ isCorrect }: { isCorrect: boolean | null }) {
+function PickBadge({
+  isCorrect,
+  isPending,
+}: {
+  isCorrect: boolean | null;
+  isPending?: boolean;
+}) {
+  if (isPending) {
+    return (
+      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest rounded-full px-1.5 py-0.5 text-amber-400 bg-amber-500/15">
+        Unsaved
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
@@ -129,7 +152,12 @@ function PickBadge({ isCorrect }: { isCorrect: boolean | null }) {
 
 // ── Team button class helper ──────────────────────────────────────────────────
 
-function teamBtnClass(isPicked: boolean, isCorrect: boolean | null): string {
+function teamBtnClass(
+  isPicked: boolean,
+  isPending: boolean,
+  isCorrect: boolean | null,
+): string {
+  if (isPending) return "border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40";
   if (isPicked && isCorrect === true)
     return "border-green-500 bg-green-500/10 ring-2 ring-green-500/40";
   if (isPicked && isCorrect === false)
@@ -146,9 +174,9 @@ function TeamBtn({
   abbr,
   side,
   isPicked,
+  isPending,
   isCorrect,
   isLocked,
-  isSubmitting,
   onClick,
 }: {
   name: string;
@@ -156,22 +184,22 @@ function TeamBtn({
   abbr: string;
   side: "left" | "right";
   isPicked: boolean;
+  isPending: boolean;
   isCorrect: boolean | null;
   isLocked: boolean;
-  isSubmitting: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      disabled={isLocked || isSubmitting}
+      disabled={isLocked}
       onClick={onClick}
       className={cn(
         "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
         isLocked
           ? "cursor-default"
           : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-        teamBtnClass(isPicked, isPicked ? isCorrect : null),
+        teamBtnClass(isPicked, isPending, isPicked && !isPending ? isCorrect : null),
         side === "right" ? "flex-row-reverse" : "flex-row",
       )}
     >
@@ -205,12 +233,13 @@ function TeamBtn({
         <span
           className={cn(
             "font-bebas tracking-wide text-base sm:text-xl leading-tight",
-            isPicked ? "text-foreground" : "text-muted-foreground",
+            isPicked || isPending ? "text-foreground" : "text-muted-foreground",
           )}
         >
           {name}
         </span>
-        {isPicked && <PickBadge isCorrect={isCorrect} />}
+        {isPending && <PickBadge isCorrect={null} isPending />}
+        {isPicked && !isPending && <PickBadge isCorrect={isCorrect} />}
       </div>
     </button>
   );
@@ -220,16 +249,18 @@ function TeamBtn({
 
 function BracketMatchCard({
   match,
-  submittingId,
+  pendingTeam,
   onPick,
 }: {
   match: WcBracketMatch;
-  submittingId: string | null;
+  pendingTeam: string | null;
   onPick: (espnEventId: string, pickedTeam: string) => void;
 }) {
-  const isSubmitting = submittingId === match.espnEventId;
-  const picked1 = match.pickedTeam === match.team1;
-  const picked2 = match.pickedTeam === match.team2;
+  const effectivePick = pendingTeam ?? match.pickedTeam;
+  const picked1 = effectivePick === match.team1;
+  const picked2 = effectivePick === match.team2;
+  const pending1 = pendingTeam === match.team1;
+  const pending2 = pendingTeam === match.team2;
   const isFinal = match.isCompleted;
 
   const logo1 = teamLogoUrl(match.team1, match.team1Logo);
@@ -244,13 +275,6 @@ function BracketMatchCard({
         isFinal ? "border-muted/40" : "border-border/40",
       )}
     >
-      {/* Submitting overlay */}
-      {isSubmitting && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 rounded-xl">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      )}
-
       {/* Match slot label */}
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
@@ -265,10 +289,10 @@ function BracketMatchCard({
           logoUrl={logo1}
           abbr={abbr1}
           side="left"
-          isPicked={picked1}
-          isCorrect={picked1 ? match.isCorrect : null}
+          isPicked={picked1 && !pending1}
+          isPending={pending1}
+          isCorrect={picked1 && !pending1 ? match.isCorrect : null}
           isLocked={match.isLocked}
-          isSubmitting={isSubmitting}
           onClick={() => onPick(match.espnEventId, match.team1)}
         />
 
@@ -316,14 +340,169 @@ function BracketMatchCard({
           logoUrl={logo2}
           abbr={abbr2}
           side="right"
-          isPicked={picked2}
-          isCorrect={picked2 ? match.isCorrect : null}
+          isPicked={picked2 && !pending2}
+          isPending={pending2}
+          isCorrect={picked2 && !pending2 ? match.isCorrect : null}
           isLocked={match.isLocked}
-          isSubmitting={isSubmitting}
           onClick={() => onPick(match.espnEventId, match.team2)}
         />
       </div>
     </div>
+  );
+}
+
+// ── ReadOnlyMatchCard (for member picks modal) ────────────────────────────────
+
+function ReadOnlyMatchCard({ match }: { match: WcBracketMatch }) {
+  const isFinal = match.isCompleted;
+  const logo1 = teamLogoUrl(match.team1, match.team1Logo);
+  const logo2 = teamLogoUrl(match.team2, match.team2Logo);
+
+  function teamRowClass(team: string) {
+    const isPicked = match.pickedTeam === team;
+    if (!isPicked) return "border-border/20 bg-background/30";
+    if (match.isCorrect === true) return "border-green-500/40 bg-green-500/10";
+    if (match.isCorrect === false) return "border-destructive/40 bg-destructive/10";
+    return "border-primary/40 bg-primary/10";
+  }
+
+  function TeamRow({ name, logoUrl }: { name: string; logoUrl: string | null }) {
+    const isPicked = match.pickedTeam === name;
+    const abbr = teamAbbr(name);
+    return (
+      <div className={cn("flex items-center gap-2 rounded-lg px-2.5 py-2 border", teamRowClass(name))}>
+        <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={name}
+              className="w-6 h-6 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-muted/40 flex items-center justify-center">
+              <span className="font-bebas text-[8px] text-muted-foreground">{abbr}</span>
+            </div>
+          )}
+        </div>
+        <span className={cn("flex-1 font-bebas tracking-wide text-sm leading-tight",
+          isPicked ? "text-foreground" : "text-muted-foreground/70"
+        )}>
+          {name}
+        </span>
+        {isPicked && (
+          isFinal ? (
+            match.isCorrect === true ? (
+              <Check className="w-4 h-4 text-green-400 shrink-0" />
+            ) : match.isCorrect === false ? (
+              <X className="w-4 h-4 text-destructive shrink-0" />
+            ) : null
+          ) : (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60 shrink-0">Pick</span>
+          )
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "rounded-xl border p-3 bg-card space-y-1.5",
+      isFinal ? "border-muted/40" : "border-border/40",
+    )}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
+          Match {match.matchSlot}
+        </span>
+        {isFinal && match.result ? (
+          <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30">
+            FT · {match.result.winner}
+          </span>
+        ) : match.isLocked ? (
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+            <Lock className="w-2.5 h-2.5" /> Locked
+          </span>
+        ) : (
+          <span className="text-[9px] text-muted-foreground/50">
+            {formatKickoff(match.matchDate)}
+          </span>
+        )}
+      </div>
+      <TeamRow name={match.team1} logoUrl={logo1} />
+      <TeamRow name={match.team2} logoUrl={logo2} />
+      {!match.pickedTeam && (
+        <p className="text-[10px] text-muted-foreground/40 text-center italic pt-0.5">No pick</p>
+      )}
+    </div>
+  );
+}
+
+// ── WcBracketMemberPicksModal ─────────────────────────────────────────────────
+
+function WcBracketMemberPicksModal({
+  poolId,
+  userId,
+  displayName,
+  onClose,
+}: {
+  poolId: number;
+  userId: number;
+  displayName: string;
+  onClose: () => void;
+}) {
+  const { data: matches, isLoading } = useGetWcBracketMemberPicks(poolId, userId, {
+    query: { queryKey: getGetWcBracketMemberPicksQueryKey(poolId, userId) },
+  });
+
+  const totalPicked = matches?.filter((m) => m.pickedTeam).length ?? 0;
+  const totalCorrect = matches?.filter((m) => m.isCorrect === true).length ?? 0;
+  const anyGraded = matches?.some((m) => m.isCorrect !== null) ?? false;
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-background border-border/60 p-0">
+        {/* Header */}
+        <DialogHeader className="flex flex-row items-center justify-between px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
+          <div>
+            <DialogTitle className="font-bebas text-2xl tracking-wider text-foreground leading-none">
+              <span className="text-yellow-400">{displayName}</span>
+              <span className="text-muted-foreground">'s Picks</span>
+            </DialogTitle>
+            {!isLoading && matches && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {totalPicked} of {matches.length} matches picked
+                {anyGraded && ` · ${totalCorrect} correct`}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </DialogHeader>
+
+        <div className="px-6 pb-6 pt-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Array.from({ length: 16 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-xl" />
+              ))}
+            </div>
+          ) : !matches || matches.length === 0 ? (
+            <p className="text-center text-muted-foreground py-10">No bracket data found.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {matches.map((match) => (
+                <ReadOnlyMatchCard key={match.espnEventId} match={match} />
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -335,7 +514,13 @@ const RANK_STYLES = [
   { icon: "🥉", bg: "bg-orange-600/10 border-orange-600/30" },
 ];
 
-function WcBracketLeaderboard({ poolId }: { poolId: number }) {
+function WcBracketLeaderboard({
+  poolId,
+  onSelectPlayer,
+}: {
+  poolId: number;
+  onSelectPlayer: (entry: WcBracketLeaderboardEntry) => void;
+}) {
   const { data, isLoading } = useGetWcBracketLeaderboard(poolId);
 
   if (isLoading) {
@@ -362,6 +547,9 @@ function WcBracketLeaderboard({ poolId }: { poolId: number }) {
 
   return (
     <div className="space-y-2">
+      <p className="text-xs text-muted-foreground/60 text-right mb-1">
+        Tap a player to see their picks
+      </p>
       {data.map((entry) => {
         const rankStyle = RANK_STYLES[entry.rank - 1];
         const pct =
@@ -369,10 +557,13 @@ function WcBracketLeaderboard({ poolId }: { poolId: number }) {
             ? Math.round((entry.correct / entry.total) * 100)
             : 0;
         return (
-          <div
+          <button
             key={entry.userId}
+            type="button"
+            onClick={() => onSelectPlayer(entry)}
             className={cn(
-              "flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors",
+              "w-full flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors text-left",
+              "hover:brightness-110 active:scale-[0.99] cursor-pointer",
               rankStyle ? rankStyle.bg : "bg-card border-border/40",
             )}
           >
@@ -414,7 +605,7 @@ function WcBracketLeaderboard({ poolId }: { poolId: number }) {
                 </div>
               )}
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -426,7 +617,16 @@ function WcBracketLeaderboard({ poolId }: { poolId: number }) {
 export function WcBracketView({ poolId }: { poolId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
+
+  // Pending picks: staged but not yet saved to the server
+  const [pendingPicks, setPendingPicks] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Selected player for the picks modal (leaderboard click)
+  const [selectedPlayer, setSelectedPlayer] =
+    useState<WcBracketLeaderboardEntry | null>(null);
 
   const { data: matches, isLoading } = useGetWcBracket(poolId, {
     query: { queryKey: getGetWcBracketQueryKey(poolId) },
@@ -434,15 +634,37 @@ export function WcBracketView({ poolId }: { poolId: number }) {
 
   const { mutate } = useSubmitWcBracketPicks({
     mutation: {
-      onSuccess: (result) => {
-        setSubmittingId(null);
+      onSuccess: (result, variables) => {
+        setIsSaving(false);
+
+        // Clear only the picks we just saved
+        const savedIds = new Set(
+          variables.data.picks.map((p) => p.espnEventId),
+        );
+        setPendingPicks((prev) => {
+          const next = new Map(prev);
+          for (const id of savedIds) next.delete(id);
+          return next;
+        });
+
         if (result.rejectedEventIds?.length) {
+          const savedCount = result.saved;
           toast({
-            title: "Pick rejected — match locked",
-            description: "That match has already kicked off.",
-            variant: "destructive",
+            title:
+              savedCount > 0
+                ? `${savedCount} pick${savedCount !== 1 ? "s" : ""} saved`
+                : "No picks saved",
+            description: `${result.rejectedEventIds.length} match${result.rejectedEventIds.length !== 1 ? "es" : ""} already kicked off and could not be updated.`,
+            variant: savedCount > 0 ? "default" : "destructive",
+          });
+        } else {
+          const n = result.saved;
+          toast({
+            title: `${n} pick${n !== 1 ? "s" : ""} saved!`,
+            description: "Your selections have been recorded.",
           });
         }
+
         void queryClient.invalidateQueries({
           queryKey: getGetWcBracketQueryKey(poolId),
         });
@@ -451,9 +673,9 @@ export function WcBracketView({ poolId }: { poolId: number }) {
         });
       },
       onError: () => {
-        setSubmittingId(null);
+        setIsSaving(false);
         toast({
-          title: "Error saving pick",
+          title: "Error saving picks",
           description: "Please try again.",
           variant: "destructive",
         });
@@ -461,9 +683,47 @@ export function WcBracketView({ poolId }: { poolId: number }) {
     },
   });
 
-  function handlePick(espnEventId: string, pickedTeam: string) {
-    setSubmittingId(espnEventId);
-    mutate({ poolId, data: { picks: [{ espnEventId, pickedTeam }] } });
+  // Click on a team: stage or update a pending pick
+  const handlePick = useCallback(
+    (espnEventId: string, pickedTeam: string) => {
+      const match = matches?.find((m) => m.espnEventId === espnEventId);
+      if (!match || match.isLocked) return;
+
+      setPendingPicks((prev) => {
+        const next = new Map(prev);
+        const hasPending = next.has(espnEventId);
+        const currentPending = next.get(espnEventId);
+
+        if (hasPending) {
+          if (currentPending === pickedTeam || pickedTeam === match.pickedTeam) {
+            // Clicking the pending pick OR the saved pick → revert to server state
+            next.delete(espnEventId);
+          } else {
+            // Switch to a different pending pick
+            next.set(espnEventId, pickedTeam);
+          }
+        } else {
+          if (pickedTeam !== (match.pickedTeam ?? "")) {
+            // Stage a pick that differs from saved
+            next.set(espnEventId, pickedTeam);
+          }
+          // else: clicking the already-saved pick → no-op
+        }
+        return next;
+      });
+    },
+    [matches],
+  );
+
+  // Submit all pending picks at once
+  function handleSave() {
+    if (pendingPicks.size === 0 || isSaving) return;
+    setIsSaving(true);
+    const picks = [...pendingPicks.entries()].map(([espnEventId, pickedTeam]) => ({
+      espnEventId,
+      pickedTeam,
+    }));
+    mutate({ poolId, data: { picks } });
   }
 
   // Group by calendar date (first 10 chars of ISO matchDate)
@@ -482,10 +742,10 @@ export function WcBracketView({ poolId }: { poolId: number }) {
   const { totalPicked, totalCorrect } = useMemo(() => {
     if (!matches) return { totalPicked: 0, totalCorrect: 0 };
     return {
-      totalPicked: matches.filter((m) => m.pickedTeam).length,
+      totalPicked: matches.filter((m) => m.pickedTeam || pendingPicks.has(m.espnEventId)).length,
       totalCorrect: matches.filter((m) => m.isCorrect === true).length,
     };
-  }, [matches]);
+  }, [matches, pendingPicks]);
 
   if (isLoading) {
     return (
@@ -504,96 +764,149 @@ export function WcBracketView({ poolId }: { poolId: number }) {
   }
 
   return (
-    <Tabs defaultValue="matches" className="w-full">
-      {/* Tab nav */}
-      <div className="relative">
-        <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-            <TabsTrigger
-              value="matches"
-              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
-            >
-              <Target className="w-4 h-4 md:w-5 md:h-5" /> Matches
-            </TabsTrigger>
-            <TabsTrigger
-              value="leaderboard"
-              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
-            >
-              <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
-            </TabsTrigger>
-          </TabsList>
+    <>
+      <Tabs defaultValue="matches" className="w-full">
+        {/* Tab nav */}
+        <div className="relative">
+          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+              <TabsTrigger
+                value="matches"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
+              >
+                <Target className="w-4 h-4 md:w-5 md:h-5" /> Matches
+              </TabsTrigger>
+              <TabsTrigger
+                value="leaderboard"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
+              >
+                <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
         </div>
-        <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
-      </div>
 
-      <div className="mt-8">
-        {/* Matches tab */}
-        <TabsContent value="matches" className="m-0 focus-visible:outline-none">
-          {/* Summary bar */}
-          {matches && matches.length > 0 && (
-            <div className="flex flex-wrap gap-3 mb-6">
-              <div className="bg-card border border-border/50 px-4 py-2.5 rounded-lg text-center">
-                <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">
-                  Picks Made
-                </div>
-                <div className="font-bebas text-2xl text-primary leading-none">
-                  {totalPicked}
-                  <span className="text-base text-muted-foreground/60">
-                    {" "}
-                    / {matches.length}
-                  </span>
-                </div>
-              </div>
-              {totalCorrect > 0 && (
-                <div className="bg-green-500/10 border border-green-500/20 px-4 py-2.5 rounded-lg text-center">
-                  <div className="text-[10px] text-green-400/80 uppercase font-bold tracking-wider mb-0.5">
-                    Correct
+        <div className="mt-8">
+          {/* Matches tab */}
+          <TabsContent value="matches" className="m-0 focus-visible:outline-none">
+            {/* Summary bar + Save button */}
+            {matches && matches.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="bg-card border border-border/50 px-4 py-2.5 rounded-lg text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">
+                    Picks Made
                   </div>
-                  <div className="font-bebas text-2xl text-green-400 leading-none">
-                    {totalCorrect}
-                    <span className="text-base text-green-400/50">
+                  <div className="font-bebas text-2xl text-primary leading-none">
+                    {totalPicked}
+                    <span className="text-base text-muted-foreground/60">
                       {" "}
-                      / {totalPicked}
+                      / {matches.length}
                     </span>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+                {totalCorrect > 0 && (
+                  <div className="bg-green-500/10 border border-green-500/20 px-4 py-2.5 rounded-lg text-center">
+                    <div className="text-[10px] text-green-400/80 uppercase font-bold tracking-wider mb-0.5">
+                      Correct
+                    </div>
+                    <div className="font-bebas text-2xl text-green-400 leading-none">
+                      {totalCorrect}
+                      <span className="text-base text-green-400/50">
+                        {" "}
+                        / {totalPicked}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
-          {/* Date-grouped match cards */}
-          <div className="space-y-8">
-            {grouped.map(([day, dayMatches]) => (
-              <div key={day}>
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className="font-bebas text-xl tracking-wide text-muted-foreground shrink-0">
-                    {formatDateHeading(day)}
-                  </h3>
-                  <div className="flex-1 h-px bg-border/30" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {dayMatches.map((match) => (
-                    <BracketMatchCard
-                      key={match.espnEventId}
-                      match={match}
-                      submittingId={submittingId}
-                      onPick={handlePick}
-                    />
-                  ))}
+                {/* Save Picks button — always rendered, enabled only when pending picks exist */}
+                <div className="ml-auto">
+                  <Button
+                    onClick={handleSave}
+                    disabled={pendingPicks.size === 0 || isSaving}
+                    className={cn(
+                      "font-bebas tracking-wider text-base px-5 py-2.5 h-auto transition-all",
+                      pendingPicks.size > 0 && !isSaving
+                        ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/30"
+                        : "",
+                    )}
+                    variant={pendingPicks.size > 0 ? "default" : "outline"}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        {pendingPicks.size > 0
+                          ? `Save ${pendingPicks.size} Pick${pendingPicks.size !== 1 ? "s" : ""}`
+                          : "Save Picks"}
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        </TabsContent>
+            )}
 
-        {/* Leaderboard tab */}
-        <TabsContent
-          value="leaderboard"
-          className="m-0 focus-visible:outline-none"
-        >
-          <WcBracketLeaderboard poolId={poolId} />
-        </TabsContent>
-      </div>
-    </Tabs>
+            {/* Pending picks reminder */}
+            {pendingPicks.size > 0 && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                {pendingPicks.size} unsaved pick{pendingPicks.size !== 1 ? "s" : ""} — click{" "}
+                <span className="font-bold">Save Picks</span> to submit
+              </div>
+            )}
+
+            {/* Date-grouped match cards */}
+            <div className="space-y-8">
+              {grouped.map(([day, dayMatches]) => (
+                <div key={day}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="font-bebas text-xl tracking-wide text-muted-foreground shrink-0">
+                      {formatDateHeading(day)}
+                    </h3>
+                    <div className="flex-1 h-px bg-border/30" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {dayMatches.map((match) => (
+                      <BracketMatchCard
+                        key={match.espnEventId}
+                        match={match}
+                        pendingTeam={pendingPicks.get(match.espnEventId) ?? null}
+                        onPick={handlePick}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Leaderboard tab */}
+          <TabsContent
+            value="leaderboard"
+            className="m-0 focus-visible:outline-none"
+          >
+            <WcBracketLeaderboard
+              poolId={poolId}
+              onSelectPlayer={setSelectedPlayer}
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      {/* Member picks modal */}
+      {selectedPlayer && (
+        <WcBracketMemberPicksModal
+          poolId={poolId}
+          userId={selectedPlayer.userId}
+          displayName={selectedPlayer.displayName || selectedPlayer.username}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
+    </>
   );
 }
