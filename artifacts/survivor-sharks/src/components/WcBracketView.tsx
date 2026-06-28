@@ -1,12 +1,14 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   useGetWcBracket,
   useSubmitWcBracketPicks,
   useGetWcBracketLeaderboard,
   useGetWcBracketMemberPicks,
+  useUpdatePool,
   getGetWcBracketQueryKey,
   getGetWcBracketLeaderboardQueryKey,
   getGetWcBracketMemberPicksQueryKey,
+  getGetPoolQueryKey,
 } from "@workspace/api-client-react";
 import type { WcBracketMatch, WcBracketLeaderboardEntry } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,6 +17,10 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +36,9 @@ import {
   Target,
   Loader2,
   Save,
+  Copy,
+  ShieldAlert,
+  Settings2,
 } from "lucide-react";
 
 // ── ESPN country flag CDN slug map ────────────────────────────────────────────
@@ -614,7 +623,19 @@ function WcBracketLeaderboard({
 
 // ── WcBracketView (main export) ───────────────────────────────────────────────
 
-export function WcBracketView({ poolId }: { poolId: number }) {
+export function WcBracketView({
+  poolId,
+  isCommissioner = false,
+  inviteCode,
+  poolName,
+  poolDescription,
+}: {
+  poolId: number;
+  isCommissioner?: boolean;
+  inviteCode?: string;
+  poolName?: string;
+  poolDescription?: string;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -627,6 +648,45 @@ export function WcBracketView({ poolId }: { poolId: number }) {
   // Selected player for the picks modal (leaderboard click)
   const [selectedPlayer, setSelectedPlayer] =
     useState<WcBracketLeaderboardEntry | null>(null);
+
+  // Commissioner settings form
+  const [commName, setCommName] = useState(poolName ?? "");
+  const [commDesc, setCommDesc] = useState(poolDescription ?? "");
+  const updatePool = useUpdatePool();
+
+  useEffect(() => {
+    setCommName(poolName ?? "");
+    setCommDesc(poolDescription ?? "");
+  }, [poolName, poolDescription]);
+
+  const handleCommissionerSave = () => {
+    updatePool.mutate(
+      { poolId, data: { name: commName, description: commDesc } } as any,
+      {
+        onSuccess: () => {
+          toast({ title: "Settings saved", description: "Pool configuration updated." });
+          queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
+        },
+        onError: (err: any) => {
+          toast({ variant: "destructive", title: "Failed to save", description: err?.message || "An error occurred" });
+        },
+      }
+    );
+  };
+
+  const copyInvite = () => {
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode);
+      toast({ title: "Invite code copied!" });
+    }
+  };
+
+  const copyInviteLink = () => {
+    if (inviteCode) {
+      navigator.clipboard.writeText(`${window.location.origin}/join/${inviteCode}`);
+      toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
+    }
+  };
 
   const { data: matches, isLoading } = useGetWcBracket(poolId, {
     query: { queryKey: getGetWcBracketQueryKey(poolId) },
@@ -782,6 +842,14 @@ export function WcBracketView({ poolId }: { poolId: number }) {
               >
                 <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
               </TabsTrigger>
+              {isCommissioner && (
+                <TabsTrigger
+                  value="commissioner"
+                  className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
+                >
+                  <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
           <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
@@ -895,6 +963,65 @@ export function WcBracketView({ poolId }: { poolId: number }) {
               onSelectPlayer={setSelectedPlayer}
             />
           </TabsContent>
+
+          {/* Commissioner tab */}
+          {isCommissioner && (
+            <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
+              <div className="space-y-8 max-w-4xl">
+                {/* Invite Code */}
+                <Card className="bg-card border-border/50 overflow-hidden relative">
+                  <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />
+                  <CardHeader>
+                    <CardTitle className="font-bebas text-3xl tracking-wide text-primary">Invite Code</CardTitle>
+                    <CardDescription>Share this code to let sharks into the pool.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
+                        {inviteCode ?? "—"}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="lg" onClick={copyInvite} disabled={!inviteCode} className="font-bebas text-xl tracking-wider">
+                          <Copy className="w-5 h-5 mr-2" /> Copy Code
+                        </Button>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          disabled={!inviteCode}
+                          className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
+                          onClick={copyInviteLink}
+                        >
+                          <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Settings */}
+                <Card className="bg-card border-border/50">
+                  <CardHeader>
+                    <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+                      <Settings2 className="w-5 h-5 text-muted-foreground" /> Settings
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="grid gap-2">
+                      <Label className="font-bebas text-lg tracking-wide">Pool Name</Label>
+                      <Input value={commName} onChange={e => setCommName(e.target.value)} className="bg-background/50 border-border" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="font-bebas text-lg tracking-wide">Description</Label>
+                      <Textarea value={commDesc} onChange={e => setCommDesc(e.target.value)} className="bg-background/50 border-border min-h-[100px]" />
+                    </div>
+                    <Button onClick={handleCommissionerSave} disabled={updatePool.isPending} className="w-full font-bebas text-xl tracking-wider h-12 mt-2">
+                      {updatePool.isPending ? "Saving..." : "Save Settings"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          )}
         </div>
       </Tabs>
 

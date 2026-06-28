@@ -439,7 +439,13 @@ export default function PoolHome() {
                 </div>
               </Tabs>
             ) : isWcBracket ? (
-              <WcBracketView poolId={pool.id} />
+              <WcBracketView
+                poolId={pool.id}
+                isCommissioner={isCommissioner}
+                inviteCode={pool.inviteCode ?? undefined}
+                poolName={pool.name}
+                poolDescription={pool.description ?? undefined}
+              />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <div className="relative">
