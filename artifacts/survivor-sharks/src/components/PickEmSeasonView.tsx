@@ -1287,10 +1287,11 @@ export function PickEmSeasonView({
       return;
     }
 
-    if (isWeek18 && !sandboxMode) {
+    if (isWeek18) {
       const py = parseInt(tbPassingYards, 10);
       const ry = parseInt(tbRushingYards, 10);
-      if (!py || !ry || isNaN(py) || isNaN(ry)) {
+      const hasTiebreaker = !isNaN(py) && py > 0 && !isNaN(ry) && ry > 0;
+      if (!sandboxMode && !hasTiebreaker) {
         toast({
           variant: "destructive",
           title: "Tiebreaker required",
@@ -1305,8 +1306,9 @@ export function PickEmSeasonView({
           data: {
             week: displayWeek,
             picks,
-            tiebreakerPassingYards: py,
-            tiebreakerRushingYards: ry,
+            ...(hasTiebreaker
+              ? { tiebreakerPassingYards: py, tiebreakerRushingYards: ry }
+              : {}),
           },
         },
         {
@@ -1623,7 +1625,7 @@ export function PickEmSeasonView({
                   ))}
 
                   {/* Week 18 tiebreaker */}
-                  {isWeek18 && !sandboxMode && openGames.length > 0 && (
+                  {isWeek18 && openGames.length > 0 && (
                     <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.05] p-5 space-y-3">
                       <div>
                         <h4 className="font-bebas text-xl tracking-wide text-yellow-300 mb-0.5">
