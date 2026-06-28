@@ -1332,7 +1332,7 @@ export function PickEmSeasonView({
       return;
     }
 
-    if (isWeek18 && !sandboxMode) {
+    if (isWeek18) {
       pendingPicksRef.current = picks;
       setTbPassingYards("");
       setTbRushingYards("");
