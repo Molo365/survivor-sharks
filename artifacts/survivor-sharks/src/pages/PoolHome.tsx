@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera } from "lucide-react";
+import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -34,6 +34,7 @@ import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
 import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
+import { WcBracketView } from "@/components/WcBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 export default function PoolHome() {
@@ -52,6 +53,7 @@ export default function PoolHome() {
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
+  const isWcBracket = (pool?.poolType as string) === "wc_bracket";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -134,6 +136,11 @@ export default function PoolHome() {
                   {(pool.poolType as string) === "group_stage_predictor" && (
                     <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
                       <ListOrdered className="w-3 h-3" /> Group Predictor
+                    </span>
+                  )}
+                  {isWcBracket && (
+                    <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
+                      <Globe className="w-3 h-3" /> Round of 32
                     </span>
                   )}
                   {isNdp && (
@@ -431,6 +438,8 @@ export default function PoolHome() {
                   )}
                 </div>
               </Tabs>
+            ) : isWcBracket ? (
+              <WcBracketView poolId={pool.id} />
             ) : (
             <Tabs defaultValue="pick" className="w-full">
               <div className="relative">

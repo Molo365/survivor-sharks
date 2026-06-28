@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat } from "lucide-react";
+import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
-  [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor"],
+  [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor", "wc_bracket"],
 };
 
 const POOL_TYPES = [
@@ -113,6 +113,18 @@ const POOL_TYPES = [
     badgeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     cardClass:
       "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
+  },
+  {
+    id: "wc_bracket" as const,
+    label: "Round of 32 Bracket",
+    icon: Globe,
+    tagline: "Pick the Winner of Every R32 Match",
+    description:
+      "Pick the winner of all 16 Round of 32 matches. Each game locks individually at kickoff — most correct picks wins.",
+    badge: "WC 2026",
+    badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
+    cardClass:
+      "border-green-500/30 bg-[linear-gradient(145deg,rgba(34,197,94,0.06)_0%,transparent_100%)]",
   },
   {
     id: "nfl_division_predictor" as const,
