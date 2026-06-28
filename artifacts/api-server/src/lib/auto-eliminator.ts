@@ -36,7 +36,6 @@ import {
   getTeamsWithWin,
 } from "./espn";
 import {
-  getCurrentWcPhase,
   fetchTodayWcGames,
   fetchWcGamesForDate,
   wcOutcome as wcOutcomeFromWc,
@@ -1148,9 +1147,11 @@ export async function processPickEmResults(): Promise<{
   // ── World Cup grading (3-way: home_win / draw / away_win) ─────────────────
 
   if (wcPools.length > 0) {
-    const wcPhase = getCurrentWcPhase();
-    // Only grade during active WC phases; skip if no phase active
-    if (wcPhase) {
+    // Fetch today + yesterday regardless of phase — the gap between group stage
+    // (ends Jun 27) and knockout stage (starts Jul 3) is 6 days where the phase
+    // is null but picks from the last group-stage day still need grading.
+    // Downstream code handles "no games found" gracefully.
+    {
       const [wcTodayGames, wcYesterdayGames] = await Promise.all([
         fetchTodayWcGames(),
         fetchWcGamesForDate(yesterdayEt),
