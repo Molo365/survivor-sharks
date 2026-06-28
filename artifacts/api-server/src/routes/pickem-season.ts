@@ -663,11 +663,123 @@ router.post("/process-results", requireAuth, async (req, res) => {
       set: { gameCount: games.length, recordedAt: new Date() },
     });
 
+  // ── Season-end closure (Week 18 only) ─────────────────────────────────────
+  // Fires when every Week 18 game is complete. Idempotent: skips if the pool
+  // is already closed (commissioner re-runs process-results after closure).
+  let closureApplied = false;
+  let closureWinnerCount = 0;
+  if (week === NFL_TOTAL_WEEKS && pool.isActive) {
+    const allGamesComplete =
+      games.length > 0 &&
+      games.every((g) => completedGames.some((c) => c.id === g.id));
+
+    if (!allGamesComplete) {
+      req.log.info(
+        { poolId, week, total: games.length, completed: completedGames.length },
+        "pickem-season Week 18: not all games complete — season closure deferred",
+      );
+    } else {
+      // 1. Season totals for every pool member (correct picks across all weeks)
+      const seasonTotals = await db
+        .select({
+          userId: pickemPicksTable.userId,
+          seasonCorrect: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        })
+        .from(pickemPicksTable)
+        .where(eq(pickemPicksTable.poolId, poolId))
+        .groupBy(pickemPicksTable.userId);
+
+      if (seasonTotals.length === 0) {
+        req.log.warn({ poolId }, "pickem-season Week 18 closure: no pick data — skipping");
+      } else {
+        const maxCorrect = Math.max(...seasonTotals.map((r) => Number(r.seasonCorrect)));
+        let topGroup = seasonTotals.filter((r) => Number(r.seasonCorrect) === maxCorrect);
+
+        // 2. Tiebreaker resolution when top group has multiple players
+        if (topGroup.length > 1) {
+          // Prefer actuals already fetched in this run; fall back to a stored row
+          let resolvedPassingYards = actualPassingYards;
+          let resolvedRushingYards = actualRushingYards;
+          if (resolvedPassingYards === null) {
+            const [stored] = await db
+              .select({
+                actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
+                actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+              })
+              .from(nflConfidenceResultsTable)
+              .where(
+                and(
+                  eq(nflConfidenceResultsTable.poolId, poolId),
+                  eq(nflConfidenceResultsTable.week, NFL_TOTAL_WEEKS),
+                ),
+              )
+              .limit(1);
+            resolvedPassingYards = stored?.actualPassingYards ?? null;
+            resolvedRushingYards = stored?.actualRushingYards ?? null;
+          }
+
+          if (resolvedPassingYards !== null && resolvedRushingYards !== null) {
+            const topUserIds = topGroup.map((r) => r.userId);
+            const tbGuesses = await db
+              .select({
+                userId: entriesTable.userId,
+                tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
+                tiebreakerRushingYards: entriesTable.tiebreakerRushingYards,
+              })
+              .from(entriesTable)
+              .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, topUserIds)));
+
+            const tbMap = new Map(tbGuesses.map((g) => [g.userId, g]));
+            const rpy = resolvedPassingYards;
+            const rry = resolvedRushingYards;
+            const tbDelta = (uid: number): number => {
+              const g = tbMap.get(uid);
+              if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return Infinity;
+              return Math.abs(g.tiebreakerPassingYards - rpy) + Math.abs(g.tiebreakerRushingYards - rry);
+            };
+
+            topGroup.sort((a, b) => tbDelta(a.userId) - tbDelta(b.userId));
+            const bestDelta = tbDelta(topGroup[0].userId);
+            topGroup = topGroup.filter((r) => tbDelta(r.userId) === bestDelta);
+
+            req.log.info(
+              { poolId, resolvedPassingYards, resolvedRushingYards, bestDelta, remainingTied: topGroup.length },
+              "pickem-season Week 18: yardage tiebreaker applied",
+            );
+          } else {
+            req.log.info({ poolId }, "pickem-season Week 18: tiebreaker actuals unavailable — split declared");
+          }
+        }
+
+        const winnerUserIds = topGroup.map((r) => r.userId);
+
+        // 3. Mark winner(s) and close the pool
+        await db
+          .update(entriesTable)
+          .set({ finalWinner: true })
+          .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerUserIds)));
+
+        await db
+          .update(poolsTable)
+          .set({ isActive: false, endedAt: new Date() })
+          .where(eq(poolsTable.id, poolId));
+
+        closureApplied = true;
+        closureWinnerCount = winnerUserIds.length;
+        req.log.info(
+          { poolId, maxCorrect, winnerCount: winnerUserIds.length, winnerUserIds },
+          "pickem-season Week 18: season closed",
+        );
+      }
+    }
+  }
+
   res.json({
     graded,
     week,
     completedGames: completedGameIds.length,
     ...(actualPassingYards != null ? { actualPassingYards, actualRushingYards } : {}),
+    ...(closureApplied ? { seasonClosed: true, winnerCount: closureWinnerCount } : {}),
   });
 });
 
