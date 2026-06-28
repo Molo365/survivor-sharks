@@ -362,7 +362,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(currentWeek !== undefined && { currentWeek }),
     ...(season !== undefined && { season }),
     ...(isActive !== undefined && { isActive }),
-    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" }),
+    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" | "wc_bracket" }),
     ...(startWeek !== undefined && { startWeek }),
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),

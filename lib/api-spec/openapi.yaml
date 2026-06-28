@@ -1862,7 +1862,7 @@ components:
           enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl]
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket]
           default: season
         startWeek:
           type: integer
@@ -1920,7 +1920,7 @@ components:
           type: boolean
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket]
         startWeek:
           type: integer
         doubleElimination:
@@ -2039,7 +2039,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -2110,7 +2110,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket]
         startWeek:
           type: ["integer", "null"]
         description:
@@ -2187,7 +2187,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket]
         currentWeek:
           type: integer
         season:
