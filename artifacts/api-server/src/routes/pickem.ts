@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
@@ -1251,7 +1251,71 @@ router.post("/process-results", requireAuth, async (req, res) => {
     }
   }
 
-  res.json({ processed, date: todayEt });
+  // ── WC group stage closure ───────────────────────────────────────────────
+  // Fires when: sport=worldcup, group stage has ended, zero pending picks
+  // remain in the group stage date range. Sets final_winner on the winner(s)
+  // and marks the pool inactive. Safe to re-run: inArray([], …) is guarded.
+  let wcGroupStageClosed = false;
+  let wcGroupStageWinnerCount = 0;
+
+  if (isWc && pool.isActive && todayEt > WC_PHASES.group_stage.end) {
+    const [{ pendingCount }] = await db
+      .select({ pendingCount: sql<string>`COUNT(*)` })
+      .from(pickemPicksTable)
+      .where(and(
+        eq(pickemPicksTable.poolId, poolId),
+        gte(pickemPicksTable.gameDate, WC_PHASES.group_stage.start),
+        lte(pickemPicksTable.gameDate, WC_PHASES.group_stage.end),
+        eq(pickemPicksTable.result, "pending"),
+      ));
+
+    if (Number(pendingCount) === 0) {
+      const totals = await db
+        .select({
+          userId: pickemPicksTable.userId,
+          correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          gte(pickemPicksTable.gameDate, WC_PHASES.group_stage.start),
+          lte(pickemPicksTable.gameDate, WC_PHASES.group_stage.end),
+        ))
+        .groupBy(pickemPicksTable.userId);
+
+      if (totals.length > 0) {
+        const maxCorrect = Math.max(...totals.map((r) => Number(r.correct)));
+        const winnerIds = totals
+          .filter((r) => Number(r.correct) === maxCorrect)
+          .map((r) => r.userId);
+
+        if (winnerIds.length > 0) {
+          await db
+            .update(entriesTable)
+            .set({ finalWinner: true })
+            .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+
+          await db
+            .update(poolsTable)
+            .set({ isActive: false, endedAt: new Date() })
+            .where(eq(poolsTable.id, poolId));
+
+          wcGroupStageClosed = true;
+          wcGroupStageWinnerCount = winnerIds.length;
+          req.log.info(
+            { poolId, maxCorrect, winnerCount: winnerIds.length, winnerIds },
+            "WC Pick-Ems: group stage ended — pool closed and winner(s) declared",
+          );
+        }
+      }
+    }
+  }
+
+  res.json({
+    processed,
+    date: todayEt,
+    ...(isWc ? { wcGroupStageClosed, wcGroupStageWinnerCount } : {}),
+  });
 });
 
 // POST /api/pools/:poolId/pickem/simulate-grading — sandbox grading for NHL Weekly Pick'em

@@ -19,7 +19,7 @@
 
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count, or, isNull, max } from "drizzle-orm";
+import { eq, and, ne, inArray, count, or, isNull, max, gte, lte } from "drizzle-orm";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -39,6 +39,7 @@ import {
   fetchTodayWcGames,
   fetchWcGamesForDate,
   wcOutcome as wcOutcomeFromWc,
+  WC_PHASES,
   type WcGame,
 } from "./wc";
 import { fetchNhlTiebreakerStats } from "./nhl-stats";
@@ -1204,6 +1205,64 @@ export async function processPickEmResults(): Promise<{
               { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
               "Auto-graded WC pickem pick",
             );
+          }
+        }
+
+        // ── WC group stage auto-closure ────────────────────────────────────
+        // After grading, if the group stage has ended and no pending picks
+        // remain in the group stage range, declare winner(s) and close pool.
+        if (pool.isActive && todayEt > WC_PHASES.group_stage.end) {
+          const [{ pendingCount }] = await db
+            .select({ pendingCount: count() })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              gte(pickemPicksTable.gameDate, WC_PHASES.group_stage.start),
+              lte(pickemPicksTable.gameDate, WC_PHASES.group_stage.end),
+              eq(pickemPicksTable.result, "pending"),
+            ));
+
+          if (Number(pendingCount) === 0) {
+            const totals = await db
+              .select({
+                userId: pickemPicksTable.userId,
+                correct: count(),
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                gte(pickemPicksTable.gameDate, WC_PHASES.group_stage.start),
+                lte(pickemPicksTable.gameDate, WC_PHASES.group_stage.end),
+                eq(pickemPicksTable.result, "correct"),
+              ))
+              .groupBy(pickemPicksTable.userId);
+
+            if (totals.length > 0) {
+              const maxCorrect = Math.max(...totals.map((r) => Number(r.correct)));
+              const winnerIds = totals
+                .filter((r) => Number(r.correct) === maxCorrect)
+                .map((r) => r.userId);
+
+              if (winnerIds.length > 0) {
+                await db
+                  .update(entriesTable)
+                  .set({ finalWinner: true })
+                  .where(and(
+                    eq(entriesTable.poolId, pool.id),
+                    inArray(entriesTable.userId, winnerIds),
+                  ));
+
+                await db
+                  .update(poolsTable)
+                  .set({ isActive: false, endedAt: new Date() })
+                  .where(eq(poolsTable.id, pool.id));
+
+                logger.info(
+                  { poolId: pool.id, maxCorrect, winnerCount: winnerIds.length, winnerIds },
+                  "WC Pick-Ems auto-closure: group stage ended — pool closed and winner(s) declared",
+                );
+              }
+            }
           }
         }
       }

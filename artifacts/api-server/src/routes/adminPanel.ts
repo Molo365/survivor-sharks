@@ -284,6 +284,101 @@ router.get("/gsp/results/:poolId", async (req, res) => {
   })));
 });
 
+// POST /api/admin-panel/gsp/auto-results — auto-populate group standings from ESPN + fire closure
+router.post("/gsp/auto-results", async (req, res) => {
+  const { poolId } = req.body as { poolId: number };
+  if (!poolId) { res.status(400).json({ error: "poolId is required" }); return; }
+
+  const [pool] = await db
+    .select({ id: poolsTable.id, isActive: poolsTable.isActive })
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const standings = await fetchWcStandings();
+  if (standings.length === 0) {
+    res.status(503).json({ error: "ESPN standings unavailable — cannot auto-populate results" });
+    return;
+  }
+
+  const values = standings.map((g) => ({
+    poolId,
+    groupName: g.groupLetter,
+    pos1Team: g.teams[0]?.displayName ?? "",
+    pos2Team: g.teams[1]?.displayName ?? "",
+    pos3Team: g.teams[2]?.displayName ?? "",
+    pos4Team: g.teams[3]?.displayName ?? "",
+  })).filter((v) => v.pos1Team && v.pos2Team && v.pos3Team && v.pos4Team);
+
+  if (values.length === 0) {
+    res.status(400).json({ error: "No complete group standings available from ESPN yet" });
+    return;
+  }
+
+  await db
+    .insert(groupStageResultsTable)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [groupStageResultsTable.poolId, groupStageResultsTable.groupName],
+      set: {
+        pos1Team: sql`excluded.pos1_team`,
+        pos2Team: sql`excluded.pos2_team`,
+        pos3Team: sql`excluded.pos3_team`,
+        pos4Team: sql`excluded.pos4_team`,
+        enteredAt: sql`now()`,
+      },
+    });
+
+  const allSaved = await db
+    .select()
+    .from(groupStageResultsTable)
+    .where(eq(groupStageResultsTable.poolId, poolId));
+
+  let closedPool = false;
+  let closureWarning: string | undefined;
+
+  if (pool.isActive) {
+    try {
+      const distinctCount = allSaved.length;
+      if (distinctCount >= GSP_GROUP_COUNT) {
+        const [allPicks, members] = await Promise.all([
+          db.select().from(groupStagePredictorPicksTable)
+            .where(eq(groupStagePredictorPicksTable.poolId, poolId)),
+          db.select({ userId: entriesTable.userId })
+            .from(entriesTable)
+            .where(eq(entriesTable.poolId, poolId)),
+        ]);
+
+        const resultMap = new Map(allSaved.map((r) => [r.groupName, r]));
+        const outcome = await closePredictorPool({
+          poolId,
+          resultMap,
+          allPicks,
+          memberUserIds: members.map((m) => m.userId),
+          getPickKey: (pick) => pick.groupName,
+          log: req.log,
+        });
+
+        if (outcome.closed) {
+          closedPool = true;
+        } else {
+          closureWarning = outcome.detail ?? `Closure skipped (${outcome.reason})`;
+        }
+      }
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
+      req.log.error({ err, poolId }, "GSP auto-results: closure detection failed");
+      closureWarning = `Pool closure check failed: ${detail}. Results were saved — please retry.`;
+    }
+  }
+
+  req.log.info({ poolId, groupCount: values.length, closedPool }, "GSP auto-results populated from ESPN standings");
+  res.json(closureWarning
+    ? { saved: values.length, closedPool, closureWarning }
+    : { saved: values.length, closedPool });
+});
+
 // POST /api/admin-panel/gsp/results — enter actual group stage standings
 // Body: { poolId: number, results: Array<{ groupName, pos1Team..pos4Team }> }
 router.post("/gsp/results", async (req, res) => {

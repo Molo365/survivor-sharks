@@ -15,7 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2 } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -69,6 +69,7 @@ function GspResultsSection() {
   const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null);
   const [groupResults, setGroupResults] = useState<Record<string, GroupResultState>>({});
   const [saving, setSaving] = useState(false);
+  const [autoPopulating, setAutoPopulating] = useState(false);
 
   const { data: pools, isLoading: loadingPools } = useQuery<GspPool[]>({
     queryKey: ["admin-gsp-pools"],
@@ -115,6 +116,31 @@ function GspResultsSection() {
     const r = groupResults[g.name];
     return r && r.every((t) => t !== "");
   }) ?? [];
+
+  const handleAutoPopulate = async () => {
+    if (!selectedPoolId) return;
+    setAutoPopulating(true);
+    try {
+      const data = await adminFetch("/gsp/auto-results", {
+        method: "POST",
+        body: JSON.stringify({ poolId: selectedPoolId }),
+      }) as { saved: number; closedPool: boolean; closureWarning?: string };
+      qc.invalidateQueries({ queryKey: ["admin-gsp-results", selectedPoolId] });
+      if (data?.closureWarning) {
+        qc.invalidateQueries({ queryKey: ["admin-gsp-pools"] });
+        toast({ variant: "destructive", title: `Populated ${data.saved} groups from ESPN — closure failed`, description: data.closureWarning });
+      } else if (data?.closedPool) {
+        qc.invalidateQueries({ queryKey: ["admin-gsp-pools"] });
+        toast({ title: "Pool closed — winner declared!", description: `Imported ${data.saved} group results from ESPN standings. Leaderboard now shows the winner.` });
+      } else {
+        toast({ title: `Imported ${data.saved} group results from ESPN`, description: "Leaderboard scores will update automatically." });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Auto-populate failed", description: "ESPN standings may be unavailable. Try again or enter results manually." });
+    } finally {
+      setAutoPopulating(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!selectedPoolId || completedGroups.length === 0) return;
@@ -173,10 +199,22 @@ function GspResultsSection() {
           </Select>
         )}
 
+        {selectedPoolId !== null && (
+          <Button
+            onClick={handleAutoPopulate}
+            disabled={autoPopulating || saving}
+            variant="outline"
+            className="gap-2 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 font-semibold"
+          >
+            <RefreshCw className={`w-4 h-4 ${autoPopulating ? "animate-spin" : ""}`} />
+            {autoPopulating ? "Importing…" : "Auto-populate from ESPN"}
+          </Button>
+        )}
+
         {selectedPoolId !== null && completedGroups.length > 0 && (
           <Button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || autoPopulating}
             className="gap-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold"
           >
             <Save className="w-4 h-4" />
