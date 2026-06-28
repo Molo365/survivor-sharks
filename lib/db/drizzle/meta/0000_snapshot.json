@@ -1,0 +1,1879 @@
+{
+  "id": "defb5fc3-5ec3-494e-9fce-ba649c9bc02a",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        },
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pools": {
+      "name": "pools",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sport": {
+          "name": "sport",
+          "type": "sport_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nfl'"
+        },
+        "pool_type_col": {
+          "name": "pool_type_col",
+          "type": "pool_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'season'"
+        },
+        "start_week": {
+          "name": "start_week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invite_code": {
+          "name": "invite_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_week": {
+          "name": "current_week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "season": {
+          "name": "season",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2025
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "commissioner_id": {
+          "name": "commissioner_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_entries": {
+          "name": "max_entries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_entries": {
+          "name": "min_entries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entry_fee": {
+          "name": "entry_fee",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prize_pot": {
+          "name": "prize_pot",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prize_structure": {
+          "name": "prize_structure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "double_elimination": {
+          "name": "double_elimination",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "pick_frequency": {
+          "name": "pick_frequency",
+          "type": "pick_frequency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'weekly'"
+        },
+        "is_recurring": {
+          "name": "is_recurring",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "sandbox_mode": {
+          "name": "sandbox_mode",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sandbox_week": {
+          "name": "sandbox_week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "ndp_tb1_game_id": {
+          "name": "ndp_tb1_game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ndp_tb2_game_id": {
+          "name": "ndp_tb2_game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pools_commissioner_id_users_id_fk": {
+          "name": "pools_commissioner_id_users_id_fk",
+          "tableFrom": "pools",
+          "tableTo": "users",
+          "columnsFrom": [
+            "commissioner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pools_invite_code_unique": {
+          "name": "pools_invite_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "invite_code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.entries": {
+      "name": "entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "entry_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'alive'"
+        },
+        "eliminated_week": {
+          "name": "eliminated_week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strike_count": {
+          "name": "strike_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "streak": {
+          "name": "streak",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tiebreaker_prediction": {
+          "name": "tiebreaker_prediction",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_runs": {
+          "name": "tiebreaker_runs",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_strikeouts": {
+          "name": "tiebreaker_strikeouts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_passing_yards": {
+          "name": "tiebreaker_passing_yards",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_rushing_yards": {
+          "name": "tiebreaker_rushing_yards",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_shots_on_goal": {
+          "name": "tiebreaker_shots_on_goal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiebreaker_penalty_minutes": {
+          "name": "tiebreaker_penalty_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sov_total": {
+          "name": "sov_total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_winner": {
+          "name": "final_winner",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "entries_pool_id_pools_id_fk": {
+          "name": "entries_pool_id_pools_id_fk",
+          "tableFrom": "entries",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "entries_user_id_users_id_fk": {
+          "name": "entries_user_id_users_id_fk",
+          "tableFrom": "entries",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.picks": {
+      "name": "picks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_name": {
+          "name": "team_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_logo_url": {
+          "name": "team_logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pick_date": {
+          "name": "pick_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result": {
+          "name": "result",
+          "type": "pick_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "margin_of_victory": {
+          "name": "margin_of_victory",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "picks_entry_id_entries_id_fk": {
+          "name": "picks_entry_id_entries_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "entries",
+          "columnsFrom": [
+            "entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "picks_pool_id_pools_id_fk": {
+          "name": "picks_pool_id_pools_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "picks_user_id_users_id_fk": {
+          "name": "picks_user_id_users_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.week_results": {
+      "name": "week_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "losing_team_ids": {
+          "name": "losing_team_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "is_voided": {
+          "name": "is_voided",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "processed_by": {
+          "name": "processed_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "week_results_pool_id_pools_id_fk": {
+          "name": "week_results_pool_id_pools_id_fk",
+          "tableFrom": "week_results",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "week_results_processed_by_users_id_fk": {
+          "name": "week_results_processed_by_users_id_fk",
+          "tableFrom": "week_results",
+          "tableTo": "users",
+          "columnsFrom": [
+            "processed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "week_results_pool_week_unique": {
+          "name": "week_results_pool_week_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "week"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pickem_picks": {
+      "name": "pickem_picks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "game_id": {
+          "name": "game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "game_date": {
+          "name": "game_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "picked_team_id": {
+          "name": "picked_team_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "picked_team_name": {
+          "name": "picked_team_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "pickem_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "confidence_points": {
+          "name": "confidence_points",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "away_score": {
+          "name": "away_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "home_score": {
+          "name": "home_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winner_team_id": {
+          "name": "winner_team_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pickem_picks_pool_id_pools_id_fk": {
+          "name": "pickem_picks_pool_id_pools_id_fk",
+          "tableFrom": "pickem_picks",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pickem_picks_user_id_users_id_fk": {
+          "name": "pickem_picks_user_id_users_id_fk",
+          "tableFrom": "pickem_picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pickem_picks_uniq": {
+          "name": "pickem_picks_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "user_id",
+            "game_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.group_stage_predictor_picks": {
+      "name": "group_stage_predictor_picks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_name": {
+          "name": "group_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos1_team": {
+          "name": "pos1_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos2_team": {
+          "name": "pos2_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos3_team": {
+          "name": "pos3_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos4_team": {
+          "name": "pos4_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "group_stage_predictor_picks_pool_id_pools_id_fk": {
+          "name": "group_stage_predictor_picks_pool_id_pools_id_fk",
+          "tableFrom": "group_stage_predictor_picks",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "group_stage_predictor_picks_user_id_users_id_fk": {
+          "name": "group_stage_predictor_picks_user_id_users_id_fk",
+          "tableFrom": "group_stage_predictor_picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gsp_picks_uniq": {
+          "name": "gsp_picks_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "user_id",
+            "group_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.group_stage_results": {
+      "name": "group_stage_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_name": {
+          "name": "group_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos1_team": {
+          "name": "pos1_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos2_team": {
+          "name": "pos2_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos3_team": {
+          "name": "pos3_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos4_team": {
+          "name": "pos4_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entered_at": {
+          "name": "entered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "entered_by_user_id": {
+          "name": "entered_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "group_stage_results_pool_id_pools_id_fk": {
+          "name": "group_stage_results_pool_id_pools_id_fk",
+          "tableFrom": "group_stage_results",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "group_stage_results_entered_by_user_id_users_id_fk": {
+          "name": "group_stage_results_entered_by_user_id_users_id_fk",
+          "tableFrom": "group_stage_results",
+          "tableTo": "users",
+          "columnsFrom": [
+            "entered_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gsr_pool_group_uniq": {
+          "name": "gsr_pool_group_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "group_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nfl_division_predictor_picks": {
+      "name": "nfl_division_predictor_picks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division_name": {
+          "name": "division_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos1_team": {
+          "name": "pos1_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos2_team": {
+          "name": "pos2_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos3_team": {
+          "name": "pos3_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos4_team": {
+          "name": "pos4_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "nfl_division_predictor_picks_pool_id_pools_id_fk": {
+          "name": "nfl_division_predictor_picks_pool_id_pools_id_fk",
+          "tableFrom": "nfl_division_predictor_picks",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "nfl_division_predictor_picks_user_id_users_id_fk": {
+          "name": "nfl_division_predictor_picks_user_id_users_id_fk",
+          "tableFrom": "nfl_division_predictor_picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ndp_picks_uniq": {
+          "name": "ndp_picks_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "user_id",
+            "division_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nfl_division_predictor_tiebreakers": {
+      "name": "nfl_division_predictor_tiebreakers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tb1_guess": {
+          "name": "tb1_guess",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tb1_actual": {
+          "name": "tb1_actual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tb2_guess": {
+          "name": "tb2_guess",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tb2_actual": {
+          "name": "tb2_actual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "nfl_division_predictor_tiebreakers_pool_id_pools_id_fk": {
+          "name": "nfl_division_predictor_tiebreakers_pool_id_pools_id_fk",
+          "tableFrom": "nfl_division_predictor_tiebreakers",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "nfl_division_predictor_tiebreakers_user_id_users_id_fk": {
+          "name": "nfl_division_predictor_tiebreakers_user_id_users_id_fk",
+          "tableFrom": "nfl_division_predictor_tiebreakers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ndp_tb_pool_user_uniq": {
+          "name": "ndp_tb_pool_user_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nfl_division_results": {
+      "name": "nfl_division_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division_name": {
+          "name": "division_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos1_team": {
+          "name": "pos1_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos2_team": {
+          "name": "pos2_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos3_team": {
+          "name": "pos3_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pos4_team": {
+          "name": "pos4_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entered_at": {
+          "name": "entered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "entered_by_user_id": {
+          "name": "entered_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "nfl_division_results_pool_id_pools_id_fk": {
+          "name": "nfl_division_results_pool_id_pools_id_fk",
+          "tableFrom": "nfl_division_results",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "nfl_division_results_entered_by_user_id_users_id_fk": {
+          "name": "nfl_division_results_entered_by_user_id_users_id_fk",
+          "tableFrom": "nfl_division_results",
+          "tableTo": "users",
+          "columnsFrom": [
+            "entered_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ndr_pool_div_uniq": {
+          "name": "ndr_pool_div_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "division_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nfl_confidence_results": {
+      "name": "nfl_confidence_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actual_passing_yards": {
+          "name": "actual_passing_yards",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actual_rushing_yards": {
+          "name": "actual_rushing_yards",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "nfl_confidence_results_pool_id_pools_id_fk": {
+          "name": "nfl_confidence_results_pool_id_pools_id_fk",
+          "tableFrom": "nfl_confidence_results",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ncr_pool_week_uniq": {
+          "name": "ncr_pool_week_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "week"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sandbox_game_scores": {
+      "name": "sandbox_game_scores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "game_id": {
+          "name": "game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "home_score": {
+          "name": "home_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "away_score": {
+          "name": "away_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sandbox_game_scores_pool_id_pools_id_fk": {
+          "name": "sandbox_game_scores_pool_id_pools_id_fk",
+          "tableFrom": "sandbox_game_scores",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sgs_pool_week_game_uniq": {
+          "name": "sgs_pool_week_game_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "week",
+            "game_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pickem_season_week_game_counts": {
+      "name": "pickem_season_week_game_counts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "game_count": {
+          "name": "game_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pickem_season_week_game_counts_pool_id_pools_id_fk": {
+          "name": "pickem_season_week_game_counts_pool_id_pools_id_fk",
+          "tableFrom": "pickem_season_week_game_counts",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pickem_season_week_game_counts_uniq": {
+          "name": "pickem_season_week_game_counts_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "week"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.wc_bracket_picks": {
+      "name": "wc_bracket_picks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "espn_event_id": {
+          "name": "espn_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "round": {
+          "name": "round",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "match_slot": {
+          "name": "match_slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "picked_team": {
+          "name": "picked_team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_correct": {
+          "name": "is_correct",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "wc_bracket_picks_pool_id_pools_id_fk": {
+          "name": "wc_bracket_picks_pool_id_pools_id_fk",
+          "tableFrom": "wc_bracket_picks",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "wc_bracket_picks_user_id_users_id_fk": {
+          "name": "wc_bracket_picks_user_id_users_id_fk",
+          "tableFrom": "wc_bracket_picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "wc_bracket_picks_uniq": {
+          "name": "wc_bracket_picks_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "user_id",
+            "espn_event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.wc_bracket_results": {
+      "name": "wc_bracket_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pool_id": {
+          "name": "pool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "espn_event_id": {
+          "name": "espn_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "round": {
+          "name": "round",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "match_slot": {
+          "name": "match_slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team1": {
+          "name": "team1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team2": {
+          "name": "team2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "winner": {
+          "name": "winner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "win_type": {
+          "name": "win_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "match_date": {
+          "name": "match_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "graded_at": {
+          "name": "graded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "wc_bracket_results_pool_id_pools_id_fk": {
+          "name": "wc_bracket_results_pool_id_pools_id_fk",
+          "tableFrom": "wc_bracket_results",
+          "tableTo": "pools",
+          "columnsFrom": [
+            "pool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "wc_bracket_results_uniq": {
+          "name": "wc_bracket_results_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pool_id",
+            "espn_event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "admin"
+      ]
+    },
+    "public.pick_frequency": {
+      "name": "pick_frequency",
+      "schema": "public",
+      "values": [
+        "weekly",
+        "daily"
+      ]
+    },
+    "public.pool_type": {
+      "name": "pool_type",
+      "schema": "public",
+      "values": [
+        "season",
+        "weekly",
+        "mid_season",
+        "pickem",
+        "group_stage_predictor",
+        "pickem_season",
+        "nfl_division_predictor",
+        "dirty_dozen",
+        "crazy_8s",
+        "nfl_confidence",
+        "nfl_confidence_weekly",
+        "wc_bracket"
+      ]
+    },
+    "public.sport_type": {
+      "name": "sport_type",
+      "schema": "public",
+      "values": [
+        "nfl",
+        "mlb",
+        "nba",
+        "nhl",
+        "fifa",
+        "worldcup",
+        "intl"
+      ]
+    },
+    "public.entry_status": {
+      "name": "entry_status",
+      "schema": "public",
+      "values": [
+        "alive",
+        "eliminated"
+      ]
+    },
+    "public.pick_result": {
+      "name": "pick_result",
+      "schema": "public",
+      "values": [
+        "win",
+        "loss",
+        "pending"
+      ]
+    },
+    "public.pickem_result": {
+      "name": "pickem_result",
+      "schema": "public",
+      "values": [
+        "pending",
+        "correct",
+        "incorrect",
+        "postponed"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
