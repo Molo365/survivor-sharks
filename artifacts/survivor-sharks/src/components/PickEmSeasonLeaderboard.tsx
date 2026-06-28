@@ -334,15 +334,13 @@ export function PickEmSeasonLeaderboard({
     );
   }
 
-  // Show tiebreaker actuals card when Week 18 results are known
-  const tbActualsKnown = actualPassingYards != null && actualRushingYards != null;
   // Candidates: rank-1 players who submitted tiebreaker guesses
   const tbCandidates = entries.filter(
     (e) => e.rank === 1 && (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null),
   );
-  const footer = tbActualsKnown && tbCandidates.length > 0 ? (
+  const footer = tbCandidates.length > 0 ? (
     <TiebreakerActualsCard
-      actualPassingYards={actualPassingYards!}
+      actualPassingYards={actualPassingYards}
       actualRushingYards={actualRushingYards}
       tiedPlayers={tbCandidates.map((e) => ({
         userId: e.userId,

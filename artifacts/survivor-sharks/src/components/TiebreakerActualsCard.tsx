@@ -9,7 +9,7 @@ interface TiedPlayer {
 }
 
 interface TiebreakerActualsCardProps {
-  actualPassingYards: number;
+  actualPassingYards: number | null;
   actualRushingYards: number | null;
   tiedPlayers: TiedPlayer[];
 }
@@ -22,7 +22,7 @@ export function TiebreakerActualsCard({ actualPassingYards, actualRushingYards, 
       <div className="flex gap-6">
         <div>
           <p className="text-[10px] text-muted-foreground/60">Combined passing yards</p>
-          <p className="font-bebas text-xl text-yellow-300">{actualPassingYards}</p>
+          <p className="font-bebas text-xl text-yellow-300">{actualPassingYards ?? "—"}</p>
         </div>
         {actualRushingYards != null && (
           <div>
