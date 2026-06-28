@@ -1293,22 +1293,25 @@ export interface GspPick {
   pos4Team: string;
 }
 
-export interface GspGroupWithPick {
-  name: string;
-  teams: GspTeam[];
-  myPick: GspPick | null;
-}
-
-export interface GspPicksInput {
-  picks: GspPick[];
-}
-
 export interface GspGroupResult {
   groupName: string;
   pos1Team: string;
   pos2Team: string;
   pos3Team: string;
   pos4Team: string;
+}
+
+export interface GspGroupWithPick {
+  name: string;
+  teams: GspTeam[];
+  myPick: GspPick | null;
+  result: GspGroupResult | null;
+  /** Points earned for this group (null if no pick or no result yet) */
+  groupScore: number | null;
+}
+
+export interface GspPicksInput {
+  picks: GspPick[];
 }
 
 export interface GspResultsInput {

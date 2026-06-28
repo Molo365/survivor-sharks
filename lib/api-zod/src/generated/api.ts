@@ -1324,7 +1324,15 @@ export const GetGspGroupsResponseItem = zod.object({
   "pos2Team": zod.string(),
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
-}).nullable()
+}).nullable(),
+  "result": zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable(),
+  "groupScore": zod.number().nullable().describe('Points earned for this group (null if no pick or no result yet)')
 })
 export const GetGspGroupsResponse = zod.array(GetGspGroupsResponseItem)
 
@@ -1421,7 +1429,15 @@ export const GetGspMemberPicksResponseItem = zod.object({
   "pos2Team": zod.string(),
   "pos3Team": zod.string(),
   "pos4Team": zod.string()
-}).nullable()
+}).nullable(),
+  "result": zod.object({
+  "groupName": zod.string(),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string()
+}).nullable(),
+  "groupScore": zod.number().nullable().describe('Points earned for this group (null if no pick or no result yet)')
 })
 export const GetGspMemberPicksResponse = zod.array(GetGspMemberPicksResponseItem)
 

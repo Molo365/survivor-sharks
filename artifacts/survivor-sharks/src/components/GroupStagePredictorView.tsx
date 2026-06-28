@@ -30,6 +30,8 @@ import {
   X,
   Globe,
   RefreshCw,
+  Check,
+  Minus,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -53,6 +55,20 @@ const RANK_STYLES = [
   { icon: "🥈", bg: "bg-slate-400/10 border-slate-400/30 text-slate-300" },
   { icon: "🥉", bg: "bg-orange-600/10 border-orange-600/30 text-orange-400" },
 ];
+
+// Returns the points earned for a single predicted position slot, given the actual standings.
+// Mirrors the server-side scorePositions() logic per slot so the UI can show correct/wrong styling.
+function getPositionScore(
+  actual: [string, string, string, string],
+  predicted: [string, string, string, string],
+  slotIdx: number,
+): number {
+  const team = predicted[slotIdx];
+  const actualPos = actual.indexOf(team);
+  if (actualPos === slotIdx) return 3;
+  if (slotIdx < 2 && actualPos >= 0 && actualPos < 2) return 1;
+  return 0;
+}
 
 // ── Player picks modal ────────────────────────────────────────────────────────
 
@@ -103,13 +119,12 @@ function PlayerPicksModal({
               {groups.map((group) => {
                 const teamByName = new Map(group.teams.map((t) => [t.name, t]));
                 const order = group.myPick
-                  ? [
-                      group.myPick.pos1Team,
-                      group.myPick.pos2Team,
-                      group.myPick.pos3Team,
-                      group.myPick.pos4Team,
-                    ]
+                  ? [group.myPick.pos1Team, group.myPick.pos2Team, group.myPick.pos3Team, group.myPick.pos4Team] as [string,string,string,string]
                   : null;
+                const actual = group.result
+                  ? [group.result.pos1Team, group.result.pos2Team, group.result.pos3Team, group.result.pos4Team] as [string,string,string,string]
+                  : null;
+                const hasScore = group.groupScore !== null && group.groupScore !== undefined;
 
                 return (
                   <div
@@ -119,20 +134,43 @@ function PlayerPicksModal({
                       order ? "border-border/50" : "border-border/30 opacity-60",
                     )}
                   >
-                    <p className="font-bebas text-lg tracking-wider text-foreground mb-2 flex items-center gap-1.5">
-                      <span className="text-yellow-400/70 text-sm">GROUP</span>
-                      {group.name}
-                    </p>
+                    {/* Group header */}
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-bebas text-lg tracking-wider text-foreground flex items-center gap-1.5">
+                        <span className="text-yellow-400/70 text-sm">GROUP</span>
+                        {group.name}
+                      </p>
+                      {hasScore && (
+                        <span className={cn(
+                          "text-xs font-bold px-2 py-0.5 rounded-full border",
+                          group.groupScore === 12
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : group.groupScore! > 0
+                              ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                              : "bg-muted/40 text-muted-foreground border-border/40",
+                        )}>
+                          {group.groupScore}/12 pts
+                        </span>
+                      )}
+                    </div>
 
                     {order ? (
                       <div className="flex flex-col gap-1.5">
                         {order.map((teamName, idx) => {
                           const team = teamByName.get(teamName);
                           const pos = POSITION_STYLES[idx];
+                          const pts = actual ? getPositionScore(actual, order, idx) : null;
+
+                          const rowBg =
+                            pts === 3 ? "bg-emerald-500/8 border-emerald-500/25"
+                            : pts === 1 ? "bg-amber-500/8 border-amber-500/25"
+                            : pts === 0 ? "bg-background/50 border-border/15"
+                            : "bg-background/50 border-border/20";
+
                           return (
                             <div
                               key={teamName}
-                              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-background/50 border border-border/20"
+                              className={cn("flex items-center gap-2 rounded-lg px-2.5 py-1.5 border", rowBg)}
                             >
                               <span className={cn(
                                 "text-[10px] font-bold uppercase tracking-wider border rounded-full px-1.5 py-0.5 w-9 text-center shrink-0",
@@ -157,6 +195,15 @@ function PlayerPicksModal({
                               <span className="flex-1 text-sm font-medium text-foreground truncate">
                                 {team?.name ?? teamName}
                               </span>
+                              {pts !== null && (
+                                <span className={cn(
+                                  "flex items-center gap-0.5 shrink-0 text-[10px] font-bold",
+                                  pts === 3 ? "text-emerald-400" : pts === 1 ? "text-amber-400" : "text-muted-foreground/50",
+                                )}>
+                                  {pts === 3 ? <Check className="w-3 h-3" /> : pts === 1 ? <Minus className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                                  {pts}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
@@ -543,6 +590,10 @@ function MyPicksTab({ poolId }: { poolId: number }) {
           const isConfirmed = confirmed.has(group.name);
           const order = orders[group.name] ?? (group.teams.map((t) => t.name) as TeamOrder);
           const teamByName = new Map(group.teams.map((t) => [t.name, t]));
+          const actual = group.result
+            ? [group.result.pos1Team, group.result.pos2Team, group.result.pos3Team, group.result.pos4Team] as [string,string,string,string]
+            : null;
+          const hasGroupScore = picksLocked && group.groupScore !== null && group.groupScore !== undefined;
 
           return (
             <div
@@ -559,11 +610,22 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                   <span className="font-bebas text-2xl tracking-wider text-foreground">Group {group.name}</span>
                   {isConfirmed && <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />}
                 </div>
-                {!isConfirmed && (
+                {hasGroupScore ? (
+                  <span className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full border",
+                    group.groupScore === 12
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                      : group.groupScore! > 0
+                        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                        : "bg-muted/40 text-muted-foreground border-border/40",
+                  )}>
+                    {group.groupScore}/12 pts
+                  </span>
+                ) : !isConfirmed && !picksLocked ? (
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border border-border/50 rounded-full px-2 py-0.5">
                     Unranked
                   </span>
-                )}
+                ) : null}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -572,16 +634,20 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                   const pos = POSITION_STYLES[idx];
                   const isFirst = idx === 0;
                   const isLast = idx === order.length - 1;
+                  const pts = actual ? getPositionScore(actual, order, idx) : null;
+
+                  const rowClass = picksLocked && pts !== null
+                    ? pts === 3 ? "bg-emerald-500/8 border-emerald-500/25"
+                      : pts === 1 ? "bg-amber-500/8 border-amber-500/25"
+                      : "bg-background/50 border-border/15"
+                    : isConfirmed
+                      ? "bg-background/50 border-border/30"
+                      : "bg-background/30 border-border/20 hover:border-border/50";
 
                   return (
                     <div
                       key={teamName}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors",
-                        isConfirmed
-                          ? "bg-background/50 border-border/30"
-                          : "bg-background/30 border-border/20 hover:border-border/50",
-                      )}
+                      className={cn("flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors", rowClass)}
                     >
                       <span className={cn("text-[11px] font-bold uppercase tracking-wider border rounded-full px-2 py-0.5 w-10 text-center shrink-0", pos.bg)}>
                         {pos.label}
@@ -599,6 +665,15 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                         </div>
                       )}
                       <span className="flex-1 text-sm font-medium text-foreground truncate">{team?.name ?? teamName}</span>
+                      {picksLocked && pts !== null && (
+                        <span className={cn(
+                          "flex items-center gap-0.5 shrink-0 text-[10px] font-bold",
+                          pts === 3 ? "text-emerald-400" : pts === 1 ? "text-amber-400" : "text-muted-foreground/50",
+                        )}>
+                          {pts === 3 ? <Check className="w-3 h-3" /> : pts === 1 ? <Minus className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                          {pts}
+                        </span>
+                      )}
                       {!isConfirmed && !picksLocked && (
                         <div className="flex flex-col gap-0.5 shrink-0">
                           <button

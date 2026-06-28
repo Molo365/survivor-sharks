@@ -26,7 +26,7 @@ router.get("/groups", requireAuth, async (req, res) => {
     return;
   }
 
-  const [standings, existingPicks] = await Promise.all([
+  const [standings, existingPicks, actualResults] = await Promise.all([
     fetchWcStandings(),
     db
       .select()
@@ -35,6 +35,10 @@ router.get("/groups", requireAuth, async (req, res) => {
         eq(groupStagePredictorPicksTable.poolId, poolId),
         eq(groupStagePredictorPicksTable.userId, userId),
       )),
+    db
+      .select()
+      .from(groupStageResultsTable)
+      .where(eq(groupStageResultsTable.poolId, poolId)),
   ]);
 
   if (standings.length === 0) {
@@ -43,9 +47,20 @@ router.get("/groups", requireAuth, async (req, res) => {
   }
 
   const picksByGroup = new Map(existingPicks.map((p) => [p.groupName, p]));
+  const resultsByGroup = new Map(actualResults.map((r) => [r.groupName, r]));
 
   const groups = standings.map((group) => {
     const pick = picksByGroup.get(group.groupLetter) ?? null;
+    const actual = resultsByGroup.get(group.groupLetter) ?? null;
+
+    let groupScore: number | null = null;
+    if (actual && pick) {
+      groupScore = scorePositions(
+        [actual.pos1Team, actual.pos2Team, actual.pos3Team, actual.pos4Team],
+        [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
+      );
+    }
+
     return {
       name: group.groupLetter,
       teams: group.teams.map((t) => ({
@@ -62,6 +77,16 @@ router.get("/groups", requireAuth, async (req, res) => {
             pos4Team: pick.pos4Team,
           }
         : null,
+      result: actual
+        ? {
+            groupName: actual.groupName,
+            pos1Team: actual.pos1Team,
+            pos2Team: actual.pos2Team,
+            pos3Team: actual.pos3Team,
+            pos4Team: actual.pos4Team,
+          }
+        : null,
+      groupScore,
     };
   });
 
@@ -349,7 +374,7 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
     .limit(1);
   if (!requesterEntry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const [standings, targetPicks] = await Promise.all([
+  const [standings, targetPicks, actualResults] = await Promise.all([
     fetchWcStandings(),
     db
       .select()
@@ -358,6 +383,10 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
         eq(groupStagePredictorPicksTable.poolId, poolId),
         eq(groupStagePredictorPicksTable.userId, targetUserId),
       )),
+    db
+      .select()
+      .from(groupStageResultsTable)
+      .where(eq(groupStageResultsTable.poolId, poolId)),
   ]);
 
   if (standings.length === 0) {
@@ -366,12 +395,23 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
   }
 
   const picksByGroup = new Map(targetPicks.map((p) => [p.groupName, p]));
+  const resultsByGroup = new Map(actualResults.map((r) => [r.groupName, r]));
 
   // Visibility rule: another player's picks are hidden until they've submitted all group rankings.
   const picksVisible = targetUserId === requesterId || targetPicks.length >= standings.length;
 
   const groups = standings.map((group) => {
     const pick = picksVisible ? (picksByGroup.get(group.groupLetter) ?? null) : null;
+    const actual = resultsByGroup.get(group.groupLetter) ?? null;
+
+    let groupScore: number | null = null;
+    if (actual && pick) {
+      groupScore = scorePositions(
+        [actual.pos1Team, actual.pos2Team, actual.pos3Team, actual.pos4Team],
+        [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
+      );
+    }
+
     return {
       name: group.groupLetter,
       teams: group.teams.map((t) => ({
@@ -388,6 +428,16 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
             pos4Team: pick.pos4Team,
           }
         : null,
+      result: actual
+        ? {
+            groupName: actual.groupName,
+            pos1Team: actual.pos1Team,
+            pos2Team: actual.pos2Team,
+            pos3Team: actual.pos3Team,
+            pos4Team: actual.pos4Team,
+          }
+        : null,
+      groupScore,
     };
   });
 

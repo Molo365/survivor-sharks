@@ -3205,7 +3205,7 @@ components:
 
     GspGroupWithPick:
       type: object
-      required: [name, teams, myPick]
+      required: [name, teams, myPick, result, groupScore]
       properties:
         name:
           type: string
@@ -3217,6 +3217,14 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/GspPick"
+        result:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GspGroupResult"
+        groupScore:
+          type: integer
+          nullable: true
+          description: Points earned for this group (null if no pick or no result yet)
 
     GspPicksInput:
       type: object
