@@ -1592,6 +1592,53 @@ export interface NflPickEmSeasonWeekWinner {
   total: number;
 }
 
+export interface WcBracketMatchResult {
+  winner: string;
+  /** normal | aet | penalties */
+  winType: string;
+  gradedAt: string;
+}
+
+export interface WcBracketMatch {
+  espnEventId: string;
+  round: string;
+  matchSlot: number;
+  team1: string;
+  team2: string;
+  team1Logo?: string | null;
+  team2Logo?: string | null;
+  matchDate: string;
+  isLocked: boolean;
+  isCompleted: boolean;
+  pickedTeam: string | null;
+  isCorrect: boolean | null;
+  result: WcBracketMatchResult | null;
+}
+
+export interface WcBracketPickInput {
+  espnEventId: string;
+  pickedTeam: string;
+}
+
+export interface WcBracketPicksInput {
+  picks: WcBracketPickInput[];
+}
+
+export interface WcBracketPicksResult {
+  saved: number;
+  rejected: number;
+  rejectedEventIds: string[];
+}
+
+export interface WcBracketLeaderboardEntry {
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  correct: number;
+  total: number;
+  rank: number;
+}
+
 export interface NflPickEmSeasonWeekResults {
   week: number;
   games: NflPickEmSeasonGame[];

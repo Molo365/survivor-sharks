@@ -94,6 +94,10 @@ import type {
   SurvivorGrid,
   Team,
   TeamInjuryReport,
+  WcBracketLeaderboardEntry,
+  WcBracketMatch,
+  WcBracketPicksInput,
+  WcBracketPicksResult,
   WcSchedule,
   WeekResult
 } from './api.schemas';
@@ -3339,6 +3343,232 @@ export function useGetGspLiveStandings<TData = Awaited<ReturnType<typeof getGspL
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetGspLiveStandingsQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetWcBracketUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket`
+}
+
+/**
+ * @summary Get all R32 matchups with the user's picks and any graded results
+ */
+export const getWcBracket = async (poolId: number, options?: RequestInit): Promise<WcBracketMatch[]> => {
+
+  return customFetch<WcBracketMatch[]>(getGetWcBracketUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcBracketQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/bracket`
+    ] as const;
+    }
+
+
+export const getGetWcBracketQueryOptions = <TData = Awaited<ReturnType<typeof getWcBracket>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcBracketQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcBracket>>> = ({ signal }) => getWcBracket(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcBracket>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcBracketQueryResult = NonNullable<Awaited<ReturnType<typeof getWcBracket>>>
+export type GetWcBracketQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get all R32 matchups with the user's picks and any graded results
+ */
+
+export function useGetWcBracket<TData = Awaited<ReturnType<typeof getWcBracket>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcBracketQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitWcBracketPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket/picks`
+}
+
+/**
+ * @summary Submit bracket picks (per-match lock enforced at each match's kickoff)
+ */
+export const submitWcBracketPicks = async (poolId: number,
+    wcBracketPicksInput: WcBracketPicksInput, options?: RequestInit): Promise<WcBracketPicksResult> => {
+
+  return customFetch<WcBracketPicksResult>(getSubmitWcBracketPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      wcBracketPicksInput,)
+  }
+);}
+
+
+
+
+export const getSubmitWcBracketPicksMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitWcBracketPicks>>, TError,{poolId: number;data: BodyType<WcBracketPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitWcBracketPicks>>, TError,{poolId: number;data: BodyType<WcBracketPicksInput>}, TContext> => {
+
+const mutationKey = ['submitWcBracketPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitWcBracketPicks>>, {poolId: number;data: BodyType<WcBracketPicksInput>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitWcBracketPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitWcBracketPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitWcBracketPicks>>>
+    export type SubmitWcBracketPicksMutationBody = BodyType<WcBracketPicksInput>
+    export type SubmitWcBracketPicksMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit bracket picks (per-match lock enforced at each match's kickoff)
+ */
+export const useSubmitWcBracketPicks = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitWcBracketPicks>>, TError,{poolId: number;data: BodyType<WcBracketPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitWcBracketPicks>>,
+        TError,
+        {poolId: number;data: BodyType<WcBracketPicksInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitWcBracketPicksMutationOptions(options));
+    }
+
+export const getGetWcBracketLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket/leaderboard`
+}
+
+/**
+ * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ */
+export const getWcBracketLeaderboard = async (poolId: number, options?: RequestInit): Promise<WcBracketLeaderboardEntry[]> => {
+
+  return customFetch<WcBracketLeaderboardEntry[]>(getGetWcBracketLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcBracketLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/bracket/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetWcBracketLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcBracketLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcBracketLeaderboard>>> = ({ signal }) => getWcBracketLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcBracketLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getWcBracketLeaderboard>>>
+export type GetWcBracketLeaderboardQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ */
+
+export function useGetWcBracketLeaderboard<TData = Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcBracketLeaderboardQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

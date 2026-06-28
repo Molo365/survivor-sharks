@@ -1065,6 +1065,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ── WC Round of 32 Bracket ───────────────────────────────────────────────
+  /pools/{poolId}/bracket:
+    get:
+      operationId: getWcBracket
+      tags: [bracket]
+      summary: Get all R32 matchups with the user's picks and any graded results
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 16 Round of 32 matchups enriched with picks and results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WcBracketMatch"
+        "400":
+          description: Not a WC bracket pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/bracket/picks:
+    post:
+      operationId: submitWcBracketPicks
+      tags: [bracket]
+      summary: Submit bracket picks (per-match lock enforced at each match's kickoff)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WcBracketPicksInput"
+      responses:
+        "200":
+          description: Result with saved count and any rejected (locked) event IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WcBracketPicksResult"
+        "400":
+          description: Validation error (unknown event, wrong team, wrong pool type)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/bracket/leaderboard:
+    get:
+      operationId: getWcBracketLeaderboard
+      tags: [bracket]
+      summary: Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Players ranked by correct picks descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WcBracketLeaderboardEntry"
+        "400":
+          description: Not a WC bracket pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── NFL Division Predictor ───────────────────────────────────────────────
   /pools/{poolId}/ndp/divisions:
     get:
@@ -3807,6 +3917,106 @@ components:
         correct:
           type: integer
         total:
+          type: integer
+
+    WcBracketMatchResult:
+      type: object
+      required: [winner, winType, gradedAt]
+      properties:
+        winner:
+          type: string
+        winType:
+          type: string
+          description: "normal | aet | penalties"
+        gradedAt:
+          type: string
+          format: date-time
+
+    WcBracketMatch:
+      type: object
+      required: [espnEventId, round, matchSlot, team1, team2, matchDate, isLocked, isCompleted, pickedTeam, isCorrect, result]
+      properties:
+        espnEventId:
+          type: string
+        round:
+          type: string
+        matchSlot:
+          type: integer
+        team1:
+          type: string
+        team2:
+          type: string
+        team1Logo:
+          type: string
+          nullable: true
+        team2Logo:
+          type: string
+          nullable: true
+        matchDate:
+          type: string
+          format: date-time
+        isLocked:
+          type: boolean
+        isCompleted:
+          type: boolean
+        pickedTeam:
+          type: string
+          nullable: true
+        isCorrect:
+          type: boolean
+          nullable: true
+        result:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/WcBracketMatchResult"
+
+    WcBracketPickInput:
+      type: object
+      required: [espnEventId, pickedTeam]
+      properties:
+        espnEventId:
+          type: string
+        pickedTeam:
+          type: string
+
+    WcBracketPicksInput:
+      type: object
+      required: [picks]
+      properties:
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcBracketPickInput"
+
+    WcBracketPicksResult:
+      type: object
+      required: [saved, rejected, rejectedEventIds]
+      properties:
+        saved:
+          type: integer
+        rejected:
+          type: integer
+        rejectedEventIds:
+          type: array
+          items:
+            type: string
+
+    WcBracketLeaderboardEntry:
+      type: object
+      required: [userId, username, correct, total, rank]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        correct:
+          type: integer
+        total:
+          type: integer
+        rank:
           type: integer
 
     NflPickEmSeasonWeekResults:

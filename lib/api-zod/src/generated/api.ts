@@ -1497,6 +1497,74 @@ export const GetGspLiveStandingsResponse = zod.array(GetGspLiveStandingsResponse
 
 
 /**
+ * @summary Get all R32 matchups with the user's picks and any graded results
+ */
+export const GetWcBracketParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetWcBracketResponseItem = zod.object({
+  "espnEventId": zod.string(),
+  "round": zod.string(),
+  "matchSlot": zod.number(),
+  "team1": zod.string(),
+  "team2": zod.string(),
+  "team1Logo": zod.string().nullish(),
+  "team2Logo": zod.string().nullish(),
+  "matchDate": zod.coerce.date(),
+  "isLocked": zod.boolean(),
+  "isCompleted": zod.boolean(),
+  "pickedTeam": zod.string().nullable(),
+  "isCorrect": zod.boolean().nullable(),
+  "result": zod.object({
+  "winner": zod.string(),
+  "winType": zod.string().describe('normal | aet | penalties'),
+  "gradedAt": zod.coerce.date()
+}).nullable()
+})
+export const GetWcBracketResponse = zod.array(GetWcBracketResponseItem)
+
+
+/**
+ * @summary Submit bracket picks (per-match lock enforced at each match's kickoff)
+ */
+export const SubmitWcBracketPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitWcBracketPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "espnEventId": zod.string(),
+  "pickedTeam": zod.string()
+}))
+})
+
+export const SubmitWcBracketPicksResponse = zod.object({
+  "saved": zod.number(),
+  "rejected": zod.number(),
+  "rejectedEventIds": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ */
+export const GetWcBracketLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetWcBracketLeaderboardResponseItem = zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "correct": zod.number(),
+  "total": zod.number(),
+  "rank": zod.number()
+})
+export const GetWcBracketLeaderboardResponse = zod.array(GetWcBracketLeaderboardResponseItem)
+
+
+/**
  * @summary Get NFL division definitions with team info and the user's existing picks
  */
 export const GetNdpDivisionsParams = zod.object({

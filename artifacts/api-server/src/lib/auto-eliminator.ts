@@ -18,7 +18,7 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte } from "drizzle-orm";
 import {
   fetchGames,
@@ -41,6 +41,9 @@ import {
   wcOutcome as wcOutcomeFromWc,
   WC_PHASES,
   type WcGame,
+  fetchWcBracketMatches,
+  invalidateBracketCache,
+  WIN_TYPE_MAP,
 } from "./wc";
 import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
@@ -1677,6 +1680,91 @@ export async function processCrazyEightsResults(): Promise<{
 // Scheduler
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// WC Bracket grader — handles STATUS_FINAL, STATUS_FINAL_AET, STATUS_FINAL_PEN
+// ---------------------------------------------------------------------------
+
+export async function processWcBracketResults(): Promise<{ picksGraded: number }> {
+  let picksGraded = 0;
+
+  const wcBracketPools = await db
+    .select({ id: poolsTable.id })
+    .from(poolsTable)
+    .where(and(eq(poolsTable.poolType, "wc_bracket"), eq(poolsTable.isActive, true)));
+
+  if (wcBracketPools.length === 0) return { picksGraded };
+
+  const matches = await fetchWcBracketMatches();
+  const completedMatches = matches.filter(
+    (m) => m.isCompleted && m.winner !== null && WIN_TYPE_MAP[m.statusName] !== undefined,
+  );
+
+  if (completedMatches.length === 0) return { picksGraded };
+
+  for (const pool of wcBracketPools) {
+    for (const match of completedMatches) {
+      const winner = match.winner!;
+      const winType = WIN_TYPE_MAP[match.statusName] ?? "normal";
+
+      // Upsert result row (idempotent)
+      await db
+        .insert(wcBracketResultsTable)
+        .values({
+          poolId: pool.id,
+          espnEventId: match.espnEventId,
+          round: match.round,
+          matchSlot: match.matchSlot,
+          team1: match.team1,
+          team2: match.team2,
+          winner,
+          winType,
+          matchDate: new Date(match.matchDate),
+          gradedAt: new Date(),
+        })
+        .onConflictDoNothing();
+
+      // Grade all pending (is_correct IS NULL) picks for this match
+      const pendingPicks = await db
+        .select()
+        .from(wcBracketPicksTable)
+        .where(
+          and(
+            eq(wcBracketPicksTable.poolId, pool.id),
+            eq(wcBracketPicksTable.espnEventId, match.espnEventId),
+            isNull(wcBracketPicksTable.isCorrect),
+          ),
+        );
+
+      for (const pick of pendingPicks) {
+        const isCorrect = pick.pickedTeam === winner;
+        await db
+          .update(wcBracketPicksTable)
+          .set({ isCorrect, updatedAt: new Date() })
+          .where(eq(wcBracketPicksTable.id, pick.id));
+
+        picksGraded++;
+        logger.info(
+          {
+            poolId: pool.id,
+            userId: pick.userId,
+            espnEventId: match.espnEventId,
+            pickedTeam: pick.pickedTeam,
+            winner,
+            winType,
+            isCorrect,
+          },
+          "WC bracket: graded pick",
+        );
+      }
+    }
+  }
+
+  // Invalidate bracket cache so next fetch reflects updated status
+  if (picksGraded > 0) invalidateBracketCache();
+
+  return { picksGraded };
+}
+
 let _timer: ReturnType<typeof setInterval> | null = null;
 
 export function startAutoEliminator(): void {
@@ -1685,12 +1773,13 @@ export function startAutoEliminator(): void {
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
-    const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights] = await Promise.all([
+    const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights, wcBracket] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
       processMlbDailyResults(),
       processPickEmResults(),
       processCrazyEightsResults(),
+      processWcBracketResults(),
     ]);
     return {
       ...nonMlb,
@@ -1700,6 +1789,7 @@ export function startAutoEliminator(): void {
       mlbDaysProcessed: mlbDaily.daysProcessed,
       pickEmPicksGraded: pickEm.picksGraded,
       crazyEightsPicksGraded: crazyEights.picksGraded,
+      wcBracketPicksGraded: wcBracket.picksGraded,
     };
   }
 

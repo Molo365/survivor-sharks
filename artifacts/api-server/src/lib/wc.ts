@@ -125,6 +125,8 @@ const TEAM_ALIASES: Record<string, string> = {
   "us":                  "USA",
   "republic of ireland": "Ireland",
   "korea republic":      "South Korea",
+  "bosnia-herzegovina":  "Bosnia & Herzegovina",
+  "bosnia and herzegovina": "Bosnia & Herzegovina",
 };
 
 function resolveTeamName(raw: string): string {
@@ -600,6 +602,154 @@ export const WC_2026_GROUPS: WcGroup[] = [
   { name: "K", teams: ["Austria",   "Scotland", "New Zealand",    "Jordan"      ] },
   { name: "L", teams: ["Sweden",    "Haiti",    "Bosnia & Herzegovina", "Qatar" ] },
 ];
+
+// ---------------------------------------------------------------------------
+// WC 2026 Bracket — fetch all rounds from ESPN date-range scoreboard
+// ?dates=20260628-20260719 returns all 32 knockout events in one call.
+// ---------------------------------------------------------------------------
+
+export interface WcBracketMatch {
+  espnEventId: string;
+  round: string;
+  matchSlot: number;
+  team1: string;
+  team2: string;
+  team1Logo: string | null;
+  team2Logo: string | null;
+  matchDate: string;
+  statusName: string;
+  isCompleted: boolean;
+  winner: string | null;
+  winType: string | null;
+}
+
+const BRACKET_DATE_RANGE = "20260628-20260719";
+const BRACKET_TTL_MS = 2 * 60 * 1000;
+
+let _bracketCache: { data: WcBracketMatch[]; fetchedAt: number } | null = null;
+
+const ESPN_ROUND_MAP: Record<string, string> = {
+  "FIFA World Cup, Round of 32": "round_of_32",
+  "FIFA World Cup, Round of 16": "round_of_16",
+  "FIFA World Cup, Quarterfinals": "quarterfinals",
+  "FIFA World Cup, Semifinals": "semifinals",
+  "FIFA World Cup, 3rd-Place Match": "third_place",
+  "FIFA World Cup, Final": "final",
+};
+
+export const WIN_TYPE_MAP: Record<string, string> = {
+  STATUS_FINAL: "normal",
+  STATUS_FINAL_AET: "aet",
+  STATUS_FINAL_PEN: "penalties",
+};
+
+function isTbd(name: string): boolean {
+  return name.includes("Winner") || name.includes("Loser") || name.includes("TBD");
+}
+
+function bracketTeamName(rawName: string): string {
+  if (isTbd(rawName)) return rawName;
+  return resolveTeamName(rawName);
+}
+
+function bracketTeamLogo(canonicalName: string): string | null {
+  if (isTbd(canonicalName)) return null;
+  return crestUrl(teamMeta(canonicalName).espnSlug);
+}
+
+export async function fetchWcBracketMatches(): Promise<WcBracketMatch[]> {
+  const now = Date.now();
+  if (_bracketCache && now - _bracketCache.fetchedAt < BRACKET_TTL_MS) {
+    return _bracketCache.data;
+  }
+
+  try {
+    const url = `${ESPN_WC_BASE}/scoreboard?dates=${BRACKET_DATE_RANGE}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`ESPN bracket HTTP ${res.status}`);
+
+    interface EspnBracketEvent {
+      id?: string;
+      date?: string;
+      competitions?: Array<{
+        id?: string;
+        date?: string;
+        startDate?: string;
+        altGameNote?: string;
+        status?: { type?: { name?: string; completed?: boolean } };
+        competitors?: Array<{
+          homeAway?: string;
+          winner?: boolean;
+          team?: { displayName?: string };
+        }>;
+      }>;
+    }
+    const data = await res.json() as { events?: EspnBracketEvent[] };
+
+    const roundSlots: Record<string, number> = {};
+    const matches: WcBracketMatch[] = [];
+
+    for (const event of data.events ?? []) {
+      const comp = event.competitions?.[0];
+      if (!comp) continue;
+
+      const note = comp.altGameNote ?? "";
+      const round = ESPN_ROUND_MAP[note];
+      if (!round) continue;
+
+      const statusType = comp.status?.type ?? {};
+      const statusName = statusType.name ?? "STATUS_SCHEDULED";
+      const isCompleted = statusType.completed ?? false;
+
+      const competitors = comp.competitors ?? [];
+      const home = competitors.find((c) => c.homeAway === "home");
+      const away = competitors.find((c) => c.homeAway === "away");
+      if (!home || !away) continue;
+
+      const team1 = bracketTeamName(home.team?.displayName ?? "");
+      const team2 = bracketTeamName(away.team?.displayName ?? "");
+
+      let winner: string | null = null;
+      let winType: string | null = null;
+      if (isCompleted) {
+        const winningComp = competitors.find((c) => c.winner === true);
+        if (winningComp) {
+          winner = bracketTeamName(winningComp.team?.displayName ?? "");
+        }
+        winType = WIN_TYPE_MAP[statusName] ?? "normal";
+      }
+
+      roundSlots[round] = (roundSlots[round] ?? 0) + 1;
+
+      matches.push({
+        espnEventId: comp.id ?? event.id ?? "",
+        round,
+        matchSlot: roundSlots[round],
+        team1,
+        team2,
+        team1Logo: bracketTeamLogo(team1),
+        team2Logo: bracketTeamLogo(team2),
+        matchDate: comp.date ?? comp.startDate ?? event.date ?? "",
+        statusName,
+        isCompleted,
+        winner,
+        winType,
+      });
+    }
+
+    _bracketCache = { data: matches, fetchedAt: now };
+    logger.info({ count: matches.length }, "wc: refreshed bracket cache");
+    return matches;
+  } catch (err) {
+    logger.warn({ err }, "wc: failed to fetch bracket matches");
+    return _bracketCache?.data ?? [];
+  }
+}
+
+/** Invalidate the bracket cache (call after writing results so next fetch is fresh). */
+export function invalidateBracketCache(): void {
+  _bracketCache = null;
+}
 
 /** Return the group definition for a given group name (A–L), or undefined. */
 export function getWcGroup(groupName: string): WcGroup | undefined {
