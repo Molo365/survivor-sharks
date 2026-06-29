@@ -545,6 +545,16 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     });
 
   req.log.info({ poolId, week, graded, actualPassingYards, actualRushingYards }, "NFL Confidence Weekly sandbox grading complete");
+
+  // Branch on isRecurring: close the pool or advance to the next week
+  if ((pool as any).isRecurring === false) {
+    await db.update(poolsTable).set({ isActive: false, endedAt: new Date() }).where(eq(poolsTable.id, poolId));
+    req.log.info({ poolId }, "NFL Confidence Weekly pool closed — isRecurring=false");
+  } else {
+    await db.update(poolsTable).set({ currentWeek: week + 1 }).where(eq(poolsTable.id, poolId));
+    req.log.info({ poolId, nextWeek: week + 1 }, "NFL Confidence Weekly advanced to next week");
+  }
+
   res.json({ ok: true, week, graded, summary, actualPassingYards, actualRushingYards });
 });
 

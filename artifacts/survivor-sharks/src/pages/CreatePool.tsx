@@ -349,7 +349,7 @@ export default function CreatePool() {
           ...(prizePot !== undefined && { prizePot }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
-          ...(values.sport === PoolInputSport.mlb && values.poolType === "pickem" && { isRecurring: values.isRecurring }),
+          ...((values.sport === PoolInputSport.mlb && values.poolType === "pickem" || values.poolType === "nfl_confidence_weekly") && { isRecurring: values.isRecurring }),
         } as any,
       },
       {
@@ -682,8 +682,8 @@ export default function CreatePool() {
                 />
               )}
 
-              {/* ── Recurring — MLB Daily Pick-Ems only ── */}
-              {selectedSport === PoolInputSport.mlb && selectedType === "pickem" && (
+              {/* ── Recurring — MLB Daily Pick-Ems + NFL Confidence Weekly ── */}
+              {(selectedSport === PoolInputSport.mlb && selectedType === "pickem" || selectedType === "nfl_confidence_weekly") && (
                 <FormField
                   control={form.control}
                   name="isRecurring"
@@ -697,7 +697,9 @@ export default function CreatePool() {
                               Recurring Pool
                             </FormLabel>
                             <FormDescription className="text-xs mt-0.5">
-                              When on, the pool auto-advances every day indefinitely. When off, the pool runs exactly one day then closes permanently.
+                              {selectedType === "nfl_confidence_weekly"
+                                ? "When on, the pool auto-advances every week indefinitely. When off, the pool closes after the current week's results are processed."
+                                : "When on, the pool auto-advances every day indefinitely. When off, the pool runs exactly one day then closes permanently."}
                             </FormDescription>
                           </div>
                         </div>

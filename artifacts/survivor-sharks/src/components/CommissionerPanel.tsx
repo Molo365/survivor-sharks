@@ -346,8 +346,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
         </Card>
       </div>
 
-      {/* Stop Recurring — MLB Daily and MLB Weekly pools */}
-      {pool.sport === "mlb" && ((pool as any).pickFrequency === "daily" || (pool as any).pickFrequency === "weekly") && (
+      {/* Stop Recurring — MLB Daily, MLB Weekly, and NFL Confidence Weekly pools */}
+      {((pool.sport === "mlb" && ((pool as any).pickFrequency === "daily" || (pool as any).pickFrequency === "weekly")) || (pool as any).poolType === "nfl_confidence_weekly") && (
         pool.isRecurring ? (
           <Card className="border-destructive/30 bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)]">
             <CardHeader>
@@ -355,7 +355,9 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
                 <OctagonX className="w-5 h-5" /> End Recurring Pool
               </CardTitle>
               <CardDescription className="text-muted-foreground/80">
-                {(pool as any).pickFrequency === "weekly"
+                {(pool as any).poolType === "nfl_confidence_weekly"
+                  ? "When turned off, this pool will end after this week's results are processed. No new weeks will be generated."
+                  : (pool as any).pickFrequency === "weekly"
                   ? "Stop this pool from auto-generating new weeks. The current week will complete normally, then the pool closes."
                   : "Stop this pool from auto-generating new days. The current day will complete normally, then the pool closes."}
               </CardDescription>
@@ -371,7 +373,9 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
                   <AlertDialogHeader>
                     <AlertDialogTitle>End Recurring Pool?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {(pool as any).pickFrequency === "weekly"
+                      {(pool as any).poolType === "nfl_confidence_weekly"
+                        ? "This pool will end after this week's results are processed. This cannot be undone."
+                        : (pool as any).pickFrequency === "weekly"
                         ? "This pool will finish this week's results normally, then stop generating new weeks. This cannot be undone."
                         : "This pool will finish today's results normally, then stop generating new days. This cannot be undone."}
                     </AlertDialogDescription>
@@ -385,8 +389,14 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
                         updatePool.mutate({ poolId, data: { isRecurring: false } }, {
                           onSuccess: () => {
                             toast({
-                              title: (pool as any).pickFrequency === "weekly" ? "Pool will end after this week" : "Pool will end after today",
-                              description: (pool as any).pickFrequency === "weekly"
+                              title: (pool as any).poolType === "nfl_confidence_weekly"
+                                ? "Pool will end after this week's results"
+                                : (pool as any).pickFrequency === "weekly"
+                                ? "Pool will end after this week"
+                                : "Pool will end after today",
+                              description: (pool as any).poolType === "nfl_confidence_weekly"
+                                ? "No new weeks will be generated after the current week's results are processed."
+                                : (pool as any).pickFrequency === "weekly"
                                 ? "No new weeks will be generated after the current week closes."
                                 : "No new days will be generated after the current cycle closes.",
                             });
@@ -412,7 +422,9 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
               <div className="flex items-start gap-3 text-muted-foreground">
                 <OctagonX className="w-5 h-5 text-destructive/60 shrink-0 mt-0.5" />
                 <p className="text-sm">
-                  {(pool as any).pickFrequency === "weekly"
+                  {(pool as any).poolType === "nfl_confidence_weekly"
+                    ? "This pool will end after this week's results are processed. No new weeks will be generated."
+                    : (pool as any).pickFrequency === "weekly"
                     ? "This pool will end after the current week completes. No new weeks will be generated."
                     : "This pool will end after the current cycle completes. No new days will be generated."}
                 </p>
