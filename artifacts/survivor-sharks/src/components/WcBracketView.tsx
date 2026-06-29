@@ -640,14 +640,14 @@ function BracketSlotBox({ slot }: { slot: BracketTreeSlot }) {
     return (
       <div
         className={cn(
-          "flex items-center gap-1.5 px-2 py-1",
+          "flex items-center gap-2 px-3 py-2",
           isWinner && "bg-yellow-500/10",
           isCorrectPick && "bg-green-500/10",
           isWrongPick && "bg-destructive/10",
           isPicked && !isWinner && !isCorrectPick && !isWrongPick && "bg-primary/10",
         )}
       >
-        <div className="w-[18px] h-[18px] rounded-full bg-white/90 shrink-0 overflow-hidden flex items-center justify-center">
+        <div className="w-[28px] h-[28px] rounded-full bg-white/90 shrink-0 overflow-hidden flex items-center justify-center">
           {flagSrc && !isTBD ? (
             <img
               src={flagSrc}
@@ -656,12 +656,12 @@ function BracketSlotBox({ slot }: { slot: BracketTreeSlot }) {
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
           ) : (
-            <span className="text-[7px] font-bold text-muted-foreground">?</span>
+            <span className="text-[10px] font-bold text-muted-foreground">?</span>
           )}
         </div>
         <span
           className={cn(
-            "font-bebas text-[11px] tracking-wide leading-none flex-1 min-w-0 truncate",
+            "font-bebas text-[15px] tracking-wide leading-none flex-1 min-w-0 truncate",
             isTBD ? "text-muted-foreground/25" :
               isWinner ? "text-yellow-400" :
               isPicked ? "text-foreground" : "text-muted-foreground/70",
@@ -669,13 +669,13 @@ function BracketSlotBox({ slot }: { slot: BracketTreeSlot }) {
         >
           {isTBD ? "TBD" : abbr}
         </span>
-        {isCorrectPick && <Check className="w-2.5 h-2.5 text-green-400 shrink-0" />}
-        {isWrongPick && <X className="w-2.5 h-2.5 text-destructive shrink-0" />}
+        {isCorrectPick && <Check className="w-3.5 h-3.5 text-green-400 shrink-0" />}
+        {isWrongPick && <X className="w-3.5 h-3.5 text-destructive shrink-0" />}
         {isPicked && !isCorrectPick && !isWrongPick && (
-          <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-primary/60 shrink-0" />
         )}
         {isWinner && !isPicked && (
-          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60 shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-yellow-400/60 shrink-0" />
         )}
       </div>
     );
@@ -687,7 +687,7 @@ function BracketSlotBox({ slot }: { slot: BracketTreeSlot }) {
         "rounded-lg border overflow-hidden bg-card/80 shrink-0",
         slot.isCompleted ? "border-muted/40" : "border-border/30",
       )}
-      style={{ width: 118 }}
+      style={{ width: 158 }}
     >
       <TeamRow name={slot.team1} logoUrl={slot.team1Logo ?? null} />
       <div className="h-px bg-border/20" />
@@ -735,12 +735,12 @@ function BracketTreeTab({ poolId }: { poolId: number }) {
   const final = slots.find((s) => s.round === "final");
 
   // Layout constants (px)
-  const UNIT     = 80;   // height of each R32 logical slot
-  const H        = 640;  // total bracket height = 8 * UNIT
-  const CONN_W   = 14;   // bracket connector notch width
-  const ENTRY_W  = 8;    // horizontal entry arm on parent column
-  const BOX_W    = 118;  // width of BracketSlotBox (must match style={{ width: 118 }})
-  const SF_CONN  = 28;   // width of the SF → Final horizontal connector
+  const UNIT     = 110;  // height of each R32 logical slot
+  const H        = 880;  // total bracket height = 8 * UNIT
+  const CONN_W   = 20;   // bracket connector notch width
+  const ENTRY_W  = 12;   // horizontal entry arm on parent column
+  const BOX_W    = 158;  // width of BracketSlotBox (must match style={{ width: 158 }})
+  const SF_CONN  = 40;   // width of the SF → Final horizontal connector
 
   const LINE = "1px solid rgba(255,255,255,0.1)";
 
@@ -820,7 +820,7 @@ function BracketTreeTab({ poolId }: { poolId: number }) {
     { label: "",      w: CONN_W },
     { label: "SF",    w: ENTRY_W + BOX_W },
     { label: "",      w: SF_CONN },
-    { label: "Final", w: BOX_W + 22 },
+    { label: "Final", w: BOX_W + 28 },
     { label: "",      w: SF_CONN },
     { label: "SF",    w: BOX_W + ENTRY_W },
     { label: "",      w: CONN_W },
@@ -888,7 +888,7 @@ function BracketTreeTab({ poolId }: { poolId: number }) {
           <div
             style={{
               height: H,
-              width: BOX_W + 22,
+              width: BOX_W + 28,
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
@@ -906,7 +906,7 @@ function BracketTreeTab({ poolId }: { poolId: number }) {
               ) : (
                 <div
                   className="rounded-lg border border-dashed border-border/20 bg-card/30 flex items-center justify-center"
-                  style={{ width: BOX_W, height: 54 }}
+                  style={{ width: BOX_W, height: 70 }}
                 >
                   <span className="text-[9px] text-muted-foreground/25 font-bold uppercase tracking-widest">
                     TBD
