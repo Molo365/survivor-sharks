@@ -635,16 +635,28 @@ export async function processMlbWeeklyResults(): Promise<{
       processedBy: null,
     });
 
-    // Advance pool to next week
-    await db.update(poolsTable)
-      .set({ currentWeek: pool.currentWeek + 1 })
-      .where(eq(poolsTable.id, pool.id));
+    // Advance or close depending on isRecurring
+    if (pool.isRecurring) {
+      await db.update(poolsTable)
+        .set({ currentWeek: pool.currentWeek + 1 })
+        .where(eq(poolsTable.id, pool.id));
 
-    weeksProcessed++;
-    logger.info(
-      { poolId: pool.id, week: pool.currentWeek, playersEliminated, playersRevived },
-      "MLB: weekly results processed, advancing to next week",
-    );
+      weeksProcessed++;
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek, playersEliminated, playersRevived },
+        "MLB: weekly results processed, advancing to next week",
+      );
+    } else {
+      await db.update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, pool.id));
+
+      weeksProcessed++;
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek, playersEliminated, playersRevived },
+        "MLB: weekly results processed, pool closed (isRecurring=false)",
+      );
+    }
   }
 
   return { weeksProcessed, playersEliminated, playersRevived };
