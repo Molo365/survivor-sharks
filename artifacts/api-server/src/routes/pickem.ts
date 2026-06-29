@@ -471,29 +471,36 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
 
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
-  const details = picks.map((pick) => {
-    const game = gameMap.get(pick.gameId);
-    const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    return {
-      gameId: pick.gameId,
-      pickedTeamId: pick.pickedTeamId,
-      pickedTeamName: pick.pickedTeamName,
-      pickedTeamLogoUrl: game
-        ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
-        : null,
-      result: pick.result,
-      homeTeam: game
-        ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
-        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
-      awayTeam: game
-        ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
-        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
-      homeScore: game?.homeScore ?? null,
-      awayScore: game?.awayScore ?? null,
-      startTime: game?.date ?? "",
-      status: game?.status ?? "unknown",
-    };
-  });
+  const details = picks
+    .filter((pick) => {
+      // Own picks always visible; other players' picks only once their specific game has kicked off.
+      if (targetUserId === requestingUserId) return true;
+      const game = gameMap.get(pick.gameId);
+      return game != null && isGameLocked(game.date);
+    })
+    .map((pick) => {
+      const game = gameMap.get(pick.gameId);
+      const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+      return {
+        gameId: pick.gameId,
+        pickedTeamId: pick.pickedTeamId,
+        pickedTeamName: pick.pickedTeamName,
+        pickedTeamLogoUrl: game
+          ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
+          : null,
+        result: pick.result,
+        homeTeam: game
+          ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        awayTeam: game
+          ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        homeScore: game?.homeScore ?? null,
+        awayScore: game?.awayScore ?? null,
+        startTime: game?.date ?? "",
+        status: game?.status ?? "unknown",
+      };
+    });
 
   res.json(details);
 });
