@@ -638,9 +638,10 @@ const ESPN_ROUND_MAP: Record<string, string> = {
 };
 
 export const WIN_TYPE_MAP: Record<string, string> = {
-  STATUS_FINAL: "normal",
-  STATUS_FINAL_AET: "aet",
-  STATUS_FINAL_PEN: "penalties",
+  STATUS_FULL_TIME: "normal",    // soccer: regular-time win (ESPN uses this, not STATUS_FINAL)
+  STATUS_FINAL: "normal",        // kept as fallback; not observed in live WC data
+  STATUS_FINAL_AET: "aet",       // kept as fallback; ESPN uses STATUS_FINAL_PEN even for AET→pens
+  STATUS_FINAL_PEN: "penalties", // soccer: penalty shootout (covers AET→pens too)
 };
 
 function isTbd(name: string): boolean {
