@@ -838,6 +838,11 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <p className="text-sm text-muted-foreground mt-0.5">
             Select 8 games, pick a winner for each, and assign confidence points 1–8.
           </p>
+          {!isLocked && !hasPicks && (
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Tip: tap a selected team again to remove that pick.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className={cn(
