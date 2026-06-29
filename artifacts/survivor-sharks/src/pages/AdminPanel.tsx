@@ -321,6 +321,13 @@ export default function AdminPanel() {
   const qc = useQueryClient();
   const adminFetch = useAdminFetch();
 
+  const { data: envData } = useQuery<{ isProduction: boolean }>({
+    queryKey: ["admin-environment"],
+    queryFn: () => adminFetch("/environment"),
+    staleTime: Infinity,
+  });
+  const isProduction = envData?.isProduction ?? false;
+
   const { data: stats } = useQuery<StatData>({
     queryKey: ["admin-stats"],
     queryFn: () => adminFetch("/stats"),
@@ -428,49 +435,55 @@ export default function AdminPanel() {
           <h2 className="font-bebas text-2xl tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" /> DANGER ZONE
           </h2>
-          <div className="flex flex-wrap gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-5">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={wiping} className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
-                  {wiping ? "Wiping…" : "Wipe Test Data"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="border-destructive/20">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-orange-400">Wipe Test Data?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Deletes all pools and users whose names contain "test" (case-insensitive). This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleWipe} className="bg-orange-500 hover:bg-orange-600 text-white">Wipe Test Data</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          {isProduction ? (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5">
+              <p className="text-sm text-muted-foreground">Danger Zone actions are disabled in production.</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-5">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={wiping} className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
+                    {wiping ? "Wiping…" : "Wipe Test Data"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="border-destructive/20">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-orange-400">Wipe Test Data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Deletes all pools and users whose names contain "test" (case-insensitive). This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleWipe} className="bg-orange-500 hover:bg-orange-600 text-white">Wipe Test Data</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={resetting} className="font-semibold">
-                  {resetting ? "Resetting…" : "Full Database Reset"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="border-destructive/20">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Full Database Reset?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    <span className="text-destructive font-semibold">This wipes ALL data</span> — every user, pool, pick, and result. This is permanent and cannot be undone. The database will be completely empty.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleReset} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                    Yes, Wipe Everything
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={resetting} className="font-semibold">
+                    {resetting ? "Resetting…" : "Full Database Reset"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="border-destructive/20">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Full Database Reset?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <span className="text-destructive font-semibold">This wipes ALL data</span> — every user, pool, pick, and result. This is permanent and cannot be undone. The database will be completely empty.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleReset} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                      Yes, Wipe Everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </section>
 
         {/* Tables */}

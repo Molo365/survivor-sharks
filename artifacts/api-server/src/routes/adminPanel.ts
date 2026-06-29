@@ -12,6 +12,11 @@ const router = Router();
 
 router.use(requireAdminAuth);
 
+// GET /api/admin-panel/environment
+router.get("/environment", (_req, res) => {
+  res.json({ isProduction: process.env.NODE_ENV === "production" });
+});
+
 // GET /api/admin-panel/stats
 router.get("/stats", async (_req, res) => {
   const [{ totalUsers }] = await db.select({ totalUsers: count() }).from(usersTable);
