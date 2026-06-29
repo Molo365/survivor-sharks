@@ -328,6 +328,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     prizeStructure: pool.prizeStructure ?? null,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring,
     sandboxMode: (pool as any).sandboxMode ?? false,
     sandboxWeek: (pool as any).sandboxWeek ?? 1,
     totalMembers: members.length,
