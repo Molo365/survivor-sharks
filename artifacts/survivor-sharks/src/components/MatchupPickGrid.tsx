@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy } from "lucide-react";
+import { Check, X, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
@@ -223,14 +223,14 @@ function TeamSide({
         </p>
       )}
       {isCurrentPick && variant === "final" && (pickResult === "win" || pickResult === "loss") && (
-        <div className={cn("flex items-center gap-0.5 mt-0.5", side === "home" && "self-end")}>
+        <div className={cn("flex items-center mt-0.5", side === "home" && "self-end")}>
           {pickResult === "win" ? (
-            <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
-              <Check className="w-3 h-3" /> Correct
+            <span className="text-green-400 flex items-center">
+              <Check className="w-3 h-3" />
             </span>
           ) : (
-            <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80">
-              ✗ Wrong
+            <span className="text-destructive/80 flex items-center">
+              <X className="w-3 h-3" />
             </span>
           )}
         </div>

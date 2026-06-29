@@ -367,12 +367,12 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
         {isPicked && (
           <div className="flex items-center gap-1 mt-0.5">
             {isCorrect ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
-                <Check className="w-3 h-3" /> Correct
+              <span className="text-green-400 flex items-center">
+                <Check className="w-3 h-3" />
               </span>
             ) : isWrong ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80">
-                ✗ Wrong
+              <span className="text-destructive/80 flex items-center">
+                <X className="w-3 h-3" />
               </span>
             ) : isPickPostponed ? (
               <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">
