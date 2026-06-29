@@ -870,23 +870,15 @@ router.get("/week-results", requireAuth, async (req, res) => {
     picksByUser.get(pick.userId)!.picks.push(pick);
   }
 
-  // Visibility rule: hide another player's picks until they've locked their full slate for the week.
+  // Visibility rule: a pick is only visible to other players once that specific game has kicked off.
   {
-    const totalGamesWeek = games.length;
-    const now = Date.now();
-    const slateIsLive =
-      totalGamesWeek === 0 ||
-      games.some(
-        (g: any) =>
-          new Date(g.date).getTime() <= now ||
-          (g.status && g.status !== "scheduled" && g.status !== "pre"),
-      );
-    if (!slateIsLive) {
-      for (const [uid, userData] of picksByUser) {
-        if (uid === userId) continue;
-        if (userData.picks.length >= totalGamesWeek) continue;
-        userData.picks = [];
-      }
+    const gameDateMap = new Map<string, string>(games.map((g: any) => [g.id, g.date]));
+    for (const [uid, userData] of picksByUser) {
+      if (uid === userId) continue;
+      userData.picks = userData.picks.filter(p => {
+        const gameDate = gameDateMap.get(p.gameId);
+        return gameDate != null && isGameLocked(gameDate);
+      });
     }
   }
 
