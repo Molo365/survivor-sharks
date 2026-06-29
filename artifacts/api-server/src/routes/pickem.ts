@@ -591,23 +591,16 @@ router.get("/daily-results", requireAuth, async (req, res) => {
     });
   }
 
-  // Visibility rule: hide another player's picks until they've locked their full slate for the day.
-  // Once any game has started the slate is live and full transparency resumes.
+  // Visibility rule: a pick is only visible to other players once that specific game has kicked off.
   {
-    const totalGamesDay = espnGames.length;
-    const now = Date.now();
-    const slateIsLive =
-      totalGamesDay === 0 ||
-      espnGames.some(
-        (g: any) =>
-          new Date(g.date).getTime() <= now ||
-          (g.status && g.status !== "scheduled" && g.status !== "pre"),
-      );
-    if (!slateIsLive) {
-      for (const [uid, player] of userMap) {
-        if (uid === userId) continue;
-        if (player.picks.size >= totalGamesDay) continue;
-        player.picks.clear();
+    const gameDateMap = new Map<string, string>(espnGames.map((g: any) => [g.id, g.date]));
+    for (const [uid, player] of userMap) {
+      if (uid === userId) continue;
+      for (const gameId of Array.from(player.picks.keys())) {
+        const gameDate = gameDateMap.get(gameId);
+        if (gameDate == null || !isGameLocked(gameDate)) {
+          player.picks.delete(gameId);
+        }
       }
     }
   }
@@ -1056,6 +1049,20 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   for (const pick of allPicks) {
     if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
     picksByUser.get(pick.userId)!.set(pick.gameId, pick);
+  }
+
+  // Visibility rule: a pick is only visible to other players once that specific game has kicked off.
+  {
+    const lbGameDateMap = new Map<string, string>(espnGames.map((g: any) => [g.id, g.date]));
+    for (const [uid, userPickMap] of picksByUser) {
+      if (uid === userId) continue;
+      for (const gameId of Array.from(userPickMap.keys())) {
+        const gameDate = lbGameDateMap.get(gameId);
+        if (gameDate == null || !isGameLocked(gameDate)) {
+          userPickMap.delete(gameId);
+        }
+      }
+    }
   }
 
   const entries = aggregates.map((row, i) => {
