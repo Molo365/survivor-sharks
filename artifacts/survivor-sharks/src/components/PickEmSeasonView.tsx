@@ -152,11 +152,7 @@ function NflGameCard({
         ) : result === "incorrect" ? (
           <X className="w-2.5 h-2.5" />
         ) : null}
-        {result === "correct"
-          ? "Correct · My Pick"
-          : result === "incorrect"
-            ? "Wrong · My Pick"
-            : "My Pick"}
+        {result !== "correct" && result !== "incorrect" ? "My Pick" : null}
       </div>
     );
   }
