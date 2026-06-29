@@ -124,6 +124,10 @@ router.delete("/users/:userId", async (req, res) => {
 // POST /api/admin-panel/wipe-test-data
 // Deletes pools/users whose names contain "test" (case-insensitive), plus orphaned entries/picks
 router.post("/wipe-test-data", async (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "This action is disabled in production." });
+    return;
+  }
   const testPools = await db
     .select({ id: poolsTable.id })
     .from(poolsTable)
@@ -152,6 +156,10 @@ router.post("/wipe-test-data", async (_req, res) => {
 // POST /api/admin-panel/reset-database
 // Full wipe: picks → entries → pools → users (sessions survive)
 router.post("/reset-database", async (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "This action is disabled in production." });
+    return;
+  }
   await pgPool.query("DELETE FROM picks");
   await pgPool.query("DELETE FROM week_results");
   await pgPool.query("DELETE FROM entries");
