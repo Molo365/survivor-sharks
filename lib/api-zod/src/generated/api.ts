@@ -1595,6 +1595,31 @@ export const GetWcBracketMemberPicksResponse = zod.array(GetWcBracketMemberPicks
 
 
 /**
+ * @summary Full tournament bracket tree (all rounds) with auto-advanced teams and user picks
+ */
+export const GetWcBracketTreeParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetWcBracketTreeResponseItem = zod.object({
+  "round": zod.string().describe('round_of_32 | round_of_16 | quarterfinals | semifinals | final'),
+  "bracketPos": zod.number().describe('1-indexed position within the side for this round'),
+  "side": zod.string().describe('left | right'),
+  "team1": zod.string().describe('Team name or \'TBD\' if not yet determined'),
+  "team2": zod.string().describe('Team name or \'TBD\' if not yet determined'),
+  "team1Logo": zod.string().nullable(),
+  "team2Logo": zod.string().nullable(),
+  "matchDate": zod.coerce.date().nullable(),
+  "isCompleted": zod.boolean(),
+  "winner": zod.string().nullable(),
+  "winType": zod.string().nullable().describe('normal | aet | penalties | null'),
+  "pickedTeam": zod.string().nullable().describe('User\'s pick for this match (R32 only)'),
+  "isCorrect": zod.boolean().nullable()
+})
+export const GetWcBracketTreeResponse = zod.array(GetWcBracketTreeResponseItem)
+
+
+/**
  * @summary Get NFL division definitions with team info and the user's existing picks
  */
 export const GetNdpDivisionsParams = zod.object({

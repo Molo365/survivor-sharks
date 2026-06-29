@@ -1644,6 +1644,29 @@ export interface WcBracketLeaderboardEntry {
   rank: number;
 }
 
+export interface BracketTreeSlot {
+  /** round_of_32 | round_of_16 | quarterfinals | semifinals | final */
+  round: string;
+  /** 1-indexed position within the side for this round */
+  bracketPos: number;
+  /** left | right */
+  side: string;
+  /** Team name or 'TBD' if not yet determined */
+  team1: string;
+  /** Team name or 'TBD' if not yet determined */
+  team2: string;
+  team1Logo: string | null;
+  team2Logo: string | null;
+  matchDate: string | null;
+  isCompleted: boolean;
+  winner: string | null;
+  /** normal | aet | penalties | null */
+  winType: string | null;
+  /** User's pick for this match (R32 only) */
+  pickedTeam: string | null;
+  isCorrect: boolean | null;
+}
+
 export interface NflPickEmSeasonWeekResults {
   week: number;
   games: NflPickEmSeasonGame[];

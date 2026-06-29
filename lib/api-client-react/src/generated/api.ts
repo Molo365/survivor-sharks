@@ -26,6 +26,7 @@ import type {
   AdminUserUpdate,
   AuthToken,
   AuthUser,
+  BracketTreeSlot,
   DailySchedule,
   Elimination,
   ErrorResponse,
@@ -3651,6 +3652,83 @@ export function useGetWcBracketMemberPicks<TData = Awaited<ReturnType<typeof get
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetWcBracketMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetWcBracketTreeUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket/tree`
+}
+
+/**
+ * @summary Full tournament bracket tree (all rounds) with auto-advanced teams and user picks
+ */
+export const getWcBracketTree = async (poolId: number, options?: RequestInit): Promise<BracketTreeSlot[]> => {
+
+  return customFetch<BracketTreeSlot[]>(getGetWcBracketTreeUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcBracketTreeQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/bracket/tree`
+    ] as const;
+    }
+
+
+export const getGetWcBracketTreeQueryOptions = <TData = Awaited<ReturnType<typeof getWcBracketTree>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketTree>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcBracketTreeQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcBracketTree>>> = ({ signal }) => getWcBracketTree(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcBracketTree>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcBracketTreeQueryResult = NonNullable<Awaited<ReturnType<typeof getWcBracketTree>>>
+export type GetWcBracketTreeQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Full tournament bracket tree (all rounds) with auto-advanced teams and user picks
+ */
+
+export function useGetWcBracketTree<TData = Awaited<ReturnType<typeof getWcBracketTree>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketTree>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcBracketTreeQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

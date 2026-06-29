@@ -4,13 +4,14 @@ import {
   useSubmitWcBracketPicks,
   useGetWcBracketLeaderboard,
   useGetWcBracketMemberPicks,
+  useGetWcBracketTree,
   useUpdatePool,
   getGetWcBracketQueryKey,
   getGetWcBracketLeaderboardQueryKey,
   getGetWcBracketMemberPicksQueryKey,
   getGetPoolQueryKey,
 } from "@workspace/api-client-react";
-import type { WcBracketMatch, WcBracketLeaderboardEntry } from "@workspace/api-client-react";
+import type { WcBracketMatch, WcBracketLeaderboardEntry, BracketTreeSlot } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ import {
   Copy,
   ShieldAlert,
   Settings2,
+  Trophy,
 } from "lucide-react";
 
 // ── ESPN country flag CDN slug map ────────────────────────────────────────────
@@ -621,6 +623,328 @@ function WcBracketLeaderboard({
   );
 }
 
+// ── BracketSlotBox ─────────────────────────────────────────────────────────────
+// Compact 2-row match card for the bracket tree view.
+
+function BracketSlotBox({ slot }: { slot: BracketTreeSlot }) {
+  function TeamRow({ name, logoUrl }: { name: string; logoUrl: string | null }) {
+    const isTBD = name === "TBD";
+    const isWinner = slot.isCompleted && slot.winner === name;
+    const isPicked = !isTBD && slot.pickedTeam === name;
+    const isCorrectPick = isPicked && slot.isCorrect === true;
+    const isWrongPick = isPicked && slot.isCorrect === false;
+    const slug = TEAM_FLAG_SLUG[name];
+    const flagSrc = logoUrl ?? (slug ? `https://a.espncdn.com/i/teamlogos/countries/500/${slug}.png` : null);
+    const abbr = slug ? slug.toUpperCase() : name.slice(0, 3).toUpperCase();
+
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-1.5 px-2 py-1",
+          isWinner && "bg-yellow-500/10",
+          isCorrectPick && "bg-green-500/10",
+          isWrongPick && "bg-destructive/10",
+          isPicked && !isWinner && !isCorrectPick && !isWrongPick && "bg-primary/10",
+        )}
+      >
+        <div className="w-[18px] h-[18px] rounded-full bg-white/90 shrink-0 overflow-hidden flex items-center justify-center">
+          {flagSrc && !isTBD ? (
+            <img
+              src={flagSrc}
+              alt={name}
+              className="w-full h-full object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <span className="text-[7px] font-bold text-muted-foreground">?</span>
+          )}
+        </div>
+        <span
+          className={cn(
+            "font-bebas text-[11px] tracking-wide leading-none flex-1 min-w-0 truncate",
+            isTBD ? "text-muted-foreground/25" :
+              isWinner ? "text-yellow-400" :
+              isPicked ? "text-foreground" : "text-muted-foreground/70",
+          )}
+        >
+          {isTBD ? "TBD" : abbr}
+        </span>
+        {isCorrectPick && <Check className="w-2.5 h-2.5 text-green-400 shrink-0" />}
+        {isWrongPick && <X className="w-2.5 h-2.5 text-destructive shrink-0" />}
+        {isPicked && !isCorrectPick && !isWrongPick && (
+          <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+        )}
+        {isWinner && !isPicked && (
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60 shrink-0" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border overflow-hidden bg-card/80 shrink-0",
+        slot.isCompleted ? "border-muted/40" : "border-border/30",
+      )}
+      style={{ width: 118 }}
+    >
+      <TeamRow name={slot.team1} logoUrl={slot.team1Logo ?? null} />
+      <div className="h-px bg-border/20" />
+      <TeamRow name={slot.team2} logoUrl={slot.team2Logo ?? null} />
+    </div>
+  );
+}
+
+// ── BracketTreeTab ──────────────────────────────────────────────────────────────
+// Full 16-team knockout bracket visualized as a tree (R32 → R16 → QF → SF → Final).
+// Left half flows right-to-center; right half flows left-to-center.
+
+function BracketTreeTab({ poolId }: { poolId: number }) {
+  const { data: slots, isLoading } = useGetWcBracketTree(poolId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        <Loader2 className="w-6 h-6 animate-spin mr-2" />
+        Loading bracket…
+      </div>
+    );
+  }
+  if (!slots || slots.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <p className="font-bebas text-2xl tracking-wider text-muted-foreground">Bracket unavailable</p>
+      </div>
+    );
+  }
+
+  const byKey = (round: string, side: string) =>
+    slots
+      .filter((s) => s.round === round && s.side === side)
+      .sort((a, b) => a.bracketPos - b.bracketPos);
+
+  const r32L  = byKey("round_of_32",    "left");
+  const r32R  = byKey("round_of_32",    "right");
+  const r16L  = byKey("round_of_16",    "left");
+  const r16R  = byKey("round_of_16",    "right");
+  const qfL   = byKey("quarterfinals",  "left");
+  const qfR   = byKey("quarterfinals",  "right");
+  const sfL   = byKey("semifinals",     "left");
+  const sfR   = byKey("semifinals",     "right");
+  const final = slots.find((s) => s.round === "final");
+
+  // Layout constants (px)
+  const UNIT     = 80;   // height of each R32 logical slot
+  const H        = 640;  // total bracket height = 8 * UNIT
+  const CONN_W   = 14;   // bracket connector notch width
+  const ENTRY_W  = 8;    // horizontal entry arm on parent column
+  const BOX_W    = 118;  // width of BracketSlotBox (must match style={{ width: 118 }})
+  const SF_CONN  = 28;   // width of the SF → Final horizontal connector
+
+  const LINE = "1px solid rgba(255,255,255,0.1)";
+
+  // RoundCol renders a flex-column of slots, each unitCount*UNIT tall.
+  // entryOn adds a short horizontal arm on the specified side of each slot box.
+  function RoundCol({
+    matches,
+    unitCount,
+    entryOn = "none",
+  }: {
+    matches: BracketTreeSlot[];
+    unitCount: number;
+    entryOn?: "left" | "right" | "none";
+  }) {
+    const slotH = unitCount * UNIT;
+    return (
+      <div style={{ height: H, flexShrink: 0 }}>
+        {matches.map((slot) => (
+          <div
+            key={`${slot.round}-${slot.side}-${slot.bracketPos}`}
+            style={{ height: slotH, display: "flex", alignItems: "center" }}
+          >
+            {entryOn === "left" && (
+              <div style={{ width: ENTRY_W, height: 1, background: "rgba(255,255,255,0.1)", flexShrink: 0 }} />
+            )}
+            <BracketSlotBox slot={slot} />
+            {entryOn === "right" && (
+              <div style={{ width: ENTRY_W, height: 1, background: "rgba(255,255,255,0.1)", flexShrink: 0 }} />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Conn renders a bracket notch connecting 2 child slots (outer round) to 1 parent slot (inner round).
+  // parentCount = number of parent slots (= number of notches).
+  // childUnitCount = UNIT-multiples per child slot.
+  // side = "left"  → spine on right edge (children are on the left, parent on the right).
+  //      = "right" → spine on left edge  (parent is on the left, children on the right).
+  function Conn({
+    parentCount,
+    childUnitCount,
+    side,
+  }: {
+    parentCount: number;
+    childUnitCount: number;
+    side: "left" | "right";
+  }) {
+    const childH  = childUnitCount * UNIT;
+    const parentH = 2 * childH;
+    const spacer  = childH / 2;
+    const armH    = childH / 2;
+    const spineBorder = side === "left" ? { borderRight: LINE } : { borderLeft: LINE };
+
+    return (
+      <div style={{ height: H, width: CONN_W, flexShrink: 0 }}>
+        {Array.from({ length: parentCount }, (_, i) => (
+          <div key={i} style={{ height: parentH }}>
+            <div style={{ height: spacer }} />
+            <div style={{ height: armH, borderTop: LINE, ...spineBorder }} />
+            <div style={{ height: armH, borderBottom: LINE, ...spineBorder }} />
+            <div style={{ height: spacer }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Column header labels positioned above each round column.
+  const headerCols = [
+    { label: "R32",   w: BOX_W },
+    { label: "",      w: CONN_W },
+    { label: "R16",   w: ENTRY_W + BOX_W },
+    { label: "",      w: CONN_W },
+    { label: "QF",    w: ENTRY_W + BOX_W },
+    { label: "",      w: CONN_W },
+    { label: "SF",    w: ENTRY_W + BOX_W },
+    { label: "",      w: SF_CONN },
+    { label: "Final", w: BOX_W + 22 },
+    { label: "",      w: SF_CONN },
+    { label: "SF",    w: BOX_W + ENTRY_W },
+    { label: "",      w: CONN_W },
+    { label: "QF",    w: BOX_W + ENTRY_W },
+    { label: "",      w: CONN_W },
+    { label: "R16",   w: BOX_W + ENTRY_W },
+    { label: "",      w: CONN_W },
+    { label: "R32",   w: BOX_W },
+  ];
+
+  return (
+    <div>
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-5 text-[11px] text-muted-foreground">
+        <span className="font-bebas text-sm tracking-wide text-foreground/50 mr-1">Legend:</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary/60" /> My pick
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Check className="w-3 h-3 text-green-400" /> Correct
+        </div>
+        <div className="flex items-center gap-1.5">
+          <X className="w-3 h-3 text-destructive" /> Wrong
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60" /> Advanced
+        </div>
+      </div>
+
+      {/* Round headers */}
+      <div className="overflow-x-hidden mb-1.5">
+        <div style={{ display: "inline-flex" }}>
+          {headerCols.map(({ label, w }, i) => (
+            <div
+              key={i}
+              style={{ width: w, flexShrink: 0, textAlign: "center" }}
+              className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scrollable bracket tree */}
+      <div className="overflow-x-auto pb-6 -mx-4 px-4">
+        <div style={{ display: "inline-flex", alignItems: "stretch", userSelect: "none" }}>
+
+          {/* ── LEFT HALF: R32 → R16 → QF → SF ──────────────────────────── */}
+          <RoundCol matches={r32L} unitCount={1} />
+          <Conn parentCount={4} childUnitCount={1} side="left" />
+          <RoundCol matches={r16L} unitCount={2} entryOn="left" />
+          <Conn parentCount={2} childUnitCount={2} side="left" />
+          <RoundCol matches={qfL}  unitCount={4} entryOn="left" />
+          <Conn parentCount={1} childUnitCount={4} side="left" />
+          <RoundCol matches={sfL}  unitCount={8} entryOn="left" />
+
+          {/* SF-left → Final connector (horizontal arm at center height) */}
+          <div style={{ height: H, width: SF_CONN, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, borderBottom: LINE, borderRight: LINE }} />
+            <div style={{ flex: 1 }} />
+          </div>
+
+          {/* ── CENTER: Final + Champion ───────────────────────────────────── */}
+          <div
+            style={{
+              height: H,
+              width: BOX_W + 22,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 14,
+            }}
+          >
+            <div className="text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-2">
+                🏆 Final
+              </p>
+              {final ? (
+                <BracketSlotBox slot={final} />
+              ) : (
+                <div
+                  className="rounded-lg border border-dashed border-border/20 bg-card/30 flex items-center justify-center"
+                  style={{ width: BOX_W, height: 54 }}
+                >
+                  <span className="text-[9px] text-muted-foreground/25 font-bold uppercase tracking-widest">
+                    TBD
+                  </span>
+                </div>
+              )}
+            </div>
+            {final?.winner && (
+              <div className="text-center">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-yellow-500/70 mb-1">
+                  Champion
+                </p>
+                <p className="font-bebas text-2xl tracking-wider text-yellow-400">{final.winner}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Final → SF-right connector */}
+          <div style={{ height: H, width: SF_CONN, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1 }} />
+            <div style={{ flex: 1, borderTop: LINE, borderLeft: LINE }} />
+          </div>
+
+          {/* ── RIGHT HALF: SF → QF → R16 → R32 ─────────────────────────── */}
+          <RoundCol matches={sfR}  unitCount={8} entryOn="right" />
+          <Conn parentCount={1} childUnitCount={4} side="right" />
+          <RoundCol matches={qfR}  unitCount={4} entryOn="right" />
+          <Conn parentCount={2} childUnitCount={2} side="right" />
+          <RoundCol matches={r16R} unitCount={2} entryOn="right" />
+          <Conn parentCount={4} childUnitCount={1} side="right" />
+          <RoundCol matches={r32R} unitCount={1} />
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── WcBracketView (main export) ───────────────────────────────────────────────
 
 export function WcBracketView({
@@ -842,6 +1166,12 @@ export function WcBracketView({
               >
                 <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
               </TabsTrigger>
+              <TabsTrigger
+                value="bracket"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+              >
+                <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Bracket
+              </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
                   value="commissioner"
@@ -962,6 +1292,11 @@ export function WcBracketView({
               poolId={poolId}
               onSelectPlayer={setSelectedPlayer}
             />
+          </TabsContent>
+
+          {/* Bracket tree tab */}
+          <TabsContent value="bracket" className="m-0 focus-visible:outline-none">
+            <BracketTreeTab poolId={poolId} />
           </TabsContent>
 
           {/* Commissioner tab */}

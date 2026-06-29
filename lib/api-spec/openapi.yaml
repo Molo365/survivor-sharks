@@ -1219,6 +1219,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/bracket/tree:
+    get:
+      operationId: getWcBracketTree
+      tags: [bracket]
+      summary: Full tournament bracket tree (all rounds) with auto-advanced teams and user picks
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ordered bracket slots for all rounds (R32→R16→QF→SF→Final)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BracketTreeSlot"
+        "400":
+          description: Not a WC bracket pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── NFL Division Predictor ───────────────────────────────────────────────
   /pools/{poolId}/ndp/divisions:
     get:
@@ -4062,6 +4101,52 @@ components:
           type: integer
         rank:
           type: integer
+
+    BracketTreeSlot:
+      type: object
+      required: [round, bracketPos, side, team1, team2, team1Logo, team2Logo, matchDate, isCompleted, winner, winType, pickedTeam, isCorrect]
+      properties:
+        round:
+          type: string
+          description: "round_of_32 | round_of_16 | quarterfinals | semifinals | final"
+        bracketPos:
+          type: integer
+          description: "1-indexed position within the side for this round"
+        side:
+          type: string
+          description: "left | right"
+        team1:
+          type: string
+          description: "Team name or 'TBD' if not yet determined"
+        team2:
+          type: string
+          description: "Team name or 'TBD' if not yet determined"
+        team1Logo:
+          type: string
+          nullable: true
+        team2Logo:
+          type: string
+          nullable: true
+        matchDate:
+          type: string
+          nullable: true
+          format: date-time
+        isCompleted:
+          type: boolean
+        winner:
+          type: string
+          nullable: true
+        winType:
+          type: string
+          nullable: true
+          description: "normal | aet | penalties | null"
+        pickedTeam:
+          type: string
+          nullable: true
+          description: "User's pick for this match (R32 only)"
+        isCorrect:
+          type: boolean
+          nullable: true
 
     NflPickEmSeasonWeekResults:
       type: object

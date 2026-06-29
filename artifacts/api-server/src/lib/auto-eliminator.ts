@@ -1759,8 +1759,10 @@ export async function processWcBracketResults(): Promise<{ picksGraded: number }
     }
   }
 
-  // Invalidate bracket cache so next fetch reflects updated status
-  if (picksGraded > 0) invalidateBracketCache();
+  // Invalidate bracket cache so next fetch reflects updated status.
+  // Invalidate any time completed matches exist (not just when picks are graded)
+  // so R16/QF/SF/Final advancements appear in the bracket tree immediately.
+  if (completedMatches.length > 0) invalidateBracketCache();
 
   return { picksGraded };
 }
