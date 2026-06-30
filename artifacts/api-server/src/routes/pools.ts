@@ -145,6 +145,11 @@ router.get("/past", requireAuth, async (req, res) => {
 
 // POST /api/pools
 router.post("/", requireAuth, async (req, res) => {
+  if (process.env.POOL_CREATION_OPEN !== "true" && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Pool creation is not yet available." });
+    return;
+  }
+
   const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
 
   if (!name || !sport) {

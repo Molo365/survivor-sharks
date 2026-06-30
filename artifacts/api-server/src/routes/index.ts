@@ -24,6 +24,11 @@ import bracketRouter from "./bracket";
 
 const router: IRouter = Router();
 
+// GET /api/config — public feature flags (no auth required)
+router.get("/config", (_req, res) => {
+  res.json({ poolCreationOpen: process.env.POOL_CREATION_OPEN === "true" });
+});
+
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/pools", poolsRouter);

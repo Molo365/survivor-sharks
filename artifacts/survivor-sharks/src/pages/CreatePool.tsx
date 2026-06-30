@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -227,6 +229,15 @@ export default function CreatePool() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const createPool = useCreatePool();
+  const { user, isLoading: authLoading } = useAuth();
+  const { data: config, isLoading: configLoading } = useQuery({
+    queryKey: ["config"],
+    queryFn: async () => {
+      const res = await fetch("/api/config");
+      return res.json() as Promise<{ poolCreationOpen: boolean }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Prize structure managed outside react-hook-form (dynamic list)
   const [prizes, setPrizes] = useState<Array<{ amount: string }>>([{ amount: "" }]);
@@ -366,6 +377,44 @@ export default function CreatePool() {
           });
         },
       },
+    );
+  }
+
+  const isAdmin = user?.role === "admin";
+  const poolCreationOpen = config?.poolCreationOpen ?? false;
+
+  if (!isAdmin && (authLoading || configLoading)) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col">
+        <NavBar />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !poolCreationOpen) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col">
+        <div
+          style={{ backgroundImage: `url('/ocean_shark_bg.jpg')`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}
+          className="fixed inset-0 -z-10"
+        />
+        <div className="fixed inset-0 -z-10 bg-black/65" />
+        <NavBar />
+        <main className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md text-center space-y-4">
+            <div className="text-6xl mb-6">🦈</div>
+            <h1 className="font-bebas text-5xl tracking-wide text-foreground">COMING SOON</h1>
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              Pool creation is launching soon! Sign up now and we&apos;ll let you know the moment it&apos;s live.
+            </p>
+            <Link href="/">
+              <Button variant="outline" className="mt-4 border-primary/30 hover:bg-primary/10 hover:text-primary">
+                Back to Home
+              </Button>
+            </Link>
+          </div>
+        </main>
+      </div>
     );
   }
 
