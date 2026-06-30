@@ -256,8 +256,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
           </CardContent>
         </Card>
 
-        {/* Process Eliminations */}
-        <Card className="bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)] border-destructive/30">
+        {/* Process Eliminations — hidden for Crazy 8's (auto-graded from ESPN every 5 min) */}
+        {(pool as any).poolType !== "crazy_8s" && <Card className="bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)] border-destructive/30">
           <CardHeader>
             <CardTitle className="font-bebas text-2xl tracking-wide text-destructive flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" /> Process Eliminations
@@ -343,7 +343,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
               {processResults.isPending ? "Processing..." : "Process Week Results"}
             </Button>
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       {/* Stop Recurring — MLB Daily, MLB Weekly, and NFL Confidence Weekly pools */}
