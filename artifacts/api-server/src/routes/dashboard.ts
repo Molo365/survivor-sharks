@@ -9,6 +9,7 @@ import {
   nflDivisionResultsTable,
   groupStagePredictorPicksTable,
   groupStageResultsTable,
+  wcBracketPicksTable,
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
@@ -515,6 +516,42 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             status: null, eliminatedWeek: null,
             score: myRow ? myRow.total : null,
             maxScore: 144,
+          },
+        };
+      }
+
+      // ── WC Bracket ──────────────────────────────────────────────────────────
+      if (poolType === "wc_bracket") {
+        const allPickRows = await db
+          .select({
+            userId: wcBracketPicksTable.userId,
+            correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} = true)`,
+            picked: sql<string>`COUNT(*)`,
+          })
+          .from(wcBracketPicksTable)
+          .where(eq(wcBracketPicksTable.poolId, pool.id))
+          .groupBy(wcBracketPicksTable.userId)
+          .orderBy(
+            sql`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} = true) DESC`,
+            sql`COUNT(*) DESC`,
+          );
+
+        const myIdx = allPickRows.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? allPickRows[myIdx] : null;
+
+        return {
+          poolId: pool.id,
+          poolType,
+          lastWinners: null,
+          myStanding: {
+            rank: myRow ? myIdx + 1 : 0,
+            correct: myRow ? Number(myRow.correct) : 0,
+            picked: myRow ? Number(myRow.picked) : 0,
+            hasPicks: !!myRow && Number(myRow.picked) > 0,
+            status: null,
+            eliminatedWeek: null,
+            score: null,
+            maxScore: null,
           },
         };
       }

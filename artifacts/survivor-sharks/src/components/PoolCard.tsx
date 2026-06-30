@@ -4,6 +4,7 @@ import { Users, Calendar } from "lucide-react";
 import { Pool, PoolPickEmStat } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
+import { cn } from "@/lib/utils";
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -17,6 +18,21 @@ interface PoolCardProps {
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
+
+const POOL_TYPE_LABELS: Record<string, string> = {
+  season: "Survivor",
+  weekly: "Survivor",
+  mid_season: "Survivor",
+  pickem: "Pick-Ems",
+  pickem_season: "Pick-Em Season",
+  nfl_confidence: "Confidence",
+  nfl_confidence_weekly: "Confidence Weekly",
+  nfl_division_predictor: "Division Predictor",
+  group_stage_predictor: "Group Stage",
+  wc_bracket: "Bracket",
+  dirty_dozen: "Dirty Dozen",
+  crazy_8s: "Crazy 8's",
+};
 
 export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const isWeekly = pool.pickFrequency === "weekly";
@@ -39,6 +55,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
           <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">
             {pool.sport} • Season {pool.season}
           </div>
+          {POOL_TYPE_LABELS[pt] && (
+            <span className="inline-flex items-center text-[10px] font-bold tracking-widest uppercase bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded w-fit">
+              {POOL_TYPE_LABELS[pt]}
+            </span>
+          )}
         </CardHeader>
         <CardContent className="pb-2 flex-grow">
           {pool.description && (
@@ -52,7 +73,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             </div>
             <div className="flex items-center gap-1.5 text-sm">
               <Calendar className="w-4 h-4 text-primary" />
-              <span>Week {pool.currentWeek}</span>
+              <span>{pt === "wc_bracket" ? "WC 2026 Bracket" : `Week ${pool.currentWeek}`}</span>
             </div>
           </div>
 
@@ -153,11 +174,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_confidence" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden>📊</span>
+                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
                     <span>
                       You&apos;re{" "}
-                      <span className="text-foreground/70 font-medium">
+                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
                         {ordinal(pickEmStat.myStanding.rank)}
                       </span>
                     </span>
@@ -172,11 +193,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_confidence_weekly" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden>📊</span>
+                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
                     <span>
                       You&apos;re{" "}
-                      <span className="text-foreground/70 font-medium">
+                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
                         {ordinal(pickEmStat.myStanding.rank)}
                       </span>
                     </span>
@@ -191,11 +212,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_division_predictor" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden>📊</span>
+                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
                     <span>
                       You&apos;re{" "}
-                      <span className="text-foreground/70 font-medium">
+                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
                         {ordinal(pickEmStat.myStanding.rank)}
                       </span>
                     </span>
@@ -208,14 +229,33 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>No picks yet</span>
                   </div>
                 )
-              ) : (
-                /* pickem (MLB/WC) and pickem_season — "X/Y correct" style */
+              ) : pt === "wc_bracket" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden>📊</span>
+                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
                     <span>
                       You&apos;re{" "}
-                      <span className="text-foreground/70 font-medium">
+                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                        {ordinal(pickEmStat.myStanding.rank)}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                    <span aria-hidden>⚠️</span>
+                    <span>No bracket picks yet</span>
+                  </div>
+                )
+              ) : (
+                /* pickem (MLB/WC pickem) and pickem_season — "X/Y correct" style */
+                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
+                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                    <span>
+                      You&apos;re{" "}
+                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
                         {ordinal(pickEmStat.myStanding.rank)}
                       </span>
                     </span>
