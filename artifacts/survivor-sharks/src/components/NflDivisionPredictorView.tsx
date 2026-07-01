@@ -6,7 +6,6 @@ import {
   getGetNdpLeaderboardQueryKey,
   useGetNdpMemberPicks,
   getGetNdpMemberPicksQueryKey,
-  useGetNdpWeek18Games,
   getGetPoolQueryKey,
   useGetNdpMyTiebreaker,
   getGetNdpMyTiebreakerQueryKey,
@@ -291,6 +290,10 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
             actualPassingYards={leaderboard.tb1Actual}
             actualRushingYards={leaderboard.tb2Actual}
             tiedPlayers={tiebreakerCardPlayers}
+            tb1Label="AFC East combined wins"
+            tb2Label="NFC East combined wins"
+            abbrLabel1="AFC"
+            abbrLabel2="NFC"
           />
         )}
 
@@ -642,7 +645,6 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: week18Games = [] } = useGetNdpWeek18Games(poolId);
   const [localSandboxMode, setLocalSandboxMode] = useState(initSandboxMode);
   const [togglingMode, setTogglingMode] = useState(false);
   const [simulating, setSimulating] = useState(false);
@@ -678,8 +680,8 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          ...(tb1 !== undefined && !isNaN(tb1) && { tb1CombinedScore: tb1 }),
-          ...(tb2 !== undefined && !isNaN(tb2) && { tb2CombinedScore: tb2 }),
+          ...(tb1 !== undefined && !isNaN(tb1) && { tb1CombinedWins: tb1 }),
+          ...(tb2 !== undefined && !isNaN(tb2) && { tb2CombinedWins: tb2 }),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
@@ -733,16 +735,16 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
           </div>
           {localSandboxMode && (
             <div className="space-y-3">
-              {/* Tiebreaker inputs — always shown; auto-designated last game is used */}
+              {/* Tiebreaker inputs — AFC/NFC East combined wins */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                    Combined Passing Yds
+                    AFC East Wins
                   </label>
                   <Input
                     type="number"
                     min={0}
-                    placeholder="e.g. 520"
+                    placeholder="e.g. 37"
                     value={simTb1Score}
                     onChange={(e) => setSimTb1Score(e.target.value)}
                     className="h-8 text-sm bg-background/50 border-yellow-500/30"
@@ -750,12 +752,12 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-yellow-400/70 uppercase tracking-wider font-semibold">
-                    Combined Rushing Yds
+                    NFC East Wins
                   </label>
                   <Input
                     type="number"
                     min={0}
-                    placeholder="e.g. 140"
+                    placeholder="e.g. 39"
                     value={simTb2Score}
                     onChange={(e) => setSimTb2Score(e.target.value)}
                     className="h-8 text-sm bg-background/50 border-yellow-500/30"
@@ -785,24 +787,16 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
         </div>
       )}
 
-      {/* Tiebreaker Game — auto-designated: last game of Week 18 by start time */}
+      {/* Tiebreaker — AFC East / NFC East combined wins */}
       <div className="rounded-xl border border-border/40 bg-card/60 p-5 space-y-2">
         <div>
           <h4 className="font-bebas text-xl tracking-wide text-foreground flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" /> Tiebreaker Game
+            <Trophy className="w-4 h-4 text-primary" /> Tiebreaker
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            The last game of Week 18 by start time is automatically used as the tiebreaker reference — no action required.
+            If scores tie at pool close, tiebreaker 1 is the total regular-season wins across all 4 AFC East teams, and tiebreaker 2 is the total wins across all 4 NFC East teams. Enter the actuals above when simulating — or include them in the results submission for live pools.
           </p>
         </div>
-        {week18Games.length > 0 && (() => {
-          const lastGame = [...week18Games].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).at(-1);
-          return lastGame ? (
-            <p className="text-sm font-medium text-foreground">
-              {lastGame.awayTeam} @ {lastGame.homeTeam}
-            </p>
-          ) : null;
-        })()}
       </div>
 
       <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
@@ -845,7 +839,6 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   const { data: divisions, isLoading } = useGetNdpDivisions(poolId);
   const submitPicks = useSubmitNdpPicks();
   const { data: myTiebreaker } = useGetNdpMyTiebreaker(poolId);
-  const { data: week18Games = [] } = useGetNdpWeek18Games(poolId);
 
   const [orders, setOrders] = useState<Record<string, TeamOrder>>({});
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
@@ -912,9 +905,8 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     return current.some((t, i) => t !== saved[i]);
   });
 
-  // Auto-designated tiebreaker: last game of Week 18. Show the guess prompt whenever Week 18
-  // games are available and the player hasn't submitted a guess yet.
-  const needsTb = week18Games.length > 0 && myTiebreaker?.tb1Guess == null;
+  // Tiebreaker: AFC East / NFC East combined wins. Prompt fires on first-ever picks submission.
+  const needsTb = !picksLocked && myTiebreaker?.tb1Guess == null;
 
   function doFinalSubmit(tb1Guess?: number, tb2Guess?: number) {
     const picks = Object.entries(orders).map(([divisionName, order]) => ({
@@ -970,12 +962,9 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     );
   }
 
-  // Auto-designated: last game of Week 18 by start time (no commissioner input needed)
-  const tb1Game = [...week18Games].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).at(-1) ?? null;
-
   return (
     <div className="space-y-6 pt-4">
-      {/* Tiebreaker Dialog — prompted once on first picks submission when games are designated */}
+      {/* Tiebreaker Dialog — prompted once on first picks submission */}
       <Dialog open={showTbDialog} onOpenChange={(open) => { if (!open) setShowTbDialog(false); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -983,18 +972,18 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               <Trophy className="w-5 h-5 text-yellow-400" /> Tiebreaker Guess
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-snug">
-              In case of a score tie at pool close, your guesses for the combined passing and rushing yards in this game decide the winner. Closest guess wins — passing yards first, rushing yards as fallback.
+              If scores are tied when the pool closes, your guesses for the AFC East and NFC East combined regular-season wins decide the winner. Closest guess wins — AFC East first, NFC East as fallback.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Combined Passing Yards{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
+                AFC East — Combined Regular-Season Wins
               </label>
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 520"
+                placeholder="e.g. 37"
                 value={tbGuess1}
                 onChange={(e) => setTbGuess1(e.target.value)}
                 className="text-lg font-mono h-12"
@@ -1003,12 +992,12 @@ function MyPicksTab({ poolId }: { poolId: number }) {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Combined Rushing Yards{tb1Game ? ` — ${tb1Game.awayTeam} @ ${tb1Game.homeTeam}` : ""}
+                NFC East — Combined Regular-Season Wins
               </label>
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 140"
+                placeholder="e.g. 39"
                 value={tbGuess2}
                 onChange={(e) => setTbGuess2(e.target.value)}
                 className="text-lg font-mono h-12"
@@ -1024,12 +1013,12 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               onClick={() => {
                 const g1 = parseInt(tbGuess1, 10);
                 if (isNaN(g1) || g1 < 0) {
-                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Combined passing yards guess must be ≥ 0." });
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "AFC East wins guess must be ≥ 0." });
                   return;
                 }
                 const g2 = tbGuess2 !== "" ? parseInt(tbGuess2, 10) : undefined;
                 if (g2 !== undefined && (isNaN(g2) || g2 < 0)) {
-                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Combined rushing yards guess must be ≥ 0." });
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "NFC East wins guess must be ≥ 0." });
                   return;
                 }
                 setShowTbDialog(false);
@@ -1070,21 +1059,16 @@ function MyPicksTab({ poolId }: { poolId: number }) {
       )}
 
       {/* Tiebreaker guess receipt — logged-in player only, shown pre-close once submitted */}
-      {myTiebreaker?.tb1Guess != null && tb1Game && (
+      {myTiebreaker?.tb1Guess != null && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Your Tiebreaker Guess</p>
-          {tb1Game && (
-            <p className="text-[10px] text-muted-foreground/50 -mt-1 mb-2">
-              {tb1Game.awayTeam} @ {tb1Game.homeTeam}
-            </p>
-          )}
           <div className="flex gap-6">
             <div>
-              <p className="text-[10px] text-muted-foreground/60">Combined passing yards</p>
+              <p className="text-[10px] text-muted-foreground/60">AFC East combined wins</p>
               <p className="font-bebas text-xl text-yellow-300">{myTiebreaker.tb1Guess}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground/60">Combined rushing yards</p>
+              <p className="text-[10px] text-muted-foreground/60">NFC East combined wins</p>
               <p className="font-bebas text-xl text-yellow-300">{myTiebreaker.tb2Guess ?? "—"}</p>
             </div>
           </div>
@@ -1245,7 +1229,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               </p>
               <p className="text-xs text-muted-foreground">
                 {needsTb && !hasPendingChanges
-                  ? "The last game of Week 18 is the tiebreaker reference game — add your guess to finalise your entry"
+                  ? "Add your AFC East and NFC East wins guesses to finalise your entry"
                   : "Lock in your picks for all 8 NFL divisions"}
               </p>
             </div>

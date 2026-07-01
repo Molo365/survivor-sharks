@@ -7,46 +7,21 @@ import {
   poolsTable,
   entriesTable,
   usersTable,
-  sandboxGameScoresTable,
 } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
-import { fetchNflGamesByWeek, fetchNflDivisionStandings } from "../lib/espn";
-import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import { fetchNflDivisionStandings } from "../lib/espn";
 import type { Logger } from "pino";
-
-// Auto-designate the last game of Week 18 by start time — same pattern as NFL Confidence Season.
-// For sandbox pools use the hardcoded schedule; for live pools fetch from ESPN with hardcoded fallback.
-async function autoGetLastWeek18GameId(
-  sandboxMode: boolean,
-  season: number,
-  poolId: number,
-  log: Logger,
-): Promise<string | null> {
-  if (sandboxMode) {
-    const games = getSandboxGamesForWeek(18);
-    games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
-    return games.at(-1)?.id ?? null;
-  }
-  try {
-    const games = await fetchNflGamesByWeek(18, season);
-    if (games.length > 0) {
-      games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      return games.at(-1)?.id ?? null;
-    }
-  } catch (err) {
-    log.warn({ err, poolId }, "autoGetLastWeek18GameId: ESPN fetch failed, falling back to hardcoded schedule");
-  }
-  const fallback = getSandboxGamesForWeek(18);
-  fallback.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
-  return fallback.at(-1)?.id ?? null;
-}
 
 const router = Router({ mergeParams: true });
 
 // ── Tiebreaker helpers ──────────────────────────────────────────────────────
+// Tiebreaker 1 (tb1): AFC East combined regular-season wins
+// Tiebreaker 2 (tb2): NFC East combined regular-season wins
+// Actuals are stored by POST /ndp/results (live) or POST /ndp/simulate-standings (sandbox)
+// before closePredictorPool is called, so the resolver only needs to read them.
 
 function closestByAbsDiff(
   userIds: number[],
@@ -59,78 +34,51 @@ function closestByAbsDiff(
     return { uid, diff: guess != null ? Math.abs(guess - actual) : Infinity };
   });
   const minDiff = Math.min(...diffs.map((d) => d.diff));
-  if (!isFinite(minDiff)) return userIds; // no one has guessed — can't resolve
+  if (!isFinite(minDiff)) return userIds; // no one guessed — cannot resolve
   return diffs.filter((d) => d.diff === minDiff).map((d) => d.uid);
 }
 
-async function getActualNdpCombinedScore(
-  gameId: string,
-  poolId: number,
-  sandboxMode: boolean,
-  season: number,
-  log: Logger,
-): Promise<number | null> {
-  // Synthetic keys (sandbox-* prefix, or any "realGameId:stat" suffix) always resolve from
-  // sandbox_game_scores so commissioners can inject actuals for both sandbox AND live pools.
-  // ESPN game IDs are plain integers; a colon never appears in a real ESPN ID.
-  if (sandboxMode || gameId.startsWith("sandbox-") || gameId.includes(":")) {
-    const [row] = await db.select()
-      .from(sandboxGameScoresTable)
-      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.gameId, gameId)))
-      .limit(1);
-    return row ? row.homeScore + row.awayScore : null;
-  }
-  try {
-    const games = await fetchNflGamesByWeek(18, season);
-    const game = games.find((g) => g.id === gameId);
-    if (!game || !game.isCompleted || game.homeScore == null || game.awayScore == null) return null;
-    return game.homeScore + game.awayScore;
-  } catch (err) {
-    log.warn({ err, gameId }, "getActualNdpCombinedScore: ESPN fetch failed");
-    return null;
-  }
-}
-
 function makeNdpResolveTie(pool: typeof poolsTable.$inferSelect, log: Logger) {
-  const { id: poolId, sandboxMode, season } = pool;
+  const { id: poolId } = pool;
 
   return async (tiedUserIds: number[]): Promise<number[]> => {
-    // Auto-designate: last game of Week 18 by start time — no commissioner input needed
-    const tbGameId = await autoGetLastWeek18GameId(sandboxMode, season, poolId, log);
-    if (!tbGameId) {
-      log.warn({ poolId }, "NDP tiebreaker: no Week 18 games found — cannot resolve tie");
-      return tiedUserIds;
-    }
+    // Read actuals stored by the results/simulate endpoint before closure.
+    const allRows = await db
+      .select()
+      .from(nflDivisionPredictorTiebreakersTable)
+      .where(eq(nflDivisionPredictorTiebreakersTable.poolId, poolId));
 
-    const [tb1Actual, tb2Actual] = await Promise.all([
-      getActualNdpCombinedScore(tbGameId, poolId, sandboxMode, season, log),
-      getActualNdpCombinedScore(`${tbGameId}:rushing`, poolId, sandboxMode, season, log),
-    ]);
+    const sampleRow = allRows.find((r) => r.tb1Actual !== null || r.tb2Actual !== null) ?? null;
+    const tb1Actual: number | null = sampleRow?.tb1Actual ?? null;
+    const tb2Actual: number | null = sampleRow?.tb2Actual ?? null;
 
     log.info(
       { poolId, tb1Actual, tb2Actual, tiedCount: tiedUserIds.length },
-      "NDP tiebreaker: fetched actual passing/rushing yards",
+      "NDP tiebreaker: AFC East / NFC East combined wins",
     );
 
-    // Upsert actual scores for every tied user row (creates row if missing)
-    if (tb1Actual !== null || tb2Actual !== null) {
-      for (const userId of tiedUserIds) {
-        await db
-          .insert(nflDivisionPredictorTiebreakersTable)
-          .values({
-            poolId,
-            userId,
+    if (tb1Actual === null && tb2Actual === null) {
+      log.warn({ poolId }, "NDP tiebreaker: no actuals stored — falling back to pot split");
+      return tiedUserIds;
+    }
+
+    // Upsert actuals to all tied user rows so the leaderboard can display them
+    for (const userId of tiedUserIds) {
+      await db
+        .insert(nflDivisionPredictorTiebreakersTable)
+        .values({
+          poolId,
+          userId,
+          ...(tb1Actual !== null && { tb1Actual }),
+          ...(tb2Actual !== null && { tb2Actual }),
+        })
+        .onConflictDoUpdate({
+          target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+          set: {
             ...(tb1Actual !== null && { tb1Actual }),
             ...(tb2Actual !== null && { tb2Actual }),
-          })
-          .onConflictDoUpdate({
-            target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
-            set: {
-              ...(tb1Actual !== null && { tb1Actual }),
-              ...(tb2Actual !== null && { tb2Actual }),
-            },
-          });
-      }
+          },
+        });
     }
 
     const rows = await db
@@ -369,7 +317,7 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
     return;
   }
 
-  const { results } = req.body as {
+  const { results, tb1Actual, tb2Actual } = req.body as {
     results: Array<{
       divisionName: string;
       pos1Team: string;
@@ -377,6 +325,8 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
       pos3Team: string;
       pos4Team: string;
     }>;
+    tb1Actual?: number;
+    tb2Actual?: number;
   };
 
   if (!Array.isArray(results) || results.length === 0) {
@@ -433,6 +383,33 @@ router.post("/results", requireAuth, requireAdmin, async (req, res) => {
     .where(eq(nflDivisionResultsTable.poolId, poolId));
 
   req.log.info({ poolId, count: saved.length }, "Admin entered NDP actual results");
+
+  // Store tiebreaker actuals if provided (AFC East wins = tb1, NFC East wins = tb2).
+  // Must be written before closePredictorPool so makeNdpResolveTie can read them.
+  if (typeof tb1Actual === "number" || typeof tb2Actual === "number") {
+    const memberRows = await db
+      .select({ userId: entriesTable.userId })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    for (const { userId: memberId } of memberRows) {
+      await db
+        .insert(nflDivisionPredictorTiebreakersTable)
+        .values({
+          poolId,
+          userId: memberId,
+          ...(typeof tb1Actual === "number" && { tb1Actual }),
+          ...(typeof tb2Actual === "number" && { tb2Actual }),
+        })
+        .onConflictDoUpdate({
+          target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+          set: {
+            ...(typeof tb1Actual === "number" && { tb1Actual }),
+            ...(typeof tb2Actual === "number" && { tb2Actual }),
+          },
+        });
+    }
+    req.log.info({ poolId, tb1Actual, tb2Actual }, "Stored NDP tiebreaker actuals (AFC/NFC East wins)");
+  }
 
   // ── Closure detection ────────────────────────────────────────────────────
   // Threshold: NFL_DIVISIONS.length (static = 8 for NFL).
@@ -699,36 +676,36 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
   }
 
-  const { tb1CombinedScore, tb2CombinedScore } = req.body as {
-    tb1CombinedScore?: number;
-    tb2CombinedScore?: number;
+  const { tb1CombinedWins, tb2CombinedWins } = req.body as {
+    tb1CombinedWins?: number;
+    tb2CombinedWins?: number;
   };
 
-  // Inject tiebreaker actuals into sandbox_game_scores so makeNdpResolveTie can read them.
-  // Auto-designate last game of Week 18 (same pattern as NFL Confidence Season — no commissioner input needed).
-  // tb1 = combined passing yards, tb2 = combined rushing yards (stored under synthetic ":rushing" suffix key).
-  const sandboxWeek18Games = getSandboxGamesForWeek(18);
-  sandboxWeek18Games.sort((a, b) => new Date(a.gameTime).getTime() - new Date(b.gameTime).getTime());
-  const autoTbGameId = sandboxWeek18Games.at(-1)?.id ?? null;
-
-  if (typeof tb1CombinedScore === "number" && autoTbGameId) {
-    await db
-      .insert(sandboxGameScoresTable)
-      .values({ poolId, week: 18, gameId: autoTbGameId, homeScore: tb1CombinedScore, awayScore: 0 })
-      .onConflictDoUpdate({
-        target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
-        set: { homeScore: tb1CombinedScore, awayScore: 0 },
-      });
-  }
-  if (typeof tb2CombinedScore === "number" && autoTbGameId) {
-    const rushingKey = `${autoTbGameId}:rushing`;
-    await db
-      .insert(sandboxGameScoresTable)
-      .values({ poolId, week: 18, gameId: rushingKey, homeScore: tb2CombinedScore, awayScore: 0 })
-      .onConflictDoUpdate({
-        target: [sandboxGameScoresTable.poolId, sandboxGameScoresTable.week, sandboxGameScoresTable.gameId],
-        set: { homeScore: tb2CombinedScore, awayScore: 0 },
-      });
+  // Store tiebreaker actuals directly (AFC East wins = tb1, NFC East wins = tb2).
+  // Written before closure so makeNdpResolveTie can read them.
+  if (typeof tb1CombinedWins === "number" || typeof tb2CombinedWins === "number") {
+    const memberRows = await db
+      .select({ userId: entriesTable.userId })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    for (const { userId: memberId } of memberRows) {
+      await db
+        .insert(nflDivisionPredictorTiebreakersTable)
+        .values({
+          poolId,
+          userId: memberId,
+          ...(typeof tb1CombinedWins === "number" && { tb1Actual: tb1CombinedWins }),
+          ...(typeof tb2CombinedWins === "number" && { tb2Actual: tb2CombinedWins }),
+        })
+        .onConflictDoUpdate({
+          target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+          set: {
+            ...(typeof tb1CombinedWins === "number" && { tb1Actual: tb1CombinedWins }),
+            ...(typeof tb2CombinedWins === "number" && { tb2Actual: tb2CombinedWins }),
+          },
+        });
+    }
+    req.log.info({ poolId, tb1CombinedWins, tb2CombinedWins }, "Stored simulated NDP tiebreaker actuals (AFC/NFC East wins)");
   }
 
   function shuffle<T>(arr: T[]): T[] {
@@ -815,49 +792,6 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
   });
 });
 
-// GET /api/pools/:poolId/ndp/week18-games
-router.get("/week18-games", requireAuth, async (req, res) => {
-  const poolId = parseInt(String(req.params.poolId));
-  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if ((pool.poolType as string) !== "nfl_division_predictor") {
-    res.status(400).json({ error: "This pool is not an NFL Division Predictor pool" }); return;
-  }
-
-  if ((pool as any).sandboxMode) {
-    const games = getSandboxGamesForWeek(18);
-    res.json(games.map(g => ({
-      id: g.id,
-      awayTeam: NFL_TEAM_INFO[g.awayAbbr]?.displayName ?? g.awayAbbr,
-      homeTeam: NFL_TEAM_INFO[g.homeAbbr]?.displayName ?? g.homeAbbr,
-      startTime: g.gameTime,
-    })));
-    return;
-  }
-
-  try {
-    const liveGames = await fetchNflGamesByWeek(18, pool.season);
-    if (liveGames.length > 0) {
-      res.json(liveGames.map(g => ({
-        id: g.id,
-        awayTeam: g.awayTeam.displayName,
-        homeTeam: g.homeTeam.displayName,
-        startTime: g.date,
-      })));
-      return;
-    }
-  } catch (err) {
-    req.log.warn({ poolId, err }, "ESPN week 18 fetch failed, falling back to hardcoded schedule");
-  }
-
-  const games = getSandboxGamesForWeek(18);
-  res.json(games.map(g => ({
-    id: g.id,
-    awayTeam: NFL_TEAM_INFO[g.awayAbbr]?.displayName ?? g.awayAbbr,
-    homeTeam: NFL_TEAM_INFO[g.homeAbbr]?.displayName ?? g.homeAbbr,
-    startTime: g.gameTime,
-  })));
-});
 
 // GET /api/pools/:poolId/ndp/my-tiebreaker
 router.get("/my-tiebreaker", requireAuth, async (req, res) => {
