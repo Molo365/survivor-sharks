@@ -836,6 +836,9 @@ export default function CreatePool() {
                       />
                     </FormControl>
                     <FormMessage />
+                    <FormDescription className="text-muted-foreground/70 text-xs leading-relaxed">
+                      Optional message shown to players on your invite page — introduce your pool, share rules, or add any details you want newcomers to see before joining.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
