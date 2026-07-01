@@ -288,47 +288,57 @@ export default function JoinInvite() {
 
             {/* CTA section */}
             <div className="w-full space-y-3">
-              {!authLoading && user ? (
-                <>
-                  <Button
-                    className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                    onClick={handleJoin}
-                    disabled={joinPool.isPending}
-                  >
-                    {joinPool.isPending ? "Joining…" : `Join ${sportMeta.emoji} This Pool`}
-                  </Button>
-                  <p className="text-center text-xs text-muted-foreground/50">
-                    Joining as <span className="text-primary/70 font-medium">{user.username}</span>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Button
-                    className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                    onClick={handleJoin}
-                    disabled={authLoading}
-                  >
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    {`Join ${sportMeta.emoji} This Pool`}
-                  </Button>
-                  <p className="text-center text-xs text-muted-foreground/50">
-                    No account yet — we'll create one for you in seconds
-                  </p>
-                  <div className="text-center text-xs text-muted-foreground/40">
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        localStorage.setItem("pending_invite_code", inviteCode);
-                        setLocation("/login");
-                      }}
-                      className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
+              {(() => {
+                const isFull = pool.maxEntries !== null && pool.playerCount >= pool.maxEntries;
+                if (isFull) {
+                  return (
+                    <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
+                      This pool is full — no more spots available
+                    </div>
+                  );
+                }
+                return !authLoading && user ? (
+                  <>
+                    <Button
+                      className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                      onClick={handleJoin}
+                      disabled={joinPool.isPending}
                     >
-                      Sign in instead
-                    </button>
-                  </div>
-                </>
-              )}
+                      {joinPool.isPending ? "Joining…" : `Join ${sportMeta.emoji} This Pool`}
+                    </Button>
+                    <p className="text-center text-xs text-muted-foreground/50">
+                      Joining as <span className="text-primary/70 font-medium">{user.username}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                      onClick={handleJoin}
+                      disabled={authLoading}
+                    >
+                      <UserPlus className="w-5 h-5 mr-2" />
+                      {`Join ${sportMeta.emoji} This Pool`}
+                    </Button>
+                    <p className="text-center text-xs text-muted-foreground/50">
+                      No account yet — we'll create one for you in seconds
+                    </p>
+                    <div className="text-center text-xs text-muted-foreground/40">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          localStorage.setItem("pending_invite_code", inviteCode);
+                          setLocation("/login");
+                        }}
+                        className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
+                      >
+                        Sign in instead
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Invite code */}

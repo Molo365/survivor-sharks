@@ -246,6 +246,17 @@ router.post("/join", requireAuth, async (req, res) => {
     return;
   }
 
+  if (pool.maxEntries !== null) {
+    const [{ currentCount }] = await db
+      .select({ currentCount: count() })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, pool.id));
+    if (Number(currentCount) >= pool.maxEntries) {
+      res.status(409).json({ error: "This pool is full and cannot accept new members." });
+      return;
+    }
+  }
+
   await db.insert(entriesTable).values({
     poolId: pool.id,
     userId: req.user!.id,
