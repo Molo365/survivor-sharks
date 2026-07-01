@@ -81,8 +81,19 @@ export default function Login() {
                   toast({ title: "You're in! 🎉", description: "Successfully joined the pool." });
                   setLocation(`/pools/${pool.id}`);
                 },
-                onError: () => {
-                  setLocation("/dashboard");
+                onError: (err: any) => {
+                  const msg: string = err?.data?.error ?? err?.message ?? "";
+                  if (msg.toLowerCase().includes("already a member")) {
+                    fetch(`/api/pools/invite/${pendingCode}/preview`)
+                      .then(r => r.json())
+                      .then((data: any) => { setLocation(`/pools/${data.id}`); })
+                      .catch(() => { setLocation("/dashboard"); });
+                  } else if (msg.toLowerCase().includes("pool is full")) {
+                    toast({ variant: "destructive", title: "Pool is full", description: "That pool is now full — you weren't able to join." });
+                    setLocation("/dashboard");
+                  } else {
+                    setLocation("/dashboard");
+                  }
                 },
               },
             );
