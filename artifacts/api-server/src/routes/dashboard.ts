@@ -417,6 +417,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myIdx = scored.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? scored[myIdx] : null;
         const hasPicks = picksByUser.has(userId);
+        const scoringStarted = allResults.length > 0;
 
         let lastWinners = null;
         if (!pool.isActive) {
@@ -444,7 +445,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           poolType,
           lastWinners,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: (scoringStarted && myRow) ? myIdx + 1 : 0,
             correct: 0, picked: 0,
             hasPicks,
             status: null, eliminatedWeek: null,
