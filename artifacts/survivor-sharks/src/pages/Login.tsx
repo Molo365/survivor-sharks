@@ -75,15 +75,16 @@ export default function Login() {
           }
           const pendingCode = localStorage.getItem("pending_invite_code");
           if (pendingCode) {
-            localStorage.removeItem("pending_invite_code");
             joinPool.mutate(
               { data: { inviteCode: pendingCode } },
               {
                 onSuccess: (pool: any) => {
+                  localStorage.removeItem("pending_invite_code");
                   toast({ title: "You're in! 🎉", description: "Successfully joined the pool." });
                   setLocation(`/pools/${pool.id}`);
                 },
                 onError: (err: any) => {
+                  localStorage.removeItem("pending_invite_code");
                   const msg: string = err?.data?.error ?? err?.message ?? "";
                   if (msg.toLowerCase().includes("already a member")) {
                     fetch(`/api/pools/invite/${pendingCode}/preview`)
