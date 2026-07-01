@@ -38,7 +38,9 @@ export default function Register() {
     defaultValues: { username: "", displayName: "", email: "", password: "" },
   });
 
-  if (!isLoading && user) {
+  const pendingCode = localStorage.getItem("pending_invite_code");
+
+  if (!isLoading && user && !pendingCode) {
     return <Redirect to="/dashboard" />;
   }
 

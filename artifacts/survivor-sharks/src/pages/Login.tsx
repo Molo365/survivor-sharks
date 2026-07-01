@@ -56,7 +56,9 @@ export default function Login() {
     defaultValues: { email: "" },
   });
 
-  if (!isLoading && user) {
+  const pendingCode = localStorage.getItem("pending_invite_code");
+
+  if (!isLoading && user && !pendingCode) {
     return <Redirect to="/dashboard" />;
   }
 
