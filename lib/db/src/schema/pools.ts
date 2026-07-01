@@ -24,6 +24,7 @@ export const poolsTable = pgTable("pools", {
   entryFee: real("entry_fee"),
   prizePot: real("prize_pot"),
   prizeStructure: jsonb("prize_structure").$type<Array<{ place: number; amount: number }>>(),
+  prizeMode: text("prize_mode", { enum: ["fixed", "pct"] }).default("fixed"),
   doubleElimination: boolean("double_elimination").notNull().default(false),
   pickFrequency: pickFrequencyEnum("pick_frequency").notNull().default("weekly"),
   isRecurring: boolean("is_recurring").notNull().default(true),
