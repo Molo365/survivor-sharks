@@ -155,6 +155,7 @@ export const createPoolBodyPoolTypeDefault = `season`;
 export const createPoolBodyDoubleEliminationDefault = false;
 export const createPoolBodyPickFrequencyDefault = `weekly`;
 export const createPoolBodyIsRecurringDefault = false;
+export const createPoolBodyPrizeModeDefault = `fixed`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
@@ -171,6 +172,7 @@ export const CreatePoolBody = zod.object({
   "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently'),
   "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate'),
   "isRecurring": zod.boolean().default(createPoolBodyIsRecurringDefault).describe('MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely'),
+  "prizeMode": zod.enum(['fixed', 'pct']).default(createPoolBodyPrizeModeDefault),
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')

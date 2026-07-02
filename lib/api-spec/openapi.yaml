@@ -1978,6 +1978,10 @@ components:
           type: boolean
           default: false
           description: "MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely"
+        prizeMode:
+          type: string
+          enum: [fixed, pct]
+          default: fixed
         prizeStructure:
           type: array
           description: Ordered prize payouts. prizePot is auto-calculated as the sum.

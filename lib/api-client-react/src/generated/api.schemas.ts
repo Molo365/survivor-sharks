@@ -104,6 +104,14 @@ export const PoolInputPickFrequency = {
   daily: 'daily',
 } as const;
 
+export type PoolInputPrizeMode = typeof PoolInputPrizeMode[keyof typeof PoolInputPrizeMode];
+
+
+export const PoolInputPrizeMode = {
+  fixed: 'fixed',
+  pct: 'pct',
+} as const;
+
 export interface PoolInput {
   name: string;
   sport: PoolInputSport;
@@ -124,6 +132,7 @@ export interface PoolInput {
   pickFrequency?: PoolInputPickFrequency;
   /** MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely */
   isRecurring?: boolean;
+  prizeMode?: PoolInputPrizeMode;
   /** Ordered prize payouts. prizePot is auto-calculated as the sum. */
   prizeStructure?: PrizeEntry[];
 }
