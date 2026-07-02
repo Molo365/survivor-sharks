@@ -24,7 +24,7 @@ export function BottomNav() {
   if (!user || isHiddenRoute(location)) return null;
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border/20 bg-[#060810]/95 backdrop-blur-md">
+    <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border/20 bg-[#060810]/60 backdrop-blur-md">
       <div className="flex items-stretch h-16">
         {TABS.map(({ label, icon: Icon, href }) => {
           const active = location === href || location.startsWith(href + "/");
