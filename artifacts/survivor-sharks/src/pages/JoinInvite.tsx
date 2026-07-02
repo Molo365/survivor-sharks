@@ -21,6 +21,7 @@ interface PoolPreview {
   prizeMode: "fixed" | "pct";
   entryFee: number | null;
   maxEntries: number | null;
+  minEntries: number | null;
   playerCount: number;
   description: string | null;
   season: string | null;
@@ -227,93 +228,209 @@ export default function JoinInvite() {
             </Link>
           </div>
         ) : pool ? (
-          <div className="w-full max-w-lg flex flex-col items-center gap-8">
+          step === 1 ? (
+            <div className="w-full max-w-lg flex flex-col items-center gap-8">
 
-            {/* Branding */}
-            <div className="flex flex-col items-center">
-              <img
-                src="/hero-banner-clean.jpg"
-                alt="Survivor Sharks"
-                className="w-full max-w-xs object-contain drop-shadow-[0_0_18px_rgba(30,144,255,0.5)]"
-              />
-            </div>
-
-            {/* Welcome */}
-            <p className="text-base text-muted-foreground text-center -mt-4">
-              You've been invited to play! 🎉
-            </p>
-
-            {/* Sport badge */}
-            <div className={cn(
-              "inline-flex items-center gap-2.5 rounded-full border border-primary/30 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-primary backdrop-blur-sm",
-              "bg-gradient-to-r from-primary/10 to-primary/5",
-            )}>
-              <span className="text-base leading-none">{sportMeta.emoji}</span>
-              {sportMeta.label}
-              {pool.season && <span className="text-primary/50 font-normal">· {pool.season}</span>}
-            </div>
-
-            {/* Pool name */}
-            <div className="text-center">
-              <h1 className="font-bebas text-5xl sm:text-6xl tracking-wide text-foreground leading-none">
-                {pool.name}
-              </h1>
-            </div>
-
-            {/* Pool type pill */}
-            <div className="flex items-center justify-center gap-2">
-              <StatPill icon={<span className="text-sm leading-none">{sportMeta.emoji}</span>}>
-                <span>{POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}</span>
-              </StatPill>
-            </div>
-
-            {/* WC countdown */}
-            {isWc && !countdown.expired && (
-              <div className="w-full flex flex-col items-center gap-4">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
-                  <span className="h-px w-8 bg-border/40" />
-                  Kickoff countdown
-                  <span className="h-px w-8 bg-border/40" />
-                </div>
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <CountdownUnit value={countdown.days} label="days" />
-                  <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
-                  <CountdownUnit value={countdown.hours} label="hours" />
-                  <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
-                  <CountdownUnit value={countdown.minutes} label="min" />
-                  <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
-                  <CountdownUnit value={countdown.seconds} label="sec" />
-                </div>
-                <p className="text-[11px] text-muted-foreground/40 text-center">
-                  June 11, 2026 · World Cup 2026 Group Stage Opens
-                </p>
+              {/* Branding */}
+              <div className="flex flex-col items-center">
+                <img
+                  src="/hero-banner-clean.jpg"
+                  alt="Survivor Sharks"
+                  className="w-full max-w-xs object-contain drop-shadow-[0_0_18px_rgba(30,144,255,0.5)]"
+                />
               </div>
-            )}
 
-            {/* Divider */}
-            <div className="w-full h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+              {/* Welcome */}
+              <p className="text-base text-muted-foreground text-center -mt-4">
+                You've been invited to play! 🎉
+              </p>
 
-            {/* CTA section */}
-            <div className="w-full space-y-3">
-              {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
-                <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
-                  This pool is full — no more spots available
+              {/* Sport badge */}
+              <div className={cn(
+                "inline-flex items-center gap-2.5 rounded-full border border-primary/30 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-primary backdrop-blur-sm",
+                "bg-gradient-to-r from-primary/10 to-primary/5",
+              )}>
+                <span className="text-base leading-none">{sportMeta.emoji}</span>
+                {sportMeta.label}
+                {pool.season && <span className="text-primary/50 font-normal">· {pool.season}</span>}
+              </div>
+
+              {/* Pool name */}
+              <div className="text-center">
+                <h1 className="font-bebas text-5xl sm:text-6xl tracking-wide text-foreground leading-none">
+                  {pool.name}
+                </h1>
+              </div>
+
+              {/* Pool type pill */}
+              <div className="flex items-center justify-center gap-2">
+                <StatPill icon={<span className="text-sm leading-none">{sportMeta.emoji}</span>}>
+                  <span>{POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}</span>
+                </StatPill>
+              </div>
+
+              {/* WC countdown */}
+              {isWc && !countdown.expired && (
+                <div className="w-full flex flex-col items-center gap-4">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+                    <span className="h-px w-8 bg-border/40" />
+                    Kickoff countdown
+                    <span className="h-px w-8 bg-border/40" />
+                  </div>
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <CountdownUnit value={countdown.days} label="days" />
+                    <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
+                    <CountdownUnit value={countdown.hours} label="hours" />
+                    <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
+                    <CountdownUnit value={countdown.minutes} label="min" />
+                    <span className="font-bebas text-3xl text-primary/30 mt-3 leading-none">:</span>
+                    <CountdownUnit value={countdown.seconds} label="sec" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/40 text-center">
+                    June 11, 2026 · World Cup 2026 Group Stage Opens
+                  </p>
                 </div>
-              ) : (
-                <Button
-                  className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                  onClick={() => setStep(2)}
-                >
-                  View Details &amp; Join →
-                </Button>
               )}
-            </div>
 
-            {/* Invite code */}
-            <p className="text-[10px] text-muted-foreground/25 tracking-[0.15em] font-mono uppercase">
-              invite · {inviteCode}
-            </p>
-          </div>
+              {/* Divider */}
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+
+              {/* CTA section */}
+              <div className="w-full space-y-3">
+                {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
+                  <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
+                    This pool is full — no more spots available
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                    onClick={() => setStep(2)}
+                  >
+                    View Details &amp; Join →
+                  </Button>
+                )}
+              </div>
+
+              {/* Invite code */}
+              <p className="text-[10px] text-muted-foreground/25 tracking-[0.15em] font-mono uppercase">
+                invite · {inviteCode}
+              </p>
+            </div>
+          ) : (
+            <div className="w-full max-w-md flex flex-col gap-6">
+
+              {/* Back button */}
+              <button
+                onClick={() => setStep(1)}
+                className="self-start text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                ← Back
+              </button>
+
+              {/* Pool name (context reminder) */}
+              <h2 className="font-bebas text-3xl tracking-wide text-foreground leading-none text-center">
+                {pool.name}
+              </h2>
+
+              {/* Entry fee */}
+              <div className="text-center">
+                {pool.entryFee && pool.entryFee > 0 ? (
+                  <p className="text-4xl font-bold text-foreground">
+                    Buy-in: ${pool.entryFee}
+                  </p>
+                ) : (
+                  <p className="text-4xl font-bold text-primary">
+                    Free Entry
+                  </p>
+                )}
+              </div>
+
+              {/* Progressive pool notice */}
+              {pool.prizeMode === "pct" && (
+                <p className="text-sm text-muted-foreground text-center">
+                  🏆 Progressive Pool — prize pot grows with every player who joins
+                </p>
+              )}
+
+              {/* Prize structure */}
+              <PrizeDisplay
+                variant="join-invite"
+                prizeMode={pool.prizeMode}
+                entryFee={pool.entryFee}
+                prizeStructure={pool.prizeStructure}
+                prizePot={pool.prizePot}
+                maxEntries={pool.maxEntries}
+                actualEntries={pool.playerCount}
+              />
+
+              {/* Player count */}
+              <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                <Users className="w-4 h-4 text-primary/70" />
+                <span>
+                  <span className="text-foreground font-semibold">{pool.playerCount}</span>
+                  {" "}{pool.playerCount === 1 ? "player" : "players"} joined
+                </span>
+              </div>
+
+              {/* Min entries notice */}
+              {pool.minEntries !== null && pool.minEntries !== undefined && (
+                <p className="text-xs text-muted-foreground/70 text-center">
+                  ⚠️ Minimum {pool.minEntries} players required for this pool to run
+                </p>
+              )}
+
+              {/* Divider */}
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+
+              {/* Joining as */}
+              {user && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Joining as{" "}
+                  <span className="text-primary font-medium">{user.username}</span>
+                </p>
+              )}
+
+              {/* CTA */}
+              <div className="w-full space-y-3">
+                {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
+                  <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
+                    This pool is full — no more spots available
+                  </div>
+                ) : user ? (
+                  <Button
+                    className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                    onClick={handleJoin}
+                    disabled={joinPool.isPending}
+                  >
+                    {joinPool.isPending ? "Joining…" : "Join This Pool"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                      onClick={handleJoin}
+                    >
+                      Join This Pool
+                    </Button>
+                    <button
+                      className="w-full text-sm text-muted-foreground hover:text-foreground text-center transition-colors"
+                      onClick={() => {
+                        localStorage.setItem("pending_invite_code", inviteCode);
+                        setLocation("/login");
+                      }}
+                    >
+                      Sign in instead
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Invite code */}
+              <p className="text-[10px] text-muted-foreground/25 tracking-[0.15em] font-mono uppercase text-center">
+                invite · {inviteCode}
+              </p>
+            </div>
+          )
         ) : null}
       </main>
     </div>
