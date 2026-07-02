@@ -13,7 +13,7 @@ const SPORTS = [
   { sport: "nba",       label: "NBA",      emoji: "🏀" },
   { sport: "nhl",       label: "NHL",      emoji: "🏒" },
   { sport: "nfl",       label: "NFL",      emoji: "🏈" },
-  { sport: "fifa.world", label: "World Cup", emoji: "⚽" },
+  { sport: "worldcup", label: "World Cup", emoji: "⚽" },
 ] as const;
 
 type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup";
@@ -40,8 +40,7 @@ router.get("/today", async (_req, res) => {
     const games = result.status === "fulfilled" ? result.value : [];
     if (games.length === 0) continue;
 
-    const sportKey: SportKey =
-      meta.sport === "fifa.world" ? "worldcup" : (meta.sport as SportKey);
+    const sportKey: SportKey = meta.sport as SportKey;
 
     sports.push({ sport: sportKey, label: meta.label, emoji: meta.emoji, games });
   }
