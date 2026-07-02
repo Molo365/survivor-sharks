@@ -40,7 +40,13 @@ router.get("/summary", requireAuth, async (req, res) => {
   const poolIds = memberships.map((m) => m.poolId);
 
   const pools = await db
-    .select()
+    .select({
+      id: poolsTable.id,
+      name: poolsTable.name,
+      sport: poolsTable.sport,
+      poolType: poolsTable.poolType,
+      currentWeek: poolsTable.currentWeek,
+    })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
 
