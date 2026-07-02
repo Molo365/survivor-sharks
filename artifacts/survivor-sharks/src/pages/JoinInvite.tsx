@@ -229,14 +229,22 @@ export default function JoinInvite() {
         ) : pool ? (
           <div className="w-full max-w-lg flex flex-col items-center gap-8">
 
-            {/* WC trophy image */}
-            {isWc && (
+            {/* Branding */}
+            <div className="flex flex-col items-center gap-2">
               <img
-                src="/ocean_shark_bg.jpg"
-                alt="FIFA World Cup 2026"
-                className="w-36 sm:w-44 object-contain drop-shadow-[0_0_40px_rgba(212,175,55,0.25)] select-none pointer-events-none"
+                src="/logo.png"
+                alt="Survivor Sharks"
+                className="h-16 w-16 object-contain drop-shadow-[0_0_18px_rgba(30,144,255,0.5)]"
               />
-            )}
+              <span className="font-bebas text-2xl tracking-widest text-primary">
+                Survivor Sharks
+              </span>
+            </div>
+
+            {/* Welcome */}
+            <p className="text-base text-muted-foreground text-center -mt-4">
+              You've been invited to play! 🎉
+            </p>
 
             {/* Sport badge */}
             <div className={cn(
@@ -248,24 +256,15 @@ export default function JoinInvite() {
               {pool.season && <span className="text-primary/50 font-normal">· {pool.season}</span>}
             </div>
 
-            {/* Pool name + prize */}
-            <div className="text-center space-y-2">
+            {/* Pool name */}
+            <div className="text-center">
               <h1 className="font-bebas text-5xl sm:text-6xl tracking-wide text-foreground leading-none">
                 {pool.name}
               </h1>
-              {pool.description && (
-                <p className="text-muted-foreground text-sm max-w-sm mx-auto leading-relaxed">
-                  {pool.description}
-                </p>
-              )}
             </div>
 
-            {/* Stats row */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <StatPill icon={<Users className="w-3.5 h-3.5" />}>
-                <span className="text-foreground font-semibold">{pool.playerCount}</span>
-                <span className="text-muted-foreground/60">{pool.playerCount === 1 ? "player" : "players"} joined</span>
-              </StatPill>
+            {/* Pool type pill */}
+            <div className="flex items-center justify-center gap-2">
               <StatPill icon={<span className="text-sm leading-none">{sportMeta.emoji}</span>}>
                 <span>{POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}</span>
               </StatPill>
