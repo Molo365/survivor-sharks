@@ -111,6 +111,12 @@ export default function PoolHome() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0">
                 <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
+                {pool.prizePot && pool.prizePot > 0 && (
+                  <div className="md:hidden flex items-center gap-1.5 text-sm font-semibold text-yellow-400 mt-1">
+                    <Trophy className="w-3.5 h-3.5" />
+                    Prize Pot: ${pool.prizePot.toLocaleString()}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
                   <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
                   {pool.poolType === "season" && (

@@ -2468,17 +2468,6 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
         <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
       </div>
 
-      {slateLocked && (
-        <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
-          <Lock className="w-4 h-4 text-yellow-400 shrink-0" />
-          <span className="text-sm font-semibold text-yellow-300 leading-snug">
-            Picks locked
-            {lockTimeFormatted && (
-              <span className="font-normal text-yellow-400/70"> — snapshot taken at {lockTimeFormatted}</span>
-            )}
-          </span>
-        </div>
-      )}
 
       <div className="mt-8">
         {/* ── Today's Picks ── */}
