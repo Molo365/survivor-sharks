@@ -36,6 +36,7 @@ import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats"
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { WcBracketView } from "@/components/WcBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
+import { calculatePayouts, scaledPrizePot } from "@/lib/calculatePayouts";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -60,6 +61,23 @@ export default function PoolHome() {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
     },
   });
+
+  const mobilePrizePot = (() => {
+    if (!pool) return null;
+    const pot = scaledPrizePot(pool.prizePot, pool.maxEntries, pool.totalMembers);
+    const scaled = calculatePayouts(
+      (pool as any).prizeStructure,
+      pool.maxEntries,
+      pool.totalMembers,
+      (pool as any).prizeMode ?? "fixed",
+      pool.entryFee,
+    );
+    const fallback =
+      pot == null && scaled && scaled.length > 0
+        ? Math.round(scaled.reduce((s, p) => s + p.amount, 0) * 100) / 100
+        : null;
+    return pot ?? fallback;
+  })();
 
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
   if (pool && (pool.poolType as string) === "pickem" && !location.endsWith("/pickem")) {
@@ -111,10 +129,10 @@ export default function PoolHome() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0">
                 <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
-                {pool.prizePot && pool.prizePot > 0 && (
+                {mobilePrizePot && mobilePrizePot > 0 && (
                   <div className="md:hidden flex items-center gap-1.5 text-sm font-semibold text-yellow-400 mt-1">
                     <Trophy className="w-3.5 h-3.5" />
-                    Prize Pot: ${pool.prizePot.toLocaleString()}
+                    Prize Pot: ${mobilePrizePot.toLocaleString()}
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
