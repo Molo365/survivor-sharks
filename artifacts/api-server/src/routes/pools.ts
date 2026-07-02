@@ -351,6 +351,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
     prizeStructure: pool.prizeStructure ?? null,
+    prizeMode: pool.prizeMode ?? "fixed",
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
