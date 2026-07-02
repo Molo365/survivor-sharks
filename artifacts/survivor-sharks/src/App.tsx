@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuthContext";
+import { BottomNav } from "@/components/BottomNav";
 import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
@@ -19,6 +20,9 @@ import AdminLogin from "@/pages/AdminLogin";
 import AdminPanel from "@/pages/AdminPanel";
 import ResetPassword from "@/pages/ResetPassword";
 import JoinInvite from "@/pages/JoinInvite";
+import Picks from "@/pages/Picks";
+import Standings from "@/pages/Standings";
+import Scores from "@/pages/Scores";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +108,17 @@ function Router() {
 
       <Route path="/join/:inviteCode" component={JoinInvite} />
       <Route path="/reset-password" component={ResetPassword} />
+
+      <Route path="/picks">
+        {() => <ProtectedRoute component={Picks} />}
+      </Route>
+      <Route path="/standings">
+        {() => <ProtectedRoute component={Standings} />}
+      </Route>
+      <Route path="/scores">
+        {() => <ProtectedRoute component={Scores} />}
+      </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -116,7 +131,10 @@ function App() {
         <AdminAuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AuthProvider>
-              <Router />
+              <div className="pb-16 md:pb-0">
+                <Router />
+              </div>
+              <BottomNav />
             </AuthProvider>
           </WouterRouter>
         </AdminAuthProvider>
