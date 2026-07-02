@@ -130,7 +130,7 @@ function PoolCard({ pool }: { pool: PoolStats }) {
       {/* Pool info column */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-sm font-bold text-foreground leading-tight truncate">
+          <span className="text-sm font-bold text-foreground leading-tight break-words">
             {pool.poolName}
           </span>
           <SportBadge sport={pool.sport} />
