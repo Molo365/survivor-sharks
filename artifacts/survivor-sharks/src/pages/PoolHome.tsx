@@ -36,7 +36,7 @@ import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats"
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { WcBracketView } from "@/components/WcBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
-import { calculatePayouts, scaledPrizePot } from "@/lib/calculatePayouts";
+import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -62,21 +62,17 @@ export default function PoolHome() {
     },
   });
 
-  const mobilePrizePot = (() => {
+  const mobilePrizeData = (() => {
     if (!pool) return null;
-    const pot = scaledPrizePot(pool.prizePot, pool.maxEntries, pool.totalMembers);
-    const scaled = calculatePayouts(
+    const breakdown = calculatePayouts(
       (pool as any).prizeStructure,
       pool.maxEntries,
       pool.totalMembers,
       (pool as any).prizeMode ?? "fixed",
       pool.entryFee,
     );
-    const fallback =
-      pot == null && scaled && scaled.length > 0
-        ? Math.round(scaled.reduce((s, p) => s + p.amount, 0) * 100) / 100
-        : null;
-    return pot ?? fallback;
+    const pot = scaledPrizePot(pool.prizePot, pool.maxEntries, pool.totalMembers);
+    return { breakdown, pot };
   })();
 
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
@@ -129,12 +125,29 @@ export default function PoolHome() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0">
                 <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
-                {mobilePrizePot && mobilePrizePot > 0 && (
+                {mobilePrizeData?.breakdown && mobilePrizeData.breakdown.length > 0 ? (
+                  <div className="md:hidden flex items-center flex-wrap gap-x-1 gap-y-0.5 text-sm font-semibold text-yellow-400 mt-1">
+                    <Trophy className="w-3.5 h-3.5 shrink-0 mr-0.5" />
+                    {mobilePrizeData.breakdown.slice(0, 3).map((p, i) => (
+                      <span key={p.place} className="flex items-center gap-x-1">
+                        {i > 0 && <span className="text-yellow-400/40 select-none">·</span>}
+                        <span className="text-yellow-300/70 text-xs font-medium">{ORDINALS[p.place - 1]}</span>
+                        <span>${p.amount.toLocaleString()}</span>
+                      </span>
+                    ))}
+                    {mobilePrizeData.breakdown.length > 3 && (
+                      <>
+                        <span className="text-yellow-400/40 select-none">·</span>
+                        <span className="text-yellow-400/60 text-xs font-medium">+{mobilePrizeData.breakdown.length - 3} more</span>
+                      </>
+                    )}
+                  </div>
+                ) : mobilePrizeData?.pot && mobilePrizeData.pot > 0 ? (
                   <div className="md:hidden flex items-center gap-1.5 text-sm font-semibold text-yellow-400 mt-1">
                     <Trophy className="w-3.5 h-3.5" />
-                    Prize Pot: ${mobilePrizePot.toLocaleString()}
+                    Prize Pot: ${mobilePrizeData.pot.toLocaleString()}
                   </div>
-                )}
+                ) : null}
                 <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
                   <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
                   {pool.poolType === "season" && (
