@@ -100,7 +100,19 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
   }
 
   const pools = await db
-    .select()
+    .select({
+      id: poolsTable.id,
+      name: poolsTable.name,
+      sport: poolsTable.sport,
+      poolType: poolsTable.poolType,
+      currentWeek: poolsTable.currentWeek,
+      isActive: poolsTable.isActive,
+      closureReason: poolsTable.closureReason,
+      prizeStructure: poolsTable.prizeStructure,
+      prizePot: poolsTable.prizePot,
+      maxEntries: poolsTable.maxEntries,
+      pickFrequency: poolsTable.pickFrequency,
+    })
     .from(poolsTable)
     .where(and(
       inArray(poolsTable.id, allPoolIds),
@@ -192,12 +204,25 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           }
         }
 
+        const allEntries = await db
+          .select({ userId: entriesTable.userId })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, pool.id))
+          .orderBy(
+            sql`CASE WHEN ${entriesTable.status} = 'alive' THEN 0 ELSE 1 END`,
+            entriesTable.joinedAt,
+          );
+        const survivorRank = allEntries.findIndex((e) => e.userId === userId) + 1;
+
         return {
           poolId: pool.id,
+          poolName: pool.name,
           poolType,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
           lastWinners: null,
           myStanding: {
-            rank: 0, correct: 0, picked: 0,
+            rank: survivorRank, correct: 0, picked: 0,
             hasPicks: !!entry,
             status,
             eliminatedWeek,
@@ -238,6 +263,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: myRow ? Number(myRow.score) : null,
             maxScore: null,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -308,6 +336,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: myRow ? Number(myRow.weekPoints) : null,
             maxScore: null,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -385,6 +416,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: null,
             maxScore: null,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -452,6 +486,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: myRow ? myRow.total : null,
             maxScore: 96,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -518,6 +555,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: myRow ? myRow.total : null,
             maxScore: 144,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -554,6 +594,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             score: null,
             maxScore: null,
           },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
       }
 
@@ -647,7 +690,15 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             }
           : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
-      return { poolId: pool.id, poolType, lastWinners, myStanding };
+      return {
+        poolId: pool.id,
+        poolName: pool.name,
+        poolType,
+        sport: pool.sport as string,
+        totalPlayers: memberCountMap.get(pool.id) ?? 0,
+        lastWinners,
+        myStanding,
+      };
     }),
   );
 
