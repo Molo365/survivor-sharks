@@ -33,6 +33,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     entryFee: pool.entryFee,
     prizePot: pool.prizePot,
     prizeStructure: pool.prizeStructure ?? null,
+    prizeMode: pool.prizeMode ?? "fixed",
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
@@ -151,6 +152,7 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
+  const prizeMode: "fixed" | "pct" = req.body.prizeMode ?? "fixed";
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -167,13 +169,17 @@ router.post("/", requireAuth, async (req, res) => {
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
 
   // Auto-calculate prizePot from prizeStructure if provided.
-  // Round to the nearest whole dollar and absorb any cent difference into the
-  // last place so the stored amounts always sum exactly to the rounded total.
+  // For fixed mode: round to the nearest whole dollar and absorb any cent
+  // difference into the last place so amounts always sum exactly to the total.
+  // For pct mode: amounts are percentages (0–100); prizePot cannot be computed
+  // at creation time (depends on entries × fee), so it is stored as null.
   const resolvedPrizeStructure = Array.isArray(prizeStructure) && prizeStructure.length > 0
     ? prizeStructure as Array<{ place: number; amount: number }>
     : null;
   let resolvedPrizePot: number | null;
-  if (resolvedPrizeStructure) {
+  if (prizeMode === "pct") {
+    resolvedPrizePot = null;
+  } else if (resolvedPrizeStructure) {
     const rawSum = resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0);
     if (resolvedPrizeStructure.length > 1) {
       const rounded = Math.round(rawSum);
@@ -209,6 +215,7 @@ router.post("/", requireAuth, async (req, res) => {
     entryFee: entryFee ?? null,
     prizePot: resolvedPrizePot,
     prizeStructure: resolvedPrizeStructure,
+    prizeMode,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
