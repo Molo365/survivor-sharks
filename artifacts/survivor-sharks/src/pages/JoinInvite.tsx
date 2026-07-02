@@ -16,6 +16,7 @@ interface PoolPreview {
   name: string;
   sport: string;
   poolType: string;
+  pickFrequency: string;
   prizePot: number | null;
   prizeStructure: Array<{ place: number; amount: number }> | null;
   prizeMode: "fixed" | "pct";
@@ -265,7 +266,11 @@ export default function JoinInvite() {
               {/* Pool type pill */}
               <div className="flex items-center justify-center gap-2">
                 <StatPill icon={<span className="text-sm leading-none">{sportMeta.emoji}</span>}>
-                  <span>{POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}</span>
+                  <span>
+                    {pool.poolType === "pickem"
+                      ? (pool.pickFrequency === "weekly" ? "Weekly Pick-Ems" : "Daily Pick-Ems")
+                      : (POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType)}
+                  </span>
                 </StatPill>
               </div>
 

@@ -298,6 +298,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     name: pool.name,
     sport: pool.sport,
     poolType: pool.poolType,
+    pickFrequency: pool.pickFrequency,
     prizePot: pool.prizePot ?? null,
     prizeStructure: pool.prizeStructure ?? null,
     prizeMode: pool.prizeMode ?? "fixed",
