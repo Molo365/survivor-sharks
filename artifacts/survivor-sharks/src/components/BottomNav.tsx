@@ -34,7 +34,7 @@ export function BottomNav() {
               href={href}
               className={cn(
                 "flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors",
-                active ? "text-primary" : "text-muted-foreground/50 hover:text-muted-foreground",
+                active ? "text-primary" : "text-amber-400/70 hover:text-amber-400",
               )}
             >
               <Icon
