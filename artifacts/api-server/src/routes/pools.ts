@@ -302,6 +302,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     prizeStructure: pool.prizeStructure ?? null,
     prizeMode: pool.prizeMode ?? "fixed",
     entryFee: pool.entryFee ?? null,
+    minEntries: pool.minEntries ?? null,
     maxEntries: pool.maxEntries ?? null,
     playerCount: Number(playerCount),
     description: pool.description ?? null,
