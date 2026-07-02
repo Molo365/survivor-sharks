@@ -25,6 +25,7 @@ export function PrizeDisplay({
   const scaled = calculatePayouts(prizeStructure, maxEntries, actualEntries, prizeMode, entryFee);
   const pot = scaledPrizePot(prizePot, maxEntries, actualEntries);
   const isScaled =
+    prizeMode !== "pct" &&
     !!maxEntries && actualEntries != null && actualEntries > 0 && actualEntries < maxEntries;
 
   if (variant === "pool-home") {
