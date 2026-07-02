@@ -220,6 +220,7 @@ const formSchema = z.object({
   minEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
+  prizeMode: z.enum(["fixed", "pct"]).default("fixed"),
 });
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -251,11 +252,13 @@ export default function CreatePool() {
       pickFrequency: "weekly",
       description: "",
       season: new Date().getFullYear(),
+      prizeMode: "fixed",
     },
   });
 
   const selectedSport = form.watch("sport");
   const selectedType = form.watch("poolType");
+  const selectedPrizeMode = form.watch("prizeMode");
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
   const isPickemOnly = availableTypes.length === 1 && availableTypes[0] === "pickem";
@@ -325,13 +328,21 @@ export default function CreatePool() {
       : "Set the rules. Invite the sharks.";
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const isPct = values.prizeMode === "pct";
+
     const prizeStructure = prizes
       .map((p, i) => ({ place: i + 1, amount: parseFloat(p.amount) || 0 }))
       .filter(p => p.amount > 0);
-    // Round total to nearest whole dollar; absorb the cent difference into the
-    // last place so all amounts still sum exactly to the rounded whole-dollar total.
+
+    // Round entry fee to nearest whole dollar — prevents spinner float drift
+    // (step="0.01" arithmetic with 0.01 not exactly representable in IEEE 754).
+    const cleanEntryFee =
+      values.entryFee != null ? Math.round(values.entryFee) : undefined;
+
     let prizePot: number | undefined;
-    if (prizeStructure.length > 0) {
+    if (!isPct && prizeStructure.length > 0) {
+      // Fixed mode: round total to nearest whole dollar; absorb cent difference
+      // into the last place so amounts always sum exactly to the rounded total.
       const rawSum = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
       if (prizeStructure.length > 1) {
         const rounded = Math.round(rawSum);
@@ -345,19 +356,16 @@ export default function CreatePool() {
         prizePot = rawSum;
       }
     }
-
-    // Round entry fee to nearest whole dollar — prevents spinner float drift
-    // (step="0.01" arithmetic with 0.01 not exactly representable in IEEE 754).
-    const cleanEntryFee =
-      values.entryFee != null ? Math.round(values.entryFee) : undefined;
+    // Pct mode: percentages submitted as-is; backend sets prizePot = null.
 
     createPool.mutate(
       {
         data: {
           ...values,
+          prizeMode: values.prizeMode,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
-          ...(prizePot !== undefined && { prizePot }),
+          ...(!isPct && prizePot !== undefined && { prizePot }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
           ...((values.sport === PoolInputSport.mlb && values.poolType === "pickem" || values.poolType === "nfl_confidence_weekly") && { isRecurring: values.isRecurring }),
@@ -916,80 +924,152 @@ export default function CreatePool() {
                 </div>
 
                 {/* ── Prize structure ── */}
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
-                    {form.watch("maxEntries") && (
-                      <p className="text-xs text-amber-400/70 mt-1.5">Payouts shown are based on reaching the maximum entries. If fewer players join, displayed amounts will scale proportionally.</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {prizes.map((prize, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
-                          {ORDINALS[i]}
-                        </span>
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder={i === 0 ? "e.g. 500" : "0.00"}
-                            value={prize.amount}
-                            onChange={(e) => updatePrize(i, e.target.value)}
-                            data-testid={`input-prize-place-${i + 1}`}
-                            className="pl-7 bg-background/50 border-primary/20"
-                          />
-                        </div>
-                        {i > 0 ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removePrize(i)}
-                            className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        ) : (
-                          <div className="w-9 shrink-0" />
+                {(() => {
+                  const totalPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                  const pctExceeds = selectedPrizeMode === "pct" && totalPct > 100;
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
+                        {form.watch("maxEntries") && selectedPrizeMode === "fixed" && (
+                          <p className="text-xs text-amber-400/70 mt-1.5">Payouts shown are based on reaching the maximum entries. If fewer players join, displayed amounts will scale proportionally.</p>
+                        )}
+                        {selectedPrizeMode === "pct" && (
+                          <p className="text-xs text-amber-400/70 mt-1.5">Percentages scale with the actual entry fee × number of players. The remainder (commissioner's cut) is implied.</p>
                         )}
                       </div>
-                    ))}
-                  </div>
-                  {prizes.length < 10 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={addPrize}
-                      className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
-                      data-testid="button-add-prize-place"
-                    >
-                      + Add {ORDINALS[prizes.length]} Place Prize
-                    </Button>
-                  )}
-                  {totalPrize > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Total prize pot:{" "}
-                      <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
-                    </p>
-                  )}
-                </div>
+
+                      {/* Mode toggle */}
+                      <div className="inline-flex rounded-lg border border-border/40 p-1 gap-1 bg-muted/20">
+                        <button
+                          type="button"
+                          onClick={() => form.setValue("prizeMode", "fixed")}
+                          className={cn(
+                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                            selectedPrizeMode === "fixed"
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          $ Fixed Amounts
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => form.setValue("prizeMode", "pct")}
+                          className={cn(
+                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                            selectedPrizeMode === "pct"
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          % Percentage Split
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {prizes.map((prize, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
+                              {ORDINALS[i]}
+                            </span>
+                            {selectedPrizeMode === "fixed" ? (
+                              <div className="relative flex-1">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder={i === 0 ? "e.g. 500" : "0.00"}
+                                  value={prize.amount}
+                                  onChange={(e) => updatePrize(i, e.target.value)}
+                                  data-testid={`input-prize-place-${i + 1}`}
+                                  className="pl-7 bg-background/50 border-primary/20"
+                                />
+                              </div>
+                            ) : (
+                              <div className="relative flex-1">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  placeholder={i === 0 ? "e.g. 80" : "0"}
+                                  value={prize.amount}
+                                  onChange={(e) => updatePrize(i, e.target.value)}
+                                  data-testid={`input-prize-place-${i + 1}`}
+                                  className={cn("pr-8 bg-background/50 border-primary/20", pctExceeds && "border-destructive/60 focus-visible:ring-destructive/40")}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">%</span>
+                              </div>
+                            )}
+                            {i > 0 ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removePrize(i)}
+                                className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <div className="w-9 shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {prizes.length < 10 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={addPrize}
+                          className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
+                          data-testid="button-add-prize-place"
+                        >
+                          + Add {ORDINALS[prizes.length]} Place Prize
+                        </Button>
+                      )}
+
+                      {selectedPrizeMode === "fixed" && totalPrize > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Total prize pot:{" "}
+                          <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
+                        </p>
+                      )}
+
+                      {selectedPrizeMode === "pct" && totalPct > 0 && (
+                        <p className={cn("text-xs", pctExceeds ? "text-destructive" : "text-muted-foreground")}>
+                          {pctExceeds
+                            ? `Total cannot exceed 100% — currently ${totalPct.toFixed(1)}%`
+                            : <><span className="text-foreground font-semibold">{totalPct.toFixed(1)}%</span> assigned · <span className="text-foreground font-semibold">{(100 - totalPct).toFixed(1)}%</span> remaining</>
+                          }
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
-              <div className="pt-6 flex justify-end">
-                <Button
-                  type="submit"
-                  className="font-bebas text-xl tracking-widest px-8 h-12"
-                  disabled={createPool.isPending}
-                  data-testid="button-submit-create-pool"
-                >
-                  {createPool.isPending ? "Creating..." : "Create Pool"}
-                </Button>
-              </div>
+              {(() => {
+                const totalPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                const pctExceeds = selectedPrizeMode === "pct" && totalPct > 100;
+                return (
+                  <div className="pt-6 flex justify-end">
+                    <Button
+                      type="submit"
+                      className="font-bebas text-xl tracking-widest px-8 h-12"
+                      disabled={createPool.isPending || pctExceeds}
+                      data-testid="button-submit-create-pool"
+                    >
+                      {createPool.isPending ? "Creating..." : "Create Pool"}
+                    </Button>
+                  </div>
+                );
+              })()}
 
             </form>
           </Form>
