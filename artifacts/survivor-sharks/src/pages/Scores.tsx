@@ -199,7 +199,15 @@ export default function Scores() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#060810]">
+    <div style={{
+      backgroundImage: "url('/shark-bg.jpg')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      backgroundRepeat: "no-repeat",
+      minHeight: "100vh",
+    }}>
+      <div style={{ backgroundColor: "rgba(0, 0, 0, 0.72)", minHeight: "100vh" }}>
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_70%_40%_at_50%_0%,rgba(20,80,200,0.12),transparent)] pointer-events-none -z-10" />
 
       <div className="max-w-lg mx-auto px-4 pt-10 pb-24">
@@ -238,6 +246,7 @@ export default function Scores() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
