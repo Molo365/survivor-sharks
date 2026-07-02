@@ -60,6 +60,21 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
   );
 }
 
+const POOL_TYPE_LABELS: Record<string, string> = {
+  season:                  "Survivor",
+  weekly:                  "Weekly Survivor",
+  mid_season:              "Mid-Season",
+  pickem:                  "Pick-Ems",
+  group_stage_predictor:   "Group Stage Predictor",
+  pickem_season:           "Pick-Em Season",
+  nfl_division_predictor:  "Division Predictor",
+  dirty_dozen:             "Dirty Dozen",
+  crazy_8s:                "Crazy 8s",
+  nfl_confidence:          "Confidence",
+  nfl_confidence_weekly:   "Confidence Weekly",
+  wc_bracket:              "WC Bracket",
+};
+
 const SPORT_META: Record<string, { emoji: string; label: string; color: string }> = {
   worldcup: { emoji: "⚽", label: "World Cup 2026", color: "from-green-900/40 to-blue-900/40" },
   nfl:      { emoji: "🏈", label: "NFL",            color: "from-blue-900/40 to-indigo-900/40" },
@@ -86,6 +101,7 @@ export default function JoinInvite() {
   const { toast } = useToast();
   const joinPool = useJoinPool();
 
+  const [step, setStep] = useState<1 | 2>(1);
   const [pool, setPool] = useState<PoolPreview | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -246,21 +262,12 @@ export default function JoinInvite() {
 
             {/* Stats row */}
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <PrizeDisplay
-                variant="join-invite"
-                prizeStructure={pool.prizeStructure}
-                prizePot={pool.prizePot}
-                prizeMode={pool.prizeMode}
-                entryFee={pool.entryFee}
-                maxEntries={pool.maxEntries}
-                actualEntries={pool.playerCount}
-              />
               <StatPill icon={<Users className="w-3.5 h-3.5" />}>
                 <span className="text-foreground font-semibold">{pool.playerCount}</span>
                 <span className="text-muted-foreground/60">{pool.playerCount === 1 ? "player" : "players"} joined</span>
               </StatPill>
               <StatPill icon={<span className="text-sm leading-none">{sportMeta.emoji}</span>}>
-                <span className="capitalize">{pool.poolType === "pickem" ? "Pick-Em" : pool.poolType}</span>
+                <span>{POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}</span>
               </StatPill>
             </div>
 
@@ -292,57 +299,18 @@ export default function JoinInvite() {
 
             {/* CTA section */}
             <div className="w-full space-y-3">
-              {(() => {
-                const isFull = pool.maxEntries !== null && pool.playerCount >= pool.maxEntries;
-                if (isFull) {
-                  return (
-                    <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
-                      This pool is full — no more spots available
-                    </div>
-                  );
-                }
-                return !authLoading && user ? (
-                  <>
-                    <Button
-                      className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                      onClick={handleJoin}
-                      disabled={joinPool.isPending}
-                    >
-                      {joinPool.isPending ? "Joining…" : `Join ${sportMeta.emoji} This Pool`}
-                    </Button>
-                    <p className="text-center text-xs text-muted-foreground/50">
-                      Joining as <span className="text-primary/70 font-medium">{user.username}</span>
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                      onClick={handleJoin}
-                      disabled={authLoading}
-                    >
-                      <UserPlus className="w-5 h-5 mr-2" />
-                      {`Join ${sportMeta.emoji} This Pool`}
-                    </Button>
-                    <p className="text-center text-xs text-muted-foreground/50">
-                      No account yet — we'll create one for you in seconds
-                    </p>
-                    <div className="text-center text-xs text-muted-foreground/40">
-                      Already have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          localStorage.setItem("pending_invite_code", inviteCode);
-                          setLocation("/login");
-                        }}
-                        className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors"
-                      >
-                        Sign in instead
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
+              {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
+                <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
+                  This pool is full — no more spots available
+                </div>
+              ) : (
+                <Button
+                  className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                  onClick={() => setStep(2)}
+                >
+                  View Details &amp; Join →
+                </Button>
+              )}
             </div>
 
             {/* Invite code */}
