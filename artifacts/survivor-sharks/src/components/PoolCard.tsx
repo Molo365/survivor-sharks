@@ -289,6 +289,8 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               variant="pool-card"
               prizeStructure={(pool as any).prizeStructure}
               prizePot={pool.prizePot}
+              prizeMode={(pool as any).prizeMode ?? "fixed"}
+              entryFee={pool.entryFee}
               maxEntries={pool.maxEntries}
               actualEntries={pool.memberCount}
             />

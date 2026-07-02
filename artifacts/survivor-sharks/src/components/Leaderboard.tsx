@@ -8,7 +8,7 @@ import { PrizeDisplay } from "@/components/PrizeDisplay";
 
 type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
-export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers }: { poolId: number; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number }) {
+export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, prizeMode, entryFee }: { poolId: number; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number; prizeMode?: "fixed" | "pct"; entryFee?: number | null }) {
   const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
@@ -60,6 +60,8 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers }:
       <PrizeDisplay
         variant="leaderboard"
         prizeStructure={prizeStructure}
+        prizeMode={prizeMode}
+        entryFee={entryFee}
         maxEntries={maxEntries}
         actualEntries={totalMembers}
       />

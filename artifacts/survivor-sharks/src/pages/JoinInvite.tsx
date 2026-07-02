@@ -18,6 +18,8 @@ interface PoolPreview {
   poolType: string;
   prizePot: number | null;
   prizeStructure: Array<{ place: number; amount: number }> | null;
+  prizeMode: "fixed" | "pct";
+  entryFee: number | null;
   maxEntries: number | null;
   playerCount: number;
   description: string | null;
@@ -248,6 +250,8 @@ export default function JoinInvite() {
                 variant="join-invite"
                 prizeStructure={pool.prizeStructure}
                 prizePot={pool.prizePot}
+                prizeMode={pool.prizeMode}
+                entryFee={pool.entryFee}
                 maxEntries={pool.maxEntries}
                 actualEntries={pool.playerCount}
               />

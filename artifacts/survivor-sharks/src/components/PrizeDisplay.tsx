@@ -6,6 +6,8 @@ interface PrizeDisplayProps {
   prizePot?: number | null;
   maxEntries?: number | null;
   actualEntries?: number | null;
+  prizeMode?: "fixed" | "pct";
+  entryFee?: number | null;
   variant: "pool-home" | "join-invite" | "pool-card" | "leaderboard";
 }
 
@@ -16,9 +18,11 @@ export function PrizeDisplay({
   prizePot,
   maxEntries,
   actualEntries,
+  prizeMode = "fixed",
+  entryFee,
   variant,
 }: PrizeDisplayProps) {
-  const scaled = calculatePayouts(prizeStructure, maxEntries, actualEntries);
+  const scaled = calculatePayouts(prizeStructure, maxEntries, actualEntries, prizeMode, entryFee);
   const pot = scaledPrizePot(prizePot, maxEntries, actualEntries);
   const isScaled =
     !!maxEntries && actualEntries != null && actualEntries > 0 && actualEntries < maxEntries;

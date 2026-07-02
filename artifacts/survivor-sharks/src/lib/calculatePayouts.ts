@@ -7,8 +7,22 @@ export function calculatePayouts(
   prizeStructure: Array<{ place: number; amount: number }> | null | undefined,
   maxEntries: number | null | undefined,
   actualEntries: number | null | undefined,
+  prizeMode?: "fixed" | "pct",
+  entryFee?: number | null,
 ): Array<{ place: number; amount: number }> | null {
   if (!prizeStructure || prizeStructure.length === 0) return null;
+
+  if (prizeMode === "pct") {
+    // Pct mode: amounts are percentages (0–100). Compute dollar payout from
+    // entryFee × actualEntries × (pct / 100), rounded DOWN to nearest $5.
+    if (!entryFee || entryFee <= 0 || !actualEntries || actualEntries <= 0) return null;
+    return prizeStructure.map((p) => ({
+      place: p.place,
+      amount: Math.floor((p.amount / 100) * entryFee * actualEntries / 5) * 5,
+    }));
+  }
+
+  // Fixed mode: existing scaling behavior unchanged.
   if (!maxEntries || maxEntries <= 0 || actualEntries == null || actualEntries <= 0 || actualEntries >= maxEntries) {
     return prizeStructure;
   }

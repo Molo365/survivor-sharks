@@ -227,6 +227,8 @@ export default function PoolHome() {
                   variant="pool-home"
                   prizeStructure={(pool as any).prizeStructure}
                   prizePot={pool.prizePot}
+                  prizeMode={(pool as any).prizeMode ?? "fixed"}
+                  entryFee={pool.entryFee}
                   maxEntries={pool.maxEntries}
                   actualEntries={pool.totalMembers}
                 />
@@ -493,7 +495,7 @@ export default function PoolHome() {
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} />
+                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} prizeMode={(pool as any).prizeMode ?? "fixed"} entryFee={pool.entryFee} />
                 </TabsContent>
                 {isClassicSeason && (
                   <TabsContent value="standings" className="m-0 focus-visible:outline-none">
