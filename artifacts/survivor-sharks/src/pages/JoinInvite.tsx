@@ -230,15 +230,12 @@ export default function JoinInvite() {
           <div className="w-full max-w-lg flex flex-col items-center gap-8">
 
             {/* Branding */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center">
               <img
-                src="/logo.png"
+                src="/hero-banner-clean.jpg"
                 alt="Survivor Sharks"
-                className="h-16 w-16 object-contain drop-shadow-[0_0_18px_rgba(30,144,255,0.5)]"
+                className="w-full max-w-xs object-contain drop-shadow-[0_0_18px_rgba(30,144,255,0.5)]"
               />
-              <span className="font-bebas text-2xl tracking-widest text-primary">
-                Survivor Sharks
-              </span>
             </div>
 
             {/* Welcome */}
