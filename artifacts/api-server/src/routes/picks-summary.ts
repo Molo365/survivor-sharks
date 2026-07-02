@@ -46,6 +46,7 @@ router.get("/summary", requireAuth, async (req, res) => {
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       currentWeek: poolsTable.currentWeek,
+      pickFrequency: poolsTable.pickFrequency,
     })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
@@ -85,6 +86,7 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
+        const isDaily = pool.pickFrequency === "daily";
         const [countRow] = await db
           .select({ cnt: count() })
           .from(pickemPicksTable)
@@ -92,7 +94,9 @@ router.get("/summary", requireAuth, async (req, res) => {
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.userId, userId),
-              eq(pickemPicksTable.week, pool.currentWeek),
+              isDaily
+                ? eq(pickemPicksTable.gameDate, todayEt)
+                : eq(pickemPicksTable.week, pool.currentWeek),
             ),
           );
 
