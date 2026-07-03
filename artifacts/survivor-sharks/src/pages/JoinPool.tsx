@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useJoinPool, getListPoolsQueryKey } from "@workspace/api-client-react";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -14,8 +13,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { NavBar } from "@/components/NavBar";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   inviteCode: z.string().min(1, "Invite code is required"),
@@ -23,9 +20,6 @@ const formSchema = z.object({
 
 export default function JoinPool() {
   const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const joinPool = useJoinPool();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,26 +29,7 @@ export default function JoinPool() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    joinPool.mutate(
-      { data: values },
-      {
-        onSuccess: (pool) => {
-          queryClient.invalidateQueries({ queryKey: getListPoolsQueryKey() });
-          toast({
-            title: "Joined Successfully!",
-            description: `You are now in ${pool.name}.`,
-          });
-          setLocation(`/pools/${pool.id}`);
-        },
-        onError: (error: any) => {
-          toast({
-            variant: "destructive",
-            title: "Failed to join pool",
-            description: error?.message || "Invalid invite code or pool is closed.",
-          });
-        },
-      }
-    );
+    setLocation(`/join/${values.inviteCode.toUpperCase()}`);
   }
 
   return (
@@ -86,8 +61,8 @@ export default function JoinPool() {
                 )}
               />
 
-              <Button type="submit" className="w-full font-bebas text-xl tracking-widest h-14" disabled={joinPool.isPending} data-testid="button-submit-join">
-                {joinPool.isPending ? "JOINING..." : "ENTER THE WATERS"}
+              <Button type="submit" className="w-full font-bebas text-xl tracking-widest h-14" data-testid="button-submit-join">
+                ENTER THE WATERS
               </Button>
             </form>
           </Form>
