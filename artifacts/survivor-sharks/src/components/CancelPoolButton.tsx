@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -98,7 +97,7 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
           <OctagonX className="w-5 h-5" /> Cancel Pool
         </CardTitle>
         <CardDescription className="text-muted-foreground/80">
-          Permanently cancel this pool. Only possible while no other member has submitted a pick.
+          Cancel this pool. Only possible while no other member has submitted a pick.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -138,13 +137,13 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
                 {blockedMessage ? "Close" : "Back"}
               </AlertDialogCancel>
               {!blockedMessage && (
-                <AlertDialogAction
+                <Button
                   onClick={handleCancel}
                   disabled={!nameMatches || loading}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bebas text-xl tracking-wider"
                 >
                   {loading ? "Cancelling…" : "Cancel Pool"}
-                </AlertDialogAction>
+                </Button>
               )}
             </AlertDialogFooter>
           </AlertDialogContent>
