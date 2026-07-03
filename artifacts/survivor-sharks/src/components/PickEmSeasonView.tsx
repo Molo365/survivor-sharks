@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -67,11 +69,13 @@ import {
   Info,
   Users,
   Shuffle,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -1098,6 +1102,7 @@ function StatsView({
 interface PickEmSeasonViewProps {
   poolId: number;
   poolName: string;
+  poolDescription?: string;
   commissionerId: number;
   currentWeek: number;
   inviteCode: string;
@@ -1110,6 +1115,7 @@ interface PickEmSeasonViewProps {
 export function PickEmSeasonView({
   poolId,
   poolName,
+  poolDescription,
   commissionerId,
   currentWeek,
   inviteCode,
@@ -1130,6 +1136,8 @@ export function PickEmSeasonView({
   const [sandboxWeekInput, setSandboxWeekInput] = useState<string>(
     String(sandboxWeek),
   );
+  const [settingsName, setSettingsName] = useState(poolName);
+  const [settingsDesc, setSettingsDesc] = useState(poolDescription ?? "");
 
   const isWeek18 = displayWeek === NFL_TOTAL_WEEKS;
 
@@ -1910,6 +1918,39 @@ export function PickEmSeasonView({
                   </div>
                 </div>
 
+                {/* Pool Settings */}
+                <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-4">
+                  <h4 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+                    <Settings2 className="w-5 h-5 text-primary" /> Pool Settings
+                  </h4>
+                  <div className="grid gap-2">
+                    <Label className="font-bebas text-lg tracking-wide">Pool Name</Label>
+                    <Input
+                      value={settingsName}
+                      onChange={(e) => setSettingsName(e.target.value)}
+                      className="bg-background/50"
+                      placeholder="Pool name"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="font-bebas text-lg tracking-wide">Description</Label>
+                    <Textarea
+                      value={settingsDesc}
+                      onChange={(e) => setSettingsDesc(e.target.value)}
+                      className="bg-background/50 resize-none"
+                      rows={3}
+                      placeholder="Optional description"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => updatePoolMutation.mutate({ poolId, data: { name: settingsName, description: settingsDesc } } as any)}
+                    disabled={updatePoolMutation.isPending}
+                    className="font-bebas text-lg tracking-wider"
+                  >
+                    {updatePoolMutation.isPending ? "Saving…" : "Save Settings"}
+                  </Button>
+                </div>
+
                 {/* Grade results */}
                 <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-4">
                   <div>
@@ -2008,6 +2049,7 @@ export function PickEmSeasonView({
                     )}
                   </div>
                 )}
+              <CancelPoolButton poolId={poolId} />
               </div>
             </TabsContent>
           )}

@@ -286,6 +286,7 @@ export default function PoolHome() {
               <PickEmSeasonView
                 poolId={pool.id}
                 poolName={pool.name}
+                poolDescription={pool.description ?? ""}
                 commissionerId={pool.commissionerId}
                 currentWeek={pool.currentWeek}
                 inviteCode={pool.inviteCode ?? ""}

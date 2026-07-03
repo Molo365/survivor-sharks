@@ -774,7 +774,7 @@ export default function CreatePool() {
               )}
 
               {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season ── */}
-              {((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
+              {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
                 (selectedSport === PoolInputSport.nhl && selectedType === "season")) && (
                 <FormField
                   control={form.control}

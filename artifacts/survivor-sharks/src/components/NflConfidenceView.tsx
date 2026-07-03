@@ -1048,6 +1048,10 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground/50 text-center mb-2">
+        Tap a selected team again to remove your pick
+      </p>
+
       {/* Game list */}
       <div className="space-y-3">
         {games.map((game) => (

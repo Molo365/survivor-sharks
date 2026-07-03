@@ -2272,12 +2272,31 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
             <Shuffle className="w-5 h-5 text-yellow-400" />
             Tiebreaker Guess
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground leading-snug">
-            {isWeekly
-              ? "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."
-              : "In case of a tie at end of day, your tiebreaker guess decides the winner."}
-            <br />
-            Guess the <strong className="text-foreground">runs scored</strong> and total <strong className="text-foreground">strikeouts</strong> for the last game on today's slate only. Closest guess wins.
+          <DialogDescription className="space-y-1">
+            {(() => {
+              const tbGame = slate?.games.find(g => g.isTiebreakerGame) ?? null;
+              const gameTime = tbGame?.startTime
+                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "America/New_York",
+                    hour12: true,
+                  }) + " ET"
+                : null;
+              return (
+                <>
+                  {tbGame && (
+                    <span className="block text-sm font-semibold text-foreground">
+                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
+                      {gameTime && <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>}
+                    </span>
+                  )}
+                  <span className="block">
+                    In case of a tie, the player closest to the actual runs scored and total strikeouts for this game wins.
+                  </span>
+                </>
+              );
+            })()}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
