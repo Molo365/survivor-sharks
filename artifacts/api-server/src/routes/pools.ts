@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, entriesTable, usersTable, picksTable } from "@workspace/db";
-import { eq, and, count, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
+import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable } from "@workspace/db";
+import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 
@@ -405,6 +405,78 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, updated.commissionerId));
 
   res.json(formatPool(updated, Number(total), Number(active), commissioner?.username ?? ""));
+});
+
+// PATCH /api/pools/:poolId/cancel — soft-cancel by commissioner if no other member has picked yet
+router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+
+  if (pool.commissionerId !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+
+  if (!pool.isActive) {
+    res.status(409).json({ error: "Pool is already inactive." });
+    return;
+  }
+
+  // Determine the correct picks table for this pool type and count non-commissioner picks
+  const PICKEM_TYPES = new Set(["pickem", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
+  const pt = pool.poolType as string;
+  let hasOtherPicks = false;
+
+  if (PICKEM_TYPES.has(pt)) {
+    const [row] = await db
+      .select({ n: count() })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), ne(pickemPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else if (pt === "wc_bracket") {
+    const [row] = await db
+      .select({ n: count() })
+      .from(wcBracketPicksTable)
+      .where(and(eq(wcBracketPicksTable.poolId, poolId), ne(wcBracketPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else if (pt === "nfl_division_predictor") {
+    const [row] = await db
+      .select({ n: count() })
+      .from(nflDivisionPredictorPicksTable)
+      .where(and(eq(nflDivisionPredictorPicksTable.poolId, poolId), ne(nflDivisionPredictorPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else if (pt === "group_stage_predictor") {
+    const [row] = await db
+      .select({ n: count() })
+      .from(groupStagePredictorPicksTable)
+      .where(and(eq(groupStagePredictorPicksTable.poolId, poolId), ne(groupStagePredictorPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else {
+    // season, weekly, mid_season, dirty_dozen — survivor picks table
+    const [row] = await db
+      .select({ n: count() })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, poolId), ne(picksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  }
+
+  if (hasOtherPicks) {
+    res.status(409).json({ error: "Cannot cancel: other members have already submitted picks." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(poolsTable)
+    .set({ isActive: false, endedAt: new Date(), closureReason: "cancelled_by_commissioner" })
+    .where(eq(poolsTable.id, poolId))
+    .returning();
+
+  res.json({ success: true, pool: updated });
 });
 
 // DELETE /api/pools/:poolId
