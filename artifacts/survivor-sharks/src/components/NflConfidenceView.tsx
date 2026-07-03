@@ -793,6 +793,8 @@ export function NflConfidenceCommissionerPanel({
           </CardContent>
         </Card>
       )}
+
+      <CancelPoolButton poolId={poolId} />
     </div>
   );
 }
@@ -1080,8 +1082,6 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
               ? "Assign all confidence points"
               : "Submit Picks"}
       </Button>
-
-      <CancelPoolButton poolId={poolId} />
 
       {/* Tiebreaker dialog */}
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>

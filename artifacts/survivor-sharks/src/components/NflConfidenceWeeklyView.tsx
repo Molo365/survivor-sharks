@@ -833,6 +833,8 @@ export function NflConfidenceWeeklyCommissionerPanel({
           </CardContent>
         </Card>
       )}
+
+      <CancelPoolButton poolId={poolId} />
     </div>
   );
 }
@@ -1081,8 +1083,6 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
               ? "Assign all confidence points"
               : "Submit Picks"}
       </Button>
-
-      <CancelPoolButton poolId={poolId} />
 
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
         <DialogContent className="max-w-md">
