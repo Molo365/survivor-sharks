@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PickEmTiebreakerCard } from "@/components/PickEmTiebreakerCard";
@@ -38,7 +39,7 @@ import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -122,6 +123,7 @@ function pickRefetchInterval(data: PickEmSlate | undefined): number {
 interface PickEmViewProps {
   poolId: number;
   poolName: string;
+  poolDescription?: string;
   commissionerId: number;
   inviteCode: string;
   sport?: string;
@@ -2024,12 +2026,14 @@ function PickEmSandboxPanel({ poolId }: { poolId: number }) {
   );
 }
 
-export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport = "mlb", pickFrequency, isRecurring = true }: PickEmViewProps) {
+export function PickEmView({ poolId, poolName, poolDescription, commissionerId, inviteCode, sport = "mlb", pickFrequency, isRecurring = true }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updatePool = useUpdatePool();
   const [confirmRecurringOpen, setConfirmRecurringOpen] = useState(false);
+  const [settingsName, setSettingsName] = useState(poolName);
+  const [settingsDesc, setSettingsDesc] = useState(poolDescription ?? "");
   const isWc = sport === "worldcup";
   const is3way = sport === "worldcup" || sport === "intl";
   const isWeekly = pickFrequency === "weekly" && !is3way;
@@ -3011,6 +3015,39 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Pool Settings */}
+              <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-4">
+                <h4 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+                  <Settings2 className="w-5 h-5 text-primary" /> Pool Settings
+                </h4>
+                <div className="grid gap-2">
+                  <Label className="font-bebas text-lg tracking-wide">Pool Name</Label>
+                  <Input
+                    value={settingsName}
+                    onChange={(e) => setSettingsName(e.target.value)}
+                    className="bg-background/50"
+                    placeholder="Pool name"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="font-bebas text-lg tracking-wide">Description</Label>
+                  <Textarea
+                    value={settingsDesc}
+                    onChange={(e) => setSettingsDesc(e.target.value)}
+                    className="bg-background/50 resize-none"
+                    rows={3}
+                    placeholder="Optional description"
+                  />
+                </div>
+                <Button
+                  onClick={() => updatePool.mutate({ poolId, data: { name: settingsName, description: settingsDesc } } as any)}
+                  disabled={updatePool.isPending}
+                  className="font-bebas text-lg tracking-wider"
+                >
+                  {updatePool.isPending ? "Saving…" : "Save Settings"}
+                </Button>
               </div>
 
               {isNhl && user?.role === "admin" && (
