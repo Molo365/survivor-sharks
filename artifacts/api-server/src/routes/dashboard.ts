@@ -41,11 +41,31 @@ function offsetDateStr(dateStr: string, days: number): string {
 // Returns the prize per winner, scaled for actual entries vs max capacity.
 // Mirrors the scaledPrizePot() logic already used on the client for "Prize Pot (Est.)".
 function computeSplitPrize(
-  pool: { prizeStructure?: Array<{ place: number; amount: number }> | null; prizePot?: number | null; maxEntries?: number | null },
+  pool: {
+    prizeStructure?: Array<{ place: number; amount: number }> | null;
+    prizePot?: number | null;
+    maxEntries?: number | null;
+    prizeMode?: string | null;
+    entryFee?: number | null;
+  },
   winnerCount: number,
   memberCount: number,
 ): number | null {
-  // Scale down proportionally when fewer members than max capacity
+  // Pct mode: amounts in prizeStructure are percentages, not dollars.
+  // Mirror the exact formula used in calculatePayouts.ts lines 15–22.
+  if (pool.prizeMode === "pct") {
+    if (!pool.entryFee || pool.entryFee <= 0 || memberCount <= 0) return null;
+    if (!pool.prizeStructure || pool.prizeStructure.length === 0) return null;
+    const entryFee = pool.entryFee;
+    const pctAmounts = pool.prizeStructure.map((p) =>
+      Math.floor((p.amount / 100) * entryFee * memberCount / 5) * 5,
+    );
+    const pctFirst = pctAmounts[0] ?? 0;
+    const pctTotal = pctAmounts.reduce((s, a) => s + a, 0);
+    return winnerCount === 1 ? pctFirst : Math.floor(pctTotal / winnerCount);
+  }
+
+  // Fixed mode: scale down proportionally when fewer members than max capacity.
   const scale =
     pool.maxEntries && pool.maxEntries > 0 && memberCount > 0 && memberCount < pool.maxEntries
       ? memberCount / pool.maxEntries
@@ -111,6 +131,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       prizeStructure: poolsTable.prizeStructure,
       prizePot: poolsTable.prizePot,
       maxEntries: poolsTable.maxEntries,
+      prizeMode: poolsTable.prizeMode,
+      entryFee: poolsTable.entryFee,
       pickFrequency: poolsTable.pickFrequency,
     })
     .from(poolsTable)
