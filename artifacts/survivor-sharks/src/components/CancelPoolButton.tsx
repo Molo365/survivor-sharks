@@ -72,7 +72,7 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
           description: `"${pool.name}" has been cancelled.`,
         });
         setOpen(false);
-        navigate("/pools");
+        navigate("/dashboard");
       } else {
         const data = await res.json();
         if (res.status === 409) {
