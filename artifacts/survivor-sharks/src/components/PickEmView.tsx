@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 import {
   useGetPickEmDailyPicks,
   useGetPickEmGames,
@@ -3061,6 +3062,7 @@ export function PickEmView({ poolId, poolName, commissionerId, inviteCode, sport
                 )
               )}
 
+              <CancelPoolButton poolId={poolId} />
             </div>
           </TabsContent>
         )}

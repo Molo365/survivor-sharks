@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -390,7 +391,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
 
 // ── Commissioner tab ──────────────────────────────────────────────────────────
 
-function CommissionerTab({ inviteCode }: { inviteCode: string }) {
+function CommissionerTab({ poolId, inviteCode }: { poolId: number; inviteCode: string }) {
   const { toast } = useToast();
 
   const copyInvite = () => {
@@ -437,6 +438,7 @@ function CommissionerTab({ inviteCode }: { inviteCode: string }) {
           </div>
         </div>
       </div>
+      <CancelPoolButton poolId={poolId} />
     </div>
   );
 }
@@ -972,7 +974,7 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
 
         {isCommissioner && inviteCode && (
           <TabsContent value="commissioner">
-            <CommissionerTab inviteCode={inviteCode} />
+            <CommissionerTab poolId={poolId} inviteCode={inviteCode} />
           </TabsContent>
         )}
       </Tabs>

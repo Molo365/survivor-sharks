@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3, OctagonX } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -502,6 +503,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
           )}
         </Card>
       )}
+
+      <CancelPoolButton poolId={poolId} />
     </div>
   );
 }

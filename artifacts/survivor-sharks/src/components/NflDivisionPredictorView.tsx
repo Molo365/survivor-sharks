@@ -13,6 +13,7 @@ import {
   useGetNdpLiveStandings,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -826,6 +827,8 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
           </div>
         </div>
       </div>
+
+      <CancelPoolButton poolId={poolId} />
     </div>
   );
 }

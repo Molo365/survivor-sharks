@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1080,6 +1081,8 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
               ? "Assign all confidence points"
               : "Submit Picks"}
       </Button>
+
+      <CancelPoolButton poolId={poolId} />
 
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
         <DialogContent className="max-w-md">

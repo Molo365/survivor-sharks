@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-client-react";
 import type { WcBracketMatch, WcBracketLeaderboardEntry, BracketTreeSlot } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1354,6 +1355,8 @@ export function WcBracketView({
                     </Button>
                   </CardContent>
                 </Card>
+
+                <CancelPoolButton poolId={poolId} />
               </div>
             </TabsContent>
           )}
