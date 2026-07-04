@@ -496,17 +496,36 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           }
         }
 
+        const myRank = (scoringStarted && myRow) ? myIdx + 1 : 0;
+        let myPrizeWon: number | null = null;
+        if (!pool.isActive && myRank > 0) {
+          const ndpPs = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+          const ndpMemberCount = memberCountMap.get(pool.id) ?? 0;
+          if (ndpPs && ndpPs.length > 0 && ndpMemberCount > 0) {
+            const tier = ndpPs.find((p) => p.place === myRank);
+            if (tier) {
+              if (pool.prizeMode === "pct" && pool.entryFee && pool.entryFee > 0) {
+                myPrizeWon = Math.floor((tier.amount / 100) * pool.entryFee * ndpMemberCount / 5) * 5;
+              } else {
+                myPrizeWon = tier.amount;
+              }
+              if (myPrizeWon <= 0) myPrizeWon = null;
+            }
+          }
+        }
+
         return {
           poolId: pool.id,
           poolType,
           lastWinners,
           myStanding: {
-            rank: (scoringStarted && myRow) ? myIdx + 1 : 0,
+            rank: myRank,
             correct: 0, picked: 0,
             hasPicks,
             status: null, eliminatedWeek: null,
             score: myRow ? myRow.total : null,
             maxScore: 96,
+            prizeWon: myPrizeWon,
           },
           poolName: pool.name,
           sport: pool.sport as string,

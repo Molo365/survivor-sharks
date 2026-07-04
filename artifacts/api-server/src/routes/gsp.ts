@@ -535,31 +535,43 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     return { ...entry, rank };
   });
 
-  const winnerCount = ranked.filter((e) => e.finalWinner).length;
-  const memberCount = members.length;
-  let prizePerWinner: number | null = null;
-  if (winnerCount > 0) {
-    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null | undefined;
-    if (ps && ps.length > 0) {
+  const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null | undefined;
+  const memberCount = ranked.length;
+
+  const prizeByPlace = new Map<number, number>();
+  if (ps && ps.length > 0) {
+    ps.forEach((p) => {
+      let amount: number;
       if (pool.prizeMode === "pct") {
         if (pool.entryFee && pool.entryFee > 0 && memberCount > 0) {
-          const pctAmounts = ps.map((p) =>
-            Math.floor((p.amount / 100) * pool.entryFee! * memberCount / 5) * 5,
-          );
-          const pctFirst = pctAmounts[0] ?? 0;
-          const pctTotal = pctAmounts.reduce((s, a) => s + a, 0);
-          prizePerWinner = winnerCount === 1 ? pctFirst : Math.floor(pctTotal / winnerCount);
+          amount = Math.floor((p.amount / 100) * pool.entryFee * memberCount / 5) * 5;
+        } else {
+          amount = 0;
         }
       } else {
-        const total = ps.reduce((s, p) => s + p.amount, 0);
-        prizePerWinner = winnerCount === 1 ? ps[0].amount : Math.floor(total / winnerCount);
+        amount = p.amount;
       }
-    } else if (pool.prizePot && pool.prizePot > 0) {
-      prizePerWinner = Math.floor(pool.prizePot / winnerCount);
-    }
+      if (amount > 0) prizeByPlace.set(p.place, amount);
+    });
+  } else if (pool.prizePot && pool.prizePot > 0) {
+    prizeByPlace.set(1, Math.floor(pool.prizePot));
   }
 
-  res.json(ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })));
+  const firstPlaceWinners = ranked.filter((e) => e.finalWinner);
+  const firstPrizeSplit = firstPlaceWinners.length > 1 && prizeByPlace.has(1)
+    ? Math.floor(prizeByPlace.get(1)! / firstPlaceWinners.length)
+    : null;
+
+  res.json(ranked.map((e, idx) => {
+    const rank = idx + 1;
+    let prizeWon: number | null = null;
+    if (e.finalWinner && firstPrizeSplit !== null) {
+      prizeWon = firstPrizeSplit;
+    } else if (prizeByPlace.has(rank)) {
+      prizeWon = prizeByPlace.get(rank)!;
+    }
+    return { ...e, prizeWon };
+  }));
 });
 
 // GET /api/pools/:poolId/gsp/live-standings

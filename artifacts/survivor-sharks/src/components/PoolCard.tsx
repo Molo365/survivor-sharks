@@ -224,6 +224,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     </span>
                     <span className="text-muted-foreground/40">·</span>
                     <span>{pickEmStat.myStanding.score ?? 0}/{pickEmStat.myStanding.maxScore ?? 96} pts</span>
+                    {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                      <span className="text-yellow-400 font-bold">
+                        · ${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 ) : pickEmStat.myStanding.hasPicks ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
