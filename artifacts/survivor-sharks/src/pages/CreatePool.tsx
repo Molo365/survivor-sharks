@@ -217,7 +217,6 @@ const formSchema = z.object({
   sandboxMode: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
-  minEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
 });
@@ -880,28 +879,6 @@ export default function CreatePool() {
                           />
                         </FormControl>
                         <FormDescription className="text-xs">Limit total members</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="minEntries"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="font-bebas text-lg tracking-wide">Min Entries</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="1"
-                            placeholder="No minimum"
-                            {...field}
-                            value={field.value ?? ""}
-                            data-testid="input-min-entries"
-                            className="bg-background/50 border-primary/20"
-                          />
-                        </FormControl>
-                        <FormDescription className="text-xs">Cancel if not enough players join</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
