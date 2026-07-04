@@ -163,11 +163,15 @@ router.get("/game/:gameId", async (req, res) => {
     }
 
     // ── Live situation ────────────────────────────────────────────────────────
+    // The summary endpoint's d.situation is a stripped stub (no athlete names,
+    // no base flags, no lastPlay text). The scoreboard endpoint has everything.
+    // For live games, fetch the scoreboard in parallel and pull
+    // competitions[0].situation from the matching event.
     const statusState: string = hdrComp?.status?.type?.state ?? "pre";
     const isLive = statusState === "in";
 
     const plays: any[] = d.plays ?? [];
-    const lastPlay: string | null =
+    const lastPlayFallback: string | null =
       plays.length > 0 ? (plays[plays.length - 1]?.text ?? null) : null;
 
     type SituationResult = {
@@ -184,25 +188,38 @@ router.get("/game/:gameId", async (req, res) => {
 
     let situation: SituationResult = null;
     if (isLive) {
-      const sit: any = hdrComp?.situation ?? null;
-      if (sit) {
-        situation = {
-          balls: sit.balls ?? 0,
-          strikes: sit.strikes ?? 0,
-          outs: sit.outs ?? 0,
-          onFirst: sit.onFirst ?? false,
-          onSecond: sit.onSecond ?? false,
-          onThird: sit.onThird ?? false,
-          batter:
-            sit.batter?.athlete?.shortName ??
-            sit.batter?.athlete?.fullName ??
-            null,
-          pitcher:
-            sit.pitcher?.athlete?.shortName ??
-            sit.pitcher?.athlete?.fullName ??
-            null,
-          lastPlay,
-        };
+      try {
+        const sbUrl = `https://site.api.espn.com/apis/site/v2/sports/${espnPath}/scoreboard`;
+        const sbRes = await fetch(sbUrl, { signal: AbortSignal.timeout(6000) });
+        if (sbRes.ok) {
+          const sb: any = await sbRes.json();
+          const sbEvent = (sb.events ?? []).find((e: any) => e.id === gameId);
+          const sbSit: any =
+            (sbEvent?.competitions ?? [])[0]?.situation ?? null;
+          if (sbSit) {
+            situation = {
+              balls:    sbSit.balls    ?? 0,
+              strikes:  sbSit.strikes  ?? 0,
+              outs:     sbSit.outs     ?? 0,
+              onFirst:  sbSit.onFirst  ?? false,
+              onSecond: sbSit.onSecond ?? false,
+              onThird:  sbSit.onThird  ?? false,
+              batter:
+                sbSit.batter?.athlete?.shortName ??
+                sbSit.batter?.athlete?.fullName ??
+                null,
+              pitcher:
+                sbSit.pitcher?.athlete?.shortName ??
+                sbSit.pitcher?.athlete?.fullName ??
+                null,
+              lastPlay:
+                sbSit.lastPlay?.text ??
+                lastPlayFallback,
+            };
+          }
+        }
+      } catch {
+        // scoreboard fetch failed — leave situation as null
       }
     }
 
