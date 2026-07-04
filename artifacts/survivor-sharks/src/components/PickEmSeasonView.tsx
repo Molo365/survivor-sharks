@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   useGetNflPickEmSeasonGames,
   useSubmitNflPickEmSeasonPicks,
@@ -70,6 +70,8 @@ import {
   Users,
   Shuffle,
   Settings2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -582,54 +584,36 @@ function WeeklyGrid({
   currentWeek: number;
   currentUserId: number | null;
 }) {
-  const hintKey = `pickem-season-grid-hint-${poolId}`;
-  const [showHint, setShowHint] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(hintKey) !== "1";
-    } catch {
-      return true;
-    }
-  });
-  const [selectedCell, setSelectedCell] = useState<{
-    userId: number;
-    week: number;
-  } | null>(null);
+  const [displayWeek, setDisplayWeek] = useState(currentWeek);
 
-  const weekResultsParams = useMemo(
-    () => (selectedCell ? { week: selectedCell.week } : undefined),
-    [selectedCell],
-  );
-  const { data: weekData, isLoading: weekLoading } =
-    useGetNflPickEmSeasonWeekResults(poolId, weekResultsParams, {
+  const weekParams = useMemo(() => ({ week: displayWeek }), [displayWeek]);
+  const { data: weekData, isLoading } = useGetNflPickEmSeasonWeekResults(
+    poolId,
+    weekParams,
+    {
       query: {
-        queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(
-          poolId,
-          weekResultsParams,
-        ),
-        enabled: !!selectedCell,
-        staleTime: 5 * 60 * 1000,
+        queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(poolId, weekParams),
+        staleTime: 60_000,
       },
-    });
+    },
+  );
 
-  const playedWeeks = useMemo(() => {
-    const set = new Set<number>();
-    for (const e of entries) {
-      for (const w of Object.keys(e.weeklyScores ?? {})) {
-        set.add(Number(w));
-      }
-    }
-    return Array.from(set).sort((a, b) => a - b);
-  }, [entries]);
+  const games = weekData?.games ?? [];
+  const weekPlayers = weekData?.players ?? [];
 
-  const colSpan = playedWeeks.length + 2;
+  const entryMap = useMemo(
+    () => new Map(entries.map((e) => [e.userId, e])),
+    [entries],
+  );
 
-  function handleCellClick(userId: number, week: number) {
-    if (selectedCell?.userId === userId && selectedCell?.week === week) {
-      setSelectedCell(null);
-    } else {
-      setSelectedCell({ userId, week });
-    }
-  }
+  const rows = useMemo(
+    () =>
+      entries.map((e) => ({
+        ...e,
+        picks: weekPlayers.find((p) => p.userId === e.userId)?.picks ?? [],
+      })),
+    [entries, weekPlayers],
+  );
 
   if (entries.length === 0) {
     return (
@@ -643,111 +627,134 @@ function WeeklyGrid({
 
   return (
     <div className="space-y-3">
-      {showHint && (
-        <div className="relative flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] px-4 py-3 pr-10">
-          <Info className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-200/80">
-            Click any week&apos;s result to see that player&apos;s picks for
-            that week.
+      {/* Week navigation */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <button
+          type="button"
+          onClick={() => setDisplayWeek((w) => Math.max(1, w - 1))}
+          disabled={displayWeek <= 1}
+          className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="text-center">
+          <p className="font-bebas text-lg tracking-wide leading-none">
+            Week {displayWeek}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              try {
-                localStorage.setItem(hintKey, "1");
-              } catch {
-                /* ignore */
-              }
-              setShowHint(false);
-            }}
-            className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-            aria-label="Dismiss hint"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          {displayWeek === currentWeek && (
+            <span className="text-[10px] text-primary/60 font-semibold uppercase tracking-wider">
+              This Week
+            </span>
+          )}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setDisplayWeek((w) => Math.min(currentWeek, w + 1))}
+          disabled={displayWeek >= currentWeek}
+          className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
 
-      <div className="rounded-xl border border-border/40 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table
-            className="w-full text-sm border-collapse"
-            style={{
-              minWidth: `${Math.max(340, 200 + playedWeeks.length * 60)}px`,
-            }}
-          >
-            <thead>
-              <tr className="border-b border-border/20">
-                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 sticky left-0 bg-card z-10">
-                  Player
-                </th>
-                {playedWeeks.map((w) => (
-                  <th
-                    key={w}
-                    className={cn(
-                      "px-0.5 py-2 text-center text-[10px] font-bold uppercase tracking-widest",
-                      w === currentWeek
-                        ? "text-primary/70"
-                        : "text-muted-foreground/50",
-                    )}
-                  >
-                    W{w}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : games.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <LayoutGrid className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-bebas text-xl tracking-wide">No games this week</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border/40 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table
+              className="w-full text-sm border-collapse"
+              style={{
+                minWidth: `${Math.max(340, 200 + games.length * 68)}px`,
+              }}
+            >
+              <thead>
+                <tr className="border-b border-border/20">
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 sticky left-0 bg-card z-10">
+                    Player
                   </th>
-                ))}
-                <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                  Season
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry, idx) => {
-                const isMe = entry.userId === currentUserId;
-                const isExpanded = selectedCell?.userId === entry.userId;
-                const rowBg = isMe
-                  ? "bg-primary/5"
-                  : idx % 2 === 0
-                    ? "bg-transparent"
-                    : "bg-muted/[0.03]";
-                const seasonPct =
-                  entry.seasonTotal > 0
-                    ? Math.round(
-                        (entry.seasonCorrect / entry.seasonTotal) * 100,
-                      )
-                    : null;
+                  {games.map((game) => (
+                    <th
+                      key={game.id}
+                      className="px-1 py-2 text-center min-w-[68px]"
+                    >
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-0.5 text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                          <span>{game.awayTeam.abbreviation}</span>
+                          <span className="text-muted-foreground/40">@</span>
+                          <span>{game.homeTeam.abbreviation}</span>
+                        </div>
+                        {game.awayScore != null && game.homeScore != null && (
+                          <span className="text-[11px] font-bold text-foreground tabular-nums">
+                            {game.awayScore}–{game.homeScore}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 whitespace-nowrap">
+                    Season
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIdx) => {
+                  const isMe = row.userId === currentUserId;
+                  const pickMap = new Map(row.picks.map((p) => [p.gameId, p]));
+                  const seasonEntry = entryMap.get(row.userId);
+                  const seasonPct =
+                    seasonEntry && seasonEntry.seasonTotal > 0
+                      ? Math.round(
+                          (seasonEntry.seasonCorrect /
+                            seasonEntry.seasonTotal) *
+                            100,
+                        )
+                      : null;
 
-                return (
-                  <Fragment key={entry.userId}>
+                  return (
                     <tr
+                      key={row.userId}
                       className={cn(
-                        "border-b border-border/10",
-                        isExpanded ? "border-border/20" : "last:border-0",
-                        rowBg,
+                        "border-b border-border/10 last:border-0",
+                        isMe
+                          ? "bg-primary/5"
+                          : rowIdx % 2 === 0
+                            ? "bg-transparent"
+                            : "bg-muted/[0.03]",
                       )}
                     >
                       <td
                         className={cn(
-                          "px-3 py-2.5 font-medium whitespace-nowrap sticky left-0 z-10",
-                          isMe ? "text-primary" : "text-foreground",
+                          "px-3 py-2 font-medium whitespace-nowrap sticky left-0 z-10",
                           isMe
-                            ? "bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-primary)_3%)]"
-                            : "bg-card",
+                            ? "text-primary bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-primary)_3%)]"
+                            : "text-foreground bg-card",
                         )}
                       >
                         <span
                           className={cn(
                             "font-bebas text-base mr-2 w-5 inline-block text-center",
-                            entry.rank === 1
+                            row.rank === 1
                               ? "text-yellow-400"
-                              : entry.rank === 2
+                              : row.rank === 2
                                 ? "text-zinc-300"
-                                : entry.rank === 3
+                                : row.rank === 3
                                   ? "text-amber-600"
                                   : "text-muted-foreground/40",
                           )}
                         >
-                          {entry.rank}
+                          {row.rank}
                         </span>
-                        {entry.displayName || entry.username}
+                        {row.displayName || row.username}
                         {isMe && (
                           <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                             you
@@ -755,18 +762,13 @@ function WeeklyGrid({
                         )}
                       </td>
 
-                      {playedWeeks.map((w) => {
-                        const ws = entry.weeklyScores?.[String(w)] as
-                          | { correct: number; total: number }
-                          | undefined;
-                        const isCellActive =
-                          isExpanded && selectedCell?.week === w;
-
-                        if (!ws) {
+                      {games.map((game) => {
+                        const pick = pickMap.get(game.id);
+                        if (!pick) {
                           return (
                             <td
-                              key={w}
-                              className={cn("px-1 py-2.5 text-center", rowBg)}
+                              key={game.id}
+                              className="px-1 py-2 text-center"
                             >
                               <span className="text-muted-foreground/20 text-xs">
                                 —
@@ -775,84 +777,101 @@ function WeeklyGrid({
                           );
                         }
 
-                        const pct =
-                          ws.total > 0
-                            ? Math.round((ws.correct / ws.total) * 100)
-                            : null;
+                        const pickedIsHome =
+                          pick.pickedTeamId === game.homeTeam.id;
+                        const team = pickedIsHome
+                          ? game.homeTeam
+                          : game.awayTeam;
 
                         return (
                           <td
-                            key={w}
-                            onClick={() => handleCellClick(entry.userId, w)}
-                            title={`${entry.displayName ?? entry.username} — Wk${w}: ${ws.correct}/${ws.total}`}
-                            className={cn(
-                              "px-1 py-2.5 text-center cursor-pointer select-none transition-colors",
-                              isCellActive
-                                ? "bg-primary/15 ring-1 ring-inset ring-primary/40"
-                                : "hover:bg-muted/40",
-                            )}
+                            key={game.id}
+                            className="px-1 py-2 text-center"
                           >
-                            <div className="flex flex-col items-center min-w-[38px] mx-auto">
+                            <div
+                              className={cn(
+                                "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border min-w-[52px]",
+                                pick.result === "correct"
+                                  ? "border-green-500/40 bg-green-500/10"
+                                  : pick.result === "incorrect"
+                                    ? "border-red-500/40 bg-red-500/10"
+                                    : "border-border/30 bg-muted/10",
+                              )}
+                            >
+                              {team.logoUrl && (
+                                <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                                  <img
+                                    src={team.logoUrl}
+                                    alt={team.abbreviation}
+                                    className="w-5 h-5 object-contain"
+                                    onError={(e) => {
+                                      (
+                                        e.currentTarget as HTMLImageElement
+                                      ).style.display = "none";
+                                    }}
+                                  />
+                                </div>
+                              )}
                               <span
                                 className={cn(
-                                  "font-bebas text-lg leading-none",
-                                  pct !== null && pct >= 60
+                                  "font-bebas text-[11px] tracking-wide leading-none",
+                                  pick.result === "correct"
                                     ? "text-green-400"
-                                    : pct !== null && pct < 40
-                                      ? "text-red-400/70"
-                                      : "text-foreground",
+                                    : pick.result === "incorrect"
+                                      ? "text-red-400"
+                                      : "text-muted-foreground/70",
                                 )}
                               >
-                                {ws.correct}
-                              </span>
-                              <span className="text-[8px] text-muted-foreground/50 leading-none">
-                                /{ws.total}
+                                {team.abbreviation}
                               </span>
                             </div>
                           </td>
                         );
                       })}
 
-                      <td className={cn("px-3 py-2.5 text-right", rowBg)}>
-                        <span className="font-bebas text-xl text-foreground">
-                          {entry.seasonCorrect}
-                        </span>
-                        <span className="font-bebas text-sm text-muted-foreground/40">
-                          /{entry.seasonTotal}
-                        </span>
-                        {seasonPct !== null && (
-                          <div className="text-[10px] text-muted-foreground/50 leading-none">
-                            {seasonPct}%
-                          </div>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {seasonEntry ? (
+                          <>
+                            <span className="font-bebas text-xl text-foreground">
+                              {seasonEntry.seasonCorrect}
+                            </span>
+                            <span className="font-bebas text-sm text-muted-foreground/40">
+                              /{seasonEntry.seasonTotal}
+                            </span>
+                            {seasonPct !== null && (
+                              <div className="text-[10px] text-muted-foreground/50 leading-none">
+                                {seasonPct}%
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground/20 text-xs">
+                            —
+                          </span>
                         )}
                       </td>
                     </tr>
-
-                    {isExpanded && (
-                      <tr className="bg-muted/[0.04]">
-                        <td
-                          colSpan={colSpan}
-                          className="px-4 py-4 border-b border-border/30"
-                        >
-                          <PickEmPickDetailPanel
-                            playerName={
-                              entry.displayName ?? entry.username ?? "Player"
-                            }
-                            week={selectedCell!.week}
-                            weekData={weekData}
-                            isLoading={weekLoading}
-                            userId={entry.userId}
-                            onClose={() => setSelectedCell(null)}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
+
+      <div className="flex items-center gap-4 text-[10px] text-muted-foreground px-1">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-green-500/20 border border-green-500/30 shrink-0" />
+          Win
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-red-500/20 border border-red-500/30 shrink-0" />
+          Loss
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-muted/20 border border-border/30 shrink-0" />
+          Pending
+        </span>
       </div>
     </div>
   );
