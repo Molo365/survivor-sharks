@@ -145,6 +145,7 @@ router.get("/game/:gameId", async (req, res) => {
         ...awayLines.map((l: any) =>
           l.displayValue === "X" ? null : Number(l.displayValue ?? null),
         ),
+        ...Array(Math.max(0, maxLen - awayLines.length)).fill(null),
         Number(awayComp?.score ?? 0),
         Number(awayComp?.hits ?? 0),
         Number(awayComp?.errors ?? 0),
@@ -153,6 +154,7 @@ router.get("/game/:gameId", async (req, res) => {
         ...homeLines.map((l: any) =>
           l.displayValue === "X" ? null : Number(l.displayValue ?? null),
         ),
+        ...Array(Math.max(0, maxLen - homeLines.length)).fill(null),
         Number(homeComp?.score ?? 0),
         Number(homeComp?.hits ?? 0),
         Number(homeComp?.errors ?? 0),
