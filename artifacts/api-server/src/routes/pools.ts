@@ -151,8 +151,8 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, sport, description, maxEntries, minEntries, entryFee, prizePot, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
-  const prizeMode: "fixed" | "pct" = req.body.prizeMode ?? "fixed";
+  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
+  const prizeMode = "pct" as const;
 
   if (!name || !sport) {
     res.status(400).json({ error: "name and sport are required" });
@@ -168,32 +168,31 @@ router.post("/", requireAuth, async (req, res) => {
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
 
-  // Auto-calculate prizePot from prizeStructure if provided.
-  // For fixed mode: round to the nearest whole dollar and absorb any cent
-  // difference into the last place so amounts always sum exactly to the total.
-  // For pct mode: amounts are percentages (0–100); prizePot cannot be computed
-  // at creation time (depends on entries × fee), so it is stored as null.
+  // commissionerCut: integer 0–15, default 0.
+  const rawCut = req.body.commissionerCut ?? 0;
+  const commissionerCut = Number(rawCut);
+  if (!Number.isInteger(commissionerCut) || commissionerCut < 0 || commissionerCut > 15) {
+    res.status(400).json({ error: "commissionerCut must be an integer between 0 and 15" });
+    return;
+  }
+
+  // prizeStructure amounts are percentages (0–100). prizePot is always null
+  // (computed at payout time as entryFee × actualEntries).
   const resolvedPrizeStructure = Array.isArray(prizeStructure) && prizeStructure.length > 0
     ? prizeStructure as Array<{ place: number; amount: number }>
     : null;
-  let resolvedPrizePot: number | null;
-  if (prizeMode === "pct") {
-    resolvedPrizePot = null;
-  } else if (resolvedPrizeStructure) {
-    const rawSum = resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0);
-    if (resolvedPrizeStructure.length > 1) {
-      const rounded = Math.round(rawSum);
-      const diff = Math.round((rounded - rawSum) * 100) / 100;
-      if (diff !== 0) {
-        const last = resolvedPrizeStructure[resolvedPrizeStructure.length - 1];
-        last.amount = Math.round((last.amount + diff) * 100) / 100;
-      }
-      resolvedPrizePot = rounded;
-    } else {
-      resolvedPrizePot = rawSum;
+  const resolvedPrizePot: number | null = null;
+
+  // Validate that prizeStructure % + commissionerCut sums to exactly 100 (±0.5 tolerance).
+  if (resolvedPrizeStructure) {
+    const pctSum = resolvedPrizeStructure.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const total = pctSum + commissionerCut;
+    if (Math.abs(total - 100) > 0.5) {
+      res.status(400).json({
+        error: `Prize percentages + commissioner cut must sum to 100 (got ${total.toFixed(2)})`,
+      });
+      return;
     }
-  } else {
-    resolvedPrizePot = prizePot ?? null;
   }
 
   const resolvedSeason = season ?? new Date().getFullYear();
@@ -216,6 +215,7 @@ router.post("/", requireAuth, async (req, res) => {
     prizePot: resolvedPrizePot,
     prizeStructure: resolvedPrizeStructure,
     prizeMode,
+    commissionerCut,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
