@@ -536,16 +536,28 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   });
 
   const winnerCount = ranked.filter((e) => e.finalWinner).length;
-  const prizePerWinner: number | null = (() => {
-    if (winnerCount === 0) return null;
+  const memberCount = members.length;
+  let prizePerWinner: number | null = null;
+  if (winnerCount > 0) {
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null | undefined;
     if (ps && ps.length > 0) {
-      const total = ps.reduce((s, p) => s + p.amount, 0);
-      return winnerCount === 1 ? ps[0].amount : Math.floor(total / winnerCount);
+      if (pool.prizeMode === "pct") {
+        if (pool.entryFee && pool.entryFee > 0 && memberCount > 0) {
+          const pctAmounts = ps.map((p) =>
+            Math.floor((p.amount / 100) * pool.entryFee! * memberCount / 5) * 5,
+          );
+          const pctFirst = pctAmounts[0] ?? 0;
+          const pctTotal = pctAmounts.reduce((s, a) => s + a, 0);
+          prizePerWinner = winnerCount === 1 ? pctFirst : Math.floor(pctTotal / winnerCount);
+        }
+      } else {
+        const total = ps.reduce((s, p) => s + p.amount, 0);
+        prizePerWinner = winnerCount === 1 ? ps[0].amount : Math.floor(total / winnerCount);
+      }
+    } else if (pool.prizePot && pool.prizePot > 0) {
+      prizePerWinner = Math.floor(pool.prizePot / winnerCount);
     }
-    if (pool.prizePot && pool.prizePot > 0) return Math.floor(pool.prizePot / winnerCount);
-    return null;
-  })();
+  }
 
   res.json(ranked.map((e) => ({ ...e, prizeWon: e.finalWinner ? prizePerWinner : null })));
 });

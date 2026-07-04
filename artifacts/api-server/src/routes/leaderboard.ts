@@ -51,6 +51,7 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   const prizeStructure = (pool.prizeStructure as Array<{ place: number; amount: number }> | null) ?? null;
+  const memberCount = members.length;
 
   const entries = await Promise.all(members.map(async (member) => {
     const userPicks = await db.select().from(picksTable)
@@ -111,7 +112,15 @@ router.get("/", requireAuth, async (req, res) => {
       // While the pool is active, rank positions are interim — assigning prize
       // values would show dollar badges to players who haven't won anything yet.
       prizeWon: !pool.isActive
-        ? (prizeStructure?.find(p => p.place === i + 1)?.amount ?? null)
+        ? (() => {
+            const tier = prizeStructure?.find(p => p.place === i + 1);
+            if (!tier) return null;
+            if (pool.prizeMode === "pct") {
+              if (!pool.entryFee || pool.entryFee <= 0 || memberCount <= 0) return null;
+              return Math.floor((tier.amount / 100) * pool.entryFee * memberCount / 5) * 5;
+            }
+            return tier.amount;
+          })()
         : null,
       ...e,
     }));
@@ -154,8 +163,17 @@ router.get("/", requireAuth, async (req, res) => {
         const tiers      = prizeStructure.slice(placeIndex, placeIndex + groupSize);
 
         if (tiers.length > 0) {
-          const total     = tiers.reduce((s, t) => s + t.amount, 0);
-          const shareEach = total > 0 ? Math.floor(total / groupSize) : 0;
+          let shareEach: number;
+          if (pool.prizeMode === "pct" && pool.entryFee && pool.entryFee > 0 && memberCount > 0) {
+            const pctAmounts = tiers.map((t) =>
+              Math.floor((t.amount / 100) * pool.entryFee! * memberCount / 5) * 5,
+            );
+            const total = pctAmounts.reduce((s, a) => s + a, 0);
+            shareEach = total > 0 ? Math.floor(total / groupSize) : 0;
+          } else {
+            const total = tiers.reduce((s, t) => s + t.amount, 0);
+            shareEach = total > 0 ? Math.floor(total / groupSize) : 0;
+          }
           if (shareEach > 0) {
             for (let g = pos; g < end; g++) eliminated[g].prizeWon = shareEach;
           }
@@ -179,8 +197,16 @@ router.get("/", requireAuth, async (req, res) => {
   let coWinnerPrizeEach: number | null = null;
   if (coWinners && active.length > 0) {
     if (prizeStructure && prizeStructure.length > 0) {
-      const total = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-      coWinnerPrizeEach = Math.floor(total / active.length);
+      if (pool.prizeMode === "pct" && pool.entryFee && pool.entryFee > 0 && memberCount > 0) {
+        const pctAmounts = prizeStructure.map((p) =>
+          Math.floor((p.amount / 100) * pool.entryFee! * memberCount / 5) * 5,
+        );
+        const total = pctAmounts.reduce((s, a) => s + a, 0);
+        coWinnerPrizeEach = Math.floor(total / active.length);
+      } else {
+        const total = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+        coWinnerPrizeEach = Math.floor(total / active.length);
+      }
     } else if (pool.prizePot && pool.prizePot > 0) {
       coWinnerPrizeEach = Math.floor(pool.prizePot / active.length);
     }
