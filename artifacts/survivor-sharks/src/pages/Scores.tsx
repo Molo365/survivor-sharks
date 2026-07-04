@@ -303,20 +303,37 @@ function GameDetailSheet({
 }) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
   useEffect(() => {
     if (!selectedGame) return;
     setDetail(null);
     setDetailLoading(true);
-    fetch(
-      `/api/scores/game/${selectedGame.game.id}?sport=${selectedGame.sport}`,
-    )
-      .then((r) => (r.ok ? (r.json() as Promise<GameDetail>) : null))
-      .then((d) => {
-        setDetail(d);
-        setDetailLoading(false);
-      })
-      .catch(() => setDetailLoading(false));
+    setIsPolling(false);
+
+    const doFetch = () =>
+      fetch(
+        `/api/scores/game/${selectedGame.game.id}?sport=${selectedGame.sport}`,
+      )
+        .then((r) => (r.ok ? (r.json() as Promise<GameDetail>) : null))
+        .then((d) => {
+          setDetail(d);
+          setDetailLoading(false);
+        })
+        .catch(() => setDetailLoading(false));
+
+    doFetch();
+
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (selectedGame.game.status === "in_progress") {
+      setIsPolling(true);
+      interval = setInterval(doFetch, 45_000);
+    }
+
+    return () => {
+      if (interval !== undefined) clearInterval(interval);
+      setIsPolling(false);
+    };
   }, [selectedGame?.game.id, selectedGame?.sport]);
 
   const game = selectedGame?.game;
@@ -365,6 +382,9 @@ function GameDetailSheet({
 
                 <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
                   <GameStatus game={game} />
+                  {isPolling && (
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-1 flex-row-reverse">
