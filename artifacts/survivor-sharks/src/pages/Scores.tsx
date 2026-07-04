@@ -698,6 +698,24 @@ export default function Scores() {
     sport: string;
   } | null>(null);
 
+  // Push a history entry when the sheet opens so the back button closes it
+  // instead of navigating away. Clean up on sheet close or game change.
+  useEffect(() => {
+    if (!selectedGame) return;
+
+    window.history.pushState({ sheetOpen: true }, "");
+
+    const handlePopState = () => {
+      setSelectedGame(null);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [selectedGame?.game.id, selectedGame?.sport]);
+
   useEffect(() => {
     setLoading(true);
     setError(false);
@@ -781,7 +799,12 @@ export default function Scores() {
 
       <GameDetailSheet
         selectedGame={selectedGame}
-        onClose={() => setSelectedGame(null)}
+        onClose={() => {
+          if (window.history.state?.sheetOpen === true) {
+            window.history.back();
+          }
+          setSelectedGame(null);
+        }}
       />
     </div>
   );
