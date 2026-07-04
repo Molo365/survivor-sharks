@@ -309,6 +309,35 @@ export default function CreatePool() {
     setPrizes(p => p.map((entry, i) => (i === idx ? { amount } : entry)));
   }
 
+  // ── Step tracking (derived — no useState) ────────────────────────────────────
+
+  const currentStep = (() => {
+    if (!selectedSport) return 1;
+    if (!selectedType) return 2;
+    // Step 3 only applies when there are options to configure (double elim, recurring, sandbox)
+    const hasOptions = (
+      ((selectedSport === PoolInputSport.mlb || selectedSport === PoolInputSport.nfl) &&
+        selectedType !== "weekly" && selectedType !== "pickem") ||
+      ((selectedSport === PoolInputSport.mlb && selectedType === "pickem") ||
+        selectedType === "nfl_confidence_weekly") ||
+      (user?.role === "admin" && (selectedType === "nfl_confidence" ||
+        selectedType === "pickem_season" || (selectedSport === PoolInputSport.nhl && selectedType === "season")))
+    );
+    const nameValue = form.getValues("name");
+    if (hasOptions && !nameValue) return 3;
+    if (!nameValue) return 3;
+    const entryFeeValue = form.getValues("entryFee");
+    const maxEntriesValue = form.getValues("maxEntries");
+    if (!entryFeeValue && !maxEntriesValue) return 4;
+    const prizeTotal = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) + commissionerCut;
+    if (Math.abs(prizeTotal - 100) > 0.5) return 5;
+    return 6;
+  })();
+
+  const isStepComplete = (step: number) => currentStep > step;
+  const isStepActive  = (step: number) => currentStep === step;
+  const isStepLocked  = (step: number) => currentStep < step;
+
   const pageTitle =
     selectedSport === PoolInputSport.worldcup
       ? "WORLD CUP 2026 PICK-EMS"
