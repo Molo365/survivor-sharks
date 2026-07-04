@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuthContext";
 import { BottomNav } from "@/components/BottomNav";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
 import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
@@ -131,7 +132,8 @@ function App() {
         <AdminAuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AuthProvider>
-              <div className="pb-16 md:pb-0">
+              <DesktopSidebar />
+              <div className="pb-16 md:pb-0 md:pl-20">
                 <Router />
               </div>
               <BottomNav />
