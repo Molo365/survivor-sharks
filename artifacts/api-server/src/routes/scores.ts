@@ -114,6 +114,9 @@ router.get("/game/:gameId", async (req, res) => {
     }
 
     // ── Linescore ─────────────────────────────────────────────────────────────
+    // d.linescore does not exist in the ESPN summary response.
+    // Real data lives on hdrComp.competitors[i].linescores (per-inning runs)
+    // and .score / .hits / .errors for the R/H/E totals.
     type LinescoreResult = {
       columns: string[];
       home: (number | null)[];
@@ -122,44 +125,45 @@ router.get("/game/:gameId", async (req, res) => {
       awayLabel: string;
     } | null;
 
+    const awayComp: any = (hdrComp?.competitors ?? []).find(
+      (c: any) => c.homeAway === "away",
+    );
+    const homeComp: any = (hdrComp?.competitors ?? []).find(
+      (c: any) => c.homeAway === "home",
+    );
+
     let linescore: LinescoreResult = null;
-
-    if (d.linescore) {
-      const ls: any = d.linescore;
-      const columns: string[] = (ls.columns ?? []).map((c: any) =>
-        typeof c === "object" ? (c.displayValue ?? String(c)) : String(c),
-      );
-      const lines: any[] = ls.lines ?? [];
-
-      const parseVal = (v: unknown): number | null => {
-        if (v == null || v === "-" || v === "X" || v === "") return null;
-        const n = parseInt(String(v), 10);
-        return isNaN(n) ? null : n;
+    const awayLines: any[] = awayComp?.linescores ?? [];
+    const homeLines: any[] = homeComp?.linescores ?? [];
+    if (awayLines.length > 0 || homeLines.length > 0) {
+      const maxLen = Math.max(awayLines.length, homeLines.length);
+      const columns = [
+        ...Array.from({ length: maxLen }, (_, i) => String(i + 1)),
+        "R", "H", "E",
+      ];
+      const awayRow: (number | null)[] = [
+        ...awayLines.map((l: any) =>
+          l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+        ),
+        Number(awayComp?.score ?? 0),
+        Number(awayComp?.hits ?? 0),
+        Number(awayComp?.errors ?? 0),
+      ];
+      const homeRow: (number | null)[] = [
+        ...homeLines.map((l: any) =>
+          l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+        ),
+        Number(homeComp?.score ?? 0),
+        Number(homeComp?.hits ?? 0),
+        Number(homeComp?.errors ?? 0),
+      ];
+      linescore = {
+        columns,
+        awayLabel: awayComp?.team?.abbreviation ?? "AWY",
+        homeLabel: homeComp?.team?.abbreviation ?? "HME",
+        away: awayRow,
+        home: homeRow,
       };
-
-      if (lines.length >= 2) {
-        const awayLine: any = lines[0];
-        const homeLine: any = lines[1];
-        const awayVals = awayLine.displayValues ?? awayLine.values ?? [];
-        const homeVals = homeLine.displayValues ?? homeLine.values ?? [];
-
-        const hdrAway = hdrComp?.competitors?.find((c: any) => c.homeAway === "away");
-        const hdrHome = hdrComp?.competitors?.find((c: any) => c.homeAway === "home");
-
-        linescore = {
-          columns,
-          away: (awayVals as unknown[]).map(parseVal),
-          home: (homeVals as unknown[]).map(parseVal),
-          awayLabel:
-            awayLine.team?.abbreviation ??
-            hdrAway?.team?.abbreviation ??
-            "AWAY",
-          homeLabel:
-            homeLine.team?.abbreviation ??
-            hdrHome?.team?.abbreviation ??
-            "HOME",
-        };
-      }
     }
 
     // ── Live situation ────────────────────────────────────────────────────────
@@ -169,6 +173,9 @@ router.get("/game/:gameId", async (req, res) => {
     // competitions[0].situation from the matching event.
     const statusState: string = hdrComp?.status?.type?.state ?? "pre";
     const isLive = statusState === "in";
+
+    // "Top 8th", "Bot 3rd", "End 5th" — null for pre/post games
+    const inning: string | null = hdrComp?.status?.type?.detail ?? null;
 
     const plays: any[] = d.plays ?? [];
     const lastPlayFallback: string | null =
@@ -224,18 +231,15 @@ router.get("/game/:gameId", async (req, res) => {
     }
 
     // ── Scoring summary ───────────────────────────────────────────────────────
+    // d.scoring does not exist in the ESPN summary response.
+    // Scoring plays live in d.plays filtered by scoringPlay === true.
     const scoringSummary: { period: string; description: string }[] = (
-      d.scoring ?? []
+      d.plays ?? []
     )
-      .map((s: any) => ({
-        period:
-          s.period?.displayValue ??
-          (s.period != null ? String(s.period) : ""),
-        description:
-          s.scoringPlay?.description ??
-          s.text ??
-          s.description ??
-          "",
+      .filter((p: any) => p.scoringPlay === true)
+      .map((p: any) => ({
+        period: p.period?.displayValue ?? "",
+        description: p.text ?? "",
       }))
       .filter((s: { period: string; description: string }) => s.description);
 
@@ -249,16 +253,18 @@ router.get("/game/:gameId", async (req, res) => {
       const extractPitcher = (comp: any): PitcherResult => {
         const probable = comp?.probables?.[0];
         if (!probable?.athlete?.fullName) return null;
-        const stats: { name: string; displayValue: string }[] =
-          Array.isArray(probable.statistics) ? probable.statistics : [];
+        // probable.statistics is { splits: { categories: [] } }, not an array
+        const categories: any[] =
+          probable.statistics?.splits?.categories ?? [];
         const era =
-          stats.find(
-            (s) => s.name === "ERA" || s.name === "era",
-          )?.displayValue ?? "--";
+          categories.find((c: any) => c.name === "ERA")?.displayValue ?? "--";
+        const wins =
+          categories.find((c: any) => c.name === "wins")?.displayValue ?? null;
+        const losses =
+          categories.find((c: any) => c.name === "losses")?.displayValue ??
+          null;
         const record =
-          stats.find(
-            (s) => s.name === "record" || s.name === "Record",
-          )?.displayValue ?? "--";
+          wins !== null && losses !== null ? `${wins}-${losses}` : "--";
         return { name: probable.athlete.fullName, era, record };
       };
 
@@ -282,6 +288,7 @@ router.get("/game/:gameId", async (req, res) => {
       venue,
       broadcasts: broadcastNames,
       linescore,
+      inning,
       situation,
       scoringSummary,
       homePitcher,
