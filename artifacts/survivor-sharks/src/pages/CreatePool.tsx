@@ -220,7 +220,6 @@ const formSchema = z.object({
   minEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
-  prizeMode: z.enum(["fixed", "pct"]).default("fixed"),
 });
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -241,7 +240,9 @@ export default function CreatePool() {
   });
 
   // Prize structure managed outside react-hook-form (dynamic list)
-  const [prizes, setPrizes] = useState<Array<{ amount: string }>>([{ amount: "" }]);
+  const [prizes, setPrizes] = useState<Array<{ amount: string }>>([{ amount: "100" }]);
+  const [commissionerCut, setCommissionerCut] = useState(0);
+  const [selectedPreset, setSelectedPreset] = useState<"winner" | "top2" | "top3" | "custom">("winner");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -252,13 +253,11 @@ export default function CreatePool() {
       pickFrequency: "weekly",
       description: "",
       season: new Date().getFullYear(),
-      prizeMode: "fixed",
     },
   });
 
   const selectedSport = form.watch("sport");
   const selectedType = form.watch("poolType");
-  const selectedPrizeMode = form.watch("prizeMode");
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
   const isPickemOnly = availableTypes.length === 1 && availableTypes[0] === "pickem";
@@ -291,6 +290,26 @@ export default function CreatePool() {
     }
   }, [selectedType]);
 
+  // Sync prizes state whenever a non-custom preset or commissionerCut changes
+  useEffect(() => {
+    const pot = 100 - commissionerCut;
+    if (selectedPreset === "winner") {
+      setPrizes([{ amount: String(pot) }]);
+    } else if (selectedPreset === "top2") {
+      setPrizes([
+        { amount: String(Math.round(pot * 0.8)) },
+        { amount: String(Math.round(pot * 0.2)) },
+      ]);
+    } else if (selectedPreset === "top3") {
+      setPrizes([
+        { amount: String(Math.round(pot * 0.7)) },
+        { amount: String(Math.round(pot * 0.2)) },
+        { amount: String(Math.round(pot * 0.1)) },
+      ]);
+    }
+    // custom: don't auto-update prizes
+  }, [commissionerCut, selectedPreset]);
+
   // Prize structure helpers
   function addPrize() {
     if (prizes.length < 10) setPrizes(p => [...p, { amount: "" }]);
@@ -301,7 +320,6 @@ export default function CreatePool() {
   function updatePrize(idx: number, amount: string) {
     setPrizes(p => p.map((entry, i) => (i === idx ? { amount } : entry)));
   }
-  const totalPrize = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
   const pageTitle =
     selectedSport === PoolInputSport.worldcup
@@ -328,44 +346,34 @@ export default function CreatePool() {
       : "Set the rules. Invite the sharks.";
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const isPct = values.prizeMode === "pct";
-
     const prizeStructure = prizes
       .map((p, i) => ({ place: i + 1, amount: parseFloat(p.amount) || 0 }))
       .filter(p => p.amount > 0);
 
+    // Client-side validation: all prize %s + commissionerCut must sum to 100 ±0.5
+    const pctSum = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
+    const total = pctSum + commissionerCut;
+    if (Math.abs(total - 100) > 0.5) {
+      toast({
+        variant: "destructive",
+        title: "Prize percentages don't add up",
+        description: `Prize places + commissioner cut must total 100% (currently ${total.toFixed(1)}%).`,
+      });
+      return;
+    }
+
     // Round entry fee to nearest whole dollar — prevents spinner float drift
-    // (step="0.01" arithmetic with 0.01 not exactly representable in IEEE 754).
     const cleanEntryFee =
       values.entryFee != null ? Math.round(values.entryFee) : undefined;
-
-    let prizePot: number | undefined;
-    if (!isPct && prizeStructure.length > 0) {
-      // Fixed mode: round total to nearest whole dollar; absorb cent difference
-      // into the last place so amounts always sum exactly to the rounded total.
-      const rawSum = prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-      if (prizeStructure.length > 1) {
-        const rounded = Math.round(rawSum);
-        const diff = Math.round((rounded - rawSum) * 100) / 100;
-        if (diff !== 0) {
-          const last = prizeStructure[prizeStructure.length - 1];
-          last.amount = Math.round((last.amount + diff) * 100) / 100;
-        }
-        prizePot = rounded;
-      } else {
-        prizePot = rawSum;
-      }
-    }
-    // Pct mode: percentages submitted as-is; backend sets prizePot = null.
 
     createPool.mutate(
       {
         data: {
           ...values,
-          prizeMode: values.prizeMode,
+          prizeMode: "pct",
+          commissionerCut,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
-          ...(!isPct && prizePot !== undefined && { prizePot }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
           ...((values.sport === PoolInputSport.mlb && values.poolType === "pickem" || values.poolType === "nfl_confidence_weekly") && { isRecurring: values.isRecurring }),
@@ -925,70 +933,121 @@ export default function CreatePool() {
 
                 {/* ── Prize structure ── */}
                 {(() => {
-                  const totalPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-                  const pctExceeds = selectedPrizeMode === "pct" && totalPct > 100;
+                  const assignedPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                  const remainingPct = 100 - commissionerCut - assignedPct;
+                  const pctExceeds = assignedPct + commissionerCut > 100.5;
+                  const watchedEntryFee = form.watch("entryFee");
+                  const watchedMaxEntries = form.watch("maxEntries");
+                  const exampleCount = watchedMaxEntries && watchedMaxEntries > 0 ? watchedMaxEntries : 10;
+                  const pot = 100 - commissionerCut;
+
+                  const PRESETS = [
+                    {
+                      id: "winner" as const,
+                      icon: "🏆",
+                      label: "Winner Takes All",
+                      preview: `1st: ${pot}%`,
+                    },
+                    {
+                      id: "top2" as const,
+                      icon: "🥇🥈",
+                      label: "Top 2",
+                      preview: `1st: ${Math.round(pot * 0.8)}% · 2nd: ${Math.round(pot * 0.2)}%`,
+                    },
+                    {
+                      id: "top3" as const,
+                      icon: "🥇🥈🥉",
+                      label: "Top 3",
+                      preview: `1st: ${Math.round(pot * 0.7)}% · 2nd: ${Math.round(pot * 0.2)}% · 3rd: ${Math.round(pot * 0.1)}%`,
+                    },
+                    {
+                      id: "custom" as const,
+                      icon: "✏️",
+                      label: "Custom",
+                      preview: "Set your own splits",
+                    },
+                  ];
+
                   return (
-                    <div className="space-y-3">
-                      <div>
-                        <p className="font-bebas text-lg tracking-wide text-foreground">Prize Structure</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Set prizes per finishing place (display only)</p>
-                        {form.watch("maxEntries") && selectedPrizeMode === "fixed" && (
-                          <p className="text-xs text-amber-400/70 mt-1.5">Payouts shown are based on reaching the maximum entries. If fewer players join, displayed amounts will scale proportionally.</p>
-                        )}
-                        {selectedPrizeMode === "pct" && (
-                          <p className="text-xs text-amber-400/70 mt-1.5">Percentages scale with the actual entry fee × number of players. The remainder (commissioner's cut) is implied.</p>
-                        )}
-                      </div>
+                    <div className="space-y-5">
 
-                      {/* Mode toggle */}
-                      <div className="inline-flex rounded-lg border border-border/40 p-1 gap-1 bg-muted/20">
-                        <button
-                          type="button"
-                          onClick={() => form.setValue("prizeMode", "fixed")}
-                          className={cn(
-                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-                            selectedPrizeMode === "fixed"
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          $ Fixed Amounts
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => form.setValue("prizeMode", "pct")}
-                          className={cn(
-                            "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-                            selectedPrizeMode === "pct"
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          % Percentage Split
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        {prizes.map((prize, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
-                              {ORDINALS[i]}
+                      {/* A) Commissioner cut stepper */}
+                      <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-3">
+                        <div>
+                          <p className="font-bebas text-lg tracking-wide text-foreground">Your Commissioner Cut</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            This is your share for organizing the pool. 0% is the default — your players will appreciate it.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => setCommissionerCut(c => Math.max(0, c - 1))}
+                            disabled={commissionerCut <= 0}
+                            className="w-9 h-9 rounded-lg border border-border/60 bg-muted/30 flex items-center justify-center text-lg font-bold text-muted-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            aria-label="Decrease commissioner cut"
+                          >
+                            −
+                          </button>
+                          <span className="font-bebas text-3xl tracking-wide text-foreground w-16 text-center tabular-nums">
+                            {commissionerCut}%
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCommissionerCut(c => Math.min(15, c + 1))}
+                            disabled={commissionerCut >= 15}
+                            className="w-9 h-9 rounded-lg border border-border/60 bg-muted/30 flex items-center justify-center text-lg font-bold text-muted-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            aria-label="Increase commissioner cut"
+                          >
+                            +
+                          </button>
+                          {commissionerCut > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {100 - commissionerCut}% goes to players
                             </span>
-                            {selectedPrizeMode === "fixed" ? (
-                              <div className="relative flex-1">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">$</span>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder={i === 0 ? "e.g. 500" : "0.00"}
-                                  value={prize.amount}
-                                  onChange={(e) => updatePrize(i, e.target.value)}
-                                  data-testid={`input-prize-place-${i + 1}`}
-                                  className="pl-7 bg-background/50 border-primary/20"
-                                />
-                              </div>
-                            ) : (
+                          )}
+                        </div>
+                      </div>
+
+                      {/* B) Prize split presets */}
+                      <div className="space-y-2">
+                        <p className="font-bebas text-lg tracking-wide text-foreground">How do you want to split the pot?</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {PRESETS.map((preset) => {
+                            const isSelected = selectedPreset === preset.id;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => setSelectedPreset(preset.id)}
+                                className={cn(
+                                  "text-left rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                  isSelected
+                                    ? "border-primary bg-primary/10 ring-2 ring-primary/20 ring-offset-1 ring-offset-background"
+                                    : "border-border/40 bg-card/50 hover:border-primary/30 hover:bg-primary/5",
+                                )}
+                              >
+                                <div className="text-xl mb-1">{preset.icon}</div>
+                                <div className={cn("font-bebas text-sm tracking-wide leading-tight", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                                  {preset.label}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground/70 mt-1 leading-snug">
+                                  {preset.preview}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* C) Manual prize inputs — only when custom */}
+                      {selectedPreset === "custom" && (
+                        <div className="space-y-2">
+                          {prizes.map((prize, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
+                                {ORDINALS[i]}
+                              </span>
                               <div className="relative flex-1">
                                 <Input
                                   type="number"
@@ -1003,73 +1062,93 @@ export default function CreatePool() {
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">%</span>
                               </div>
-                            )}
-                            {i > 0 ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removePrize(i)}
-                                className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            ) : (
-                              <div className="w-9 shrink-0" />
+                              {i > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removePrize(i)}
+                                  className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              ) : (
+                                <div className="w-9 shrink-0" />
+                              )}
+                            </div>
+                          ))}
+
+                          {prizes.length < 10 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={addPrize}
+                              className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
+                              data-testid="button-add-prize-place"
+                            >
+                              + Add {ORDINALS[prizes.length]} Place Prize
+                            </Button>
+                          )}
+
+                          <p className={cn("text-xs", pctExceeds ? "text-destructive" : "text-muted-foreground")}>
+                            {pctExceeds
+                              ? `Total cannot exceed ${100 - commissionerCut}% — currently ${assignedPct.toFixed(1)}%`
+                              : <>
+                                  <span className="text-foreground font-semibold">{assignedPct.toFixed(1)}%</span> assigned
+                                  {" · "}
+                                  <span className={cn("font-semibold", remainingPct < 0 ? "text-destructive" : "text-foreground")}>
+                                    {remainingPct.toFixed(1)}%
+                                  </span> remaining
+                                </>
+                            }
+                          </p>
+                        </div>
+                      )}
+
+                      {/* D) Live example payout summary */}
+                      {watchedEntryFee != null && watchedEntryFee > 0 && (
+                        <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Example with {exampleCount} players at ${Math.round(watchedEntryFee)} entry
+                            {" · "}
+                            Pot = <span className="text-foreground">${Math.round(watchedEntryFee) * exampleCount}</span>
+                          </p>
+                          <div className="space-y-1">
+                            {prizes.filter(p => parseFloat(p.amount) > 0).map((prize, i) => {
+                              const pct = parseFloat(prize.amount) || 0;
+                              const dollars = (pct / 100) * Math.round(watchedEntryFee) * exampleCount;
+                              return (
+                                <div key={i} className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground font-bebas tracking-wide">{ORDINALS[i]} place</span>
+                                  <span className="text-foreground font-semibold">{pct}% → <span className="text-primary">${dollars.toFixed(0)}</span></span>
+                                </div>
+                              );
+                            })}
+                            {commissionerCut > 0 && (
+                              <div className="flex items-center justify-between text-xs border-t border-border/30 pt-1 mt-1">
+                                <span className="text-muted-foreground font-bebas tracking-wide">Commissioner</span>
+                                <span className="text-foreground font-semibold">{commissionerCut}% → <span className="text-amber-400">${((commissionerCut / 100) * Math.round(watchedEntryFee) * exampleCount).toFixed(0)}</span></span>
+                              </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-
-                      {prizes.length < 10 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={addPrize}
-                          className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
-                          data-testid="button-add-prize-place"
-                        >
-                          + Add {ORDINALS[prizes.length]} Place Prize
-                        </Button>
-                      )}
-
-                      {selectedPrizeMode === "fixed" && totalPrize > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Total prize pot:{" "}
-                          <span className="text-foreground font-semibold">${totalPrize.toFixed(2)}</span>
-                        </p>
-                      )}
-
-                      {selectedPrizeMode === "pct" && totalPct > 0 && (
-                        <p className={cn("text-xs", pctExceeds ? "text-destructive" : "text-muted-foreground")}>
-                          {pctExceeds
-                            ? `Total cannot exceed 100% — currently ${totalPct.toFixed(1)}%`
-                            : <><span className="text-foreground font-semibold">{totalPct.toFixed(1)}%</span> assigned · <span className="text-foreground font-semibold">{(100 - totalPct).toFixed(1)}%</span> remaining</>
-                          }
-                        </p>
+                        </div>
                       )}
                     </div>
                   );
                 })()}
               </div>
 
-              {(() => {
-                const totalPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-                const pctExceeds = selectedPrizeMode === "pct" && totalPct > 100;
-                return (
-                  <div className="pt-6 flex justify-end">
-                    <Button
-                      type="submit"
-                      className="font-bebas text-xl tracking-widest px-8 h-12"
-                      disabled={createPool.isPending || pctExceeds}
-                      data-testid="button-submit-create-pool"
-                    >
-                      {createPool.isPending ? "Creating..." : "Create Pool"}
-                    </Button>
-                  </div>
-                );
-              })()}
+              <div className="pt-6 flex justify-end">
+                <Button
+                  type="submit"
+                  className="font-bebas text-xl tracking-widest px-8 h-12"
+                  disabled={createPool.isPending}
+                  data-testid="button-submit-create-pool"
+                >
+                  {createPool.isPending ? "Creating..." : "Create Pool"}
+                </Button>
+              </div>
 
             </form>
           </Form>
