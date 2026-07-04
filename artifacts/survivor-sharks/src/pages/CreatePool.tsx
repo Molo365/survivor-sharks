@@ -241,6 +241,7 @@ export default function CreatePool() {
   // Prize structure managed outside react-hook-form (dynamic list)
   const [prizes, setPrizes] = useState<Array<{ amount: string }>>([{ amount: "100" }]);
   const [commissionerCut, setCommissionerCut] = useState(0);
+  const [showCommissionerCut, setShowCommissionerCut] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<"winner" | "top2" | "top3" | "custom">("winner");
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -371,6 +372,7 @@ export default function CreatePool() {
           ...values,
           prizeMode: "pct",
           commissionerCut,
+          showCommissionerCut,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
@@ -985,6 +987,19 @@ export default function CreatePool() {
                           )}
                         </div>
                       </div>
+
+                      {commissionerCut > 0 && (
+                        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card/60 px-5 py-4">
+                          <div>
+                            <p className="font-bebas text-lg tracking-wide">Show your cut to players?</p>
+                            <p className="text-xs text-muted-foreground">If off, players only see the prize breakdown — not your share.</p>
+                          </div>
+                          <Switch
+                            checked={showCommissionerCut}
+                            onCheckedChange={setShowCommissionerCut}
+                          />
+                        </div>
+                      )}
 
                       {/* B) Prize split presets */}
                       <div className="space-y-2">

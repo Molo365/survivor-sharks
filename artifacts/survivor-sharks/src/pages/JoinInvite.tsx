@@ -26,6 +26,8 @@ interface PoolPreview {
   playerCount: number;
   description: string | null;
   season: string | null;
+  commissionerCut?: number;
+  showCommissionerCut?: boolean;
 }
 
 const WC_KICKOFF = new Date("2026-06-11T16:00:00Z");
@@ -367,6 +369,13 @@ export default function JoinInvite() {
                 maxEntries={pool.maxEntries}
                 actualEntries={pool.playerCount}
               />
+
+              {pool.showCommissionerCut && pool.commissionerCut && pool.commissionerCut > 0 && (
+                <div className="flex items-center justify-between text-sm py-1 border-t border-border/20 mt-2 pt-2">
+                  <span className="text-muted-foreground">Commissioner cut</span>
+                  <span className="text-amber-400 font-semibold">{pool.commissionerCut}%</span>
+                </div>
+              )}
 
               {/* Player count */}
               <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
