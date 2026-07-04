@@ -171,6 +171,7 @@ router.post("/", requireAuth, async (req, res) => {
   // commissionerCut: integer 0–15, default 0.
   const rawCut = req.body.commissionerCut ?? 0;
   const commissionerCut = Number(rawCut);
+  const showCommissionerCut: boolean = req.body.showCommissionerCut === true;
   if (!Number.isInteger(commissionerCut) || commissionerCut < 0 || commissionerCut > 15) {
     res.status(400).json({ error: "commissionerCut must be an integer between 0 and 15" });
     return;
@@ -216,6 +217,7 @@ router.post("/", requireAuth, async (req, res) => {
     prizeStructure: resolvedPrizeStructure,
     prizeMode,
     commissionerCut,
+    showCommissionerCut,
     doubleElimination: doubleElimination === true,
     pickFrequency: resolvedPickFrequency,
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
@@ -308,6 +310,8 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     playerCount: Number(playerCount),
     description: pool.description ?? null,
     season: pool.season ?? null,
+    commissionerCut: pool.commissionerCut ?? 0,
+    showCommissionerCut: pool.showCommissionerCut ?? false,
   });
 });
 
