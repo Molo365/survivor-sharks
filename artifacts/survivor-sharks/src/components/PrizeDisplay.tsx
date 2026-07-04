@@ -23,13 +23,19 @@ export function PrizeDisplay({
   variant,
 }: PrizeDisplayProps) {
   const scaled = calculatePayouts(prizeStructure, maxEntries, actualEntries, prizeMode, entryFee);
+  // Limit displayed prize places to the current player count.
+  // Falls back to the full list when playerCount is 0 or unavailable.
+  const displayScaled =
+    actualEntries && actualEntries > 0
+      ? scaled?.filter((p) => p.place <= actualEntries)
+      : scaled;
   const pot = scaledPrizePot(prizePot, maxEntries, actualEntries);
   const isScaled =
     prizeMode !== "pct" &&
     !!maxEntries && actualEntries != null && actualEntries > 0 && actualEntries < maxEntries;
 
   if (variant === "pool-home") {
-    if (scaled && scaled.length > 0) {
+    if (displayScaled && displayScaled.length > 0) {
       return (
         <div className="space-y-1.5">
           <div className="bg-primary/5 border border-primary/20 px-5 py-3 rounded-lg shadow-[0_0_15px_rgba(30,144,255,0.05)] min-w-[120px]">
@@ -40,7 +46,7 @@ export function PrizeDisplay({
               )}
             </div>
             <div className="space-y-0.5">
-              {scaled.map((p) => (
+              {displayScaled.map((p) => (
                 <div key={p.place} className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground text-xs">{ORDINALS[p.place - 1]}</span>
                   <span className="font-bebas text-base text-primary">${p.amount}</span>
@@ -77,10 +83,10 @@ export function PrizeDisplay({
   }
 
   if (variant === "join-invite") {
-    if (scaled && scaled.length > 0) {
+    if (displayScaled && displayScaled.length > 0) {
       return (
         <>
-          {scaled.map((p) => (
+          {displayScaled.map((p) => (
             <div
               key={p.place}
               className="flex items-center gap-1.5 rounded-full border border-border/30 bg-muted/20 px-3.5 py-1.5 text-sm text-muted-foreground backdrop-blur-sm"
@@ -147,7 +153,7 @@ export function PrizeDisplay({
   }
 
   if (variant === "leaderboard") {
-    if (!scaled || scaled.length === 0) return null;
+    if (!displayScaled || displayScaled.length === 0) return null;
     return (
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
@@ -155,7 +161,7 @@ export function PrizeDisplay({
           <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mr-1">
             Prizes{isScaled ? " (est.)" : ""}:
           </span>
-          {scaled.map((p) => (
+          {displayScaled.map((p) => (
             <span
               key={p.place}
               className="text-xs bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 rounded-full px-2.5 py-0.5 font-semibold"
