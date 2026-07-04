@@ -66,6 +66,7 @@ interface GameDetail {
   homePitcher: { name: string; era: string; record: string } | null;
   awayPitcher: { name: string; era: string; record: string } | null;
   odds: string | null;
+  inning: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -381,7 +382,19 @@ function GameDetailSheet({
                 </div>
 
                 <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-                  <GameStatus game={game} />
+                  {game.status === "in_progress" && detail?.inning ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                      </span>
+                      <span className="text-[11px] font-bold text-green-400 tracking-wide">
+                        {detail.inning}
+                      </span>
+                    </div>
+                  ) : (
+                    <GameStatus game={game} />
+                  )}
                   {isPolling && (
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                   )}
