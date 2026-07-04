@@ -61,10 +61,10 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["pickem", "dirty_dozen", "crazy_8s"],
-  [PoolInputSport.nfl]: ["season", "mid_season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
-  [PoolInputSport.nba]: ["season", "weekly"],
-  [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
+  [PoolInputSport.mlb]: ["pickem", "crazy_8s"],
+  [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
+  [PoolInputSport.nba]: [], // Coming Soon
+  [PoolInputSport.nhl]: [], // Coming Soon
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor", "wc_bracket"],
 };
 
@@ -138,18 +138,6 @@ const POOL_TYPES = [
     badgeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     cardClass:
       "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
-  },
-  {
-    id: "dirty_dozen" as const,
-    label: "Dirty Dozen",
-    icon: ShieldCheck,
-    tagline: "12 Games. 12 Confidence Points.",
-    description:
-      "12 curated games per week. Assign confidence points 1–12. Highest total wins.",
-    badge: "MLB",
-    badgeClass: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    cardClass:
-      "border-blue-500/30 bg-[linear-gradient(145deg,rgba(59,130,246,0.06)_0%,transparent_100%)]",
   },
   {
     id: "nfl_confidence" as const,
