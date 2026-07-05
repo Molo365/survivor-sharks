@@ -692,7 +692,7 @@ export default function CreatePool() {
                               {/* Daily pick-em */}
                               <button
                                 type="button"
-                                onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("daily"); }}
+                                onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("daily"); setEditStep(3); }}
                                 data-testid="pickem-freq-daily"
                                 className={cn(
                                   "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -715,7 +715,7 @@ export default function CreatePool() {
                               {/* Weekly pick-em */}
                               <button
                                 type="button"
-                                onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("weekly"); }}
+                                onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("weekly"); setEditStep(3); }}
                                 data-testid="pickem-freq-weekly"
                                 className={cn(
                                   "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -739,7 +739,7 @@ export default function CreatePool() {
                               {/* Crazy 8's */}
                               <button
                                 type="button"
-                                onClick={() => form.setValue("poolType", "crazy_8s", { shouldValidate: true })}
+                                onClick={() => { form.setValue("poolType", "crazy_8s", { shouldValidate: true }); setEditStep(3); }}
                                 data-testid="pickem-freq-crazy_8s"
                                 className={cn(
                                   "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
