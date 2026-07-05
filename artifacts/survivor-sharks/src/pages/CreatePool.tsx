@@ -609,7 +609,7 @@ export default function CreatePool() {
                                 key={sport.id}
                                 type="button"
                                 data-testid={`sport-card-${sport.id}`}
-                                onClick={() => { field.onChange(sport.id); setEditStep(2); }}
+                                onClick={() => { field.onChange(sport.id); setTimeout(() => setEditStep(2), 50); }}
                                 className={cn(
                                   "flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                   isSelected
