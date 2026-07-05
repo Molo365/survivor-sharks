@@ -276,8 +276,8 @@ export default function CreatePool() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      sport: PoolInputSport.nfl,
-      poolType: "season",
+      sport: undefined,
+      poolType: undefined,
       pickFrequency: "weekly",
       description: "",
       season: new Date().getFullYear(),
