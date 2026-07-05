@@ -854,6 +854,15 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
   const [submitting, setSubmitting] = useState(false);
   const [resultsWeek, setResultsWeek] = useState<number | null>(null);
 
+  const hintKey = `nfl-confidence-weekly-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
+  });
+  function dismissHint() {
+    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
+    setShowHint(false);
+  }
+
   const myPicksKey = ["nfl-confidence-weekly-picks", poolId];
 
   const { data: myPicksData, isLoading: picksLoading } = useQuery<SubmittedPicksResponse>({
@@ -1050,6 +1059,29 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
           Last game of the week
         </span>
       </div>
+
+      {/* How-to hint — shown once per user per pool, dismissible */}
+      {showHint && (
+        <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+          <span className="text-xl leading-none mt-0.5">🏈</span>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-foreground leading-snug">
+              How confidence picks work
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+              Pick a winner for every game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. The last game is the tiebreaker. Each game locks at kickoff.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismissHint}
+            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {games.map((game) => (

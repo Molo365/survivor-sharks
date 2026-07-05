@@ -611,6 +611,15 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [resultsDate, setResultsDate] = useState<string | null>(null);
 
+  const hintKey = `crazy-eights-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
+  });
+  function dismissHint() {
+    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
+    setShowHint(false);
+  }
+
   // For MLB: yesterday; for NHL: Saturday of the most recent past weekend
   const priorPeriodDate = useMemo(() => {
     if (!isNhl) return offsetDate(getTodayEt(), -1);
@@ -883,6 +892,29 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
             className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
           >
             View Results →
+          </button>
+        </div>
+      )}
+
+      {/* How-to hint — shown once per user per pool, dismissible */}
+      {showHint && (
+        <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
+          <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : "⚾"}</span>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-foreground leading-snug">
+              How Crazy 8's works
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+              Choose exactly 8 games, pick a winner for each, and assign confidence points 1–8 (no repeats). Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : ""}. Enter a tiebreaker before submitting.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismissHint}
+            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}

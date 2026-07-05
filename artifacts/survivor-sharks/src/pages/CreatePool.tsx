@@ -145,7 +145,7 @@ const POOL_TYPES = [
     icon: Zap,
     tagline: "18 Weeks. Points Stack. Season Champion.",
     description:
-      "Pick every game every week. Assign confidence points 1–N. Points accumulate all 18 weeks. Season champion wins the pot.",
+      "Pick every game every week. Assign confidence points 1 through N (where N equals the number of games that week). Points accumulate all 18 weeks. Season champion wins the pot.",
     badge: "NFL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
@@ -157,7 +157,7 @@ const POOL_TYPES = [
     icon: Zap,
     tagline: "Pick Every Game. Win The Week.",
     description:
-      "Pick every game on the weekly NFL slate. Assign confidence points 1–N. Highest weekly total wins. Fresh start every week.",
+      "Pick every game on the weekly NFL slate. Assign confidence points 1 through N (where N equals the number of games that week). Highest weekly total wins. Fresh start every week.",
     badge: "NFL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
