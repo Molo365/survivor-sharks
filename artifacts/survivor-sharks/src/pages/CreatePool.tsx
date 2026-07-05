@@ -472,6 +472,11 @@ export default function CreatePool() {
       ? "Pick every game, every day."
       : "Set the rules. Invite the sharks.";
 
+  const handleStep4Continue = async () => {
+    const valid = await form.trigger("name");
+    if (valid) setEditStep(5);
+  };
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     const prizeStructure = prizes
       .map((p, i) => ({ place: i + 1, amount: parseFloat(p.amount) || 0 }))
@@ -996,7 +1001,7 @@ export default function CreatePool() {
                       <div className="flex justify-end pt-1">
                         <Button
                           type="button"
-                          onClick={() => { setStep3Confirmed(true); setEditStep(null); }}
+                          onClick={() => { setStep3Confirmed(true); setEditStep(4); }}
                           className="font-bebas text-lg tracking-widest px-6"
                           data-testid="button-confirm-options"
                         >
@@ -1034,6 +1039,12 @@ export default function CreatePool() {
                                 {...field}
                                 data-testid="input-pool-name"
                                 className="bg-background/50 border-primary/20"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    void handleStep4Continue();
+                                  }
+                                }}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1063,9 +1074,9 @@ export default function CreatePool() {
                           </FormItem>
                         )}
                       />
-                      {editStep === 4 && (
+                      {isStepActive(4) && (
                         <div className="flex justify-end pt-1">
-                          <Button type="button" onClick={() => setEditStep(null)} className="font-bebas text-lg tracking-widest px-6" data-testid="button-done-step-4">Done →</Button>
+                          <Button type="button" onClick={() => void handleStep4Continue()} className="font-bebas text-lg tracking-widest px-6" data-testid="button-continue-step-4">Continue →</Button>
                         </div>
                       )}
                     </div>
