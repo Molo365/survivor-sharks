@@ -352,22 +352,22 @@ export default function CreatePool() {
     }
   }, [selectedType]);
 
-  // Sync prizes state whenever a non-custom preset or commissionerCut changes
+  // Sync prizes state whenever a non-custom preset or commissionerCut changes.
+  // Each slot except the last is independently rounded; the last slot absorbs
+  // any rounding remainder so the prizes always sum to exactly (100 - commissionerCut).
   useEffect(() => {
     const pot = 100 - commissionerCut;
     if (selectedPreset === "winner") {
       setPrizes([{ amount: String(pot) }]);
     } else if (selectedPreset === "top2") {
-      setPrizes([
-        { amount: String(Math.round(pot * 0.8)) },
-        { amount: String(Math.round(pot * 0.2)) },
-      ]);
+      const first = Math.round(pot * 0.8);
+      const second = pot - first;
+      setPrizes([{ amount: String(first) }, { amount: String(second) }]);
     } else if (selectedPreset === "top3") {
-      setPrizes([
-        { amount: String(Math.round(pot * 0.7)) },
-        { amount: String(Math.round(pot * 0.2)) },
-        { amount: String(Math.round(pot * 0.1)) },
-      ]);
+      const first = Math.round(pot * 0.7);
+      const second = Math.round(pot * 0.2);
+      const third = pot - first - second;
+      setPrizes([{ amount: String(first) }, { amount: String(second) }, { amount: String(third) }]);
     }
     // custom: don't auto-update prizes
   }, [commissionerCut, selectedPreset]);
