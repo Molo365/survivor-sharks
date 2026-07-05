@@ -261,14 +261,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── NFL Confidence Picks ────────────────────────────────────────────────
       if (poolType === "nfl_confidence") {
-        const week = pool.currentWeek;
         const rows = await db
           .select({
             userId: pickemPicksTable.userId,
             score: sql<string>`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0)`,
           })
           .from(pickemPicksTable)
-          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+          .where(eq(pickemPicksTable.poolId, pool.id))
           .groupBy(pickemPicksTable.userId)
           .orderBy(sql`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`);
         const myIdx = rows.findIndex((r) => r.userId === userId);
@@ -414,7 +413,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             picked: sql<string>`COUNT(*)`,
           })
           .from(pickemPicksTable)
-          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+          .where(eq(pickemPicksTable.poolId, pool.id))
           .groupBy(pickemPicksTable.userId)
           .orderBy(
             sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,

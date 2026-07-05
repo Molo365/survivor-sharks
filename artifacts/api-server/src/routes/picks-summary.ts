@@ -39,7 +39,7 @@ router.get("/summary", requireAuth, async (req, res) => {
 
   const poolIds = memberships.map((m) => m.poolId);
 
-  const pools = await db
+  const allPools = await db
     .select({
       id: poolsTable.id,
       name: poolsTable.name,
@@ -47,9 +47,12 @@ router.get("/summary", requireAuth, async (req, res) => {
       poolType: poolsTable.poolType,
       currentWeek: poolsTable.currentWeek,
       pickFrequency: poolsTable.pickFrequency,
+      isActive: poolsTable.isActive,
     })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
+
+  const pools = allPools.filter((p) => p.isActive);
 
   const results = await Promise.all(
     pools.map(async (pool) => {
