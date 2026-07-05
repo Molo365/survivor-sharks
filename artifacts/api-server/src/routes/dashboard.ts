@@ -101,7 +101,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "crazy_8s"];
 
 // GET /api/dashboard/pickem-stats
 router.get("/pickem-stats", requireAuth, async (req, res) => {
@@ -637,6 +637,97 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           poolName: pool.name,
           sport: pool.sport as string,
           totalPlayers: memberCountMap.get(pool.id) ?? 0,
+        };
+      }
+
+      // ── Crazy 8's (weekly scoring, MLB) ─────────────────────────────────────
+      if (poolType === "crazy_8s") {
+        const weekStart = currentWeekBounds.weekStart;
+        const weekEnd = currentWeekBounds.weekEnd;
+        const prevStart = prevWeekBounds.weekStart;
+        const prevEnd = prevWeekBounds.weekEnd;
+
+        const [currentRows, prevRows] = await Promise.all([
+          db
+            .select({
+              userId: pickemPicksTable.userId,
+              weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+              picked: sql<string>`COUNT(*)`,
+            })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                gte(pickemPicksTable.gameDate, weekStart),
+                lte(pickemPicksTable.gameDate, weekEnd),
+              )
+            )
+            .groupBy(pickemPicksTable.userId)
+            .orderBy(
+              sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`
+            ),
+          db
+            .select({
+              userId: pickemPicksTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+              picked: sql<string>`COUNT(*)`,
+            })
+            .from(pickemPicksTable)
+            .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                gte(pickemPicksTable.gameDate, prevStart),
+                lte(pickemPicksTable.gameDate, prevEnd),
+              )
+            )
+            .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+            .orderBy(
+              sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`
+            ),
+        ]);
+
+        const myIdx = currentRows.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+        const prevWeekEnded = prevWeekBounds.weekEnd < todayEt;
+        const topPrevPts = prevRows.length > 0 ? Number(prevRows[0].weeklyPoints) : 0;
+        const tiedPrevRows =
+          prevWeekEnded && topPrevPts > 0
+            ? prevRows.filter((r) => Number(r.weeklyPoints) === topPrevPts)
+            : [];
+        const lastWinners =
+          tiedPrevRows.length > 0
+            ? tiedPrevRows.map((r) => ({
+                userId: r.userId,
+                username: r.username,
+                displayName: r.displayName ?? null,
+                score: Number(r.weeklyPoints),
+                correct: null,
+                picked: null,
+                prizeWon: computeSplitPrize(pool, tiedPrevRows.length, memberCountMap.get(pool.id) ?? 0),
+              }))
+            : null;
+
+        return {
+          poolId: pool.id,
+          poolName: pool.name,
+          poolType,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
+          lastWinners,
+          myStanding: {
+            rank: myRow ? myIdx + 1 : 0,
+            correct: 0,
+            picked: myRow ? Number(myRow.picked) : 0,
+            hasPicks: myRow ? Number(myRow.picked) > 0 : false,
+            status: null,
+            eliminatedWeek: null,
+            score: myRow ? Number(myRow.weeklyPoints) : null,
+            maxScore: null,
+          },
         };
       }
 

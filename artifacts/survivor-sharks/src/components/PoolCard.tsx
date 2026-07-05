@@ -193,7 +193,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>No picks yet {periodLabel}</span>
                   </div>
                 )
-              ) : pt === "nfl_confidence_weekly" ? (
+              ) : pt === "nfl_confidence_weekly" || pt === "crazy_8s" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
                     <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>

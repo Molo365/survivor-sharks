@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
 
@@ -748,6 +748,114 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
     }));
 
   res.json({ date, hasResults: true, winners });
+});
+
+// ── Weekly date-range helper ───────────────────────────────────────────────────
+
+function getWeekBoundsFromDate(dateStr: string): { weekStart: string; weekEnd: string; weekLabel: string } {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();
+  const daysToMon = dow === 0 ? -6 : 1 - dow;
+  const monDt = new Date(Date.UTC(y, m - 1, d + daysToMon));
+  const sunDt = new Date(Date.UTC(monDt.getUTCFullYear(), monDt.getUTCMonth(), monDt.getUTCDate() + 6));
+  const weekStart = monDt.toISOString().slice(0, 10);
+  const weekEnd = sunDt.toISOString().slice(0, 10);
+  const fmt = (x: Date) => x.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return { weekStart, weekEnd, weekLabel: `${fmt(monDt)} – ${fmt(sunDt)}` };
+}
+
+function fmtDayLabel(ds: string): string {
+  const [y, m, d] = ds.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+  });
+}
+
+// ── GET /api/pools/:poolId/crazy-eights/weekly-leaderboard ────────────────────
+// MLB only — aggregates picks across Mon–Sun for the week containing weekOf.
+// ?weekOf=YYYY-MM-DD (defaults to today ET)
+router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select({ id: entriesTable.id })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const weekOf = String(req.query.weekOf || getTodayEtDate());
+  const { weekStart, weekEnd, weekLabel } = getWeekBoundsFromDate(weekOf);
+  const todayEt = getTodayEtDate();
+  const isCurrentWeek = todayEt >= weekStart && todayEt <= weekEnd;
+
+  const picks = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      gameDate: pickemPicksTable.gameDate,
+      confidencePoints: pickemPicksTable.confidencePoints,
+      result: pickemPicksTable.result,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        gte(pickemPicksTable.gameDate, weekStart),
+        lte(pickemPicksTable.gameDate, weekEnd),
+      )
+    );
+
+  type DayData = { pointsEarned: number; pointsPossible: number; pending: number };
+  type UserData = { userId: number; username: string; displayName: string | null; days: Map<string, DayData> };
+  const byUser = new Map<number, UserData>();
+
+  for (const pick of picks) {
+    if (!byUser.has(pick.userId)) {
+      byUser.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName, days: new Map() });
+    }
+    const u = byUser.get(pick.userId)!;
+    if (!u.days.has(pick.gameDate)) {
+      u.days.set(pick.gameDate, { pointsEarned: 0, pointsPossible: 0, pending: 0 });
+    }
+    const day = u.days.get(pick.gameDate)!;
+    const pts = Number(pick.confidencePoints ?? 0);
+    if (pick.result === "correct") {
+      day.pointsEarned += pts;
+      day.pointsPossible += pts;
+    } else if (pick.result === "incorrect" || pick.result === "postponed") {
+      day.pointsPossible += pts;
+    } else {
+      day.pending += pts;
+      day.pointsPossible += pts;
+    }
+  }
+
+  const players = Array.from(byUser.values())
+    .map((u) => {
+      const days = Array.from(u.days.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({
+          date,
+          dateLabel: fmtDayLabel(date),
+          pointsEarned: data.pointsEarned,
+          pointsPossible: data.pointsPossible,
+          pending: data.pending,
+        }));
+      const weeklyPoints = days.reduce((s, day) => s + day.pointsEarned, 0);
+      return { userId: u.userId, username: u.username, displayName: u.displayName, weeklyPoints, days };
+    })
+    .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
+    .map((p, i) => ({ ...p, rank: i + 1 }));
+
+  res.json({ weekStart, weekEnd, weekLabel, isCurrentWeek, players });
 });
 
 export default router;
