@@ -609,7 +609,7 @@ export default function CreatePool() {
                                 key={sport.id}
                                 type="button"
                                 data-testid={`sport-card-${sport.id}`}
-                                onClick={() => field.onChange(sport.id)}
+                                onClick={() => { field.onChange(sport.id); setEditStep(2); }}
                                 className={cn(
                                   "flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                   isSelected
@@ -783,7 +783,19 @@ export default function CreatePool() {
                                   <button
                                     key={type.id}
                                     type="button"
-                                    onClick={() => field.onChange(type.id)}
+                                    onClick={() => {
+                                      field.onChange(type.id);
+                                      // Compute hasOptions against the incoming type.id, not the
+                                      // stale selectedType — field.onChange hasn't re-rendered yet.
+                                      // selectedSport is narrowed to non-mlb here; drop dead mlb branches.
+                                      const nextHasOptions = (
+                                        (selectedSport === PoolInputSport.nfl && type.id !== "weekly" && type.id !== "pickem") ||
+                                        type.id === "nfl_confidence_weekly" ||
+                                        (user?.role === "admin" && (type.id === "nfl_confidence" ||
+                                          type.id === "pickem_season" || (selectedSport === PoolInputSport.nhl && type.id === "season")))
+                                      );
+                                      setEditStep(nextHasOptions ? 3 : 4);
+                                    }}
                                     data-testid={`pool-type-${type.id}`}
                                     className={cn(
                                       "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
