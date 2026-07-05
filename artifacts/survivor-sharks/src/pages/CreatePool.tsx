@@ -307,6 +307,23 @@ export default function CreatePool() {
   const isFirstRender = useRef(true);
   const isMounted = useRef(false);
 
+  // MLB Crazy 8's availability check — fetches today's game count before showing Create button
+  const isMlbCrazyEights = selectedType === "crazy_8s" && selectedSport === PoolInputSport.mlb;
+  const { data: mlbCheck, isLoading: mlbCheckLoading } = useQuery({
+    queryKey: ["crazy-eights-mlb-check"],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/pools/crazy-eights-mlb-check", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { count: 0, sufficient: true } as { count: number; sufficient: boolean };
+      return res.json() as Promise<{ count: number; sufficient: boolean }>;
+    },
+    enabled: isMlbCrazyEights,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // When sport changes: enforce valid pool type and set sensible defaults
   useEffect(() => {
     if (!selectedSport) return;
@@ -1419,14 +1436,28 @@ export default function CreatePool() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full font-bebas text-xl tracking-widest h-14"
-                    disabled={createPool.isPending}
-                    data-testid="button-submit-create-pool"
-                  >
-                    {createPool.isPending ? "Creating..." : "Create Pool"}
-                  </Button>
+                  {isMlbCrazyEights && !mlbCheckLoading && mlbCheck && !mlbCheck.sufficient ? (
+                    <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 px-5 py-6 text-center space-y-2">
+                      <div className="text-4xl">🎱</div>
+                      <p className="font-semibold text-sm text-foreground">Not Enough Games Today</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Not enough games today — Crazy 8's requires at least 8 MLB games. See you tomorrow! 🎱
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      type="submit"
+                      className="w-full font-bebas text-xl tracking-widest h-14"
+                      disabled={createPool.isPending || (isMlbCrazyEights && mlbCheckLoading)}
+                      data-testid="button-submit-create-pool"
+                    >
+                      {createPool.isPending
+                        ? "Creating..."
+                        : isMlbCrazyEights && mlbCheckLoading
+                          ? "Checking availability..."
+                          : "Create Pool"}
+                    </Button>
+                  )}
                 </section>
               )}
 

@@ -4,6 +4,7 @@ import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcB
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
+import { fetchGamesForDate, getTodayEtDate } from "../lib/espn";
 
 const router = Router();
 
@@ -196,6 +197,17 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
+  // Crazy 8's MLB pools require at least 8 games on today's slate
+  if (resolvedPoolType === "crazy_8s" && sport === "mlb") {
+    const todayEt = getTodayEtDate();
+    const todayEspn = todayEt.replace(/-/g, "");
+    const todayGames = await fetchGamesForDate("mlb", todayEspn);
+    if (todayGames.length < 8) {
+      res.status(400).json({ error: "Not enough games today — Crazy 8's requires at least 8 MLB games. See you tomorrow!" });
+      return;
+    }
+  }
+
   const resolvedSeason = season ?? new Date().getFullYear();
 
   const inviteCode = generateInviteCode();
@@ -313,6 +325,17 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     commissionerCut: pool.commissionerCut ?? 0,
     showCommissionerCut: pool.showCommissionerCut ?? false,
   });
+});
+
+// GET /api/pools/crazy-eights-mlb-check
+// Returns today's MLB game count — used by CreatePool wizard before showing the create button.
+// Must be registered before /:poolId so the literal path is not swallowed as a poolId.
+router.get("/crazy-eights-mlb-check", requireAuth, async (_req, res) => {
+  const todayEt = getTodayEtDate();
+  const todayEspn = todayEt.replace(/-/g, "");
+  const games = await fetchGamesForDate("mlb", todayEspn);
+  const count = games.length;
+  res.json({ count, sufficient: count >= 8 });
 });
 
 // GET /api/pools/:poolId
