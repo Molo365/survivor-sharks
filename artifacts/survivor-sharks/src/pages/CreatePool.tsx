@@ -63,8 +63,8 @@ const SPORTS = [
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["pickem", "crazy_8s"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
-  [PoolInputSport.nba]: [], // Coming Soon
-  [PoolInputSport.nhl]: [], // Coming Soon
+  [PoolInputSport.nba]: ["season", "weekly"],
+  [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor", "wc_bracket"],
 };
 
