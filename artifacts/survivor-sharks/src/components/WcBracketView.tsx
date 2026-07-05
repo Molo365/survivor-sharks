@@ -506,10 +506,28 @@ function WcBracketMemberPicksModal({
           ) : !matches || matches.length === 0 ? (
             <p className="text-center text-muted-foreground py-10">No bracket data found.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {matches.map((match) => (
-                <ReadOnlyMatchCard key={match.espnEventId} match={match} />
-              ))}
+            <div className="space-y-6">
+              {(["round_of_32", "round_of_16", "quarterfinals", "semifinals", "final"] as const).map((round) => {
+                const roundMatches = matches.filter((m) => m.round === round);
+                if (roundMatches.length === 0) return null;
+                const label =
+                  round === "round_of_32" ? "Round of 32" :
+                  round === "round_of_16" ? "Round of 16" :
+                  round === "quarterfinals" ? "Quarterfinals" :
+                  round === "semifinals" ? "Semifinals" : "Final";
+                return (
+                  <div key={round}>
+                    <h4 className="font-bebas text-lg tracking-wider text-muted-foreground/60 mb-2">
+                      {label}
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {roundMatches.map((match) => (
+                        <ReadOnlyMatchCard key={match.espnEventId} match={match} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -564,10 +582,6 @@ function WcBracketLeaderboard({
       </p>
       {data.map((entry) => {
         const rankStyle = RANK_STYLES[entry.rank - 1];
-        const pct =
-          entry.total > 0
-            ? Math.round((entry.correct / entry.total) * 100)
-            : 0;
         return (
           <button
             key={entry.userId}
@@ -600,22 +614,24 @@ function WcBracketLeaderboard({
                   @{entry.username}
                 </p>
               )}
+              {entry.breakdown && entry.breakdown.length > 0 && (
+                <p className="text-[10px] text-muted-foreground/50 font-semibold mt-0.5 truncate">
+                  {entry.breakdown
+                    .map((b) => `${b.roundLabel.replace("Round of ", "R")}: ${b.points}`)
+                    .join(" · ")}
+                </p>
+              )}
             </div>
 
-            {/* Score */}
+            {/* Points */}
             <div className="text-right shrink-0">
               <div className="font-bebas text-2xl leading-none text-accent">
-                {entry.correct}
-                <span className="text-base text-muted-foreground/60">
-                  {" "}
-                  / {entry.total}
-                </span>
+                {entry.points}
+                <span className="text-sm text-muted-foreground/60"> pts</span>
               </div>
-              {entry.total > 0 && (
-                <div className="text-[10px] text-muted-foreground/60 font-semibold">
-                  {pct}% correct
-                </div>
-              )}
+              <div className="text-[10px] text-muted-foreground/50 font-semibold">
+                of 800
+              </div>
             </div>
           </button>
         );
@@ -1013,9 +1029,13 @@ export function WcBracketView({
     }
   };
 
-  const { data: matches, isLoading } = useGetWcBracket(poolId, {
+  const { data: roundData, isLoading } = useGetWcBracket(poolId, {
     query: { queryKey: getGetWcBracketQueryKey(poolId) },
   });
+  const matches = roundData?.matches ?? [];
+  const roundLabel = roundData?.roundLabel ?? "Round of 32";
+  const roundStatus = roundData?.roundStatus ?? "open";
+  const roundPoints = roundData?.roundPoints ?? 10;
 
   const { mutate } = useSubmitWcBracketPicks({
     mutation: {
@@ -1189,6 +1209,59 @@ export function WcBracketView({
         <div className="mt-8">
           {/* Matches tab */}
           <TabsContent value="matches" className="m-0 focus-visible:outline-none">
+            {/* Round header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 className="font-bebas text-3xl tracking-wider text-foreground leading-none">
+                  {roundLabel}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Each correct pick ={" "}
+                  <span className="font-bold text-accent">{roundPoints} pts</span>
+                  {" · "}max this round:{" "}
+                  <span className="font-semibold">{roundPoints * (roundData?.matches?.length ?? 0)} pts</span>
+                </p>
+              </div>
+              <div className={cn(
+                "text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border",
+                roundStatus === "open"
+                  ? "text-green-400 bg-green-500/10 border-green-500/20"
+                  : roundStatus === "in_progress"
+                    ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+                    : "text-blue-400 bg-blue-500/10 border-blue-500/20",
+              )}>
+                {roundStatus === "open"
+                  ? "Open for picks"
+                  : roundStatus === "in_progress"
+                    ? "In progress"
+                    : "Results in — next round coming"}
+              </div>
+            </div>
+
+            {/* Status callout when round is not open for picking */}
+            {roundStatus === "in_progress" && (
+              <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                <Clock className="w-4 h-4 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold leading-tight">Round in progress</p>
+                  <p className="text-xs text-amber-300/70 mt-0.5">
+                    Picks are locked. Results will appear here as games finish — check back soon.
+                  </p>
+                </div>
+              </div>
+            )}
+            {roundStatus === "graded_waiting" && (
+              <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300">
+                <Trophy className="w-4 h-4 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold leading-tight">Next round opens soon</p>
+                  <p className="text-xs text-blue-300/70 mt-0.5">
+                    All {roundLabel} results are in. Matchups for the next round will appear once teams are confirmed.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Summary bar + Save button */}
             {matches && matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-6">

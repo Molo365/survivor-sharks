@@ -1644,13 +1644,33 @@ export interface WcBracketPicksResult {
   rejectedEventIds: string[];
 }
 
+export interface WcBracketRoundResponse {
+  /** round_of_32 | round_of_16 | quarterfinals | semifinals | final */
+  currentRound: string;
+  /** Human-readable round name e.g. 'Round of 16' */
+  roundLabel: string;
+  /** open | in_progress | graded_waiting */
+  roundStatus: string;
+  /** Points per correct pick in this round */
+  roundPoints: number;
+  matches: WcBracketMatch[];
+}
+
+export type WcBracketLeaderboardEntryBreakdownItem = {
+  round: string;
+  roundLabel: string;
+  correct: number;
+  points: number;
+};
+
 export interface WcBracketLeaderboardEntry {
   userId: number;
   username: string;
   displayName?: string | null;
-  correct: number;
-  total: number;
+  /** Total points across all rounds (R32=10, R16=20, QF=40, SF=80, Final=160) */
+  points: number;
   rank: number;
+  breakdown?: WcBracketLeaderboardEntryBreakdownItem[] | null;
 }
 
 export interface BracketTreeSlot {

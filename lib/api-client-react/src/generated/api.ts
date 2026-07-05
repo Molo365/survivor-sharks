@@ -99,6 +99,7 @@ import type {
   WcBracketMatch,
   WcBracketPicksInput,
   WcBracketPicksResult,
+  WcBracketRoundResponse,
   WcSchedule,
   WeekResult
 } from './api.schemas';
@@ -3365,11 +3366,11 @@ export const getGetWcBracketUrl = (poolId: number,) => {
 }
 
 /**
- * @summary Get all R32 matchups with the user's picks and any graded results
+ * @summary Get current bracket round matchups with picks, results, and round metadata
  */
-export const getWcBracket = async (poolId: number, options?: RequestInit): Promise<WcBracketMatch[]> => {
+export const getWcBracket = async (poolId: number, options?: RequestInit): Promise<WcBracketRoundResponse> => {
 
-  return customFetch<WcBracketMatch[]>(getGetWcBracketUrl(poolId),
+  return customFetch<WcBracketRoundResponse>(getGetWcBracketUrl(poolId),
   {
     ...options,
     method: 'GET'
@@ -3412,7 +3413,7 @@ export type GetWcBracketQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get all R32 matchups with the user's picks and any graded results
+ * @summary Get current bracket round matchups with picks, results, and round metadata
  */
 
 export function useGetWcBracket<TData = Awaited<ReturnType<typeof getWcBracket>>, TError = ErrorType<ErrorResponse>>(
@@ -3514,7 +3515,7 @@ export const getGetWcBracketLeaderboardUrl = (poolId: number,) => {
 }
 
 /**
- * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ * @summary Get bracket leaderboard with points scoring (R32=10, R16=20, QF=40, SF=80, Final=160, max 800)
  */
 export const getWcBracketLeaderboard = async (poolId: number, options?: RequestInit): Promise<WcBracketLeaderboardEntry[]> => {
 
@@ -3561,7 +3562,7 @@ export type GetWcBracketLeaderboardQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ * @summary Get bracket leaderboard with points scoring (R32=10, R16=20, QF=40, SF=80, Final=160, max 800)
  */
 
 export function useGetWcBracketLeaderboard<TData = Awaited<ReturnType<typeof getWcBracketLeaderboard>>, TError = ErrorType<ErrorResponse>>(

@@ -1070,7 +1070,7 @@ paths:
     get:
       operationId: getWcBracket
       tags: [bracket]
-      summary: Get all R32 matchups with the user's picks and any graded results
+      summary: Get current bracket round matchups with picks, results, and round metadata
       parameters:
         - name: poolId
           in: path
@@ -1079,13 +1079,11 @@ paths:
             type: integer
       responses:
         "200":
-          description: 16 Round of 32 matchups enriched with picks and results
+          description: Current round's matchups enriched with picks and results, plus round metadata
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WcBracketMatch"
+                $ref: "#/components/schemas/WcBracketRoundResponse"
         "400":
           description: Not a WC bracket pool
           content:
@@ -1146,7 +1144,7 @@ paths:
     get:
       operationId: getWcBracketLeaderboard
       tags: [bracket]
-      summary: Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+      summary: Get bracket leaderboard with points scoring (R32=10, R16=20, QF=40, SF=80, Final=160, max 800)
       parameters:
         - name: poolId
           in: path
@@ -4088,9 +4086,30 @@ components:
           items:
             type: string
 
+    WcBracketRoundResponse:
+      type: object
+      required: [currentRound, roundLabel, roundStatus, roundPoints, matches]
+      properties:
+        currentRound:
+          type: string
+          description: "round_of_32 | round_of_16 | quarterfinals | semifinals | final"
+        roundLabel:
+          type: string
+          description: "Human-readable round name e.g. 'Round of 16'"
+        roundStatus:
+          type: string
+          description: "open | in_progress | graded_waiting"
+        roundPoints:
+          type: integer
+          description: "Points per correct pick in this round"
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcBracketMatch"
+
     WcBracketLeaderboardEntry:
       type: object
-      required: [userId, username, correct, total, rank]
+      required: [userId, username, points, rank]
       properties:
         userId:
           type: integer
@@ -4099,12 +4118,26 @@ components:
         displayName:
           type: string
           nullable: true
-        correct:
+        points:
           type: integer
-        total:
-          type: integer
+          description: "Total points across all rounds (R32=10, R16=20, QF=40, SF=80, Final=160)"
         rank:
           type: integer
+        breakdown:
+          type: array
+          nullable: true
+          items:
+            type: object
+            required: [round, roundLabel, correct, points]
+            properties:
+              round:
+                type: string
+              roundLabel:
+                type: string
+              correct:
+                type: integer
+              points:
+                type: integer
 
     BracketTreeSlot:
       type: object

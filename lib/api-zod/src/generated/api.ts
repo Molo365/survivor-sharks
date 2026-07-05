@@ -1499,13 +1499,18 @@ export const GetGspLiveStandingsResponse = zod.array(GetGspLiveStandingsResponse
 
 
 /**
- * @summary Get all R32 matchups with the user's picks and any graded results
+ * @summary Get current bracket round matchups with picks, results, and round metadata
  */
 export const GetWcBracketParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
-export const GetWcBracketResponseItem = zod.object({
+export const GetWcBracketResponse = zod.object({
+  "currentRound": zod.string().describe('round_of_32 | round_of_16 | quarterfinals | semifinals | final'),
+  "roundLabel": zod.string().describe('Human-readable round name e.g. \'Round of 16\''),
+  "roundStatus": zod.string().describe('open | in_progress | graded_waiting'),
+  "roundPoints": zod.number().describe('Points per correct pick in this round'),
+  "matches": zod.array(zod.object({
   "espnEventId": zod.string(),
   "round": zod.string(),
   "matchSlot": zod.number(),
@@ -1523,8 +1528,8 @@ export const GetWcBracketResponseItem = zod.object({
   "winType": zod.string().describe('normal | aet | penalties'),
   "gradedAt": zod.coerce.date()
 }).nullable()
+}))
 })
-export const GetWcBracketResponse = zod.array(GetWcBracketResponseItem)
 
 
 /**
@@ -1549,7 +1554,7 @@ export const SubmitWcBracketPicksResponse = zod.object({
 
 
 /**
- * @summary Get bracket leaderboard (1 pt per correct R32 pick, max 16)
+ * @summary Get bracket leaderboard with points scoring (R32=10, R16=20, QF=40, SF=80, Final=160, max 800)
  */
 export const GetWcBracketLeaderboardParams = zod.object({
   "poolId": zod.coerce.number()
@@ -1559,9 +1564,14 @@ export const GetWcBracketLeaderboardResponseItem = zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
+  "points": zod.number().describe('Total points across all rounds (R32=10, R16=20, QF=40, SF=80, Final=160)'),
+  "rank": zod.number(),
+  "breakdown": zod.array(zod.object({
+  "round": zod.string(),
+  "roundLabel": zod.string(),
   "correct": zod.number(),
-  "total": zod.number(),
-  "rank": zod.number()
+  "points": zod.number()
+})).nullish()
 })
 export const GetWcBracketLeaderboardResponse = zod.array(GetWcBracketLeaderboardResponseItem)
 
