@@ -309,6 +309,7 @@ export default function CreatePool() {
 
   // When sport changes: enforce valid pool type and set sensible defaults
   useEffect(() => {
+    if (!selectedSport) return;
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
       form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket", { shouldValidate: true });
