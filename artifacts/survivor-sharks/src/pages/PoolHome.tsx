@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation, Redirect } from "wouter";
-import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey } from "@workspace/api-client-react";
+import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
@@ -59,6 +59,15 @@ export default function PoolHome() {
     query: {
       enabled: isPickEm && !!poolId,
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
+    },
+  });
+
+  // Reuse the same query key as WcBracketView — TanStack Query deduplicates the
+  // request so no extra network call is made when both components are mounted.
+  const { data: bracketRoundData } = useGetWcBracket(poolId, {
+    query: {
+      enabled: isWcBracket && !!poolId,
+      queryKey: getGetWcBracketQueryKey(poolId),
     },
   });
 
@@ -177,7 +186,7 @@ export default function PoolHome() {
                   )}
                   {isWcBracket && (
                     <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
-                      <Globe className="w-3 h-3" /> Round of 32
+                      <Globe className="w-3 h-3" /> {!pool.isActive ? "Complete" : bracketRoundData?.roundLabel ?? "Bracket"}
                     </span>
                   )}
                   {isNdp && (
