@@ -297,7 +297,7 @@ export default function CreatePool() {
   const [step3Confirmed, setStep3Confirmed] = useState(false);
   // When the user clicks "Edit" on a completed step we jump back to it, overriding
   // the naturally-derived active step until they finish editing.
-  const [editStep, setEditStep] = useState<number | null>(null);
+  const [editStep, setEditStep] = useState<number | null>(1);
   const step1Ref = useRef<HTMLDivElement>(null);
   const step2Ref = useRef<HTMLDivElement>(null);
   const step3Ref = useRef<HTMLDivElement>(null);
