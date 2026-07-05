@@ -305,6 +305,7 @@ export default function CreatePool() {
   const step5Ref = useRef<HTMLDivElement>(null);
   const step6Ref = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
+  const isMounted = useRef(false);
 
   // When sport changes: enforce valid pool type and set sensible defaults
   useEffect(() => {
@@ -397,8 +398,13 @@ export default function CreatePool() {
   const isStepLocked   = (step: number) => step > currentStep;
   const isStepComplete = (step: number) => step <= currentStep && step !== activeStep;
 
-  // Reset Step 3 confirmation and any active edit whenever the sport or pool type changes
+  // Reset Step 3 confirmation and any active edit whenever the sport or pool type changes.
+  // Skip the initial mount so the editStep=1 initializer is not immediately overwritten.
   useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
     setStep3Confirmed(false);
     setEditStep(null);
   }, [selectedSport, selectedType]);
