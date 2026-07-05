@@ -6,3 +6,4 @@
 - [Hooks-after-early-returns](hooks-after-early-returns.md) — useState/useCallback after isLoading/null-guard returns violates Rules of Hooks and blanks the page with no ErrorBoundary.
 - [Pool detail GET vs list GET divergence](pool-detail-response.md) — GET /api/pools/:poolId builds its own response object separately from formatPool(); new pool-level fields must be added to BOTH places.
 - [Generic JSX in TSX files](generic-jsx-tsx.md) — explicit generic params on JSX elements (`<Comp<T>`) crash Babel/Vite; drop the generic and let TypeScript infer TPlayer from the `players` prop instead.
+- [Aliased condition narrowing (TS2367)](aliased-condition-narrowing.md) — a const boolean gate narrows a referenced union inside its block, removing exclusion-only members; drop the now-redundant `!==` check.
