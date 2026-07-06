@@ -911,7 +911,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : "⚾"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              How Crazy 8's works
+              {isNhl ? "How Hit the Ice works" : "How Crazy 8's works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
               Choose exactly 8 games, pick a winner for each, and assign confidence points 1–8 (no repeats). Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : ""}. Enter a tiebreaker before submitting.

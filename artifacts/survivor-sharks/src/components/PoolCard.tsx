@@ -59,6 +59,8 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             <span className="inline-flex items-center text-[10px] font-bold tracking-widest uppercase bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded w-fit">
               {pt === "pickem"
                 ? (isWeekly ? "Weekly Pick-Ems" : "Daily Pick-Ems")
+                : pt === "crazy_8s" && pool.sport === "nhl"
+                ? "Hit the Ice"
                 : POOL_TYPE_LABELS[pt]}
             </span>
           )}
