@@ -103,6 +103,13 @@ function scoreNdpDivision(
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
 const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "crazy_8s"];
 
+function computeRank<T extends { score: number }>(rows: T[], userId: number): number {
+  if (rows.length === 0) return 0;
+  const myRow = rows.find((r) => (r as any).userId === userId);
+  if (!myRow) return 0;
+  return rows.filter((r) => r.score > myRow.score).length + 1;
+}
+
 // GET /api/dashboard/pickem-stats
 router.get("/pickem-stats", requireAuth, async (req, res) => {
   const userId = req.user!.id;
@@ -270,14 +277,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           .where(eq(pickemPicksTable.poolId, pool.id))
           .groupBy(pickemPicksTable.userId)
           .orderBy(sql`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`);
-        const myIdx = rows.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? rows[myIdx] : null;
+        const myRow = rows.find((r) => r.userId === userId) ?? null;
         return {
           poolId: pool.id,
           poolType,
           lastWinners: null,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: computeRank(rows.map((r) => ({ ...r, score: Number(r.score) })), userId),
             correct: 0, picked: 0,
             hasPicks: !!myRow,
             status: null, eliminatedWeek: null,
@@ -340,15 +346,14 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`,
           );
 
-        const myIdx = currentRows.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+        const myRow = currentRows.find((r) => r.userId === userId) ?? null;
 
         return {
           poolId: pool.id,
           poolType,
           lastWinners,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId),
             correct: 0,
             picked: 0,
             hasPicks: !!myRow,
@@ -420,15 +425,14 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             sql`COUNT(*) DESC`,
           );
 
-        const myIdx = currentRows.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+        const myRow = currentRows.find((r) => r.userId === userId) ?? null;
 
         return {
           poolId: pool.id,
           poolType,
           lastWinners,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.correct) })), userId),
             correct: myRow ? Number(myRow.correct) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks: !!myRow,
@@ -495,7 +499,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           }
         }
 
-        const myRank = (scoringStarted && myRow) ? myIdx + 1 : 0;
+        const myRank = (scoringStarted && myRow) ? computeRank(scored.map((s) => ({ ...s, score: s.total })), userId) : 0;
         let myPrizeWon: number | null = null;
         if (!pool.isActive && myRank > 0) {
           const ndpPs = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
@@ -558,8 +562,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           return { userId: uid, total };
         });
         scored.sort((a, b) => b.total - a.total);
-        const myIdx = scored.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? scored[myIdx] : null;
+        const myRow = scored.find((r) => r.userId === userId) ?? null;
         const hasPicks = picksByUser.has(userId);
 
         let lastWinners = null;
@@ -588,7 +591,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           poolType,
           lastWinners,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: computeRank(scored.map((s) => ({ ...s, score: s.total })), userId),
             correct: 0, picked: 0,
             hasPicks,
             status: null, eliminatedWeek: null,
@@ -606,32 +609,28 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const allPickRows = await db
           .select({
             userId: wcBracketPicksTable.userId,
+            score: sql<string>`COALESCE(SUM(CASE WHEN ${wcBracketPicksTable.isCorrect} = true THEN CASE ${wcBracketPicksTable.round} WHEN 'r32' THEN 10 WHEN 'r16' THEN 20 WHEN 'qf' THEN 40 WHEN 'sf' THEN 80 WHEN 'final' THEN 160 ELSE 0 END ELSE 0 END), 0)`,
             correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} = true)`,
             picked: sql<string>`COUNT(*)`,
           })
           .from(wcBracketPicksTable)
           .where(eq(wcBracketPicksTable.poolId, pool.id))
-          .groupBy(wcBracketPicksTable.userId)
-          .orderBy(
-            sql`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} = true) DESC`,
-            sql`COUNT(*) DESC`,
-          );
+          .groupBy(wcBracketPicksTable.userId);
 
-        const myIdx = allPickRows.findIndex((r) => r.userId === userId);
-        const myRow = myIdx >= 0 ? allPickRows[myIdx] : null;
+        const myRow = allPickRows.find((r) => r.userId === userId) ?? null;
 
         return {
           poolId: pool.id,
           poolType,
           lastWinners: null,
           myStanding: {
-            rank: myRow ? myIdx + 1 : 0,
+            rank: computeRank(allPickRows.map((r) => ({ ...r, score: Number(r.score) })), userId),
             correct: myRow ? Number(myRow.correct) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks: !!myRow && Number(myRow.picked) > 0,
             status: null,
             eliminatedWeek: null,
-            score: null,
+            score: myRow ? Number(myRow.score) : null,
             maxScore: null,
           },
           poolName: pool.name,
