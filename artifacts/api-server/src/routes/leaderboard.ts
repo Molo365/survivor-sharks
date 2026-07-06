@@ -99,36 +99,42 @@ router.get("/", requireAuth, async (req, res) => {
     };
   }));
 
-  const active = entries
+  const sortedActive = entries
     .filter(e => e.status === "active")
     .sort((a, b) => {
       // When SOV was used, sort active players by sovTotal DESC
       if (a.sovTotal != null && b.sovTotal != null) return b.sovTotal - a.sovTotal;
       return b.weeksAlive - a.weeksAlive;
-    })
-    .map((e, i) => ({
-      rank: i + 1,
-      // Only surface prize amounts once the pool has actually resolved.
-      // While the pool is active, rank positions are interim — assigning prize
-      // values would show dollar badges to players who haven't won anything yet.
-      prizeWon: !pool.isActive
-        ? (() => {
-            const tier = prizeStructure?.find(p => p.place === i + 1);
-            if (!tier) return null;
-            if (pool.prizeMode === "pct") {
-              if (!pool.entryFee || pool.entryFee <= 0 || memberCount <= 0) return null;
-              return Math.floor((tier.amount / 100) * pool.entryFee * memberCount / 5) * 5;
-            }
-            return tier.amount;
-          })()
-        : null,
-      ...e,
-    }));
+    });
+  const scoredActive = sortedActive.map(e => ({ ...e, score: e.sovTotal ?? e.weeksAlive }));
 
-  const eliminated = entries
+  const active = scoredActive.map((entry, i) => ({
+    rank: scoredActive.filter(x => x.score > entry.score).length + 1,
+    // Only surface prize amounts once the pool has actually resolved.
+    // While the pool is active, rank positions are interim — assigning prize
+    // values would show dollar badges to players who haven't won anything yet.
+    prizeWon: !pool.isActive
+      ? (() => {
+          const tier = prizeStructure?.find(p => p.place === i + 1);
+          if (!tier) return null;
+          if (pool.prizeMode === "pct") {
+            if (!pool.entryFee || pool.entryFee <= 0 || memberCount <= 0) return null;
+            return Math.floor((tier.amount / 100) * pool.entryFee * memberCount / 5) * 5;
+          }
+          return tier.amount;
+        })()
+      : null,
+    ...entry,
+  }));
+
+  const sortedEliminated = entries
     .filter(e => e.status === "eliminated")
-    .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
-    .map((e, i) => ({ rank: active.length + i + 1, prizeWon: null as number | null, ...e }));
+    .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
+  const eliminated = sortedEliminated.map((e) => ({
+    rank: active.length + sortedEliminated.filter(x => (x.eliminatedWeek ?? 0) > (e.eliminatedWeek ?? 0)).length + 1,
+    prizeWon: null as number | null,
+    ...e,
+  }));
 
   // ── NHL Survivor Season: re-rank eliminated players with SOV tiebreaker and assign prize tiers ──
   // Scoped strictly to pool.sport === "nhl" && pool.poolType === "season".
