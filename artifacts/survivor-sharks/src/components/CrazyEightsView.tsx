@@ -397,6 +397,7 @@ function GameCard({
   sport,
   isSelected,
   isLocked,
+  gameHasStarted,
   confidence,
   usedPoints,
   pickedTeam,
@@ -407,6 +408,7 @@ function GameCard({
   sport: string;
   isSelected: boolean;
   isLocked: boolean;
+  gameHasStarted: boolean;
   confidence: number | undefined;
   usedPoints: Set<number>;
   pickedTeam: string | null;
@@ -417,7 +419,7 @@ function GameCard({
   const isLive = game.status === "in_progress";
   const isPostponed = game.status === "postponed";
   const isSuspended = game.status === "suspended";
-  const isDisabled = isSuspended || (isLocked && !isSelected);
+  const isDisabled = isSuspended || (isLocked && !isSelected) || (gameHasStarted && !isSelected);
   const isNhl = sport === "nhl";
 
   const awayPitcher = isNhl ? null : pitcherLine(game.awayPitcher);
@@ -957,6 +959,11 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
             sport={sport}
             isSelected={selectedIds.includes(game.id)}
             isLocked={isLocked}
+            gameHasStarted={
+              game.status === "in_progress" ||
+              game.status === "final" ||
+              (!sandboxMode && Date.now() >= new Date(game.startTime).getTime())
+            }
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
