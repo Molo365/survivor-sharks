@@ -1058,20 +1058,6 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     picksByUser.get(pick.userId)!.set(pick.gameId, pick);
   }
 
-  // Visibility rule: a pick is only visible to other players once that specific game has kicked off.
-  {
-    const lbGameDateMap = new Map<string, string>(espnGames.map((g: any) => [g.id, g.date]));
-    for (const [uid, userPickMap] of picksByUser) {
-      if (uid === userId) continue;
-      for (const gameId of Array.from(userPickMap.keys())) {
-        const gameDate = lbGameDateMap.get(gameId);
-        if (gameDate == null || !isGameLocked(gameDate)) {
-          userPickMap.delete(gameId);
-        }
-      }
-    }
-  }
-
   const entries = aggregates.map((row, i) => {
     const userPicks = picksByUser.get(row.userId) ?? new Map();
     const tb = tiebreakerByUser.get(row.userId);
