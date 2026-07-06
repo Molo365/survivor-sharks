@@ -3055,7 +3055,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* Stop Recurring — MLB Daily pick-em pools only */}
-              {isMlb && pickFrequency === "daily" && (
+              {(pickFrequency === "daily" || pickFrequency === "weekly") && (
                 isRecurring ? (
                   <Card className="border-destructive/30 bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)]">
                     <CardHeader>
