@@ -705,10 +705,10 @@ export function MatchupPickGrid({
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
 
-  // Dismissible how-to hint for NFL survivor pools
+  // Dismissible how-to hint for NFL and NHL survivor pools
   const hintKey = `survivor-hint-dismissed-${poolId}`;
   const [showHint, setShowHint] = useState<boolean>(() => {
-    if (sport !== "nfl" || poolType !== "season") return false;
+    if ((sport !== "nfl" && sport !== "nhl") || poolType !== "season") return false;
     try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
   });
   function dismissHint() {
@@ -1001,16 +1001,18 @@ export function MatchupPickGrid({
         )
       ) : null}
 
-      {/* How-to hint — NFL survivor, shown once per pool, dismissible */}
+      {/* How-to hint — NFL/NHL survivor, shown once per pool, dismissible */}
       {showHint && (
         <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">🏈</span>
+          <span className="text-xl leading-none mt-0.5">{sport === "nhl" ? "🏒" : "🏈"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              How NFL Survivor works
+              {sport === "nhl" ? "How NHL Survivor works" : "How NFL Survivor works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick one NFL team to win each week. Pick wrong and you're eliminated. You can't reuse a team once you've picked them. Last survivor standing wins the pot. Each pick locks at kickoff.
+              {sport === "nhl"
+                ? "Pick one NHL team from Saturday's games each week. You can't reuse a team all season. You get 3 strikes before elimination — use them wisely. Pick locks at noon ET every Saturday."
+                : "Pick one NFL team to win each week. Pick wrong and you're eliminated. You can't reuse a team once you've picked them. Last survivor standing wins the pot. Each pick locks at kickoff."}
             </p>
           </div>
           <button
