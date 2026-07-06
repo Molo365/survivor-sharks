@@ -196,6 +196,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
     }
   };
 
+  console.log("CommissionerPanel pool:", pool?.id, "isRecurring:", pool?.isRecurring, "full pool:", JSON.stringify(pool));
   if (loadingPool || !pool) return <Skeleton className="h-[400px] w-full" />;
 
   return (
