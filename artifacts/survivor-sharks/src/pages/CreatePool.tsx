@@ -730,7 +730,7 @@ export default function CreatePool() {
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "daily" ? "text-foreground" : "text-muted-foreground")}>Daily Pick-Ems</span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Leaderboard shows today's picks only — fresh competition every day.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game today. Most correct picks wins. Resets fresh every day.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "daily" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
                                 </div>
@@ -754,7 +754,7 @@ export default function CreatePool() {
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "weekly" ? "text-foreground" : "text-muted-foreground")}>Weekly Pick-Ems</span>
                                       <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">New</span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Picks accumulate Monday–Sunday. Leaderboard shows the full week with per-day breakdown.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game each day. Picks accumulate all week — most correct by Sunday wins.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "weekly" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
                                 </div>
@@ -782,7 +782,7 @@ export default function CreatePool() {
                                         MLB
                                       </span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Pick any 8 games from today's slate. Assign confidence points 1–8. Highest total wins.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick 8 MLB games daily and rank them by confidence 1–8. Points accumulate all week — highest total by Sunday wins.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "crazy_8s" ? "border-purple-500 bg-purple-500" : "border-muted-foreground/30")} />
                                 </div>
