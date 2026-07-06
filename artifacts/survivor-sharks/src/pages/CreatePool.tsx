@@ -76,7 +76,7 @@ const POOL_TYPES = [
     tagline: "Last One Standing Wins",
     description:
       "Pick one team per week to win. Pick wrong and you're eliminated. Survive the whole season to claim the prize.",
-    badge: "Flagship",
+    badge: "",
     badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
     cardClass: "border-amber-500/60 bg-[linear-gradient(145deg,rgba(245,158,11,0.10)_0%,transparent_100%)]",
   },
@@ -850,6 +850,7 @@ export default function CreatePool() {
                                               : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Hit the Ice!"
                                               : type.label}
                                           </span>
+                                          {((type.id === "pickem" && selectedSport === PoolInputSport.nhl) || (type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl) || type.badge) && (
                                           <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5",
                                             type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
                                               : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
@@ -858,6 +859,7 @@ export default function CreatePool() {
                                               : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "NHL"
                                               : type.badge}
                                           </span>
+                                          )}
                                         </div>
                                         <p className={cn(
                                           "text-xs font-semibold uppercase tracking-wider mb-1",
