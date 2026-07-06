@@ -946,8 +946,8 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Recurring — MLB Daily Pick-Ems + NFL Confidence Weekly ── */}
-                      {(selectedSport === PoolInputSport.mlb && selectedType === "pickem" || selectedType === "nfl_confidence_weekly") && (
+                      {/* ── Recurring — MLB Pick-Ems, Crazy 8's, NFL Confidence Weekly ── */}
+                      {((selectedSport === PoolInputSport.mlb && selectedType === "pickem") || selectedType === "crazy_8s" || selectedType === "nfl_confidence_weekly") && (
                         <FormField
                           control={form.control}
                           name="isRecurring"
@@ -961,9 +961,7 @@ export default function CreatePool() {
                                       Recurring Pool
                                     </FormLabel>
                                     <FormDescription className="text-xs mt-0.5">
-                                      {selectedType === "nfl_confidence_weekly"
-                                        ? "When on, the pool auto-advances every week indefinitely. When off, the pool closes after the current week's results are processed."
-                                        : "When on, the pool auto-advances every day indefinitely. When off, the pool runs exactly one day then closes permanently."}
+                                      When on, this pool automatically repeats at the end of each period (daily or weekly). When off, it runs once then closes permanently. Season-long pools are not eligible for recurring.
                                     </FormDescription>
                                   </div>
                                 </div>

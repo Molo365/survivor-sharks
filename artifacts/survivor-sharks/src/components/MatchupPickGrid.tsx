@@ -705,6 +705,17 @@ export function MatchupPickGrid({
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
 
+  // Dismissible how-to hint for NFL survivor pools
+  const hintKey = `survivor-hint-dismissed-${poolId}`;
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    if (sport !== "nfl" || poolType !== "season") return false;
+    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
+  });
+  function dismissHint() {
+    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
+    setShowHint(false);
+  }
+
   // NHL Survivor Season: teams may be reused up to 2 times. Compute which teams
   // are "exhausted" (used max times in prior weeks, excluding current week) so
   // MatchupCard grays them out correctly.
@@ -989,6 +1000,29 @@ export function MatchupPickGrid({
           </div>
         )
       ) : null}
+
+      {/* How-to hint — NFL survivor, shown once per pool, dismissible */}
+      {showHint && (
+        <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
+          <span className="text-xl leading-none mt-0.5">🏈</span>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-foreground leading-snug">
+              How NFL Survivor works
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
+              Pick one NFL team to win each week. Pick wrong and you're eliminated. You can't reuse a team once you've picked them. Last survivor standing wins the pot. Each pick locks at kickoff.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismissHint}
+            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Week heading */}
       <div className="flex items-center gap-3">
