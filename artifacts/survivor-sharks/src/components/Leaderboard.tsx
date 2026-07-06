@@ -98,7 +98,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                       <span className={cn(
                         "font-bebas text-xl w-6 text-center",
                         idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : "text-amber-600",
-                      )}>{idx + 1}</span>
+                      )}>{entry.rank}</span>
                       <span className="font-medium text-sm text-foreground/90">
                         {entry.displayName ?? entry.username}
                       </span>
@@ -196,7 +196,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-card border border-border/50 rounded-lg hover:border-primary/50 transition-all shark-card"
               >
                 <div className="flex items-center gap-5 mb-3 sm:mb-0">
-                  <div className="font-bebas text-3xl text-primary/40 w-8 text-center">{idx + 1}</div>
+                  <div className="font-bebas text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
                   <div>
                     <div className="font-medium text-xl flex items-center gap-2">
                       {entry.displayName || entry.username}
@@ -275,7 +275,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
               >
                 <div className="flex items-center gap-5">
                   <div className="font-bebas text-2xl text-muted-foreground/50 w-8 text-center">
-                    {leaderboard.active.length + idx + 1}
+                    {entry.rank}
                   </div>
                   <div className="font-medium text-lg line-through text-muted-foreground">
                     {entry.displayName || entry.username}
