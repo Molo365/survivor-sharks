@@ -620,6 +620,15 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
     setShowHint(false);
   }
 
+  const hintKeyNhl = `hittheice-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const [showHintNhl, setShowHintNhl] = useState<boolean>(() => {
+    try { return localStorage.getItem(hintKeyNhl) !== "1"; } catch { return false; }
+  });
+  function dismissHintNhl() {
+    try { localStorage.setItem(hintKeyNhl, "1"); } catch { /* ignore */ }
+    setShowHintNhl(false);
+  }
+
   // For MLB: yesterday; for NHL: Saturday of the most recent past weekend
   const priorPeriodDate = useMemo(() => {
     if (!isNhl) return offsetDate(getTodayEt(), -1);
@@ -911,6 +920,26 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <button
             type="button"
             onClick={dismissHint}
+            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Hit the Ice intro hint — NHL only, shown once per user per pool, dismissible */}
+      {isNhl && showHintNhl && (
+        <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
+          <span className="text-xl leading-none mt-0.5">🏒</span>
+          <div className="min-w-0">
+            <p className="text-sm text-amber-200/90 leading-snug">
+              Hit the Ice works just like Crazy 8&apos;s — pick 8 NHL games each day, earn points for correct picks. Points accumulate Mon–Sun and the weekly leader wins. 🏒
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismissHintNhl}
             className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
             aria-label="Dismiss hint"
           >
