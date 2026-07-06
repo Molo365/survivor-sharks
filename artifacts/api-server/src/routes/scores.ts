@@ -137,35 +137,99 @@ router.get("/game/:gameId", async (req, res) => {
     const homeLines: any[] = homeComp?.linescores ?? [];
     if (awayLines.length > 0 || homeLines.length > 0) {
       const maxLen = Math.max(awayLines.length, homeLines.length);
-      const columns = [
-        ...Array.from({ length: maxLen }, (_, i) => String(i + 1)),
-        "R", "H", "E",
-      ];
-      const awayRow: (number | null)[] = [
-        ...awayLines.map((l: any) =>
-          l.displayValue === "X" ? null : Number(l.displayValue ?? null),
-        ),
-        ...Array(Math.max(0, maxLen - awayLines.length)).fill(null),
-        Number(awayComp?.score ?? 0),
-        Number(awayComp?.hits ?? 0),
-        Number(awayComp?.errors ?? 0),
-      ];
-      const homeRow: (number | null)[] = [
-        ...homeLines.map((l: any) =>
-          l.displayValue === "X" ? null : Number(l.displayValue ?? null),
-        ),
-        ...Array(Math.max(0, maxLen - homeLines.length)).fill(null),
-        Number(homeComp?.score ?? 0),
-        Number(homeComp?.hits ?? 0),
-        Number(homeComp?.errors ?? 0),
-      ];
-      linescore = {
-        columns,
-        awayLabel: awayComp?.team?.abbreviation ?? "AWY",
-        homeLabel: homeComp?.team?.abbreviation ?? "HME",
-        away: awayRow,
-        home: homeRow,
-      };
+      if (sport === "mlb") {
+        const columns = [
+          ...Array.from({ length: maxLen }, (_, i) => String(i + 1)),
+          "R", "H", "E",
+        ];
+        const awayRow: (number | null)[] = [
+          ...awayLines.map((l: any) =>
+            l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+          ),
+          ...Array(Math.max(0, maxLen - awayLines.length)).fill(null),
+          Number(awayComp?.score ?? 0),
+          Number(awayComp?.hits ?? 0),
+          Number(awayComp?.errors ?? 0),
+        ];
+        const homeRow: (number | null)[] = [
+          ...homeLines.map((l: any) =>
+            l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+          ),
+          ...Array(Math.max(0, maxLen - homeLines.length)).fill(null),
+          Number(homeComp?.score ?? 0),
+          Number(homeComp?.hits ?? 0),
+          Number(homeComp?.errors ?? 0),
+        ];
+        linescore = {
+          columns,
+          awayLabel: awayComp?.team?.abbreviation ?? "AWY",
+          homeLabel: homeComp?.team?.abbreviation ?? "HME",
+          away: awayRow,
+          home: homeRow,
+        };
+      } else {
+        // Soccer, NHL, NBA, NFL — period-based columns, no R/H/E, append "T" total
+        function periodLabel(value: number): string {
+          if (sport === "soccer" || sport === "worldcup") {
+            if (value === 1) return "1H";
+            if (value === 2) return "2H";
+            if (value === 3) return "AET";
+            if (value === 4) return "PEN";
+            return "P" + value;
+          }
+          if (sport === "nhl") {
+            if (value === 1) return "1st";
+            if (value === 2) return "2nd";
+            if (value === 3) return "3rd";
+            if (value === 4) return "OT";
+            if (value === 5) return "SO";
+            return "P" + value;
+          }
+          if (sport === "nba") {
+            if (value === 1) return "Q1";
+            if (value === 2) return "Q2";
+            if (value === 3) return "Q3";
+            if (value === 4) return "Q4";
+            return "OT" + (value - 4);
+          }
+          // NFL (and fallback)
+          if (value === 1) return "Q1";
+          if (value === 2) return "Q2";
+          if (value === 3) return "Q3";
+          if (value === 4) return "Q4";
+          if (value === 5) return "OT";
+          return "OT" + (value - 4);
+        }
+        const columns = [
+          ...Array.from({ length: maxLen }, (_, i) => {
+            const l = awayLines[i] ?? homeLines[i];
+            const value = l?.value != null ? Number(l.value) : i + 1;
+            return periodLabel(value);
+          }),
+          "T",
+        ];
+        const awayRow: (number | null)[] = [
+          ...awayLines.map((l: any) =>
+            l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+          ),
+          ...Array(Math.max(0, maxLen - awayLines.length)).fill(null),
+          awayComp?.score != null ? Number(awayComp.score) : null,
+        ];
+        const homeRow: (number | null)[] = [
+          ...homeLines.map((l: any) =>
+            l.displayValue === "X" ? null : Number(l.displayValue ?? null),
+          ),
+          ...Array(Math.max(0, maxLen - homeLines.length)).fill(null),
+          homeComp?.score != null ? Number(homeComp.score) : null,
+        ];
+        linescore = {
+          columns,
+          awayLabel: awayComp?.team?.abbreviation ?? "AWY",
+          homeLabel: homeComp?.team?.abbreviation ?? "HME",
+          away: awayRow,
+          home: homeRow,
+        };
+      }
     }
 
     // ── Live situation ────────────────────────────────────────────────────────

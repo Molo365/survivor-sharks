@@ -456,9 +456,13 @@ function GameDetailSheet({
                                   key={i}
                                   className={cn(
                                     "px-1.5 py-2 text-center min-w-[22px]",
-                                    RHE_COLS.has(col)
-                                      ? "text-primary font-bold border-l border-border/30"
-                                      : "text-muted-foreground",
+                                    selectedGame?.sport === "mlb"
+                                      ? RHE_COLS.has(col)
+                                        ? "text-primary font-bold border-l border-border/30"
+                                        : "text-muted-foreground"
+                                      : col === "T"
+                                        ? "text-primary font-bold border-l border-border/30"
+                                        : "text-muted-foreground",
                                   )}
                                 >
                                   {col}
@@ -491,11 +495,15 @@ function GameDetailSheet({
                                     key={i}
                                     className={cn(
                                       "px-1.5 py-2 text-center tabular-nums",
-                                      RHE_COLS.has(
-                                        detail.linescore!.columns[i] ?? "",
-                                      )
-                                        ? "font-bold text-foreground border-l border-border/30"
-                                        : "text-muted-foreground/80",
+                                      selectedGame?.sport === "mlb"
+                                        ? RHE_COLS.has(
+                                            detail.linescore!.columns[i] ?? "",
+                                          )
+                                          ? "font-bold text-foreground border-l border-border/30"
+                                          : "text-muted-foreground/80"
+                                        : detail.linescore!.columns[i] === "T"
+                                          ? "font-bold text-foreground border-l border-border/30"
+                                          : "text-muted-foreground/80",
                                     )}
                                   >
                                     {val === null ? "—" : val}
