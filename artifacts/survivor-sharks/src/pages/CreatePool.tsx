@@ -418,14 +418,16 @@ export default function CreatePool() {
 
   // Reset Step 3 confirmation and any active edit whenever the sport or pool type changes.
   // Skip the initial mount so the editStep=1 initializer is not immediately overwritten.
+  // For pool types that have no step-3 options, set editStep=4 instead of null so the
+  // name field doesn't auto-advance the wizard the moment the name becomes valid.
   useEffect(() => {
     if (!isMounted.current) {
       isMounted.current = true;
       return;
     }
     setStep3Confirmed(false);
-    setEditStep(null);
-  }, [selectedSport, selectedType]);
+    setEditStep(hasOptions ? null : 4);
+  }, [selectedSport, selectedType, hasOptions]);
 
   // Auto-scroll to the active step when it changes (skip the initial mount)
   useEffect(() => {
