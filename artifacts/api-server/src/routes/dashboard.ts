@@ -609,8 +609,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const allPickRows = await db
           .select({
             userId: wcBracketPicksTable.userId,
-            score: sql<string>`COALESCE(SUM(CASE WHEN ${wcBracketPicksTable.isCorrect} = true THEN CASE ${wcBracketPicksTable.round} WHEN 'r32' THEN 10 WHEN 'r16' THEN 20 WHEN 'qf' THEN 40 WHEN 'sf' THEN 80 WHEN 'final' THEN 160 ELSE 0 END ELSE 0 END), 0)`,
-            correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} = true)`,
+            score: sql<string>`COALESCE(SUM(CASE WHEN ${wcBracketPicksTable.isCorrect} IS TRUE THEN CASE ${wcBracketPicksTable.round} WHEN 'r32' THEN 10 WHEN 'r16' THEN 20 WHEN 'qf' THEN 40 WHEN 'sf' THEN 80 WHEN 'final' THEN 160 ELSE 0 END ELSE 0 END), 0)`,
+            correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} IS TRUE)`,
             picked: sql<string>`COUNT(*)`,
           })
           .from(wcBracketPicksTable)
