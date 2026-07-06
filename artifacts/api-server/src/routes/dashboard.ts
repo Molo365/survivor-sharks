@@ -234,14 +234,14 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         }
 
         const allEntries = await db
-          .select({ userId: entriesTable.userId })
+          .select({ userId: entriesTable.userId, status: entriesTable.status, eliminatedWeek: entriesTable.eliminatedWeek, finalWinner: entriesTable.finalWinner })
           .from(entriesTable)
-          .where(eq(entriesTable.poolId, pool.id))
-          .orderBy(
-            sql`CASE WHEN ${entriesTable.status} = 'alive' THEN 0 ELSE 1 END`,
-            entriesTable.joinedAt,
-          );
-        const survivorRank = allEntries.findIndex((e) => e.userId === userId) + 1;
+          .where(eq(entriesTable.poolId, pool.id));
+        const survivorScored = allEntries.map((e) => ({
+          userId: e.userId,
+          score: (e.finalWinner || e.status === "alive") ? pool.currentWeek : (e.eliminatedWeek ?? 0),
+        }));
+        const survivorRank = computeRank(survivorScored, userId);
 
         return {
           poolId: pool.id,
