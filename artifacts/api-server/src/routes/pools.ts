@@ -454,6 +454,11 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
     return;
   }
 
+  if (pool.isRecurring) {
+    res.status(409).json({ error: "Recurring pools cannot be cancelled. Use 'End After This Cycle' from the commissioner panel instead." });
+    return;
+  }
+
   // Determine the correct picks table for this pool type and count non-commissioner picks
   const PICKEM_TYPES = new Set(["pickem", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
   const pt = pool.poolType as string;

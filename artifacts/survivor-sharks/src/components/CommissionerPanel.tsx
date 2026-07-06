@@ -259,7 +259,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
       </div>
 
       {/* Stop Recurring — MLB Daily, MLB Weekly, and NFL Confidence Weekly pools */}
-      {((pool.sport === "mlb" && ((pool as any).pickFrequency === "daily" || (pool as any).pickFrequency === "weekly")) || (pool as any).poolType === "nfl_confidence_weekly") && (
+      {pool.isRecurring === true && (
         pool.isRecurring ? (
           <Card className="border-destructive/30 bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)]">
             <CardHeader>

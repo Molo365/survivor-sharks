@@ -40,6 +40,7 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
   if (!pool || !user) return null;
   if (pool.commissionerId !== user.id && user.role !== "admin") return null;
   if (!pool.isActive) return null;
+  if (pool.isRecurring) return null;
 
   const nameMatches = confirmName.trim() === pool.name.trim();
 
