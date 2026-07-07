@@ -873,6 +873,14 @@ export default function CreatePool() {
                                           : type.tagline}</p>
                                         <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🦈🏒"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
+                                          : type.id === "season"
+                                            ? selectedSport === PoolInputSport.nfl
+                                              ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot."
+                                              : selectedSport === PoolInputSport.nhl
+                                                ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                                                : selectedSport === PoolInputSport.nba
+                                                  ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                                                  : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."
                                           : type.description}</p>
                                       </div>
                                       <div className={cn(
