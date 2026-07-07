@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 import {
   useGetNdpDivisions,
   useSubmitNdpPicks,
@@ -934,6 +935,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
           setSavedOrders({ ...orders });
           queryClient.invalidateQueries({ queryKey: ["getNdpDivisions", poolId] });
           queryClient.invalidateQueries({ queryKey: getGetNdpMyTiebreakerQueryKey(poolId) });
+          void invalidatePoolQueries(queryClient, poolId);
         },
         onError: () => {
           toast({ title: "Submission failed", description: "Something went wrong. Please try again.", variant: "destructive" });

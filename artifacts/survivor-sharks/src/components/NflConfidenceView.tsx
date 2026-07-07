@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -924,6 +925,7 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       setShowTiebreaker(false);
       toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
       queryClient.invalidateQueries({ queryKey: myPicksKey });
+      void invalidatePoolQueries(queryClient, poolId);
     } catch (err) {
       toast({ title: "Submission failed", description: (err as Error).message, variant: "destructive" });
     } finally {
