@@ -234,7 +234,8 @@ router.post("/", requireAuth, async (req, res) => {
     pickFrequency: resolvedPickFrequency,
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
     // when the client does not send the field so new pools auto-advance by default.
-    isRecurring: typeof isRecurring === 'boolean' ? isRecurring : true,
+    // Crazy 8's pools are always recurring — the daily/weekly competition never ends.
+    isRecurring: resolvedPoolType === "crazy_8s" ? true : (typeof isRecurring === 'boolean' ? isRecurring : true),
     sandboxMode: sandboxMode === true,
   }).returning();
 
