@@ -1,4 +1,4 @@
-import { useListPools, useListPastPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useListPools, useListPastPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey, getListPoolsQueryKey, getListPastPoolsQueryKey } from "@workspace/api-client-react";
 import type { PastPool } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { NavBar } from "@/components/NavBar";
@@ -59,9 +59,9 @@ function PastPoolCard({ pool }: { pool: PastPool }) {
 }
 
 export default function Dashboard() {
-  const { data: pools, isLoading, error } = useListPools();
-  const { data: pastPools, isLoading: isPastLoading } = useListPastPools();
-  const { data: pickEmStats } = useGetPickEmDashboardStats({ query: { queryKey: getGetPickEmDashboardStatsQueryKey(), staleTime: 2 * 60 * 1000 } });
+  const { data: pools, isLoading, error } = useListPools({ query: { queryKey: getListPoolsQueryKey(), refetchInterval: 60 * 1000 } });
+  const { data: pastPools, isLoading: isPastLoading } = useListPastPools({ query: { queryKey: getListPastPoolsQueryKey(), refetchInterval: 60 * 1000 } });
+  const { data: pickEmStats } = useGetPickEmDashboardStats({ query: { queryKey: getGetPickEmDashboardStatsQueryKey(), staleTime: 2 * 60 * 1000, refetchInterval: 60 * 1000 } });
   const pickEmStatMap = new Map((pickEmStats ?? []).map((s) => [s.poolId, s]));
 
   const hasPastPools = (pastPools?.length ?? 0) > 0;

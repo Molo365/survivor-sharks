@@ -25,7 +25,16 @@ import Picks from "@/pages/Picks";
 import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000,
+      refetchOnWindowFocus: true,
+      refetchInterval: 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
 const ProtectedRoute = ({ component: Component }: { component: any }) => {
   const { user, isLoading } = useAuth();

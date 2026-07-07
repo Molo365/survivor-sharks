@@ -738,21 +738,27 @@ export default function Scores() {
   }, [selectedGame?.game.id, selectedGame?.sport]);
 
   useEffect(() => {
+    const loadScores = () => {
+      setError(false);
+      fetch("/api/scores/today")
+        .then(async (res) => {
+          if (!res.ok) throw new Error("fetch failed");
+          return res.json() as Promise<ScoresResponse>;
+        })
+        .then((d) => {
+          setData(d);
+          setLoading(false);
+        })
+        .catch(() => {
+          setError(true);
+          setLoading(false);
+        });
+    };
+
     setLoading(true);
-    setError(false);
-    fetch("/api/scores/today")
-      .then(async (res) => {
-        if (!res.ok) throw new Error("fetch failed");
-        return res.json() as Promise<ScoresResponse>;
-      })
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError(true);
-        setLoading(false);
-      });
+    loadScores();
+    const interval = setInterval(loadScores, 30 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
