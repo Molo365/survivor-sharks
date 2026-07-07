@@ -500,7 +500,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
   const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
-    picks: Array<{ gameId: string; pickedTeam?: string; confidencePoints: number }>;
+    picks: Array<{ gameId: string; pickedTeam?: string; pickedTeamName?: string; confidencePoints: number }>;
     tiebreakerRuns?: number;
     tiebreakerStrikeouts?: number;
     tiebreakerShotsOnGoal?: number;
@@ -586,7 +586,7 @@ router.post("/picks", requireAuth, async (req, res) => {
           gameDate,
           week: pool.currentWeek,
           pickedTeamId: teamLabel,
-          pickedTeamName: teamLabel,
+          pickedTeamName: pick.pickedTeamName || teamLabel,
           confidencePoints: pick.confidencePoints,
           result: "pending",
         } as any)
@@ -594,7 +594,7 @@ router.post("/picks", requireAuth, async (req, res) => {
           target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
           set: {
             pickedTeamId: teamLabel,
-            pickedTeamName: teamLabel,
+            pickedTeamName: pick.pickedTeamName || teamLabel,
             confidencePoints: pick.confidencePoints,
             result: "pending",
             updatedAt: new Date(),
@@ -649,7 +649,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         gameDate: todayEt,
         week: pool.currentWeek,
         pickedTeamId: teamLabel,
-        pickedTeamName: teamLabel,
+        pickedTeamName: pick.pickedTeamName || teamLabel,
         confidencePoints: pick.confidencePoints,
         result: "pending",
       } as any)
@@ -657,7 +657,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
           pickedTeamId: teamLabel,
-          pickedTeamName: teamLabel,
+          pickedTeamName: pick.pickedTeamName || teamLabel,
           confidencePoints: pick.confidencePoints,
           result: "pending",
           updatedAt: new Date(),
