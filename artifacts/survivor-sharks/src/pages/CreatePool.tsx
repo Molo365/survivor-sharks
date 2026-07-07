@@ -871,7 +871,7 @@ export default function CreatePool() {
                                         )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "8 Games. 8 Confidence Points."
                                           : type.tagline}</p>
-                                        <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — most correct by Sunday wins the prize pot. Tiebreaker on the last game of the week."
+                                        <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🦈🏒"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
                                           : type.description}</p>
                                       </div>
