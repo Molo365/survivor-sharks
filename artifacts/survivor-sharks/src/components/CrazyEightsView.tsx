@@ -776,6 +776,12 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
       setShowTiebreaker(false);
       toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
       await queryClient.invalidateQueries({ queryKey: myPicksKey });
+      await queryClient.invalidateQueries({ queryKey: ["crazy-eights-slate", poolId] });
+      await queryClient.invalidateQueries({ predicate: (query) =>
+        query.queryKey.some(
+          (k) => typeof k === "string" && k.startsWith(`/api/pools/${poolId}/`)
+        )
+      });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
