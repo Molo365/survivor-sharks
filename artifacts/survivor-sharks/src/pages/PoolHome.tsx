@@ -174,7 +174,7 @@ export default function PoolHome() {
                       <Zap className="w-3 h-3" /> Mid Season {pool.startWeek ? `(Wk ${pool.startWeek}+)` : ""}
                     </span>
                   )}
-                  {(pool.poolType as string) === "pickem" && (
+                  {((pool.poolType as string) === "pickem" || (pool.poolType as string) === "pickem_season") && (
                     <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
                       <Crosshair className="w-3 h-3" /> Pick-Ems{(pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
                     </span>
