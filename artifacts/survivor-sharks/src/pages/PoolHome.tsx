@@ -176,7 +176,7 @@ export default function PoolHome() {
                   )}
                   {(pool.poolType as string) === "pickem" && (
                     <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
-                      <Crosshair className="w-3 h-3" /> Pick-Ems
+                      <Crosshair className="w-3 h-3" /> Pick-Ems{(pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
                     </span>
                   )}
                   {(pool.poolType as string) === "group_stage_predictor" && (
