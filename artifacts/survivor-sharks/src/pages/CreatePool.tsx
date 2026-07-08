@@ -61,7 +61,7 @@ const SPORTS = [
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["pickem", "crazy_8s"],
+  [PoolInputSport.mlb]: ["crazy_8s"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
@@ -754,9 +754,8 @@ export default function CreatePool() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "weekly" ? "text-foreground" : "text-muted-foreground")}>Weekly Pick-Ems</span>
-                                      <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-primary/20 text-primary border-primary/30">New</span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game each day. Picks accumulate all week — most correct by Sunday wins.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game each week. Picks accumulate Mon–Sun — most correct picks by Sunday wins.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "weekly" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
                                 </div>
@@ -779,9 +778,6 @@ export default function CreatePool() {
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "crazy_8s" ? "text-foreground" : "text-muted-foreground")}>
                                         Crazy 8's
-                                      </span>
-                                      <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-purple-500/20 text-purple-400 border-purple-500/30">
-                                        MLB
                                       </span>
                                     </div>
                                     <p className="text-xs text-muted-foreground leading-snug">Pick 8 MLB games daily and rank them by confidence 1–8. Points accumulate all week — highest total by Sunday wins.</p>
