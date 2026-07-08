@@ -45,7 +45,7 @@ const ProtectedRoute = ({ component: Component }: { component: any }) => {
       </div>
     );
   }
-  if (!user) return <Redirect to="/" />;
+  if (!user) return <Redirect to="/login" />;
   return <Component />;
 };
 
