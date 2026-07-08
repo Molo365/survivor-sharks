@@ -659,11 +659,13 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
   const [submitting, setSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
     setSubmitting(true);
+    setCreateError(null);
     try {
       await adminFetch("/users", {
         method: "POST",
@@ -673,8 +675,13 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ["admin-stats"] });
       toast({ title: "User created", description: `${username} has been created` });
       onClose();
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed to create user", description: err instanceof Error ? err.message : "Unknown error" });
+    } catch (err: any) {
+      const message = err?.message?.includes("409")
+        ? "Username or email already taken"
+        : err?.message?.includes("400")
+        ? "Password must be at least 6 characters"
+        : "Failed to create user";
+      setCreateError(message);
     } finally {
       setSubmitting(false);
     }
@@ -704,7 +711,11 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           <div className="space-y-1.5">
             <Label htmlFor="cu-password">Password *</Label>
             <Input id="cu-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
           </div>
+          {createError && (
+            <p className="text-xs text-destructive">{createError}</p>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="cu-role">Role</Label>
             <Select value={role} onValueChange={(v) => setRole(v as "user" | "admin")}>
