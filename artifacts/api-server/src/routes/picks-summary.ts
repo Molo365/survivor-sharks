@@ -190,8 +190,9 @@ router.get("/summary", requireAuth, async (req, res) => {
         };
       }
 
-      // ── Crazy 8s (daily pickem — gameDate = today) ────────────────────────
+      // ── Crazy 8s (daily or weekly — respects pickFrequency) ──────────────
       if (poolType === "crazy_8s" || poolType === "crazy_eights") {
+        const isDaily = pool.pickFrequency === "daily";
         const [countRow] = await db
           .select({ cnt: count() })
           .from(pickemPicksTable)
@@ -199,7 +200,9 @@ router.get("/summary", requireAuth, async (req, res) => {
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.userId, userId),
-              eq(pickemPicksTable.gameDate, todayEt),
+              isDaily
+                ? eq(pickemPicksTable.gameDate, todayEt)
+                : eq(pickemPicksTable.week, pool.currentWeek),
             ),
           );
 
@@ -207,7 +210,7 @@ router.get("/summary", requireAuth, async (req, res) => {
         return {
           ...base,
           pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
-          summary: picked > 0 ? `${picked} picks today` : null,
+          summary: picked > 0 ? `${picked} picks ${isDaily ? "today" : "this week"}` : null,
         };
       }
 
