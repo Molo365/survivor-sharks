@@ -363,8 +363,12 @@ export async function customFetch<T = unknown>(
   const response = await fetch(input, { ...init, method, headers });
 
   if (response.status === 401) {
-    // Session expired — redirect to login
-    if (typeof window !== "undefined") {
+    // Session expired — redirect to login (skip if already on login or landing page)
+    if (
+      typeof window !== "undefined" &&
+      !window.location.pathname.includes("/login") &&
+      window.location.pathname !== "/"
+    ) {
       window.location.href = "/login";
     }
     const errorData = await parseErrorBody(response, method);
