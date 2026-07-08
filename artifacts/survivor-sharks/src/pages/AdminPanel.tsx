@@ -15,7 +15,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -39,6 +42,332 @@ function useAdminFetch() {
 interface StatData { totalUsers: number; totalPools: number; picksToday: number }
 interface PoolRow { id: number; name: string; sport: string; poolType: string; isActive: boolean; memberCount: number; commissionerName: string; currentWeek: number; season: number; createdAt: string }
 interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
+
+interface PoolDetailMember {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  status: string;
+  eliminatedWeek: number | null;
+  joinedAt: string;
+  hasPickThisWeek: boolean;
+}
+
+interface PoolDetailData {
+  id: number;
+  name: string;
+  sport: string;
+  poolType: string;
+  isActive: boolean;
+  season: number;
+  currentWeek: number;
+  sandboxMode: boolean;
+  entryFee: number;
+  prizePot: number;
+  prizeMode: string;
+  prizeStructure: string | null;
+  pickFrequency: string;
+  isRecurring: boolean;
+  inviteCode: string;
+  commissionerName: string;
+  createdAt: string;
+  closureReason: string | null;
+  endedAt: string | null;
+  totalMembers: number;
+  members: PoolDetailMember[];
+}
+
+function fmtPoolType(t: string): string {
+  const map: Record<string, string> = {
+    season: "Survivor Season", weekly: "Survivor Weekly",
+    mid_season: "Mid-Season", dirty_dozen: "Dirty Dozen",
+    pickem: "Pick-Ems", pickem_season: "Pick-Ems Season",
+    crazy_8s: "Crazy 8's", nfl_confidence: "Confidence — Season",
+    nfl_confidence_weekly: "Confidence — Weekly",
+    group_stage_predictor: "Group Stage Predictor",
+    nfl_division_predictor: "NFL Division Predictor",
+    wc_bracket: "WC Bracket",
+  };
+  return map[t] ?? t;
+}
+
+function fmtClosureReason(r: string | null): string {
+  if (!r) return "";
+  const map: Record<string, string> = {
+    cancelled_by_commissioner: "Cancelled by commissioner",
+    cancelled_by_admin: "Cancelled by admin",
+    all_eliminated: "All eliminated",
+    winner_declared: "Winner declared",
+  };
+  return map[r] ?? r;
+}
+
+function MemberStatusBadge({ status, eliminatedWeek }: { status: string; eliminatedWeek: number | null }) {
+  if (status === "alive") return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">Alive</Badge>;
+  if (status === "winner") return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]">Winner</Badge>;
+  if (status === "eliminated") {
+    const label = eliminatedWeek != null ? `Out Wk ${eliminatedWeek}` : "Eliminated";
+    return <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{label}</Badge>;
+  }
+  return <Badge variant="outline" className="text-muted-foreground text-[10px]">{status}</Badge>;
+}
+
+function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => void }) {
+  const adminFetch = useAdminFetch();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [cancelling, setCancelling] = useState(false);
+
+  const { data: detail, isLoading } = useQuery<PoolDetailData>({
+    queryKey: ["admin-pool-detail", poolId],
+    queryFn: () => adminFetch(`/pools/${poolId}/detail`),
+    staleTime: 30_000,
+  });
+
+  const handleCopyInvite = () => {
+    if (!detail) return;
+    const link = `${window.location.origin}/join/${detail.inviteCode}`;
+    navigator.clipboard.writeText(link).then(() => {
+      toast({ title: "Invite link copied" });
+    }).catch(() => {
+      toast({ variant: "destructive", title: "Failed to copy link" });
+    });
+  };
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      await adminFetch(`/pools/${poolId}/cancel`, { method: "PATCH" });
+      qc.invalidateQueries({ queryKey: ["admin-pools"] });
+      qc.invalidateQueries({ queryKey: ["admin-pool-detail", poolId] });
+      toast({ title: "Pool cancelled", description: "Pool has been marked inactive." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to cancel pool" });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const totalCollected = detail ? detail.totalMembers * detail.entryFee : 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-card border-border/60 p-0">
+        <DialogHeader className="px-6 pt-6 pb-0">
+          <DialogTitle className="font-bebas text-3xl tracking-wider text-foreground leading-none">
+            {isLoading ? "Loading…" : detail?.name}
+          </DialogTitle>
+          {detail && (
+            <p className="text-xs text-muted-foreground font-mono mt-1">Pool ID: {detail.id}</p>
+          )}
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="px-6 py-10 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+          </div>
+        ) : detail ? (
+          <div className="px-6 pb-6 space-y-6 mt-4">
+
+            {/* ── Section 1: Pool Info ─────────────────────────────── */}
+            <div>
+              <h3 className="font-bebas text-lg tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4" /> POOL INFO
+              </h3>
+              <div className="rounded-xl border border-border/50 bg-background/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Sport</p>
+                  <p className="font-medium uppercase">{detail.sport}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Pool Type</p>
+                  <p className="font-medium">{fmtPoolType(detail.poolType)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Status</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${detail.isActive ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                    <span className={detail.isActive ? "text-emerald-400 font-medium" : "text-muted-foreground"}>
+                      {detail.isActive ? "Active" : "Finished"}
+                    </span>
+                    {detail.sandboxMode && <Badge variant="outline" className="text-yellow-400 border-yellow-500/30 text-[10px] ml-1">Sandbox</Badge>}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Season</p>
+                  <p className="font-medium">{detail.season}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Current Week</p>
+                  <p className="font-medium">{detail.currentWeek}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Pick Frequency</p>
+                  <p className="font-medium capitalize">{detail.pickFrequency}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Commissioner</p>
+                  <p className="font-medium">{detail.commissionerName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Recurring</p>
+                  <p className="font-medium">{detail.isRecurring ? "Yes" : "No"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Created</p>
+                  <p className="font-medium">{new Date(detail.createdAt).toLocaleDateString()}</p>
+                </div>
+                {detail.closureReason && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Closure Reason</p>
+                    <p className="font-medium text-destructive/80">{fmtClosureReason(detail.closureReason)}</p>
+                  </div>
+                )}
+                {detail.endedAt && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Ended</p>
+                    <p className="font-medium">{new Date(detail.endedAt).toLocaleDateString()}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator className="bg-border/40" />
+
+            {/* ── Section 2: Members ──────────────────────────────── */}
+            <div>
+              <h3 className="font-bebas text-lg tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4" /> MEMBERS
+                <span className="text-primary ml-1">{detail.totalMembers}</span>
+              </h3>
+              <div className="rounded-xl border border-border/50 bg-background/40 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/40 hover:bg-transparent">
+                      <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground">Username</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground">Display Name</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground">Joined</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground">Pick Wk {detail.currentWeek}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detail.members.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No members</TableCell>
+                      </TableRow>
+                    ) : detail.members.map(m => (
+                      <TableRow key={m.userId} className="border-border/30 hover:bg-primary/5">
+                        <TableCell className="font-medium text-sm">{m.username}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{m.displayName ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(m.joinedAt).toLocaleDateString()}</TableCell>
+                        <TableCell><MemberStatusBadge status={m.status} eliminatedWeek={m.eliminatedWeek} /></TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={m.hasPickThisWeek
+                            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-[10px]"
+                            : "text-muted-foreground text-[10px]"
+                          }>
+                            {m.hasPickThisWeek ? "Submitted" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <Separator className="bg-border/40" />
+
+            {/* ── Section 3: Financials ───────────────────────────── */}
+            <div>
+              <h3 className="font-bebas text-lg tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" /> FINANCIALS
+              </h3>
+              <div className="rounded-xl border border-border/50 bg-background/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Entry Fee</p>
+                  <p className="font-medium">{detail.entryFee > 0 ? `$${detail.entryFee.toFixed(2)}` : "Free"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Total Collected</p>
+                  <p className="font-medium text-primary">${totalCollected.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Prize Pot</p>
+                  <p className="font-medium">{detail.prizePot > 0 ? `$${detail.prizePot.toFixed(2)}` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Prize Mode</p>
+                  <p className="font-medium capitalize">{detail.prizeMode.replace(/_/g, " ")}</p>
+                </div>
+                {detail.prizeStructure && (
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Prize Structure</p>
+                    <p className="font-medium text-muted-foreground text-xs leading-relaxed">{detail.prizeStructure}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator className="bg-border/40" />
+
+            {/* ── Section 4: Admin Actions ────────────────────────── */}
+            <div>
+              <h3 className="font-bebas text-lg tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Shield className="w-4 h-4" /> ADMIN ACTIONS
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyInvite}
+                  className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Invite Link
+                </Button>
+
+                {detail.isActive && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={cancelling}
+                        className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                        {cancelling ? "Cancelling…" : "Cancel Pool (Admin Override)"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="border-destructive/20">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Cancel Pool?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Force-cancel "{detail.name}" as admin. This marks the pool inactive immediately, even if members have submitted picks. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Active</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleCancel} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                          Cancel Pool
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          <div className="px-6 py-10 text-center text-muted-foreground text-sm">Pool not found.</div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ── GSP Results Section ──────────────────────────────────────────────────────
 
@@ -366,6 +695,7 @@ export default function AdminPanel() {
 
   const [wiping, setWiping] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [detailPoolId, setDetailPoolId] = useState<number | null>(null);
 
   const handleWipe = async () => {
     setWiping(true);
@@ -523,9 +853,18 @@ export default function AdminPanel() {
                     ) : !pools?.length ? (
                       <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No pools found</TableCell></TableRow>
                     ) : pools.map(pool => (
-                      <TableRow key={pool.id} className="border-border/40 hover:bg-primary/5 transition-colors">
+                      <TableRow
+                        key={pool.id}
+                        className="border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
+                        onClick={() => setDetailPoolId(pool.id)}
+                      >
                         <TableCell className="font-mono text-xs text-muted-foreground">{pool.id}</TableCell>
-                        <TableCell className="font-medium">{pool.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {pool.name}
+                            <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                          </span>
+                        </TableCell>
                         <TableCell className="uppercase text-sm text-muted-foreground">{pool.sport}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{pool.commissionerName}</TableCell>
                         <TableCell className="text-sm">{pool.memberCount}</TableCell>
@@ -534,7 +873,7 @@ export default function AdminPanel() {
                             {pool.isActive ? "Active" : "Finished"}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8">
@@ -635,6 +974,10 @@ export default function AdminPanel() {
           </Tabs>
         </section>
       </main>
+
+      {detailPoolId !== null && (
+        <PoolDetailModal poolId={detailPoolId} onClose={() => setDetailPoolId(null)} />
+      )}
     </div>
   );
 }

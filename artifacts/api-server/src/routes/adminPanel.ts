@@ -521,4 +521,103 @@ router.post("/gsp/results", async (req, res) => {
     : { saved: results.length, closedPool });
 });
 
+// GET /api/admin-panel/pools/:poolId/detail
+router.get("/pools/:poolId/detail", async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [commissioner] = await db
+    .select({ username: usersTable.username })
+    .from(usersTable)
+    .where(eq(usersTable.id, pool.commissionerId))
+    .limit(1);
+
+  const members = await db
+    .select({
+      userId: entriesTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      status: entriesTable.status,
+      eliminatedWeek: entriesTable.eliminatedWeek,
+      joinedAt: entriesTable.joinedAt,
+    })
+    .from(entriesTable)
+    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+    .where(eq(entriesTable.poolId, poolId));
+
+  const PICKEM_TYPES = new Set(["pickem", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
+  const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
+  const pt = pool.poolType as string;
+
+  const userPickSet = new Set<number>();
+  if (PICKEM_TYPES.has(pt)) {
+    const rows = await db
+      .select({ userId: pickemPicksTable.userId })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, pool.currentWeek)));
+    for (const r of rows) userPickSet.add(r.userId);
+  } else if (SURVIVOR_TYPES.has(pt)) {
+    const rows = await db
+      .select({ userId: picksTable.userId })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, poolId), eq(picksTable.week, pool.currentWeek)));
+    for (const r of rows) userPickSet.add(r.userId);
+  }
+
+  const entryFee = parseFloat(String(pool.entryFee ?? "0")) || 0;
+  const prizePot = parseFloat(String(pool.prizePot ?? "0")) || 0;
+
+  res.json({
+    id: pool.id,
+    name: pool.name,
+    sport: pool.sport,
+    poolType: pool.poolType,
+    isActive: pool.isActive,
+    season: pool.season,
+    currentWeek: pool.currentWeek,
+    sandboxMode: (pool as any).sandboxMode ?? false,
+    entryFee,
+    prizePot,
+    prizeMode: pool.prizeMode ?? "fixed",
+    prizeStructure: pool.prizeStructure ?? null,
+    pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring ?? false,
+    inviteCode: pool.inviteCode,
+    commissionerName: commissioner?.username ?? "",
+    createdAt: pool.createdAt.toISOString(),
+    closureReason: pool.closureReason ?? null,
+    endedAt: pool.endedAt?.toISOString() ?? null,
+    totalMembers: members.length,
+    members: members.map(m => ({
+      userId: m.userId,
+      username: m.username,
+      displayName: m.displayName ?? null,
+      status: m.status,
+      eliminatedWeek: m.eliminatedWeek ?? null,
+      joinedAt: m.joinedAt.toISOString(),
+      hasPickThisWeek: userPickSet.has(m.userId),
+    })),
+  });
+});
+
+// PATCH /api/admin-panel/pools/:poolId/cancel
+router.patch("/pools/:poolId/cancel", async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (!pool.isActive) { res.status(409).json({ error: "Pool is already inactive." }); return; }
+
+  await db
+    .update(poolsTable)
+    .set({ isActive: false, endedAt: new Date(), closureReason: "cancelled_by_admin" })
+    .where(eq(poolsTable.id, poolId));
+
+  res.json({ success: true });
+});
+
 export default router;
