@@ -15,7 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock, Network } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +44,8 @@ function useAdminFetch() {
 interface StatData { totalUsers: number; totalPools: number; picksToday: number }
 interface PoolRow { id: number; name: string; sport: string; poolType: string; isActive: boolean; memberCount: number; commissionerName: string; currentWeek: number; season: number; createdAt: string }
 interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
+interface AgentRow { id: number; username: string; displayName: string | null; playerCount: number; createdAt: string }
+interface PlayerRow { id: number; username: string; displayName: string | null; poolCount: number; createdAt: string }
 
 interface PoolDetailMember {
   userId: number;
@@ -649,6 +651,35 @@ function GspResultsSection() {
   );
 }
 
+function CredentialsBox({ username, password }: { username: string; password: string }) {
+  const { toast } = useToast();
+  const handleCopy = () => {
+    navigator.clipboard.writeText(`Username: ${username}\nPassword: ${password}`)
+      .then(() => toast({ title: "Credentials copied" }))
+      .catch(() => toast({ variant: "destructive", title: "Failed to copy" }));
+  };
+  return (
+    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 space-y-3">
+      <p className="text-xs font-semibold text-yellow-400 flex items-center gap-1.5">
+        <AlertTriangle className="w-3.5 h-3.5" /> Shown only once — copy now before closing
+      </p>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Username</p>
+          <p className="font-mono font-bold">{username}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Password</p>
+          <p className="font-mono font-bold">{password}</p>
+        </div>
+      </div>
+      <Button size="sm" variant="outline" className="gap-2 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300" onClick={handleCopy}>
+        <Copy className="w-3.5 h-3.5" /> Copy Credentials
+      </Button>
+    </div>
+  );
+}
+
 function CreateUserModal({ onClose }: { onClose: () => void }) {
   const adminFetch = useAdminFetch();
   const qc = useQueryClient();
@@ -798,6 +829,213 @@ function ResetPasswordModal({ userId, username, onClose }: { userId: number; use
   );
 }
 
+function CreateAgentModal({ onClose }: { onClose: () => void }) {
+  const adminFetch = useAdminFetch();
+  const qc = useQueryClient();
+  const [displayName, setDisplayName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) return;
+    setSubmitting(true);
+    setCreateError(null);
+    try {
+      const data = await adminFetch("/agents", {
+        method: "POST",
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      }) as { id: number; username: string; password: string; displayName: string };
+      qc.invalidateQueries({ queryKey: ["admin-agents"] });
+      setCreds({ username: data.username, password: data.password });
+    } catch {
+      setCreateError("Failed to create agent");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (creds) {
+    return (
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="border-border/40 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-2xl tracking-wide text-primary">Agent Created</DialogTitle>
+          </DialogHeader>
+          <CredentialsBox username={creds.username} password={creds.password} />
+          <div className="flex justify-end pt-2">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="border-border/40 max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Network className="w-5 h-5 text-primary" /> CREATE AGENT
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="ca-displayName">Display Name *</Label>
+            <Input id="ca-displayName" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoComplete="off" placeholder="Agent's real name or business" />
+          </div>
+          {createError && <p className="text-xs text-destructive">{createError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={submitting || !displayName.trim()}>
+              {submitting ? "Creating…" : "Create Agent"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddPlayerModal({ agentId, onClose, onCreated }: { agentId: number; onClose: () => void; onCreated: (creds: { username: string; password: string }) => void }) {
+  const adminFetch = useAdminFetch();
+  const [displayName, setDisplayName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) return;
+    setSubmitting(true);
+    setAddError(null);
+    try {
+      const data = await adminFetch(`/agents/${agentId}/players`, {
+        method: "POST",
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      }) as { id: number; username: string; password: string; displayName: string };
+      onCreated({ username: data.username, password: data.password });
+    } catch {
+      setAddError("Failed to create player");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="border-border/40 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide">ADD PLAYER</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="ap-displayName">Display Name *</Label>
+            <Input id="ap-displayName" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoComplete="off" placeholder="Player's name" />
+          </div>
+          {addError && <p className="text-xs text-destructive">{addError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={submitting || !displayName.trim()}>
+              {submitting ? "Adding…" : "Add Player"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AgentDetailModal({ agent, onClose }: { agent: AgentRow; onClose: () => void }) {
+  const adminFetch = useAdminFetch();
+  const qc = useQueryClient();
+  const { token } = useAdminAuth();
+  const [players, setPlayers] = useState<PlayerRow[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [playerCreds, setPlayerCreds] = useState<{ username: string; password: string } | null>(null);
+
+  const fetchPlayers = useCallback(async () => {
+    if (!token) return;
+    setLoadingPlayers(true);
+    try {
+      const data = await adminFetch(`/agents/${agent.id}/players`) as PlayerRow[];
+      setPlayers(data);
+    } catch { /* ignore */ } finally {
+      setLoadingPlayers(false);
+    }
+  }, [agent.id, token, adminFetch]);
+
+  useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+
+  const handlePlayerCreated = (creds: { username: string; password: string }) => {
+    setAddPlayerOpen(false);
+    setPlayerCreds(creds);
+    qc.invalidateQueries({ queryKey: ["admin-agents"] });
+    fetchPlayers();
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="border-border/40 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-2xl tracking-wide">
+              {agent.displayName ?? agent.username}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground font-mono">@{agent.username}</p>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {playerCreds && (
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">New player credentials:</p>
+                <CredentialsBox username={playerCreds.username} password={playerCreds.password} />
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <h3 className="font-bebas tracking-wider text-lg">PLAYERS ({players.length})</h3>
+              <Button size="sm" className="gap-2" onClick={() => { setPlayerCreds(null); setAddPlayerOpen(true); }}>
+                <UserPlus className="w-4 h-4" /> Add Player
+              </Button>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border/50 hover:bg-transparent">
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Username</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Display Name</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Pools</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingPlayers ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
+                    ))
+                  ) : !players.length ? (
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No players yet</TableCell></TableRow>
+                  ) : players.map(p => (
+                    <TableRow key={p.id} className="border-border/40">
+                      <TableCell className="font-mono text-sm">{p.username}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{p.displayName ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
+                      <TableCell className="text-sm">{p.poolCount}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{new Date(p.createdAt).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {addPlayerOpen && (
+        <AddPlayerModal agentId={agent.id} onClose={() => setAddPlayerOpen(false)} onCreated={handlePlayerCreated} />
+      )}
+    </>
+  );
+}
+
 function StatCard({ label, value, icon }: { label: string; value: number | undefined; icon: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card p-5 flex items-center gap-4">
@@ -844,6 +1082,11 @@ export default function AdminPanel() {
     queryFn: () => adminFetch("/users"),
   });
 
+  const { data: agents, isLoading: loadingAgents } = useQuery<AgentRow[]>({
+    queryKey: ["admin-agents"],
+    queryFn: () => adminFetch("/agents"),
+  });
+
   const deletePool = useMutation({
     mutationFn: (id: number) => adminFetch(`/pools/${id}`, { method: "DELETE" }),
     onSuccess: () => {
@@ -869,6 +1112,8 @@ export default function AdminPanel() {
   const [detailPoolId, setDetailPoolId] = useState<number | null>(null);
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<{ id: number; username: string } | null>(null);
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const [agentDetail, setAgentDetail] = useState<AgentRow | null>(null);
 
   const handleWipe = async () => {
     setWiping(true);
@@ -998,6 +1243,9 @@ export default function AdminPanel() {
               </TabsTrigger>
               <TabsTrigger value="users" className="font-bebas tracking-wider text-sm gap-2">
                 <Users className="w-4 h-4" /> Users {users && <span className="text-muted-foreground">({users.length})</span>}
+              </TabsTrigger>
+              <TabsTrigger value="agents" className="font-bebas tracking-wider text-sm gap-2">
+                <Network className="w-4 h-4" /> Agents {agents && <span className="text-muted-foreground">({agents.length})</span>}
               </TabsTrigger>
               <TabsTrigger value="wc-groups" className="font-bebas tracking-wider text-sm gap-2">
                 <ListOrdered className="w-4 h-4" /> WC Group Results
@@ -1159,6 +1407,51 @@ export default function AdminPanel() {
               </div>
             </TabsContent>
 
+            <TabsContent value="agents">
+              <div className="flex justify-end mb-3">
+                <Button size="sm" className="gap-2" onClick={() => setCreateAgentOpen(true)}>
+                  <Network className="w-4 h-4" /> Create Agent
+                </Button>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Display Name</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Username</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Players</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingAgents ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
+                      ))
+                    ) : !agents?.length ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No agents yet</TableCell></TableRow>
+                    ) : agents.map(agent => (
+                      <TableRow
+                        key={agent.id}
+                        className="border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
+                        onClick={() => setAgentDetail(agent)}
+                      >
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {agent.displayName ?? <span className="text-muted-foreground/40">—</span>}
+                            <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">@{agent.username}</TableCell>
+                        <TableCell className="text-sm">{agent.playerCount}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(agent.createdAt).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+
             <TabsContent value="wc-groups">
               <GspResultsSection />
             </TabsContent>
@@ -1174,6 +1467,12 @@ export default function AdminPanel() {
       )}
       {resetPwUser !== null && (
         <ResetPasswordModal userId={resetPwUser.id} username={resetPwUser.username} onClose={() => setResetPwUser(null)} />
+      )}
+      {createAgentOpen && (
+        <CreateAgentModal onClose={() => setCreateAgentOpen(false)} />
+      )}
+      {agentDetail !== null && (
+        <AgentDetailModal agent={agentDetail} onClose={() => setAgentDetail(null)} />
       )}
     </div>
   );

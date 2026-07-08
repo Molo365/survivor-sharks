@@ -201,6 +201,110 @@ router.delete("/users/:userId", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Agent helpers ─────────────────────────────────────────────────────────────
+
+function genUsername(): string {
+  const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return L[Math.floor(Math.random() * 26)] + L[Math.floor(Math.random() * 26)] + String(Math.floor(Math.random() * 900) + 100);
+}
+
+function genPassword(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let pw = "";
+  for (let i = 0; i < 6; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  return pw;
+}
+
+async function uniqueUsername(): Promise<string> {
+  for (let i = 0; i < 20; i++) {
+    const username = genUsername();
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+    if (!existing) return username;
+  }
+  throw new Error("Could not generate unique username after 20 attempts");
+}
+
+// GET /api/admin-panel/agents
+router.get("/agents", async (_req, res) => {
+  const agents = await db.select().from(usersTable).where(eq(usersTable.role, "agent")).orderBy(usersTable.createdAt);
+  const result = await Promise.all(agents.map(async (agent) => {
+    const [{ playerCount }] = await db.select({ playerCount: count() }).from(usersTable).where(eq(usersTable.agentId, agent.id));
+    return {
+      id: agent.id,
+      username: agent.username,
+      displayName: agent.displayName,
+      playerCount: Number(playerCount),
+      createdAt: agent.createdAt.toISOString(),
+    };
+  }));
+  res.json(result);
+});
+
+// POST /api/admin-panel/agents
+router.post("/agents", async (req, res) => {
+  const { displayName } = req.body;
+  if (!displayName || typeof displayName !== "string" || !displayName.trim()) {
+    res.status(400).json({ error: "displayName is required" });
+    return;
+  }
+  const username = await uniqueUsername();
+  const password = genPassword();
+  const passwordHash = await bcrypt.hash(password, 12);
+  const storedEmail = `${username}@noemail.invalid`;
+  const [agent] = await db.insert(usersTable).values({
+    username,
+    email: storedEmail,
+    passwordHash,
+    displayName: displayName.trim(),
+    role: "agent",
+  }).returning();
+  res.status(201).json({ id: agent.id, username: agent.username, password, displayName: agent.displayName });
+});
+
+// GET /api/admin-panel/agents/:agentId/players
+router.get("/agents/:agentId/players", async (req, res) => {
+  const agentId = parseInt(String(req.params.agentId));
+  if (isNaN(agentId)) { res.status(400).json({ error: "Invalid agent ID" }); return; }
+  const players = await db.select().from(usersTable).where(eq(usersTable.agentId, agentId)).orderBy(usersTable.createdAt);
+  const result = await Promise.all(players.map(async (player) => {
+    const [{ poolCount }] = await db.select({ poolCount: count() }).from(entriesTable).where(eq(entriesTable.userId, player.id));
+    return {
+      id: player.id,
+      username: player.username,
+      displayName: player.displayName,
+      poolCount: Number(poolCount),
+      createdAt: player.createdAt.toISOString(),
+    };
+  }));
+  res.json(result);
+});
+
+// POST /api/admin-panel/agents/:agentId/players
+router.post("/agents/:agentId/players", async (req, res) => {
+  const agentId = parseInt(String(req.params.agentId));
+  if (isNaN(agentId)) { res.status(400).json({ error: "Invalid agent ID" }); return; }
+  const [agent] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, agentId));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  const { displayName } = req.body;
+  if (!displayName || typeof displayName !== "string" || !displayName.trim()) {
+    res.status(400).json({ error: "displayName is required" });
+    return;
+  }
+  const username = await uniqueUsername();
+  const password = genPassword();
+  const passwordHash = await bcrypt.hash(password, 12);
+  const storedEmail = `${username}@noemail.invalid`;
+  const [player] = await db.insert(usersTable).values({
+    username,
+    email: storedEmail,
+    passwordHash,
+    displayName: displayName.trim(),
+    role: "user",
+    agentId,
+  }).returning();
+  res.status(201).json({ id: player.id, username: player.username, password, displayName: player.displayName });
+});
+
 // POST /api/admin-panel/wipe-test-data
 // Deletes pools/users whose names contain "test" (case-insensitive), plus orphaned entries/picks
 router.post("/wipe-test-data", async (_req, res) => {
