@@ -714,29 +714,6 @@ export default function CreatePool() {
                         render={({ field }) => (
                           <FormItem>
                             <div className="grid grid-cols-1 gap-3 mt-2">
-                              {/* Daily pick-em */}
-                              <button
-                                type="button"
-                                onClick={() => { form.setValue("poolType", "pickem", { shouldValidate: true }); field.onChange("daily"); setEditStep(3); }}
-                                data-testid="pickem-freq-daily"
-                                className={cn(
-                                  "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                  selectedType === "pickem" && field.value === "daily"
-                                    ? "border-primary/60 bg-primary/5 ring-2 ring-offset-1 ring-offset-background"
-                                    : "border-border/40 hover:border-border bg-card/50",
-                                )}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <Calendar className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "pickem" && field.value === "daily" ? "text-primary" : "text-muted-foreground")} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className={cn("font-bebas text-lg tracking-wide", selectedType === "pickem" && field.value === "daily" ? "text-foreground" : "text-muted-foreground")}>Daily Pick-Ems</span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game today. Most correct picks wins. Resets fresh every day.</p>
-                                  </div>
-                                  <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "daily" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
-                                </div>
-                              </button>
                               {/* Weekly pick-em */}
                               <button
                                 type="button"
