@@ -65,7 +65,7 @@ interface PoolDetailData {
   entryFee: number;
   prizePot: number;
   prizeMode: string;
-  prizeStructure: string | null;
+  prizeStructure: Array<{ place: number; amount: number }> | null;
   pickFrequency: string;
   isRecurring: boolean;
   inviteCode: string;
@@ -110,6 +110,12 @@ function MemberStatusBadge({ status, eliminatedWeek }: { status: string; elimina
     return <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{label}</Badge>;
   }
   return <Badge variant="outline" className="text-muted-foreground text-[10px]">{status}</Badge>;
+}
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
 
 function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => void }) {
@@ -309,10 +315,16 @@ function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => v
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Prize Mode</p>
                   <p className="font-medium capitalize">{detail.prizeMode.replace(/_/g, " ")}</p>
                 </div>
-                {detail.prizeStructure && (
+                {Array.isArray(detail.prizeStructure) && detail.prizeStructure.length > 0 && (
                   <div className="col-span-2">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Prize Structure</p>
-                    <p className="font-medium text-muted-foreground text-xs leading-relaxed">{detail.prizeStructure}</p>
+                    <div className="font-medium text-muted-foreground text-xs leading-relaxed space-y-0.5">
+                      {detail.prizeStructure.map((p) => (
+                        <div key={p.place}>
+                          {ordinal(p.place)}: {detail.prizeMode === "percentage" ? `${p.amount}%` : `$${p.amount}`}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
