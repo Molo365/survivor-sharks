@@ -295,6 +295,7 @@ function GameCard({
   isSelected,
   isLocked,
   sandboxMode,
+  gameHasStarted,
   confidence,
   maxConfidence,
   usedPoints,
@@ -307,6 +308,7 @@ function GameCard({
   isSelected: boolean;
   isLocked: boolean;
   sandboxMode: boolean;
+  gameHasStarted: boolean;
   confidence: number | undefined;
   maxConfidence: number;
   usedPoints: Set<number>;
@@ -319,7 +321,7 @@ function GameCard({
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
   const isPostponed = !isFinal && game.status === "postponed";
   const isSuspended = !isFinal && game.status === "suspended";
-  const isGameLocked = isSuspended || isLocked;
+  const isGameLocked = isSuspended || isLocked || (gameHasStarted && !isSelected);
 
   function teamSide(team: PickEmGame["awayTeam"], side: "away" | "home") {
     const isHome = side === "home";
@@ -1095,6 +1097,11 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
             isSelected={!!pickedTeams[game.id]}
             isLocked={isLocked}
             sandboxMode={slate?.sandboxMode ?? false}
+            gameHasStarted={
+              game.status === "in_progress" ||
+              game.status === "final" ||
+              (!(slate?.sandboxMode ?? false) && Date.now() >= new Date(game.startTime).getTime())
+            }
             confidence={confidence[game.id]}
             maxConfidence={maxConfidence}
             usedPoints={usedPoints}
