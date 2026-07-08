@@ -870,18 +870,6 @@ router.get("/week-results", requireAuth, async (req, res) => {
     picksByUser.get(pick.userId)!.picks.push(pick);
   }
 
-  // Visibility rule: a pick is only visible to other players once that specific game has kicked off.
-  {
-    const gameDateMap = new Map<string, string>(games.map((g: any) => [g.id, g.date]));
-    for (const [uid, userData] of picksByUser) {
-      if (uid === userId) continue;
-      userData.picks = userData.picks.filter(p => {
-        const gameDate = gameDateMap.get(p.gameId);
-        return gameDate != null && isGameLocked(gameDate);
-      });
-    }
-  }
-
   const hasResults = allPicks.some(p => p.result === "correct" || p.result === "incorrect");
 
   // total is always the full game count for the week, regardless of how many
