@@ -114,6 +114,7 @@ function MemberStatusBadge({ status, eliminatedWeek }: { status: string; elimina
 
 function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => void }) {
   const adminFetch = useAdminFetch();
+  const { token } = useAdminAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [cancelling, setCancelling] = useState(false);
@@ -122,6 +123,7 @@ function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => v
     queryKey: ["admin-pool-detail", poolId],
     queryFn: () => adminFetch(`/pools/${poolId}/detail`),
     staleTime: 30_000,
+    enabled: !!token && !!poolId,
   });
 
   const handleCopyInvite = () => {
