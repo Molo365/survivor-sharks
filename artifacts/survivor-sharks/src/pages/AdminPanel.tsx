@@ -119,12 +119,18 @@ function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => v
   const { toast } = useToast();
   const [cancelling, setCancelling] = useState(false);
 
-  const { data: detail, isLoading } = useQuery<PoolDetailData>({
-    queryKey: ["admin-pool-detail", poolId],
-    queryFn: () => adminFetch(`/pools/${poolId}/detail`),
-    staleTime: 30_000,
-    enabled: !!token && !!poolId,
-  });
+  const [detail, setDetail] = useState<PoolDetailData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!poolId || !token) return;
+    setIsLoading(true);
+    setFetchError(null);
+    adminFetch(`/pools/${poolId}/detail`)
+      .then((data) => { setDetail(data as PoolDetailData); setIsLoading(false); })
+      .catch((err: unknown) => { setFetchError(err instanceof Error ? err.message : "Failed to load"); setIsLoading(false); });
+  }, [poolId, token]);
 
   const handleCopyInvite = () => {
     if (!detail) return;
