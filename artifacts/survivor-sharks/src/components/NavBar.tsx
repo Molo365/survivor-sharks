@@ -59,7 +59,7 @@ export function NavBar() {
                   href="/admin/dashboard"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-accent hover:text-primary transition-colors hidden sm:inline"
+                  className="text-sm font-medium text-accent hover:text-primary transition-colors"
                   data-testid="nav-admin"
                 >
                   Super Admin
