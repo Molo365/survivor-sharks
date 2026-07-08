@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 const formSchema = z.object({
-  email: z.string().trim().email("Invalid email address"),
+  email: z.string().trim().min(1, "Email or username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -158,9 +158,9 @@ export default function Login() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-bebas text-lg tracking-wide">Email</FormLabel>
+                      <FormLabel className="font-bebas text-lg tracking-wide">Email or Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="shark@example.com" {...field} data-testid="input-email" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
+                        <Input placeholder="Email or username" {...field} data-testid="input-email" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

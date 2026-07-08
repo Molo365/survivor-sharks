@@ -101,27 +101,41 @@ router.get("/users", async (_req, res) => {
 
 // POST /api/admin-panel/users
 router.post("/users", async (req, res) => {
-  const { username, email, password, displayName, role } = req.body;
-  if (!username || !email || !password) {
-    res.status(400).json({ error: "username, email, and password are required" });
+  const { username, password, displayName, role } = req.body;
+  const emailRaw = typeof req.body.email === "string" ? req.body.email.trim() : "";
+  if (!username || !password) {
+    res.status(400).json({ error: "username and password are required" });
     return;
   }
   if (password.length < 6) {
     res.status(400).json({ error: "Password must be at least 6 characters" });
     return;
   }
-  const [existing] = await db
+  // Check username uniqueness
+  const [existingByUsername] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(or(eq(usersTable.username, username), eq(usersTable.email, email)));
-  if (existing) {
-    res.status(409).json({ error: "Username or email already taken" });
+    .where(eq(usersTable.username, username));
+  if (existingByUsername) {
+    res.status(409).json({ error: "Username already taken" });
     return;
+  }
+  // Check email uniqueness only if a real email was provided
+  const storedEmail = emailRaw || `${username}@noemail.invalid`;
+  if (emailRaw) {
+    const [existingByEmail] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, emailRaw.toLowerCase()));
+    if (existingByEmail) {
+      res.status(409).json({ error: "Email already taken" });
+      return;
+    }
   }
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(usersTable).values({
     username,
-    email,
+    email: emailRaw ? emailRaw.toLowerCase() : storedEmail,
     passwordHash,
     displayName: displayName || null,
     role: role === "admin" ? "admin" : "user",
@@ -129,7 +143,7 @@ router.post("/users", async (req, res) => {
   res.status(201).json({
     id: user.id,
     username: user.username,
-    email: user.email,
+    email: user.email.endsWith("@noemail.invalid") ? null : user.email,
     displayName: user.displayName,
     role: user.role,
     poolCount: 0,

@@ -76,14 +76,18 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   const { password } = req.body;
-  const email = typeof req.body.email === "string" ? req.body.email.trim() : req.body.email;
+  const identifier = typeof req.body.email === "string" ? req.body.email.trim() : "";
 
-  if (!email || !password) {
-    res.status(400).json({ error: "email and password are required" });
+  if (!identifier || !password) {
+    res.status(400).json({ error: "email/username and password are required" });
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
+  // Try email first, then fall back to username
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, identifier.toLowerCase())).limit(1);
+  if (!user) {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.username, identifier)).limit(1);
+  }
 
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });

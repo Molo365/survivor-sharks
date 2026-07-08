@@ -662,7 +662,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !email || !password) return;
+    if (!username || !password) return;
     setSubmitting(true);
     try {
       await adminFetch("/users", {
@@ -694,8 +694,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
             <Input id="cu-username" value={username} onChange={e => setUsername(e.target.value)} required autoComplete="off" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cu-email">Email *</Label>
-            <Input id="cu-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="off" />
+            <Label htmlFor="cu-email">Email</Label>
+            <Input id="cu-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="off" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cu-displayName">Display Name</Label>
@@ -719,7 +719,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={submitting || !username || !email || !password}>
+            <Button type="submit" disabled={submitting || !username || !password}>
               {submitting ? "Creating…" : "Create User"}
             </Button>
           </div>
