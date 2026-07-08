@@ -1,7 +1,8 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db, pool as pgPool } from "@workspace/db";
 import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable, groupStagePredictorPicksTable } from "@workspace/db";
-import { eq, count, gte, sql, and } from "drizzle-orm";
+import { eq, count, gte, sql, and, or } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
@@ -96,6 +97,66 @@ router.get("/users", async (_req, res) => {
   }));
 
   res.json(result);
+});
+
+// POST /api/admin-panel/users
+router.post("/users", async (req, res) => {
+  const { username, email, password, displayName, role } = req.body;
+  if (!username || !email || !password) {
+    res.status(400).json({ error: "username, email, and password are required" });
+    return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(or(eq(usersTable.username, username), eq(usersTable.email, email)));
+  if (existing) {
+    res.status(409).json({ error: "Username or email already taken" });
+    return;
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
+  const [user] = await db.insert(usersTable).values({
+    username,
+    email,
+    passwordHash,
+    displayName: displayName || null,
+    role: role === "admin" ? "admin" : "user",
+  }).returning();
+  res.status(201).json({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    poolCount: 0,
+    createdAt: user.createdAt.toISOString(),
+  });
+});
+
+// PATCH /api/admin-panel/users/:userId/password
+router.patch("/users/:userId/password", async (req, res) => {
+  const userId = parseInt(String(req.params.userId));
+  if (isNaN(userId)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+  const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+  res.json({ success: true });
 });
 
 // DELETE /api/admin-panel/users/:userId

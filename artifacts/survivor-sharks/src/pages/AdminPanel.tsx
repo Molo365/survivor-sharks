@@ -15,10 +15,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -647,6 +649,144 @@ function GspResultsSection() {
   );
 }
 
+function CreateUserModal({ onClose }: { onClose: () => void }) {
+  const adminFetch = useAdminFetch();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"user" | "admin">("user");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !email || !password) return;
+    setSubmitting(true);
+    try {
+      await adminFetch("/users", {
+        method: "POST",
+        body: JSON.stringify({ username, email, password, displayName: displayName || undefined, role }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast({ title: "User created", description: `${username} has been created` });
+      onClose();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to create user", description: err instanceof Error ? err.message : "Unknown error" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="border-border/40 max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-primary" /> CREATE USER
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-username">Username *</Label>
+            <Input id="cu-username" value={username} onChange={e => setUsername(e.target.value)} required autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-email">Email *</Label>
+            <Input id="cu-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-displayName">Display Name</Label>
+            <Input id="cu-displayName" value={displayName} onChange={e => setDisplayName(e.target.value)} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-password">Password *</Label>
+            <Input id="cu-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="new-password" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-role">Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as "user" | "admin")}>
+              <SelectTrigger id="cu-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={submitting || !username || !email || !password}>
+              {submitting ? "Creating…" : "Create User"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ResetPasswordModal({ userId, username, onClose }: { userId: number; username: string; onClose: () => void }) {
+  const adminFetch = useAdminFetch();
+  const { toast } = useToast();
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword || newPassword.length < 6) return;
+    setSubmitting(true);
+    try {
+      await adminFetch(`/users/${userId}/password`, {
+        method: "PATCH",
+        body: JSON.stringify({ newPassword }),
+      });
+      toast({ title: "Password reset", description: `Password for ${username} has been updated` });
+      onClose();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to reset password", description: err instanceof Error ? err.message : "Unknown error" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="border-border/40 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+            <Lock className="w-5 h-5 text-primary" /> RESET PASSWORD
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground -mt-1">Resetting password for <span className="font-medium text-foreground">{username}</span></p>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-new">New Password</Label>
+            <Input id="rp-new" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required autoComplete="new-password" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-confirm">Confirm Password</Label>
+            <Input id="rp-confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required autoComplete="new-password" className={mismatch ? "border-destructive" : ""} />
+            {mismatch && <p className="text-xs text-destructive">Passwords do not match</p>}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={submitting || mismatch || newPassword.length < 6 || !confirmPassword}>
+              {submitting ? "Saving…" : "Reset Password"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatCard({ label, value, icon }: { label: string; value: number | undefined; icon: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card p-5 flex items-center gap-4">
@@ -716,6 +856,8 @@ export default function AdminPanel() {
   const [wiping, setWiping] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [detailPoolId, setDetailPoolId] = useState<number | null>(null);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [resetPwUser, setResetPwUser] = useState<{ id: number; username: string } | null>(null);
 
   const handleWipe = async () => {
     setWiping(true);
@@ -924,30 +1066,37 @@ export default function AdminPanel() {
             </TabsContent>
 
             <TabsContent value="users">
+              <div className="flex justify-end mb-3">
+                <Button size="sm" className="gap-2" onClick={() => setCreateUserOpen(true)}>
+                  <UserPlus className="w-4 h-4" /> Create User
+                </Button>
+              </div>
               <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border/50 hover:bg-transparent">
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">ID</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Username</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Display Name</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Email</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Role</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Pools</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Joined</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">Delete</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingUsers ? (
                       Array.from({ length: 4 }).map((_, i) => (
-                        <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
+                        <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
                       ))
                     ) : !users?.length ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No users found</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No users found</TableCell></TableRow>
                     ) : users.map(user => (
                       <TableRow key={user.id} className="border-border/40 hover:bg-primary/5 transition-colors">
                         <TableCell className="font-mono text-xs text-muted-foreground">{user.id}</TableCell>
                         <TableCell className="font-medium">{user.username}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{user.displayName ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${user.role === "admin" ? "bg-primary/20 text-primary border border-primary/30" : "bg-muted text-muted-foreground"}`}>
@@ -957,29 +1106,40 @@ export default function AdminPanel() {
                         <TableCell className="text-sm">{user.poolCount}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
-                          {user.role !== "admin" && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="border-destructive/20">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Delete User?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete {user.username}? This cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteUser.mutate(user.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                    Delete Permanently
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:text-foreground hover:bg-muted/40 h-8 w-8"
+                              onClick={() => setResetPwUser({ id: user.id, username: user.username })}
+                              title="Reset password"
+                            >
+                              <Lock className="w-4 h-4" />
+                            </Button>
+                            {user.role !== "admin" && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="border-destructive/20">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-bebas text-2xl tracking-wide text-destructive">Delete User?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete {user.username}? This cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteUser.mutate(user.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                      Delete Permanently
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -997,6 +1157,12 @@ export default function AdminPanel() {
 
       {detailPoolId !== null && (
         <PoolDetailModal poolId={detailPoolId} onClose={() => setDetailPoolId(null)} />
+      )}
+      {createUserOpen && (
+        <CreateUserModal onClose={() => setCreateUserOpen(false)} />
+      )}
+      {resetPwUser !== null && (
+        <ResetPasswordModal userId={resetPwUser.id} username={resetPwUser.username} onClose={() => setResetPwUser(null)} />
       )}
     </div>
   );
