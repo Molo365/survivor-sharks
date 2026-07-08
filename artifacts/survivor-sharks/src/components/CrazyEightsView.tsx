@@ -477,10 +477,7 @@ function GameCard({
                 {isHome ? "Home" : "Away"}
               </div>
               {pitcher && (
-                <div className={cn(
-                  "text-[9px] md:text-[11px] text-muted-foreground/70 leading-snug mt-0.5 truncate",
-                  isHome ? "max-w-[120px] md:max-w-none" : "max-w-[120px] md:max-w-none",
-                )}>
+                <div className="text-[10px] md:text-[11px] text-muted-foreground/70 leading-tight mt-0.5 max-w-[160px] md:max-w-none">
                   {pitcher}
                 </div>
               )}
