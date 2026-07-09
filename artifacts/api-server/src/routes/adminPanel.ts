@@ -773,6 +773,7 @@ router.get("/pools/:poolId/detail", async (req, res) => {
       status: entriesTable.status,
       eliminatedWeek: entriesTable.eliminatedWeek,
       joinedAt: entriesTable.joinedAt,
+      finalWinner: entriesTable.finalWinner,
     })
     .from(entriesTable)
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -829,6 +830,7 @@ router.get("/pools/:poolId/detail", async (req, res) => {
       eliminatedWeek: m.eliminatedWeek ?? null,
       joinedAt: m.joinedAt.toISOString(),
       hasPickThisWeek: userPickSet.has(m.userId),
+      finalWinner: m.finalWinner ?? false,
     })),
   });
 });

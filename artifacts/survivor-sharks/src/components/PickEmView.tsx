@@ -2684,10 +2684,74 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
               {/* Pool ended — full takeover replaces slate for non-recurring pools */}
               {slate.poolClosed ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
-                  <Trophy className="w-16 h-16 text-yellow-500/60 mb-6" />
-                  <h3 className="font-bebas text-3xl tracking-widest mb-3 text-muted-foreground/70">POOL ENDED</h3>
-                  <p className="text-muted-foreground text-lg">This was a one-day pool — results are final.</p>
+                <div className="space-y-5">
+                  {/* Header banner */}
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+                    <Trophy className="w-16 h-16 text-yellow-500/60 mb-4" />
+                    <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
+                    <p className="text-muted-foreground">Results are final.</p>
+                  </div>
+                  {/* Final results — shown once leaderboard data loads */}
+                  {leaderboard && leaderboard.entries.length > 0 && (
+                    <div className="space-y-4">
+                      {/* Winner(s) banner */}
+                      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+                        <p className="text-yellow-400/80 font-bebas text-lg tracking-wider mb-2 uppercase">
+                          {leaderboard.entries.filter(e => e.correct === leaderboard.entries[0].correct).length > 1
+                            ? "Co-Winners"
+                            : "Winner"}
+                        </p>
+                        {leaderboard.entries
+                          .filter(e => e.correct === leaderboard.entries[0].correct)
+                          .map(w => (
+                            <div key={w.userId} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xl">🏆</span>
+                              <span className="font-semibold text-foreground text-lg">
+                                {w.displayName || w.username}
+                              </span>
+                              {w.userId === user?.id && (
+                                <span className="text-xs text-primary/60 font-medium">(you)</span>
+                              )}
+                              <span className="text-muted-foreground text-sm">
+                                — {w.correct}/{w.picked} correct
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                      {/* Full ranked results list */}
+                      <div className="rounded-xl border border-border/40 overflow-hidden">
+                        {leaderboard.entries.map((entry, idx) => {
+                          const isMe = entry.userId === user?.id;
+                          return (
+                            <div
+                              key={entry.userId}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
+                                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                              )}
+                            >
+                              <span className={cn(
+                                "font-bebas text-xl w-7 shrink-0 text-center",
+                                idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40",
+                              )}>
+                                {idx + 1}
+                              </span>
+                              <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
+                                {entry.displayName || entry.username}
+                                {isMe && (
+                                  <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                                <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* All games in original scheduled-time order — never reorganised */

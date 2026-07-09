@@ -55,6 +55,7 @@ interface PoolDetailMember {
   eliminatedWeek: number | null;
   joinedAt: string;
   hasPickThisWeek: boolean;
+  finalWinner: boolean;
 }
 
 interface PoolDetailData {
@@ -106,7 +107,23 @@ function fmtClosureReason(r: string | null): string {
   return map[r] ?? r;
 }
 
-function MemberStatusBadge({ status, eliminatedWeek }: { status: string; eliminatedWeek: number | null }) {
+function MemberStatusBadge({
+  status, eliminatedWeek, isPickem, poolEnded, finalWinner,
+}: {
+  status: string;
+  eliminatedWeek: number | null;
+  isPickem?: boolean;
+  poolEnded?: boolean;
+  finalWinner?: boolean;
+}) {
+  // Pick-Em pools: the entry status field stays "alive" forever (no eliminator).
+  // For ended Pick-Em pools use finalWinner to show the correct badge.
+  if (poolEnded && isPickem) {
+    if (finalWinner) {
+      return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]">🏆 Winner</Badge>;
+    }
+    return <Badge variant="outline" className="text-muted-foreground/60 border-border/40 text-[10px]">Played</Badge>;
+  }
   if (status === "alive") return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">Alive</Badge>;
   if (status === "winner") return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]">Winner</Badge>;
   if (status === "eliminated") {
@@ -279,7 +296,13 @@ function PoolDetailModal({ poolId, onClose }: { poolId: number; onClose: () => v
                         <TableCell className="font-medium text-sm">{m.username}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{m.displayName ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(m.joinedAt).toLocaleDateString()}</TableCell>
-                        <TableCell><MemberStatusBadge status={m.status} eliminatedWeek={m.eliminatedWeek} /></TableCell>
+                        <TableCell><MemberStatusBadge
+                          status={m.status}
+                          eliminatedWeek={m.eliminatedWeek}
+                          isPickem={["pickem","pickem_season","crazy_8s","nfl_confidence","nfl_confidence_weekly"].includes(detail.poolType)}
+                          poolEnded={!detail.isActive}
+                          finalWinner={m.finalWinner}
+                        /></TableCell>
                         <TableCell>
                           <Badge variant="outline" className={m.hasPickThisWeek
                             ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-[10px]"

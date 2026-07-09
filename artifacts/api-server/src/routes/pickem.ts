@@ -886,11 +886,24 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const weekBounds = isWeekly ? getWeekBoundsEt(todayEt) : null;
 
+  // For ended daily pools use the actual last game date so the leaderboard
+  // returns the final standings rather than an empty today-date result set.
+  let dailyDate = todayEt;
+  if (!pool.isActive && !isWc && !isIntl && !isWeekly) {
+    const [latestRow] = await db
+      .select({ gameDate: pickemPicksTable.gameDate })
+      .from(pickemPicksTable)
+      .where(eq(pickemPicksTable.poolId, poolId))
+      .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
+      .limit(1);
+    if (latestRow) dailyDate = latestRow.gameDate;
+  }
+
   // Build picks WHERE clause:
   //   WC     → full phase date range
   //   intl   → all picks in pool (cumulative standings)
   //   weekly → current Mon–Sun week
-  //   other  → today only
+  //   other  → today (or last game date for ended daily pools)
   const picksWhereClause = isWc
     ? and(
         eq(pickemPicksTable.poolId, poolId),
@@ -905,7 +918,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         gte(pickemPicksTable.gameDate, weekBounds!.weekStart),
         lte(pickemPicksTable.gameDate, weekBounds!.weekEnd),
       )
-    : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, todayEt));
+    : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, dailyDate));
 
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
