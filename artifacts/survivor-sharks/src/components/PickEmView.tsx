@@ -2715,12 +2715,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               )}
                               <span className="text-muted-foreground text-sm">
                                 — {w.correct}/{w.picked} correct
-                                {(entryFee == null || entryFee === 0) && (
-                                  <span> · Free pool</span>
-                                )}
                               </span>
                             </div>
                           ))}
+                        {(entryFee == null || entryFee === 0) && (
+                          <span className="inline-block mt-2 px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-full border border-yellow-500/40 text-yellow-400 bg-yellow-500/10">
+                            Free Pool
+                          </span>
+                        )}
                       </div>
                       {/* Full ranked results list */}
                       <div className="rounded-xl border border-border/40 overflow-hidden">

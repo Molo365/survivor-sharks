@@ -383,6 +383,13 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             />
           </CardFooter>
         )}
+        {pt === "pickem" && !isWeekly && !pool.isActive && (pool.entryFee == null || pool.entryFee === 0) && (
+          <CardFooter className="pt-0 pb-4">
+            <div className="w-full p-2 bg-primary/10 rounded border border-primary/20 text-center">
+              <span className="font-bebas text-lg text-primary">Free Pool</span>
+            </div>
+          </CardFooter>
+        )}
       </Card>
     </Link>
   );
