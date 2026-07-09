@@ -15,6 +15,7 @@ import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getTodayEtDate } from "../lib/espn";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
+import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 
 const router = Router();
 
@@ -606,18 +607,47 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── WC Bracket ──────────────────────────────────────────────────────────
       if (poolType === "wc_bracket") {
-        const allPickRows = await db
-          .select({
-            userId: wcBracketPicksTable.userId,
-            score: sql<string>`COALESCE(SUM(CASE WHEN ${wcBracketPicksTable.isCorrect} IS TRUE THEN CASE ${wcBracketPicksTable.round} WHEN 'round_of_32' THEN 10 WHEN 'round_of_16' THEN 20 WHEN 'quarterfinals' THEN 40 WHEN 'semifinals' THEN 80 WHEN 'final' THEN 160 ELSE 0 END ELSE 0 END), 0)`,
-            correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} IS TRUE)`,
-            picked: sql<string>`COUNT(*)`,
-          })
-          .from(wcBracketPicksTable)
-          .where(eq(wcBracketPicksTable.poolId, pool.id))
-          .groupBy(wcBracketPicksTable.userId);
+        // Resolve current-round event IDs to determine hasPicks correctly.
+        // The all-time score/correct query below remains unfiltered — that
+        // drives the leaderboard and must include all historical rounds.
+        const currentRoundEventIds = await getCurrentBracketRoundEventIds(pool.id);
+
+        const [allPickRows, currentRoundPickRows] = await Promise.all([
+          // All-time picks: used for leaderboard score + correct count
+          db
+            .select({
+              userId: wcBracketPicksTable.userId,
+              score: sql<string>`COALESCE(SUM(CASE WHEN ${wcBracketPicksTable.isCorrect} IS TRUE THEN CASE ${wcBracketPicksTable.round} WHEN 'round_of_32' THEN 10 WHEN 'round_of_16' THEN 20 WHEN 'quarterfinals' THEN 40 WHEN 'semifinals' THEN 80 WHEN 'final' THEN 160 ELSE 0 END ELSE 0 END), 0)`,
+              correct: sql<string>`COUNT(*) FILTER (WHERE ${wcBracketPicksTable.isCorrect} IS TRUE)`,
+              picked: sql<string>`COUNT(*)`,
+            })
+            .from(wcBracketPicksTable)
+            .where(eq(wcBracketPicksTable.poolId, pool.id))
+            .groupBy(wcBracketPicksTable.userId),
+          // Current-round picks only: used for hasPicks so stale prior-round
+          // picks don't falsely mark the player as having submitted this round.
+          currentRoundEventIds && currentRoundEventIds.length > 0
+            ? db
+                .select({
+                  userId: wcBracketPicksTable.userId,
+                  cnt: sql<string>`COUNT(*)`,
+                })
+                .from(wcBracketPicksTable)
+                .where(
+                  and(
+                    eq(wcBracketPicksTable.poolId, pool.id),
+                    inArray(wcBracketPicksTable.espnEventId, currentRoundEventIds),
+                  ),
+                )
+                .groupBy(wcBracketPicksTable.userId)
+            : Promise.resolve([] as { userId: number; cnt: string }[]),
+        ]);
 
         const myRow = allPickRows.find((r) => r.userId === userId) ?? null;
+        const currentRoundPickMap = new Map(currentRoundPickRows.map((r) => [r.userId, Number(r.cnt)]));
+        const hasPicks =
+          (currentRoundEventIds?.length ?? 0) > 0 &&
+          (currentRoundPickMap.get(userId) ?? 0) > 0;
 
         return {
           poolId: pool.id,
@@ -627,7 +657,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             rank: computeRank(allPickRows.map((r) => ({ ...r, score: Number(r.score) })), userId),
             correct: myRow ? Number(myRow.correct) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
-            hasPicks: !!myRow && Number(myRow.picked) > 0,
+            hasPicks,
             status: null,
             eliminatedWeek: null,
             score: myRow ? Number(myRow.score) : null,

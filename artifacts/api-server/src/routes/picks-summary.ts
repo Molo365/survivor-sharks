@@ -13,6 +13,7 @@ import {
 import { eq, and, count, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getTodayEtDate } from "../lib/espn";
+import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 
 const router = Router();
 
@@ -172,6 +173,19 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── WC Bracket ────────────────────────────────────────────────────────
       if (poolType === "wc_bracket") {
+        // Resolve the current active round's ESPN event IDs so we only count
+        // picks for the round that is actually open/in-progress, not stale
+        // picks from prior rounds (e.g. R32 picks when QF is now active).
+        const currentRoundEventIds = await getCurrentBracketRoundEventIds(pool.id);
+
+        if (!currentRoundEventIds || currentRoundEventIds.length === 0) {
+          return {
+            ...base,
+            pickStatus: "pending" as PickStatus,
+            summary: null,
+          };
+        }
+
         const [countRow] = await db
           .select({ cnt: count() })
           .from(wcBracketPicksTable)
@@ -179,6 +193,7 @@ router.get("/summary", requireAuth, async (req, res) => {
             and(
               eq(wcBracketPicksTable.poolId, pool.id),
               eq(wcBracketPicksTable.userId, userId),
+              inArray(wcBracketPicksTable.espnEventId, currentRoundEventIds),
             ),
           );
 
@@ -186,7 +201,7 @@ router.get("/summary", requireAuth, async (req, res) => {
         return {
           ...base,
           pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
-          summary: picked > 0 ? `${picked} matches picked` : null,
+          summary: picked > 0 ? `${picked}/${currentRoundEventIds.length} picked` : null,
         };
       }
 
