@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, poolsTable, entriesTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -55,6 +55,70 @@ router.patch("/players/:playerId/password", async (req, res) => {
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, playerId));
   res.json({ success: true });
+});
+
+// GET /api/agent/balances — per-player pool balance sheet for the logged-in agent
+router.get("/balances", async (req, res) => {
+  const agentId = req.user!.id;
+
+  // 1. All players belonging to this agent
+  const players = await db
+    .select({ id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.agentId, agentId))
+    .orderBy(usersTable.createdAt);
+
+  if (!players.length) {
+    res.json([]);
+    return;
+  }
+
+  const playerIds = players.map((p) => p.id);
+
+  // 2. All entries for those players, joined with pool info
+  const rows = await db
+    .select({
+      userId: entriesTable.userId,
+      poolId: poolsTable.id,
+      poolName: poolsTable.name,
+      sport: poolsTable.sport,
+      entryFee: poolsTable.entryFee,
+      isActive: poolsTable.isActive,
+    })
+    .from(entriesTable)
+    .innerJoin(poolsTable, eq(entriesTable.poolId, poolsTable.id))
+    .where(inArray(entriesTable.userId, playerIds))
+    .orderBy(poolsTable.name);
+
+  // 3. Build per-player balance objects
+  const result = players.map((player) => {
+    const pools = rows
+      .filter((r) => r.userId === player.id)
+      .map((r) => ({
+        poolId: r.poolId,
+        poolName: r.poolName,
+        sport: r.sport,
+        entryFee: r.entryFee ?? 0,
+        isActive: r.isActive,
+        prizeWon: 0,   // not settled yet
+        settled: false,
+      }));
+
+    const totalOwed = pools.reduce((s, p) => s + p.entryFee, 0);
+    const totalWon  = pools.reduce((s, p) => s + p.prizeWon, 0);
+
+    return {
+      id: player.id,
+      username: player.username,
+      displayName: player.displayName,
+      pools,
+      totalOwed,
+      totalWon,
+      netBalance: totalOwed - totalWon,
+    };
+  });
+
+  res.json(result);
 });
 
 export default router;
