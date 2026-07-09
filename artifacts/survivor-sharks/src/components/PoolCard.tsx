@@ -178,17 +178,32 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_confidence" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
-                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
-                    <span>
-                      You&apos;re{" "}
-                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
-                        {ordinal(pickEmStat.myStanding.rank)}
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {pickEmStat.myStanding.rank === 1 ? "You won!" : pickEmStat.myStanding.rank === 2 ? "2nd place" : pickEmStat.myStanding.rank === 3 ? "3rd place" : `Pool ended · ${ordinal(pickEmStat.myStanding.rank)} place`}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pickEmStat.myStanding.score ?? 0} pts</span>
-                  </div>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400">${(pickEmStat.myStanding as any).prizeWon}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {ordinal(pickEmStat.myStanding.rank)}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.score ?? 0} pts</span>
+                    </div>
+                  )
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -197,17 +212,32 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_confidence_weekly" || pt === "crazy_8s" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
-                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
-                    <span>
-                      You&apos;re{" "}
-                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
-                        {ordinal(pickEmStat.myStanding.rank)}
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {pickEmStat.myStanding.rank === 1 ? "You won!" : pickEmStat.myStanding.rank === 2 ? "2nd place" : pickEmStat.myStanding.rank === 3 ? "3rd place" : `Pool ended · ${ordinal(pickEmStat.myStanding.rank)} place`}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pickEmStat.myStanding.score ?? 0} pts this week</span>
-                  </div>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400">${(pickEmStat.myStanding as any).prizeWon}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {ordinal(pickEmStat.myStanding.rank)}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.score ?? 0} pts this week</span>
+                    </div>
+                  )
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -216,22 +246,37 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "nfl_division_predictor" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
-                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
-                    <span>
-                      You&apos;re{" "}
-                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
-                        {ordinal(pickEmStat.myStanding.rank)}
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {pickEmStat.myStanding.rank === 1 ? "You won!" : pickEmStat.myStanding.rank === 2 ? "2nd place" : pickEmStat.myStanding.rank === 3 ? "3rd place" : `Pool ended · ${ordinal(pickEmStat.myStanding.rank)} place`}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pickEmStat.myStanding.score ?? 0}/{pickEmStat.myStanding.maxScore ?? 96} pts</span>
-                    {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
-                      <span className="text-yellow-400 font-bold">
-                        · ${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400">${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {ordinal(pickEmStat.myStanding.rank)}
+                        </span>
                       </span>
-                    )}
-                  </div>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.score ?? 0}/{pickEmStat.myStanding.maxScore ?? 96} pts</span>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <span className="text-yellow-400 font-bold">
+                          · ${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )
                 ) : pickEmStat.myStanding.hasPicks ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden>📋</span>
@@ -245,17 +290,32 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 )
               ) : pt === "wc_bracket" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
-                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
-                    <span>
-                      You&apos;re{" "}
-                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
-                        {ordinal(pickEmStat.myStanding.rank)}
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {pickEmStat.myStanding.rank === 1 ? "You won!" : pickEmStat.myStanding.rank === 2 ? "2nd place" : pickEmStat.myStanding.rank === 3 ? "3rd place" : `Pool ended · ${ordinal(pickEmStat.myStanding.rank)} place`}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
-                  </div>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400">${(pickEmStat.myStanding as any).prizeWon}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {ordinal(pickEmStat.myStanding.rank)}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
+                    </div>
+                  )
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -265,17 +325,32 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               ) : (
                 /* pickem (MLB/WC pickem) and pickem_season — "X/Y correct" style */
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
-                  <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
-                    <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
-                    <span>
-                      You&apos;re{" "}
-                      <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
-                        {ordinal(pickEmStat.myStanding.rank)}
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {pickEmStat.myStanding.rank === 1 ? "You won!" : pickEmStat.myStanding.rank === 2 ? "2nd place" : pickEmStat.myStanding.rank === 3 ? "3rd place" : `Pool ended · ${ordinal(pickEmStat.myStanding.rank)} place`}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
-                  </div>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400">${(pickEmStat.myStanding as any).prizeWon}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {ordinal(pickEmStat.myStanding.rank)}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
+                    </div>
+                  )
                 ) : !pool.isActive ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden>🏁</span>
