@@ -507,8 +507,8 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerPenaltyMinutes?: number;
   };
 
-  if (!Array.isArray(picks) || picks.length !== 8) {
-    res.status(400).json({ error: "Exactly 8 picks are required" });
+  if (!Array.isArray(picks) || picks.length === 0) {
+    res.status(400).json({ error: "picks array is required" });
     return;
   }
 
@@ -517,12 +517,6 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: "Each pick must have gameId and confidencePoints" });
       return;
     }
-  }
-
-  const cpSorted = picks.map((p) => p.confidencePoints).sort((a, b) => a - b);
-  if (!cpSorted.every((v, i) => v === i + 1)) {
-    res.status(400).json({ error: "Confidence points 1-8 must each be used exactly once" });
-    return;
   }
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
@@ -551,6 +545,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       return;
     }
 
+    const isSandbox = (pool as any).sandboxMode as boolean;
     const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
 
@@ -561,7 +556,27 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
-    const isSandbox = (pool as any).sandboxMode as boolean;
+    const nowMs = Date.now();
+    const availableCount = isSandbox
+      ? games.length
+      : games.filter(g => {
+          const startMs = new Date(g.date).getTime();
+          return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
+        }).length;
+    if (availableCount === 0) {
+      res.status(400).json({ error: "No games available to pick — all games have started" });
+      return;
+    }
+    if (picks.length !== availableCount) {
+      res.status(400).json({ error: `Expected ${availableCount} picks, got ${picks.length}` });
+      return;
+    }
+    const cpSortedNhl = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
+    if (!cpSortedNhl.every((v, i) => v === i + 1)) {
+      res.status(400).json({ error: `Confidence points 1-${availableCount} must each be used exactly once` });
+      return;
+    }
+
     const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
     // In sandbox mode the anchor games are historical; skip the real-time lock.
     if (!isSandbox) {
@@ -628,6 +643,25 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: `Unknown game: ${pick.gameId}` });
       return;
     }
+  }
+
+  const nowMlb = Date.now();
+  const availableCountMlb = games.filter(g => {
+    const startMs = new Date(g.date).getTime();
+    return g.status !== "in_progress" && g.status !== "final" && nowMlb < startMs;
+  }).length;
+  if (availableCountMlb === 0) {
+    res.status(400).json({ error: "No games available to pick — all games have started" });
+    return;
+  }
+  if (picks.length !== availableCountMlb) {
+    res.status(400).json({ error: `Expected ${availableCountMlb} picks, got ${picks.length}` });
+    return;
+  }
+  const cpSortedMlb = picks.map((p) => p.confidencePoints).sort((a, b) => a - b);
+  if (!cpSortedMlb.every((v, i) => v === i + 1)) {
+    res.status(400).json({ error: `Confidence points 1-${availableCountMlb} must each be used exactly once` });
+    return;
   }
 
   const selectedGames = picks.map((p) => gameMap.get(p.gameId)!);

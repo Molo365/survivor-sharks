@@ -11,7 +11,13 @@ import { cn } from "@/lib/utils";
 import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock, Snowflake } from "lucide-react";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 
-const MAX_PICKS = 8;
+function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
+  return (
+    game.status === "in_progress" ||
+    game.status === "final" ||
+    (!sandboxMode && Date.now() >= new Date(game.startTime).getTime())
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -349,7 +355,7 @@ function LockedPicksView({
 
       <div>
         <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">
-          8 Picks · Sorted by confidence
+          {picks.length} Pick{picks.length === 1 ? "" : "s"} · Sorted by confidence
         </p>
         <div className="space-y-2">
           {sorted.map((pick) => (
@@ -401,6 +407,7 @@ function GameCard({
   confidence,
   usedPoints,
   pickedTeam,
+  maxPicks,
   onTeamClick,
   onAssignConfidence,
 }: {
@@ -412,6 +419,7 @@ function GameCard({
   confidence: number | undefined;
   usedPoints: Set<number>;
   pickedTeam: string | null;
+  maxPicks: number;
   onTeamClick: (teamId: string) => void;
   onAssignConfidence: (pts: number) => void;
 }) {
@@ -558,7 +566,7 @@ function GameCard({
             Confidence points
           </p>
           <div className="flex flex-wrap gap-1">
-            {Array.from({ length: MAX_PICKS }, (_, i) => i + 1).map((pts) => {
+            {Array.from({ length: maxPicks }, (_, i) => i + 1).map((pts) => {
               const taken = usedPoints.has(pts) && confidence !== pts;
               return (
                 <button
@@ -662,6 +670,11 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
   const games: SlateGame[] = slateData?.games ?? [];
   const sandboxMode = slateData?.sandboxMode ?? false;
 
+  const MAX_PICKS = useMemo(
+    () => games.filter(g => !isGameStarted(g, sandboxMode)).length,
+    [games, sandboxMode]
+  );
+
   const existingPicks = myPicksData?.picks ?? [];
   const hasPicks = existingPicks.length > 0;
 
@@ -693,7 +706,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
       }
     } else {
       if (selectedIds.length >= MAX_PICKS) {
-        toast({ title: "8 games max", description: "Deselect a game before adding another.", variant: "destructive" });
+        toast({ title: `${MAX_PICKS} games max`, description: "Deselect a game before adding another.", variant: "destructive" });
         return;
       }
       setSelectedIds((prev) => [...prev, gameId]);
@@ -714,7 +727,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
 
   function handleSubmitClick() {
     if (selectedIds.length < MAX_PICKS) {
-      toast({ title: "Select 8 games", description: "You must choose exactly 8 games.", variant: "destructive" });
+      toast({ title: `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}`, description: `You must choose exactly ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}.`, variant: "destructive" });
       return;
     }
     if (!selectedIds.every((id) => pickedTeams[id])) {
@@ -722,7 +735,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
       return;
     }
     if (!allReady) {
-      toast({ title: "Assign all confidence points", description: "Each selected game needs a point value 1–8.", variant: "destructive" });
+      toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
       return;
     }
     setShowTiebreaker(true);
@@ -831,6 +844,18 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
     );
   }
 
+  // ── All games started ─────────────────────────────────────────────────────
+
+  if (MAX_PICKS === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+        <p className="font-bebas text-2xl tracking-wide mb-1">No Games Available</p>
+        <p className="text-sm">All games for this period have already started.</p>
+      </div>
+    );
+  }
+
   // ── Open selection UI ─────────────────────────────────────────────────────
 
   const missingWinner = selectedIds.some((id) => !pickedTeams[id]);
@@ -859,7 +884,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
               : "Crazy 8's — Today's Slate"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Select 8 games, pick a winner for each, and assign confidence points 1–8.
+            Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
           </p>
           {!isLocked && !hasPicks && (
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -962,14 +987,11 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
             sport={sport}
             isSelected={selectedIds.includes(game.id)}
             isLocked={isLocked}
-            gameHasStarted={
-              game.status === "in_progress" ||
-              game.status === "final" ||
-              (!sandboxMode && Date.now() >= new Date(game.startTime).getTime())
-            }
+            gameHasStarted={isGameStarted(game, sandboxMode)}
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
+            maxPicks={MAX_PICKS}
             onTeamClick={(teamId) => handleTeamClick(game.id, teamId)}
             onAssignConfidence={(pts) => assignConfidence(game.id, pts)}
           />
