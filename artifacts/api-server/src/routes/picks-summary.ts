@@ -91,6 +91,13 @@ router.get("/summary", requireAuth, async (req, res) => {
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
         const isDaily = pool.pickFrequency === "daily";
+        // For ended daily pools (pool.isActive === false): omit the date filter
+        // so any historical picks count — the game date has already passed.
+        // For active daily pools: restrict to today's date.
+        // For weekly/season pools: restrict to the current week number.
+        const dateFilter = isDaily
+          ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)
+          : eq(pickemPicksTable.week, pool.currentWeek);
         const [countRow] = await db
           .select({ cnt: count() })
           .from(pickemPicksTable)
@@ -98,9 +105,7 @@ router.get("/summary", requireAuth, async (req, res) => {
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.userId, userId),
-              isDaily
-                ? eq(pickemPicksTable.gameDate, todayEt)
-                : eq(pickemPicksTable.week, pool.currentWeek),
+              dateFilter,
             ),
           );
 

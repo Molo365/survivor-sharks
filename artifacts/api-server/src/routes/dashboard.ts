@@ -766,6 +766,92 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       const isIntl = sport === "intl";
       const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl;
 
+      // ── Ended daily pickem: use actual game date and entries.finalWinner ─────
+      // The standard path below uses todayEt / yesterdayEt which are wrong once
+      // the pool's game day has passed. For ended non-recurring daily pools we
+      // look up the most recent game_date in the picks table and read lastWinners
+      // directly from the entries.final_winner flag set by process-results.
+      if (!isWeekly && !isWc && !isIntl && !pool.isActive) {
+        const [latestDateRow] = await db
+          .select({ gameDate: pickemPicksTable.gameDate })
+          .from(pickemPicksTable)
+          .where(eq(pickemPicksTable.poolId, pool.id))
+          .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
+          .limit(1);
+
+        const actualGameDate = latestDateRow?.gameDate ?? null;
+
+        const [currentRows, winnerRows] = await Promise.all([
+          actualGameDate
+            ? db
+                .select({
+                  userId: pickemPicksTable.userId,
+                  correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                  picked: sql<string>`COUNT(*)`,
+                })
+                .from(pickemPicksTable)
+                .where(and(
+                  eq(pickemPicksTable.poolId, pool.id),
+                  eq(pickemPicksTable.gameDate, actualGameDate),
+                ))
+                .groupBy(pickemPicksTable.userId)
+                .orderBy(
+                  sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+                  sql`COUNT(*) DESC`,
+                )
+            : Promise.resolve([] as { userId: number; correct: string; picked: string }[]),
+          db
+            .select({
+              userId: entriesTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+            })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))),
+        ]);
+
+        const myIdx = currentRows.findIndex((r) => r.userId === userId);
+        const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+        const lastWinners =
+          winnerRows.length > 0
+            ? winnerRows.map((w) => {
+                const scoreRow = currentRows.find((r) => r.userId === w.userId);
+                return {
+                  userId: w.userId,
+                  username: w.username,
+                  displayName: w.displayName ?? null,
+                  correct: scoreRow ? Number(scoreRow.correct) : null,
+                  picked: scoreRow ? Number(scoreRow.picked) : null,
+                  score: null,
+                  prizeWon: computeSplitPrize(pool, winnerRows.length, memberCountMap.get(pool.id) ?? 0),
+                };
+              })
+            : null;
+
+        const myStanding =
+          myRow != null
+            ? {
+                rank: myIdx + 1,
+                correct: Number(myRow.correct),
+                picked: Number(myRow.picked),
+                hasPicks: Number(myRow.picked) > 0,
+                status: null, eliminatedWeek: null, score: null, maxScore: null,
+              }
+            : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+
+        return {
+          poolId: pool.id,
+          poolName: pool.name,
+          poolType,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
+          lastWinners,
+          myStanding,
+        };
+      }
+
       const currentStart = isWc
         ? WC_PHASES[currentWcPhase].start
         : isWeekly

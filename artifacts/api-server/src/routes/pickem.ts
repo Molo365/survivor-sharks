@@ -1311,10 +1311,63 @@ router.post("/process-results", requireAuth, async (req, res) => {
     }
   }
 
+  // ── Daily pickem closure (non-WC, non-recurring) ─────────────────────────
+  // Fires when: non-WC non-intl daily pool, pool still active, zero pending picks remain.
+  // Sets final_winner on the top scorer(s) (ties = co-winners) and inactivates the pool.
+  // Safe to re-run: pool.isActive guard means it only fires once.
+  const isDailyPickem = !isWc && !isIntl && pool.pickFrequency === "daily" && !pool.isRecurring;
+  let dailyClosed = false;
+  let dailyWinnerCount = 0;
+
+  if (isDailyPickem && pool.isActive) {
+    const [{ pendingCount }] = await db
+      .select({ pendingCount: sql<string>`COUNT(*)` })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.result, "pending")));
+
+    if (Number(pendingCount) === 0) {
+      const totals = await db
+        .select({
+          userId: pickemPicksTable.userId,
+          correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        })
+        .from(pickemPicksTable)
+        .where(eq(pickemPicksTable.poolId, poolId))
+        .groupBy(pickemPicksTable.userId);
+
+      if (totals.length > 0) {
+        const maxCorrect = Math.max(...totals.map((r) => Number(r.correct)));
+        const winnerIds = totals
+          .filter((r) => Number(r.correct) === maxCorrect)
+          .map((r) => r.userId);
+
+        if (winnerIds.length > 0) {
+          await db
+            .update(entriesTable)
+            .set({ finalWinner: true })
+            .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+
+          await db
+            .update(poolsTable)
+            .set({ isActive: false, endedAt: new Date() })
+            .where(eq(poolsTable.id, poolId));
+
+          dailyClosed = true;
+          dailyWinnerCount = winnerIds.length;
+          req.log.info(
+            { poolId, maxCorrect, winnerCount: winnerIds.length, winnerIds },
+            "Daily Pick-Ems: all picks graded — pool closed and winner(s) declared",
+          );
+        }
+      }
+    }
+  }
+
   res.json({
     processed,
     date: todayEt,
     ...(isWc ? { wcGroupStageClosed, wcGroupStageWinnerCount } : {}),
+    ...(isDailyPickem ? { dailyClosed, dailyWinnerCount } : {}),
   });
 });
 
