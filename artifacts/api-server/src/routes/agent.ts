@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable, poolsTable, entriesTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -84,25 +84,75 @@ router.get("/balances", async (req, res) => {
       sport: poolsTable.sport,
       entryFee: poolsTable.entryFee,
       isActive: poolsTable.isActive,
+      prizeStructure: poolsTable.prizeStructure,
+      prizePot: poolsTable.prizePot,
+      prizeMode: poolsTable.prizeMode,
+      finalWinner: entriesTable.finalWinner,
     })
     .from(entriesTable)
     .innerJoin(poolsTable, eq(entriesTable.poolId, poolsTable.id))
     .where(inArray(entriesTable.userId, playerIds))
     .orderBy(poolsTable.name);
 
-  // 3. Build per-player balance objects
+  // 3. Member counts and co-winner counts per pool (needed for prize computation)
+  const uniquePoolIds = [...new Set(rows.map((r) => r.poolId))];
+  const [memberCountRows, coWinnerCountRows] = uniquePoolIds.length > 0
+    ? await Promise.all([
+        db.select({ poolId: entriesTable.poolId, cnt: sql<string>`COUNT(*)` })
+          .from(entriesTable)
+          .where(inArray(entriesTable.poolId, uniquePoolIds))
+          .groupBy(entriesTable.poolId),
+        db.select({ poolId: entriesTable.poolId, cnt: sql<string>`COUNT(*)` })
+          .from(entriesTable)
+          .where(and(inArray(entriesTable.poolId, uniquePoolIds), eq(entriesTable.finalWinner, true)))
+          .groupBy(entriesTable.poolId),
+      ])
+    : [[], []];
+
+  const memberCountMap = new Map(memberCountRows.map((r) => [r.poolId, Number(r.cnt)]));
+  const coWinnerCountMap = new Map(coWinnerCountRows.map((r) => [r.poolId, Number(r.cnt)]));
+
+  // 4. Build per-player balance objects
   const result = players.map((player) => {
     const pools = rows
       .filter((r) => r.userId === player.id)
-      .map((r) => ({
-        poolId: r.poolId,
-        poolName: r.poolName,
-        sport: r.sport,
-        entryFee: r.entryFee ?? 0,
-        isActive: r.isActive,
-        prizeWon: 0,   // not settled yet
-        settled: false,
-      }));
+      .map((r) => {
+        let prizeWon = 0;
+        if (r.finalWinner) {
+          const ps = r.prizeStructure as Array<{ place: number; amount: number }> | null;
+          const entryFee = r.entryFee ?? 0;
+          const memberCount = memberCountMap.get(r.poolId) ?? 0;
+          const coWinnerCount = coWinnerCountMap.get(r.poolId) ?? 1;
+
+          let firstPrize = 0;
+          if (ps && ps.length > 0) {
+            const first = ps.find((p) => p.place === 1);
+            if (first) {
+              if (r.prizeMode === "pct") {
+                if (entryFee > 0 && memberCount > 0) {
+                  firstPrize = Math.floor((first.amount / 100) * entryFee * memberCount / 5) * 5;
+                }
+              } else {
+                firstPrize = first.amount;
+              }
+            }
+          } else if (r.prizePot && r.prizePot > 0) {
+            firstPrize = Math.floor(r.prizePot);
+          }
+
+          prizeWon = coWinnerCount > 1 ? Math.floor(firstPrize / coWinnerCount) : firstPrize;
+        }
+
+        return {
+          poolId: r.poolId,
+          poolName: r.poolName,
+          sport: r.sport,
+          entryFee: r.entryFee ?? 0,
+          isActive: r.isActive,
+          prizeWon,
+          settled: false,
+        };
+      });
 
     const totalOwed = pools.reduce((s, p) => s + p.entryFee, 0);
     const totalWon  = pools.reduce((s, p) => s + p.prizeWon, 0);
