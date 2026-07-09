@@ -196,7 +196,7 @@ export default function PoolHome() {
                   )}
                   {isCrazyEights && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
-                      <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Hit the Ice!" : "Crazy 8's"}{(pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
+                      <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Hit the Ice!" : "High Heat"}{(pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
                     </span>
                   )}
                   {isNflConfidence && (

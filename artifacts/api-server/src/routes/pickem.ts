@@ -1399,7 +1399,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
   const isPickemNhlWeekly = pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
   if (!isCrazyEightsNhl && !isPickemNhlWeekly) {
-    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly) and NHL Crazy 8's pools in sandbox mode" }); return;
+    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly) and NHL Hit the Ice pools in sandbox mode" }); return;
   }
   if (!pool.sandboxMode) {
     res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;

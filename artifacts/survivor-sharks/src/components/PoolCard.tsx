@@ -31,7 +31,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   group_stage_predictor: "Group Stage",
   wc_bracket: "Bracket",
   dirty_dozen: "Dirty Dozen",
-  crazy_8s: "Crazy 8's",
+  crazy_8s: "High Heat",
 };
 
 export function PoolCard({ pool, pickEmStat }: PoolCardProps) {

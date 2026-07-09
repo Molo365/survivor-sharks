@@ -87,7 +87,7 @@ function fmtPoolType(t: string): string {
     season: "Survivor Season", weekly: "Survivor Weekly",
     mid_season: "Mid-Season", dirty_dozen: "Dirty Dozen",
     pickem: "Pick-Ems", pickem_season: "Pick-Ems Season",
-    crazy_8s: "Crazy 8's", nfl_confidence: "Confidence — Season",
+    crazy_8s: "High Heat", nfl_confidence: "Confidence — Season",
     nfl_confidence_weekly: "Confidence — Weekly",
     group_stage_predictor: "Group Stage Predictor",
     nfl_division_predictor: "NFL Division Predictor",

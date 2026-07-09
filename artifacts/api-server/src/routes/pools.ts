@@ -202,8 +202,8 @@ router.post("/", requireAuth, async (req, res) => {
     const todayEt = getTodayEtDate();
     const todayEspn = todayEt.replace(/-/g, "");
     const todayGames = await fetchGamesForDate("mlb", todayEspn);
-    if (todayGames.length < 8) {
-      res.status(400).json({ error: "Not enough games today — Crazy 8's requires at least 8 MLB games. See you tomorrow!" });
+    if (todayGames.length < 4) {
+      res.status(400).json({ error: "Not enough games today — High Heat requires at least 4 MLB games. See you tomorrow!" });
       return;
     }
   }

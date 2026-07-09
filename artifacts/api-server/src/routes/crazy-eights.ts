@@ -557,12 +557,15 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
 
     const nowMs = Date.now();
-    const availableCount = isSandbox
-      ? games.length
-      : games.filter(g => {
-          const startMs = new Date(g.date).getTime();
-          return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
-        }).length;
+    const availableCount = Math.min(
+      isSandbox
+        ? games.length
+        : games.filter(g => {
+            const startMs = new Date(g.date).getTime();
+            return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
+          }).length,
+      8
+    );
     if (availableCount === 0) {
       res.status(400).json({ error: "No games available to pick — all games have started" });
       return;
@@ -646,10 +649,13 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   const nowMlb = Date.now();
-  const availableCountMlb = games.filter(g => {
-    const startMs = new Date(g.date).getTime();
-    return g.status !== "in_progress" && g.status !== "final" && nowMlb < startMs;
-  }).length;
+  const availableCountMlb = Math.min(
+    games.filter(g => {
+      const startMs = new Date(g.date).getTime();
+      return g.status !== "in_progress" && g.status !== "final" && nowMlb < startMs;
+    }).length,
+    8
+  );
   if (availableCountMlb === 0) {
     res.status(400).json({ error: "No games available to pick — all games have started" });
     return;

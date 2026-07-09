@@ -73,7 +73,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   pickem_season:           "Pick-Em Season",
   nfl_division_predictor:  "Division Predictor",
   dirty_dozen:             "Dirty Dozen",
-  crazy_8s:                "Crazy 8s",
+  crazy_8s:                "High Heat",
   nfl_confidence:          "Confidence",
   nfl_confidence_weekly:   "Confidence Weekly",
   wc_bracket:              "WC Bracket",

@@ -332,7 +332,7 @@ function LockedPicksView({
         <div>
           <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
             <Lock className="w-5 h-5 text-purple-400" />
-            {isNhl ? "Your Hit the Ice! Picks" : "Your Crazy 8's Picks"}
+            {isNhl ? "Your Hit the Ice! Picks" : "Your High Heat Picks"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isNhl ? "Weekend picks are submitted and locked." : "Today's picks are submitted and locked."}
@@ -348,7 +348,7 @@ function LockedPicksView({
         <div>
           <p className="font-semibold text-sm">Picks submitted!</p>
           <p className="text-xs text-muted-foreground">
-            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : "Your Crazy 8's picks are locked in. Good luck!"}
+            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : "Your High Heat picks are locked in. Good luck!"}
           </p>
         </div>
       </div>
@@ -671,7 +671,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
   const sandboxMode = slateData?.sandboxMode ?? false;
 
   const MAX_PICKS = useMemo(
-    () => games.filter(g => !isGameStarted(g, sandboxMode)).length,
+    () => Math.min(games.filter(g => !isGameStarted(g, sandboxMode)).length, 8),
     [games, sandboxMode]
   );
 
@@ -881,7 +881,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
             {isNhl ? <Snowflake className="w-6 h-6 text-cyan-400" /> : <Dice5 className="w-6 h-6 text-purple-400" />}
             {isNhl
               ? `Hit the Ice! — ${slateData?.weekLabel ?? "This Weekend"}`
-              : "Crazy 8's — Today's Slate"}
+              : "High Heat — Today's Slate"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
@@ -941,10 +941,10 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : "⚾"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              {isNhl ? "How Hit the Ice works" : "How Crazy 8's works"}
+              {isNhl ? "How Hit the Ice works" : "How High Heat works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Choose exactly 8 games, pick a winner for each, and assign confidence points 1–8 (no repeats). Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : ""}. Enter a tiebreaker before submitting.
+              Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : ""}. Minimum 4 games required to play.
             </p>
           </div>
           <button
@@ -964,7 +964,7 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
           <span className="text-xl leading-none mt-0.5">🏒</span>
           <div className="min-w-0">
             <p className="text-sm text-amber-200/90 leading-snug">
-              Hit the Ice works just like Crazy 8&apos;s — pick 8 NHL games each day, earn points for correct picks. Points accumulate Mon–Sun and the weekly leader wins. 🏒
+              Hit the Ice works just like High Heat — pick up to 8 NHL games, earn points for correct picks. Points accumulate Mon–Sun and the weekly leader wins. 🏒
             </p>
           </div>
           <button

@@ -177,11 +177,11 @@ const POOL_TYPES = [
   },
   {
     id: "crazy_8s" as const,
-    label: "Crazy 8's",
+    label: "High Heat",
     icon: Dice5,
-    tagline: "8 Games. 8 Confidence Points.",
+    tagline: "Pick & Rank · Up to 8 Games",
     description:
-      "Pick any 8 games from the slate, choose a winner for each, and assign confidence points 1–8. Highest total wins. NHL version uses the weekend (Sat+Sun) slate.",
+      "Pick up to 8 games from the slate, choose a winner for each, and assign confidence points. Highest total wins. Minimum 4 games required to play. NHL version uses the weekend (Sat+Sun) slate.",
     badge: "MLB/NHL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
@@ -473,7 +473,7 @@ export default function CreatePool() {
       : selectedSport === PoolInputSport.mlb && selectedType === "dirty_dozen"
       ? "MLB DIRTY DOZEN"
       : selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s"
-      ? "MLB CRAZY 8'S"
+      ? "MLB HIGH HEAT"
       : selectedSport === PoolInputSport.nhl && selectedType === "crazy_8s"
       ? "HIT THE ICE!"
       : selectedSport === PoolInputSport.mlb
@@ -484,9 +484,9 @@ export default function CreatePool() {
     selectedType === "dirty_dozen"
       ? "12 curated games per week. Assign confidence points 1–12."
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl
-      ? "Pick any 8 games from the weekend NHL slate. Assign confidence points 1–8."
+      ? "Pick up to 8 games from the weekend NHL slate. Assign confidence points by confidence level."
       : selectedType === "crazy_8s"
-      ? "Pick any 8 games from today's slate. Assign confidence points 1–8."
+      ? "Pick up to 8 games from today's slate. Assign confidence points by confidence level."
       : selectedType === "pickem"
       ? "Pick every game, every day."
       : "Set the rules. Invite the sharks.";
@@ -754,10 +754,10 @@ export default function CreatePool() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "crazy_8s" ? "text-foreground" : "text-muted-foreground")}>
-                                        Crazy 8's
+                                        High Heat
                                       </span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Pick 8 MLB games daily and rank them by confidence 1–8. Points accumulate all week — highest total by Sunday wins.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick up to 8 MLB games daily and rank them by confidence. Points accumulate all week — highest total by Sunday wins.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "crazy_8s" ? "border-purple-500 bg-purple-500" : "border-muted-foreground/30")} />
                                 </div>
@@ -1424,7 +1424,7 @@ export default function CreatePool() {
                       <div className="text-4xl">🎱</div>
                       <p className="font-semibold text-sm text-foreground">Not Enough Games Today</p>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        Not enough games today — Crazy 8's requires at least 8 MLB games. See you tomorrow! 🎱
+                        Not enough games today — High Heat requires at least 4 MLB games. See you tomorrow! 🔥
                       </p>
                     </div>
                   ) : (
