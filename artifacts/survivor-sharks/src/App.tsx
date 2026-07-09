@@ -19,6 +19,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminPanel from "@/pages/AdminPanel";
+import AgentDashboard from "@/pages/AgentDashboard";
 import ResetPassword from "@/pages/ResetPassword";
 import JoinInvite from "@/pages/JoinInvite";
 import Picks from "@/pages/Picks";
@@ -62,6 +63,19 @@ const AdminRoute = ({ component: Component }: { component: any }) => {
   return <Component />;
 };
 
+const AgentRoute = ({ component: Component }: { component: any }) => {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  if (!user || user.role !== "agent") return <Redirect to="/dashboard" />;
+  return <Component />;
+};
+
 const AdminPanelRoute = ({ component: Component }: { component: any }) => {
   const { isAuthenticated, isLoading: adminLoading } = useAdminAuth();
   const { user, isLoading: userLoading } = useAuth();
@@ -98,6 +112,10 @@ function Router() {
       </Route>
       <Route path="/pools/:poolId/pickem">
         {() => <ProtectedRoute component={PoolHome} />}
+      </Route>
+
+      <Route path="/agent">
+        {() => <AgentRoute component={AgentDashboard} />}
       </Route>
 
       {/* Legacy admin routes (role-based) */}

@@ -224,6 +224,55 @@ async function uniqueUsername(): Promise<string> {
   throw new Error("Could not generate unique username after 20 attempts");
 }
 
+// Finds the next available username for a prefix: PREFIX100, PREFIX101, …
+// Scans all usernames matching ^PREFIX\d+$ and returns prefix + (highest + 1),
+// starting at 100 when none exist.
+async function nextPrefixedUsername(prefix: string): Promise<string> {
+  const rows = await db
+    .select({ username: usersTable.username })
+    .from(usersTable)
+    .where(sql`${usersTable.username} ~ ${`^${prefix}[0-9]+$`}`);
+  let highest = 99;
+  for (const row of rows) {
+    const n = parseInt(row.username.slice(prefix.length));
+    if (!isNaN(n) && n > highest) highest = n;
+  }
+  return `${prefix}${highest + 1}`;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  // Drizzle wraps the pg error, so walk the cause chain for code 23505.
+  let current = err;
+  for (let depth = 0; depth < 5 && typeof current === "object" && current !== null; depth++) {
+    if ((current as { code?: string }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+// Inserts a user, regenerating the username and retrying on unique-constraint
+// conflicts (concurrent creates can race to the same next number).
+async function insertUserWithGeneratedUsername(
+  generate: () => Promise<string>,
+  values: Omit<typeof usersTable.$inferInsert, "username" | "email">,
+): Promise<{ user: typeof usersTable.$inferSelect; username: string }> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const username = await generate();
+    try {
+      const [user] = await db.insert(usersTable).values({
+        ...values,
+        username,
+        email: `${username}@noemail.invalid`,
+      }).returning();
+      return { user, username };
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // another request grabbed this username — recompute and retry
+    }
+  }
+  throw new Error("Could not allocate a unique username after 5 attempts");
+}
+
 // GET /api/admin-panel/agents
 router.get("/agents", async (_req, res) => {
   const agents = await db.select().from(usersTable).where(eq(usersTable.role, "agent")).orderBy(usersTable.createdAt);
@@ -242,22 +291,23 @@ router.get("/agents", async (_req, res) => {
 
 // POST /api/admin-panel/agents
 router.post("/agents", async (req, res) => {
-  const { displayName } = req.body;
+  const { displayName, usernamePrefix } = req.body;
   if (!displayName || typeof displayName !== "string" || !displayName.trim()) {
     res.status(400).json({ error: "displayName is required" });
     return;
   }
-  const username = await uniqueUsername();
+  if (typeof usernamePrefix !== "string" || !/^[A-Z]{2,3}$/.test(usernamePrefix)) {
+    res.status(400).json({ error: "usernamePrefix must be 2-3 uppercase letters" });
+    return;
+  }
+  // Agent username is the prefix + a number starting at 100 (e.g. BJ100).
+  // The prefix is retrievable later by stripping trailing digits from the username.
   const password = genPassword();
   const passwordHash = await bcrypt.hash(password, 12);
-  const storedEmail = `${username}@noemail.invalid`;
-  const [agent] = await db.insert(usersTable).values({
-    username,
-    email: storedEmail,
-    passwordHash,
-    displayName: displayName.trim(),
-    role: "agent",
-  }).returning();
+  const { user: agent } = await insertUserWithGeneratedUsername(
+    () => nextPrefixedUsername(usernamePrefix),
+    { passwordHash, displayName: displayName.trim(), role: "agent" },
+  );
   res.status(201).json({ id: agent.id, username: agent.username, password, displayName: agent.displayName });
 });
 
@@ -283,25 +333,26 @@ router.get("/agents/:agentId/players", async (req, res) => {
 router.post("/agents/:agentId/players", async (req, res) => {
   const agentId = parseInt(String(req.params.agentId));
   if (isNaN(agentId)) { res.status(400).json({ error: "Invalid agent ID" }); return; }
-  const [agent] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, agentId));
+  const [agent] = await db.select({ id: usersTable.id, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, agentId));
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
   const { displayName } = req.body;
   if (!displayName || typeof displayName !== "string" || !displayName.trim()) {
     res.status(400).json({ error: "displayName is required" });
     return;
   }
-  const username = await uniqueUsername();
+  // Derive the prefix from the agent's own username (e.g. "BJ100" → "BJ")
+  // and assign the next number in that sequence (BJ101, BJ102, …).
+  const prefix = agent.username.replace(/[0-9]+$/, "");
+  const generate = /^[A-Z]{2,3}$/.test(prefix)
+    ? () => nextPrefixedUsername(prefix)
+    : () => uniqueUsername(); // legacy agents with random usernames
+
   const password = genPassword();
   const passwordHash = await bcrypt.hash(password, 12);
-  const storedEmail = `${username}@noemail.invalid`;
-  const [player] = await db.insert(usersTable).values({
-    username,
-    email: storedEmail,
-    passwordHash,
-    displayName: displayName.trim(),
-    role: "user",
-    agentId,
-  }).returning();
+  const { user: player } = await insertUserWithGeneratedUsername(
+    generate,
+    { passwordHash, displayName: displayName.trim(), role: "user", agentId },
+  );
   res.status(201).json({ id: player.id, username: player.username, password, displayName: player.displayName });
 });
 

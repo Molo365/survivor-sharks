@@ -12,6 +12,7 @@ import teamsRouter from "./teams";
 import adminRouter from "./admin";
 import adminAuthRouter from "./adminAuth";
 import adminPanelRouter from "./adminPanel";
+import agentRouter from "./agent";
 import pickemRouter from "./pickem";
 import gspRouter from "./gsp";
 import ndpRouter from "./ndp";
@@ -55,5 +56,6 @@ router.use("/sports", teamsRouter);
 router.use("/admin", adminRouter);
 router.use("/admin-auth", adminAuthRouter);
 router.use("/admin-panel", adminPanelRouter);
+router.use("/agent", agentRouter);
 
 export default router;

@@ -1916,7 +1916,7 @@ components:
           type: ["string", "null"]
         role:
           type: string
-          enum: [user, admin]
+          enum: [user, admin, agent]
         createdAt:
           type: string
 

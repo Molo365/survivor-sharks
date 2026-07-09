@@ -833,24 +833,29 @@ function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const adminFetch = useAdminFetch();
   const qc = useQueryClient();
   const [displayName, setDisplayName] = useState("");
+  const [usernamePrefix, setUsernamePrefix] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const prefixValid = /^[A-Z]{2,3}$/.test(usernamePrefix);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim()) return;
+    if (!displayName.trim() || !prefixValid) return;
     setSubmitting(true);
     setCreateError(null);
     try {
       const data = await adminFetch("/agents", {
         method: "POST",
-        body: JSON.stringify({ displayName: displayName.trim() }),
+        body: JSON.stringify({ displayName: displayName.trim(), usernamePrefix }),
       }) as { id: number; username: string; password: string; displayName: string };
       qc.invalidateQueries({ queryKey: ["admin-agents"] });
       setCreds({ username: data.username, password: data.password });
-    } catch {
-      setCreateError("Failed to create agent");
+    } catch (err: any) {
+      setCreateError(err?.message?.includes("400")
+        ? "Prefix must be 2-3 uppercase letters"
+        : "Failed to create agent");
     } finally {
       setSubmitting(false);
     }
@@ -885,10 +890,26 @@ function CreateAgentModal({ onClose }: { onClose: () => void }) {
             <Label htmlFor="ca-displayName">Display Name *</Label>
             <Input id="ca-displayName" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoComplete="off" placeholder="Agent's real name or business" />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ca-prefix">Username Prefix *</Label>
+            <Input
+              id="ca-prefix"
+              value={usernamePrefix}
+              onChange={e => setUsernamePrefix(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))}
+              required
+              autoComplete="off"
+              placeholder='e.g. "BJ" for Bar Junior'
+              maxLength={3}
+              className="font-mono uppercase"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              2-3 uppercase letters. Agent username will be {prefixValid ? `${usernamePrefix}100` : "PREFIX100"} (or the next available number). Players inherit the prefix automatically.
+            </p>
+          </div>
           {createError && <p className="text-xs text-destructive">{createError}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={submitting || !displayName.trim()}>
+            <Button type="submit" disabled={submitting || !displayName.trim() || !prefixValid}>
               {submitting ? "Creating…" : "Create Agent"}
             </Button>
           </div>
