@@ -305,7 +305,7 @@ export default function PoolHome() {
                 isActive={pool.isActive}
               />
             ) : (pool.poolType as string) === "pickem" ? (
-              <PickEmView poolId={pool.id} poolName={pool.name} poolDescription={pool.description ?? ""} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} isRecurring={pool.isRecurring} />
+              <PickEmView poolId={pool.id} poolName={pool.name} poolDescription={pool.description ?? ""} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} isRecurring={pool.isRecurring} entryFee={pool.entryFee} />
             ) : isGsp ? (
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : isNdp ? (

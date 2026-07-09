@@ -129,6 +129,7 @@ interface PickEmViewProps {
   sport?: string;
   pickFrequency?: string;
   isRecurring?: boolean;
+  entryFee?: number | null;
 }
 
 const WC_PICK_OPTIONS = ["home_win", "draw", "away_win"] as const;
@@ -2026,7 +2027,7 @@ function PickEmSandboxPanel({ poolId }: { poolId: number }) {
   );
 }
 
-export function PickEmView({ poolId, poolName, poolDescription, commissionerId, inviteCode, sport = "mlb", pickFrequency, isRecurring = true }: PickEmViewProps) {
+export function PickEmView({ poolId, poolName, poolDescription, commissionerId, inviteCode, sport = "mlb", pickFrequency, isRecurring = true, entryFee }: PickEmViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -2714,6 +2715,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               )}
                               <span className="text-muted-foreground text-sm">
                                 — {w.correct}/{w.picked} correct
+                                {(entryFee == null || entryFee === 0) && (
+                                  <span> · Free pool</span>
+                                )}
                               </span>
                             </div>
                           ))}

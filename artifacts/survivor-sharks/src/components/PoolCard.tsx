@@ -98,9 +98,12 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     ? <span>{pickEmStat.lastWinners[0].score} pts</span>
                     : <span>{pickEmStat.lastWinners[0].correct}/{pickEmStat.lastWinners[0].picked} correct</span>
                   }
-                  {pickEmStat.lastWinners[0].prizeWon != null && (
-                    <span className="text-yellow-400">· ${pickEmStat.lastWinners[0].prizeWon}</span>
-                  )}
+                  {pickEmStat.lastWinners[0].prizeWon != null
+                    ? <span className="text-yellow-400">· ${pickEmStat.lastWinners[0].prizeWon}</span>
+                    : (pool.entryFee == null || pool.entryFee === 0)
+                    ? <span className="text-muted-foreground/60">· Free pool</span>
+                    : null
+                  }
                 </div>
               )}
 
