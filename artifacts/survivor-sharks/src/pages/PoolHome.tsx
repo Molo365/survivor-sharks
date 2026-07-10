@@ -425,9 +425,6 @@ export default function PoolHome() {
                       <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
                       </TabsTrigger>
-                      <TabsTrigger value="standings" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                        <ListOrdered className="w-4 h-4 md:w-5 md:h-5" /> Standings
-                      </TabsTrigger>
                       {isCommissioner && (
                         <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
@@ -449,9 +446,6 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
                     <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="season" poolName={pool.name} />
-                  </TabsContent>
-                  <TabsContent value="standings" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceStandings poolId={pool.id} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
