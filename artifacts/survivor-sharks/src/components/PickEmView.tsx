@@ -2283,6 +2283,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
 
   const slateLocked = slate?.deadlinePassed ?? false;
+  const myPickCount = slate?.games.filter(g => is3way ? !!g.userPickOption : !!g.userPickTeamId).length ?? 0;
 
   const lockTimeFormatted = useMemo(() => {
     if (!slate?.games.length) return null;
@@ -2516,7 +2517,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           >
             <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
           </TabsTrigger>
-          {slateLocked && !isWc && (leaderboard?.entries.length ?? 0) > 0 && (
+          {!isWc && (myPickCount > 0 || slateLocked) && (leaderboard?.entries.length ?? 0) > 0 && (
             <TabsTrigger
               value="snapshot"
               className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
@@ -3050,7 +3051,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </TabsContent>
 
         {/* ── Snapshot ── */}
-        {slateLocked && !isWc && slate && leaderboard && (
+        {!isWc && (myPickCount > 0 || slateLocked) && slate && leaderboard && (
           <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
             <SnapshotView
               slate={slate}
