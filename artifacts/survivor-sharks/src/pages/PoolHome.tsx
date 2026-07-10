@@ -324,9 +324,6 @@ export default function PoolHome() {
                       <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         {pool.sport === "nhl" ? "Weekend Grid" : "Daily Grid"}
                       </TabsTrigger>
-                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                        Stats
-                      </TabsTrigger>
                       {isCommissioner && (
                         <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
@@ -345,9 +342,6 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <CrazyEightsGrid poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
-                  </TabsContent>
-                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsStats poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -375,9 +369,6 @@ export default function PoolHome() {
                       <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
                       </TabsTrigger>
-                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                        Stats
-                      </TabsTrigger>
                       {isCommissioner && (
                         <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
@@ -399,9 +390,6 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
                     <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="weekly" poolName={pool.name} />
-                  </TabsContent>
-                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceWeeklyStats poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -440,9 +428,6 @@ export default function PoolHome() {
                       <TabsTrigger value="standings" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <ListOrdered className="w-4 h-4 md:w-5 md:h-5" /> Standings
                       </TabsTrigger>
-                      <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                        Stats
-                      </TabsTrigger>
                       {isCommissioner && (
                         <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
@@ -467,9 +452,6 @@ export default function PoolHome() {
                   </TabsContent>
                   <TabsContent value="standings" className="m-0 focus-visible:outline-none">
                     <NflConfidenceStandings poolId={pool.id} />
-                  </TabsContent>
-                  <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceStats poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -514,15 +496,6 @@ export default function PoolHome() {
                 <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
                   Grid
                 </TabsTrigger>
-                <TabsTrigger value="history" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive flex gap-2">
-                  <Skull className="w-4 h-4 md:w-5 md:h-5" /> Kill History
-                </TabsTrigger>
-                <TabsTrigger value="stats" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                  Stats
-                </TabsTrigger>
-                <TabsTrigger value="injuries" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
-                  <Bandage className="w-4 h-4 md:w-5 md:h-5" /> Injuries
-                </TabsTrigger>
                 {isCommissioner && (
                   <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                     <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
@@ -551,15 +524,6 @@ export default function PoolHome() {
                 )}
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                   <SurvivorGrid poolId={pool.id} />
-                </TabsContent>
-                <TabsContent value="history" className="m-0 focus-visible:outline-none">
-                  <KillHistory poolId={pool.id} />
-                </TabsContent>
-                <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-                  <PoolStats poolId={pool.id} />
-                </TabsContent>
-                <TabsContent value="injuries" className="m-0 focus-visible:outline-none">
-                  <InjuriesTab sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} />
                 </TabsContent>
                 {isCommissioner && (
                   <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">

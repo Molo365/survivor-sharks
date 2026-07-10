@@ -2516,12 +2516,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           >
             <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
           </TabsTrigger>
-          <TabsTrigger
-            value="stats"
-            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
-          >
-            <BarChart2 className="w-4 h-4 md:w-5 md:h-5" /> Stats
-          </TabsTrigger>
           {slateLocked && !isWc && (leaderboard?.entries.length ?? 0) > 0 && (
             <TabsTrigger
               value="snapshot"
@@ -3051,29 +3045,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               week={leaderboard.week}
               isWc={is3way}
               phase={leaderboard.phase}
-            />
-          )}
-        </TabsContent>
-
-        {/* ── Stats ── */}
-        <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-          {lbLoading ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-20 w-full rounded-xl" />
-                ))}
-              </div>
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full rounded-lg" />
-              ))}
-            </div>
-          ) : (
-            <StatsView
-              games={leaderboard?.games ?? []}
-              entries={leaderboard?.entries ?? []}
-              currentUserId={user?.id ?? null}
-              isWc={isWc}
             />
           )}
         </TabsContent>

@@ -1557,12 +1557,6 @@ export function PickEmSeasonView({
               >
                 <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Weekly Grid
               </TabsTrigger>
-              <TabsTrigger
-                value="stats"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
-              >
-                <BarChart2 className="w-4 h-4 md:w-5 md:h-5" /> Stats
-              </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
                   value="commissioner"
@@ -1848,28 +1842,6 @@ export function PickEmSeasonView({
                 entries={entries}
                 currentWeek={currentWeek}
                 currentUserId={user?.id ?? null}
-              />
-            )}
-          </TabsContent>
-
-          {/* ── Stats ── */}
-          <TabsContent value="stats" className="m-0 focus-visible:outline-none">
-            {lbLoading ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-20 w-full rounded-xl" />
-                  ))}
-                </div>
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-12 w-full rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <StatsView
-                entries={entries}
-                currentUserId={user?.id ?? null}
-                weekResults={currentWeekResults}
               />
             )}
           </TabsContent>
