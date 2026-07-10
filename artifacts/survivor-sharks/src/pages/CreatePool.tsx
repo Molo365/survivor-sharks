@@ -271,6 +271,7 @@ export default function CreatePool() {
   const [commissionerCut, setCommissionerCut] = useState(0);
   const [showCommissionerCut, setShowCommissionerCut] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<"winner" | "top2" | "top3" | "custom">("winner");
+  const [prizeStep, setPrizeStep] = useState<1 | 2 | 3>(1);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -420,6 +421,7 @@ export default function CreatePool() {
     }
     setStep3Confirmed(false);
     setEditStep(hasOptions ? null : 4);
+    setPrizeStep(1);
   }, [selectedSport, selectedType, hasOptions]);
 
   // Auto-scroll to the active step when it changes (skip the initial mount)
@@ -1092,56 +1094,98 @@ export default function CreatePool() {
                   />
                   {isStepActive(5) ? (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <FormField
-                          control={form.control}
-                          name="maxEntries"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="font-bebas text-lg tracking-wide">Max Entries</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  placeholder="Unlimited"
-                                  {...field}
-                                  value={field.value ?? ""}
-                                  data-testid="input-max-entries"
-                                  className="bg-background/50 border-primary/20"
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">Limit total members</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="entryFee"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="font-bebas text-lg tracking-wide">Entry Fee ($)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  placeholder="Free"
-                                  {...field}
-                                  value={field.value ?? ""}
-                                  data-testid="input-entry-fee"
-                                  className="bg-background/50 border-primary/20"
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">Cost to join (display only)</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
 
-                      {/* ── Prize structure ── */}
-                      {(() => {
+                      {/* ─── SUB-STEP 5A — Max Entries & Entry Fee ─── */}
+                      {prizeStep === 1 && (
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <FormField
+                              control={form.control}
+                              name="maxEntries"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="font-bebas text-lg tracking-wide">Max Entries</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      placeholder="Unlimited"
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      data-testid="input-max-entries"
+                                      className="bg-background/50 border-primary/20"
+                                    />
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Limit total members</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="entryFee"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="font-bebas text-lg tracking-wide">Entry Fee ($)</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      placeholder="Free"
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      data-testid="input-entry-fee"
+                                      className="bg-background/50 border-primary/20"
+                                    />
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Cost to join (display only)</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Set to 0 or leave blank for a free pool
+                          </p>
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                const fee = watchedEntryFee;
+                                if (!fee || fee <= 0) {
+                                  setPrizes([{ amount: "100" }]);
+                                  setCommissionerCut(0);
+                                  setSelectedPreset("winner");
+                                  setPrizeStep(3);
+                                } else {
+                                  setPrizeStep(2);
+                                }
+                              }}
+                              className="font-bebas text-lg tracking-widest px-6"
+                              data-testid="button-continue-step-5a"
+                            >
+                              Continue →
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ─── SUB-STEPS 5B & 5C — Commissioner cut + prize split (Part 2) ─── */}
+                      {prizeStep >= 2 && (
+                        <div className="space-y-4">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setPrizeStep(1)}
+                            className="text-sm text-muted-foreground -ml-2"
+                          >
+                            ← Back
+                          </Button>
+                        </div>
+                      )}
+
+                      {(prizeStep as number) === 999 && (() => {
                         const assignedPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
                         const remainingPct = 100 - commissionerCut - assignedPct;
                         const pctExceeds = assignedPct + commissionerCut > 100.5;
