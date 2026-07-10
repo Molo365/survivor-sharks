@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Download, Check, X, Camera } from "lucide-react";
+import { downloadGridPdf } from "@/lib/downloadGridPdf";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,34 @@ export function NflConfidenceSnapshot({
     URL.revokeObjectURL(url);
   }
 
+  function handleDownloadPdf() {
+    const gameColHeaders = sortedGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`);
+    const pdfRows = enrichedPlayers.map((p, idx) => {
+      const name = `${idx + 1}. ${p.displayName ?? p.username}`;
+      const pickCells = sortedGames.map((g) => {
+        const pick = p.picks[g.id];
+        if (!pick) return "—";
+        const pts = pick.confidencePoints != null ? ` ${pick.confidencePoints}pts` : "";
+        const suffix =
+          pick.result === "correct" ? " W"
+          : pick.result === "incorrect" ? " L"
+          : pick.result === "postponed" ? " PPD"
+          : "";
+        return `${pick.pickedTeamName}${pts}${suffix}`;
+      });
+      return { cells: [name, ...pickCells, `${p.weekPts}pts`], isCurrentUser: p.userId === user?.id };
+    });
+    downloadGridPdf({
+      filename: `${poolName.replace(/\s+/g, "_")}_confidence_snapshot_week${selectedWeek}.pdf`,
+      poolName,
+      sport: `NFL · Season ${new Date().getFullYear()}`,
+      subtitle: `${enrichedPlayers.length} player${enrichedPlayers.length !== 1 ? "s" : ""} · ${sortedGames.length} game${sortedGames.length !== 1 ? "s" : ""} · Week ${selectedWeek}`,
+      columns: ["Player", ...gameColHeaders, "Week Pts"],
+      rows: pdfRows,
+      footer: `Week ${selectedWeek} Snapshot`,
+    });
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -192,14 +221,24 @@ export function NflConfidenceSnapshot({
           </Select>
 
           {anyGameStarted && enrichedPlayers.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={downloadCsv}
-              className="font-bebas text-base tracking-wider gap-1.5 h-8"
-            >
-              <Download className="w-4 h-4" /> Download CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadCsv}
+                className="font-bebas text-base tracking-wider gap-1.5 h-8"
+              >
+                <Download className="w-4 h-4" /> Download CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadPdf}
+                className="font-bebas text-base tracking-wider gap-1.5 h-8"
+              >
+                <Download className="w-4 h-4" /> Download PDF
+              </Button>
+            </div>
           )}
         </div>
       </div>

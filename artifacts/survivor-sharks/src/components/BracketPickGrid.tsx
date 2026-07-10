@@ -4,8 +4,10 @@ import {
 } from "@workspace/api-client-react";
 import type { WcBracketGridMatch, WcBracketGridMember } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock, Download } from "lucide-react";
+import { downloadGridPdf } from "@/lib/downloadGridPdf";
 
 function formatMatchDate(iso: string): string {
   try {
@@ -213,6 +215,35 @@ export function BracketPickGrid({ poolId }: { poolId: number }) {
 
   const { roundLabel, matches, members } = data;
 
+  function handleDownloadPdf() {
+    const matchColHeaders = matches.map((m) => `${m.team1} vs ${m.team2}`);
+    const pdfRows = members.map((member) => {
+      const correctCount = Object.values(member.picks).filter((p) => p.isCorrect === true).length;
+      const pickCount = Object.keys(member.picks).length;
+      const pickCells = matches.map((match) => {
+        const pick = member.picks[match.espnEventId];
+        if (!pick) return "—";
+        const suffix = pick.isCorrect === true ? " \u2713" : pick.isCorrect === false ? " \u2717" : "";
+        return `${pick.pickedTeam}${suffix}`;
+      });
+      return { cells: [member.displayName ?? `User ${member.userId}`, ...pickCells, `${correctCount}/${pickCount}`] };
+    });
+    const today = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    downloadGridPdf({
+      filename: `wcup_bracket_${roundLabel.replace(/\s+/g, "_")}.pdf`,
+      poolName: "WCUP BRACKET",
+      sport: `World Cup · Season ${new Date().getFullYear()}`,
+      subtitle: `${roundLabel} · ${members.length} player${members.length !== 1 ? "s" : ""} · ${matches.length} match${matches.length !== 1 ? "es" : ""}`,
+      columns: ["Member", ...matchColHeaders, "Score"],
+      rows: pdfRows,
+      footer: `${roundLabel} · ${today}`,
+    });
+  }
+
   if (matches.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-muted-foreground text-sm border border-dashed border-border/40 rounded-xl">
@@ -233,16 +264,28 @@ export function BracketPickGrid({ poolId }: { poolId: number }) {
             All members' picks · {matches.length} match{matches.length !== 1 ? "es" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest">
-          <span className="flex items-center gap-1 text-green-400">
-            <Check className="w-3 h-3" /> Correct
-          </span>
-          <span className="flex items-center gap-1 text-red-400">
-            <X className="w-3 h-3" /> Wrong
-          </span>
-          <span className="flex items-center gap-1 text-muted-foreground/50">
-            — No pick
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest">
+            <span className="flex items-center gap-1 text-green-400">
+              <Check className="w-3 h-3" /> Correct
+            </span>
+            <span className="flex items-center gap-1 text-red-400">
+              <X className="w-3 h-3" /> Wrong
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground/50">
+              — No pick
+            </span>
+          </div>
+          {members.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              className="font-bebas text-base tracking-wider gap-1.5 h-8"
+            >
+              <Download className="w-4 h-4" /> Download PDF
+            </Button>
+          )}
         </div>
       </div>
 

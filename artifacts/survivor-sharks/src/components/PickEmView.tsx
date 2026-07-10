@@ -43,6 +43,7 @@ import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, La
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
+import { downloadGridPdf } from "@/lib/downloadGridPdf";
 
 function BaseDiamond({
   onFirst,
@@ -929,9 +930,10 @@ interface SnapshotViewProps {
   lbGames: PickEmLeaderboardGame[];
   currentUserId: number | null;
   poolName: string;
+  sport?: string;
 }
 
-function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: SnapshotViewProps) {
+function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport = "mlb" }: SnapshotViewProps) {
   const slateGameIds = new Set(slate.games.map((g) => g.id));
 
   // Merge slate game order + team IDs with leaderboard logo URLs
@@ -995,11 +997,49 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
     URL.revokeObjectURL(url);
   }
 
+  function handleDownloadPdf() {
+    const year = slate.date.substring(0, 4);
+    const sportLabel = sport.toUpperCase().replace("WORLDCUP", "WORLD CUP").replace("INTL", "INTL SOCCER");
+    const gameColHeaders = snapshotGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`);
+    const pdfRows = sortedEntries.map((entry) => {
+      const name = `${entry.rank}. ${entry.displayName || entry.username}`;
+      const pickMap = new Map(
+        entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
+      );
+      const todayCorrect = snapshotGames.filter((g) => pickMap.get(g.id)?.result === "correct").length;
+      const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
+      const pct = todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
+      const pickCells = snapshotGames.map((g) => {
+        const pick = pickMap.get(g.id);
+        if (!pick) return "—";
+        const isAway = pick.pickedTeamId === g.awayTeam.id;
+        const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
+        const suffix =
+          pick.result === "correct" ? " W"
+          : pick.result === "incorrect" ? " L"
+          : pick.result === "postponed" ? " PPD"
+          : "";
+        return `${abbrev}${suffix}`;
+      });
+      const total = pct !== null ? `${todayCorrect}/${todayPicked} (${pct}%)` : "0/0";
+      return { cells: [name, ...pickCells, total], isCurrentUser: entry.userId === currentUserId };
+    });
+    downloadGridPdf({
+      filename: `${poolName.replace(/\s+/g, "_")}_snapshot_${slate.date}.pdf`,
+      poolName,
+      sport: `${sportLabel} · Season ${year}`,
+      subtitle: `${entries.length} player${entries.length !== 1 ? "s" : ""} · ${snapshotGames.length} game${snapshotGames.length !== 1 ? "s" : ""} · ${slate.label}`,
+      columns: ["Player", ...gameColHeaders, "Total"],
+      rows: pdfRows,
+      footer: `Snapshot · ${slate.date}`,
+    });
+  }
+
   const minWidth = Math.max(400, 220 + snapshotGames.length * 72);
 
   return (
     <div className="space-y-3">
-      {/* Header row with CSV button */}
+      {/* Header row with CSV + PDF buttons */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-bebas text-2xl tracking-wide text-foreground">Pick Snapshot</h3>
@@ -1007,14 +1047,24 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName }: Snap
             {slate.label} · {entries.length} player{entries.length !== 1 ? "s" : ""} · {snapshotGames.length} game{snapshotGames.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={downloadCsv}
-          className="font-bebas text-base tracking-wider gap-1.5 shrink-0"
-        >
-          <Download className="w-4 h-4" /> Download CSV
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadCsv}
+            className="font-bebas text-base tracking-wider gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Download CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadPdf}
+            className="font-bebas text-base tracking-wider gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* Grid — identical structure to PicksGrid, filtered to today's slate */}
@@ -3037,6 +3087,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               lbGames={leaderboard.games}
               currentUserId={user?.id ?? null}
               poolName={poolName}
+              sport={sport}
             />
           </TabsContent>
         )}
