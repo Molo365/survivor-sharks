@@ -1607,6 +1607,37 @@ export const GetWcBracketMemberPicksResponse = zod.array(GetWcBracketMemberPicks
 
 
 /**
+ * @summary Get all members' picks for the current active bracket round
+ */
+export const GetWcBracketRoundAllPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetWcBracketRoundAllPicksResponse = zod.object({
+  "round": zod.string(),
+  "roundLabel": zod.string(),
+  "matches": zod.array(zod.object({
+  "espnEventId": zod.string(),
+  "team1": zod.string(),
+  "team1Logo": zod.string().nullish(),
+  "team2": zod.string(),
+  "team2Logo": zod.string().nullish(),
+  "matchDate": zod.coerce.date(),
+  "isCompleted": zod.boolean(),
+  "result": zod.string().nullable()
+})),
+  "members": zod.array(zod.object({
+  "userId": zod.number(),
+  "displayName": zod.string().nullable(),
+  "picks": zod.record(zod.string(), zod.object({
+  "pickedTeam": zod.string(),
+  "isCorrect": zod.boolean().nullable()
+}))
+}))
+})
+
+
+/**
  * @summary Full tournament bracket tree (all rounds) with auto-advanced teams and user picks
  */
 export const GetWcBracketTreeParams = zod.object({

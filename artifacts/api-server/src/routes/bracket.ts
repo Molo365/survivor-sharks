@@ -7,7 +7,7 @@ import {
   entriesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchWcBracketMatches, getWcTeamInfo } from "../lib/wc";
 
@@ -604,6 +604,98 @@ router.get("/tree", requireAuth, async (req, res) => {
   });
 
   res.json(slots);
+});
+
+// ── GET /api/pools/:poolId/bracket/current-round/all-picks ───────────────────
+// Returns the current active round's matches + every pool member's pick per match.
+router.get("/current-round/all-picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "wc_bracket") {
+    res.status(400).json({ error: "Not a WC bracket pool" }); return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const [allMatches, dbResults] = await Promise.all([
+    fetchWcBracketMatches(),
+    db.select().from(wcBracketResultsTable).where(eq(wcBracketResultsTable.poolId, poolId)),
+  ]);
+
+  if (allMatches.length === 0) {
+    res.status(503).json({ error: "Bracket data unavailable — ESPN API unreachable" });
+    return;
+  }
+
+  const gradedEventIds = new Set(dbResults.map((r) => r.espnEventId));
+  const now = new Date();
+  const current = resolveCurrentRound(allMatches, gradedEventIds, now);
+  const activeRound: BracketRound = current?.round ?? "round_of_32";
+  const activeGames = current?.games ?? allMatches.filter((m) => m.round === "round_of_32");
+  const activeEventIds = activeGames.map((g) => g.espnEventId);
+  const resultsByEvent = new Map(dbResults.map((r) => [r.espnEventId, r]));
+
+  const [members, allPicks] = await Promise.all([
+    db
+      .select({ userId: entriesTable.userId, displayName: usersTable.displayName })
+      .from(entriesTable)
+      .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+      .where(eq(entriesTable.poolId, poolId)),
+    activeEventIds.length > 0
+      ? db
+          .select()
+          .from(wcBracketPicksTable)
+          .where(
+            and(
+              eq(wcBracketPicksTable.poolId, poolId),
+              inArray(wcBracketPicksTable.espnEventId, activeEventIds),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+
+  // Group picks: userId → espnEventId → { pickedTeam, isCorrect }
+  const picksByUser = new Map<number, Map<string, { pickedTeam: string; isCorrect: boolean | null }>>();
+  for (const pick of allPicks) {
+    if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
+    picksByUser.get(pick.userId)!.set(pick.espnEventId, {
+      pickedTeam: pick.pickedTeam,
+      isCorrect: pick.isCorrect ?? null,
+    });
+  }
+
+  const matches = activeGames.map((match) => {
+    const result = resultsByEvent.get(match.espnEventId) ?? null;
+    return {
+      espnEventId: match.espnEventId,
+      team1: match.team1,
+      team1Logo: match.team1Logo ?? null,
+      team2: match.team2,
+      team2Logo: match.team2Logo ?? null,
+      matchDate: match.matchDate,
+      isCompleted: result !== null,
+      result: result?.winner ?? null,
+    };
+  });
+
+  const membersPayload = members.map((m) => {
+    const userPickMap = picksByUser.get(m.userId) ?? new Map();
+    const picks: Record<string, { pickedTeam: string; isCorrect: boolean | null }> = {};
+    for (const [eventId, pick] of userPickMap) {
+      picks[eventId] = pick;
+    }
+    return { userId: m.userId, displayName: m.displayName ?? null, picks };
+  });
+
+  res.json({ round: activeRound, roundLabel: ROUND_LABEL[activeRound] ?? activeRound, matches, members: membersPayload });
 });
 
 export default router;

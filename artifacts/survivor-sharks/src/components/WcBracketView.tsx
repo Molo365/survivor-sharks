@@ -12,6 +12,7 @@ import {
   getGetPoolQueryKey,
 } from "@workspace/api-client-react";
 import type { WcBracketMatch, WcBracketLeaderboardEntry, BracketTreeSlot } from "@workspace/api-client-react";
+import { BracketPickGrid } from "@/components/BracketPickGrid";
 import { useQueryClient } from "@tanstack/react-query";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +43,7 @@ import {
   ShieldAlert,
   Settings2,
   Trophy,
+  LayoutGrid,
 } from "lucide-react";
 
 // ── ESPN country flag CDN slug map ────────────────────────────────────────────
@@ -1188,6 +1190,12 @@ export function WcBracketView({
                 <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
               </TabsTrigger>
               <TabsTrigger
+                value="grid"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-400 flex gap-2"
+              >
+                <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Grid
+              </TabsTrigger>
+              <TabsTrigger
                 value="bracket"
                 className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
               >
@@ -1366,6 +1374,11 @@ export function WcBracketView({
               poolId={poolId}
               onSelectPlayer={setSelectedPlayer}
             />
+          </TabsContent>
+
+          {/* Grid tab */}
+          <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+            <BracketPickGrid poolId={poolId} />
           </TabsContent>
 
           {/* Bracket tree tab */}

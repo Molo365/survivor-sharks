@@ -99,6 +99,7 @@ import type {
   WcBracketMatch,
   WcBracketPicksInput,
   WcBracketPicksResult,
+  WcBracketRoundAllPicks,
   WcBracketRoundResponse,
   WcSchedule,
   WeekResult
@@ -3653,6 +3654,83 @@ export function useGetWcBracketMemberPicks<TData = Awaited<ReturnType<typeof get
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetWcBracketMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetWcBracketRoundAllPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/bracket/current-round/all-picks`
+}
+
+/**
+ * @summary Get all members' picks for the current active bracket round
+ */
+export const getWcBracketRoundAllPicks = async (poolId: number, options?: RequestInit): Promise<WcBracketRoundAllPicks> => {
+
+  return customFetch<WcBracketRoundAllPicks>(getGetWcBracketRoundAllPicksUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWcBracketRoundAllPicksQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/bracket/current-round/all-picks`
+    ] as const;
+    }
+
+
+export const getGetWcBracketRoundAllPicksQueryOptions = <TData = Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWcBracketRoundAllPicksQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>> = ({ signal }) => getWcBracketRoundAllPicks(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWcBracketRoundAllPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>>
+export type GetWcBracketRoundAllPicksQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get all members' picks for the current active bracket round
+ */
+
+export function useGetWcBracketRoundAllPicks<TData = Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWcBracketRoundAllPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWcBracketRoundAllPicksQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

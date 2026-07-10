@@ -1217,6 +1217,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/bracket/current-round/all-picks:
+    get:
+      operationId: getWcBracketRoundAllPicks
+      tags: [bracket]
+      summary: Get all members' picks for the current active bracket round
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current round with all members' picks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WcBracketRoundAllPicks"
+        "400":
+          description: Not a WC bracket pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/bracket/tree:
     get:
       operationId: getWcBracketTree
@@ -4003,6 +4040,72 @@ components:
           type: integer
         total:
           type: integer
+
+    WcBracketGridMatch:
+      type: object
+      required: [espnEventId, team1, team2, matchDate, isCompleted, result]
+      properties:
+        espnEventId:
+          type: string
+        team1:
+          type: string
+        team1Logo:
+          type: string
+          nullable: true
+        team2:
+          type: string
+        team2Logo:
+          type: string
+          nullable: true
+        matchDate:
+          type: string
+          format: date-time
+        isCompleted:
+          type: boolean
+        result:
+          type: string
+          nullable: true
+
+    WcBracketGridPickEntry:
+      type: object
+      required: [pickedTeam, isCorrect]
+      properties:
+        pickedTeam:
+          type: string
+        isCorrect:
+          type: boolean
+          nullable: true
+
+    WcBracketGridMember:
+      type: object
+      required: [userId, displayName, picks]
+      properties:
+        userId:
+          type: integer
+        displayName:
+          type: string
+          nullable: true
+        picks:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/WcBracketGridPickEntry"
+
+    WcBracketRoundAllPicks:
+      type: object
+      required: [round, roundLabel, matches, members]
+      properties:
+        round:
+          type: string
+        roundLabel:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcBracketGridMatch"
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/WcBracketGridMember"
 
     WcBracketMatchResult:
       type: object

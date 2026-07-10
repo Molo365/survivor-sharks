@@ -1607,6 +1607,37 @@ export interface NflPickEmSeasonWeekWinner {
   total: number;
 }
 
+export interface WcBracketGridMatch {
+  espnEventId: string;
+  team1: string;
+  team1Logo?: string | null;
+  team2: string;
+  team2Logo?: string | null;
+  matchDate: string;
+  isCompleted: boolean;
+  result: string | null;
+}
+
+export interface WcBracketGridPickEntry {
+  pickedTeam: string;
+  isCorrect: boolean | null;
+}
+
+export type WcBracketGridMemberPicks = {[key: string]: WcBracketGridPickEntry};
+
+export interface WcBracketGridMember {
+  userId: number;
+  displayName: string | null;
+  picks: WcBracketGridMemberPicks;
+}
+
+export interface WcBracketRoundAllPicks {
+  round: string;
+  roundLabel: string;
+  matches: WcBracketGridMatch[];
+  members: WcBracketGridMember[];
+}
+
 export interface WcBracketMatchResult {
   winner: string;
   /** normal | aet | penalties */
