@@ -397,6 +397,7 @@ export default function CreatePool() {
     if (!selectedType || availableTypes.length === 0) return 2;
     if (hasOptions && !step3Confirmed) return 3;
     if (!watchedName || watchedName.trim().length < 3) return 4;
+    if (prizeStep < 3) return 5;
     const prizeTotal = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) + commissionerCut;
     if (Math.abs(prizeTotal - 100) > 0.5) return 5;
     return 6;
@@ -461,6 +462,19 @@ export default function CreatePool() {
     const fee = watchedEntryFee && watchedEntryFee > 0 ? `$${Math.round(watchedEntryFee)} entry` : "Free entry";
     return `${players} · ${fee} · ${firstPct}% to 1st`;
   })();
+
+  // ── Prize sub-step derived values (used in Step 5B / 5C) ─────────────────────
+  const prizeAssignedPct = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const prizeRemainingPct = 100 - commissionerCut - prizeAssignedPct;
+  const prizePctExceeds = prizeAssignedPct + commissionerCut > 100.5;
+  const prizeExampleCount = watchedMaxEntries && watchedMaxEntries > 0 ? watchedMaxEntries : 10;
+  const prizePot = 100 - commissionerCut;
+  const PRIZE_PRESETS = [
+    { id: "winner" as const, icon: "🏆", label: "Winner Takes All", preview: `1st: ${prizePot}%` },
+    { id: "top2" as const, icon: "🥇🥈", label: "Top 2", preview: `1st: ${Math.round(prizePot * 0.8)}% · 2nd: ${Math.round(prizePot * 0.2)}%` },
+    { id: "top3" as const, icon: "🥇🥈🥉", label: "Top 3", preview: `1st: ${Math.round(prizePot * 0.7)}% · 2nd: ${Math.round(prizePot * 0.2)}% · 3rd: ${Math.round(prizePot * 0.1)}%` },
+    { id: "custom" as const, icon: "✏️", label: "Custom", preview: "Set your own splits" },
+  ];
 
   const pageTitle =
     selectedSport === PoolInputSport.worldcup
@@ -1171,9 +1185,9 @@ export default function CreatePool() {
                         </div>
                       )}
 
-                      {/* ─── SUB-STEPS 5B & 5C — Commissioner cut + prize split (Part 2) ─── */}
-                      {prizeStep >= 2 && (
-                        <div className="space-y-4">
+                      {/* ─── SUB-STEP 5B — Commissioner Cut ─── */}
+                      {prizeStep === 2 && (
+                        <div className="space-y-6">
                           <Button
                             type="button"
                             variant="ghost"
@@ -1182,6 +1196,229 @@ export default function CreatePool() {
                           >
                             ← Back
                           </Button>
+
+                          <div>
+                            <h3 className="font-bebas text-lg tracking-wide">YOUR COMMISSIONER CUT</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              This is your share for organizing the pool. 0% is the default — your players will appreciate it.
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-3">
+                            <div className="flex items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() => setCommissionerCut(c => Math.max(0, c - 1))}
+                                disabled={commissionerCut <= 0}
+                                className="w-9 h-9 rounded-lg border border-border/60 bg-muted/30 flex items-center justify-center text-lg font-bold text-muted-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                aria-label="Decrease commissioner cut"
+                              >
+                                −
+                              </button>
+                              <span className="font-bebas text-3xl tracking-wide text-foreground w-16 text-center tabular-nums">
+                                {commissionerCut}%
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setCommissionerCut(c => Math.min(15, c + 1))}
+                                disabled={commissionerCut >= 15}
+                                className="w-9 h-9 rounded-lg border border-border/60 bg-muted/30 flex items-center justify-center text-lg font-bold text-muted-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                aria-label="Increase commissioner cut"
+                              >
+                                +
+                              </button>
+                              {commissionerCut > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {100 - commissionerCut}% goes to players
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {commissionerCut > 0 && (
+                            <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card/60 px-5 py-4">
+                              <div>
+                                <p className="font-bebas text-lg tracking-wide">Show your cut to players?</p>
+                                <p className="text-xs text-muted-foreground">If off, players only see the prize breakdown — not your share.</p>
+                              </div>
+                              <Switch
+                                checked={showCommissionerCut}
+                                onCheckedChange={setShowCommissionerCut}
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              onClick={() => setPrizeStep(3)}
+                              className="font-bebas text-lg tracking-widest px-6"
+                              data-testid="button-continue-step-5b"
+                            >
+                              Continue →
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ─── SUB-STEP 5C — Prize Split ─── */}
+                      {prizeStep === 3 && (
+                        <div className="space-y-6">
+                          {watchedEntryFee && watchedEntryFee > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setPrizeStep(2)}
+                              className="text-sm text-muted-foreground -ml-2"
+                            >
+                              ← Back
+                            </Button>
+                          )}
+
+                          {(!watchedEntryFee || watchedEntryFee <= 0) && (
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p>This is a free pool — no prize setup needed.</p>
+                              <p>Players compete for bragging rights! 🏆</p>
+                            </div>
+                          )}
+
+                          {watchedEntryFee && watchedEntryFee > 0 && (
+                            <div className="space-y-5">
+                              <h3 className="font-bebas text-lg tracking-wide">HOW DO YOU WANT TO SPLIT THE POT?</h3>
+
+                              {/* Prize split presets */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {PRIZE_PRESETS.map((preset) => {
+                                  const isSelected = selectedPreset === preset.id;
+                                  return (
+                                    <button
+                                      key={preset.id}
+                                      type="button"
+                                      onClick={() => setSelectedPreset(preset.id)}
+                                      className={cn(
+                                        "text-left rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                        isSelected
+                                          ? "border-primary bg-primary/10 ring-2 ring-primary/20 ring-offset-1 ring-offset-background"
+                                          : "border-border/40 bg-card/50 hover:border-primary/30 hover:bg-primary/5",
+                                      )}
+                                    >
+                                      <div className="text-xl mb-1">{preset.icon}</div>
+                                      <div className={cn("font-bebas text-sm tracking-wide leading-tight", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                                        {preset.label}
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground/70 mt-1 leading-snug">
+                                        {preset.preview}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Custom prize inputs */}
+                              {selectedPreset === "custom" && (
+                                <div className="space-y-2">
+                                  {prizes.map((prize, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                      <span className="font-bebas text-sm text-muted-foreground w-10 shrink-0 text-right">
+                                        {ORDINALS[i]}
+                                      </span>
+                                      <div className="relative flex-1">
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          step="1"
+                                          placeholder={i === 0 ? "e.g. 80" : "0"}
+                                          value={prize.amount}
+                                          onChange={(e) => updatePrize(i, e.target.value)}
+                                          data-testid={`input-prize-place-${i + 1}`}
+                                          className={cn("pr-8 bg-background/50 border-primary/20", prizePctExceeds && "border-destructive/60 focus-visible:ring-destructive/40")}
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-sm pointer-events-none">%</span>
+                                      </div>
+                                      {i > 0 ? (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removePrize(i)}
+                                          className="shrink-0 h-9 w-9 text-muted-foreground hover:text-destructive"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </Button>
+                                      ) : (
+                                        <div className="w-9 shrink-0" />
+                                      )}
+                                    </div>
+                                  ))}
+
+                                  {prizes.length < 10 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={addPrize}
+                                      className="text-primary/70 hover:text-primary pl-0 h-8 text-sm"
+                                      data-testid="button-add-prize-place"
+                                    >
+                                      + Add {ORDINALS[prizes.length]} Place Prize
+                                    </Button>
+                                  )}
+
+                                  <p className={cn("text-xs", prizePctExceeds ? "text-destructive" : "text-muted-foreground")}>
+                                    {prizePctExceeds
+                                      ? `Total cannot exceed ${100 - commissionerCut}% — currently ${prizeAssignedPct.toFixed(1)}%`
+                                      : <>
+                                          <span className="text-foreground font-semibold">{prizeAssignedPct.toFixed(1)}%</span> assigned
+                                          {" · "}
+                                          <span className={cn("font-semibold", prizeRemainingPct < 0 ? "text-destructive" : "text-foreground")}>
+                                            {prizeRemainingPct.toFixed(1)}%
+                                          </span> remaining
+                                        </>
+                                    }
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Live payout example */}
+                              <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-2">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                  Example with {prizeExampleCount} players at ${Math.round(watchedEntryFee)} entry
+                                  {" · "}
+                                  Pot = <span className="text-foreground">${Math.round(watchedEntryFee) * prizeExampleCount}</span>
+                                </p>
+                                <div className="space-y-1">
+                                  {prizes.filter(p => parseFloat(p.amount) > 0).map((prize, i) => {
+                                    const pct = parseFloat(prize.amount) || 0;
+                                    const dollars = (pct / 100) * Math.round(watchedEntryFee) * prizeExampleCount;
+                                    return (
+                                      <div key={i} className="flex items-center justify-between text-xs">
+                                        <span className="text-muted-foreground font-bebas tracking-wide">{ORDINALS[i]} place</span>
+                                        <span className="text-foreground font-semibold">{pct}% → <span className="text-primary">${dollars.toFixed(0)}</span></span>
+                                      </div>
+                                    );
+                                  })}
+                                  {commissionerCut > 0 && (
+                                    <div className="flex items-center justify-between text-xs border-t border-border/30 pt-1 mt-1">
+                                      <span className="text-muted-foreground font-bebas tracking-wide">Commissioner</span>
+                                      <span className="text-foreground font-semibold">{commissionerCut}% → <span className="text-amber-400">${((commissionerCut / 100) * Math.round(watchedEntryFee) * prizeExampleCount).toFixed(0)}</span></span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              onClick={() => setEditStep(null)}
+                              className="font-bebas text-lg tracking-widest px-6"
+                              data-testid="button-done-step-5"
+                            >
+                              Done →
+                            </Button>
+                          </div>
                         </div>
                       )}
 
@@ -1401,11 +1638,6 @@ export default function CreatePool() {
                           </div>
                         );
                       })()}
-                      {editStep === 5 && (
-                        <div className="flex justify-end pt-1">
-                          <Button type="button" onClick={() => setEditStep(null)} className="font-bebas text-lg tracking-widest px-6" data-testid="button-done-step-5">Done →</Button>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="pl-11 text-sm text-muted-foreground">{prizeSummary}</div>
