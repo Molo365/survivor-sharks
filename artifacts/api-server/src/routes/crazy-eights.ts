@@ -578,7 +578,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     await db
       .update(entriesTable)
-      .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
+      .set({ tiebreakerShotsOnGoal: tiebreakerShotsOnGoal ?? null, tiebreakerPenaltyMinutes: tiebreakerPenaltyMinutes ?? null } as any)
       .where(eq(entriesTable.id, entry.id));
 
     res.status(201).json({ ok: true, saved, message: "Hit the Ice! picks submitted successfully" });
@@ -659,8 +659,8 @@ router.post("/picks", requireAuth, async (req, res) => {
   await db
     .update(entriesTable)
     .set({
-      tiebreakerRuns,
-      tiebreakerStrikeouts,
+      tiebreakerRuns: tiebreakerRuns ?? null,
+      tiebreakerStrikeouts: tiebreakerStrikeouts ?? null,
     } as any)
     .where(eq(entriesTable.id, entry.id));
 
