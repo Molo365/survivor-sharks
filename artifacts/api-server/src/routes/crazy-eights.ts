@@ -218,26 +218,6 @@ router.get("/grid", requireAuth, async (req, res) => {
       });
     }
 
-    // Visibility rule: hide another player's picks until they've locked their full slate.
-    {
-      const totalGamesNhl = games.length;
-      const now = Date.now();
-      const slateIsLive =
-        totalGamesNhl === 0 ||
-        games.some(
-          (g) =>
-            new Date(g.date).getTime() <= now ||
-            (g.status && g.status !== "scheduled"),
-        );
-      if (!slateIsLive) {
-        for (const [uid, player] of userMap) {
-          if (uid === userId) continue;
-          if (player.picks.size >= totalGamesNhl) continue;
-          player.picks.clear();
-        }
-      }
-    }
-
     const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     const dateLabel = `${fmt.format(satDt)} – ${fmt.format(sunDt)}`;
 
@@ -304,26 +284,6 @@ router.get("/grid", requireAuth, async (req, res) => {
       confidencePoints: (pick as any).confidencePoints ?? null,
       result: pick.result ?? null,
     });
-  }
-
-  // Visibility rule: hide another player's picks until they've locked their full slate.
-  {
-    const totalGamesMlb = games.length;
-    const now = Date.now();
-    const slateIsLive =
-      totalGamesMlb === 0 ||
-      games.some(
-        (g) =>
-          new Date(g.date).getTime() <= now ||
-          (g.status && g.status !== "scheduled"),
-      );
-    if (!slateIsLive) {
-      for (const [uid, player] of userMap) {
-        if (uid === userId) continue;
-        if (player.picks.size >= totalGamesMlb) continue;
-        player.picks.clear();
-      }
-    }
   }
 
   const [y, mo, d] = date.split("-").map(Number);
