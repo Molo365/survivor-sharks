@@ -246,6 +246,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolName: pool.name,
           poolType,
           sport: pool.sport as string,
@@ -281,6 +282,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myRow = rows.find((r) => r.userId === userId) ?? null;
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners: null,
           myStanding: {
@@ -351,6 +353,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners,
           myStanding: {
@@ -430,6 +433,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners,
           myStanding: {
@@ -520,6 +524,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners,
           myStanding: {
@@ -589,6 +594,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners,
           myStanding: {
@@ -651,6 +657,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolType,
           lastWinners: null,
           myStanding: {
@@ -777,6 +784,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolName: pool.name,
           poolType,
           sport: pool.sport as string,
@@ -878,6 +886,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         return {
           poolId: pool.id,
+          isActive: pool.isActive,
           poolName: pool.name,
           poolType,
           sport: pool.sport as string,
@@ -965,6 +974,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
           return {
             poolId: pool.id,
+            isActive: pool.isActive,
             poolName: pool.name,
             poolType,
             sport: pool.sport as string,
@@ -1061,6 +1071,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       return {
         poolId: pool.id,
+        isActive: pool.isActive,
         poolName: pool.name,
         poolType,
         sport: pool.sport as string,

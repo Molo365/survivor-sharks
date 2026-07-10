@@ -18,6 +18,7 @@ interface PoolStats {
   poolType: string;
   sport: string;
   totalPlayers: number;
+  isActive: boolean;
   myStanding: MyStanding;
 }
 
@@ -105,7 +106,7 @@ function RankDisplay({ rank, totalPlayers }: { rank: number; totalPlayers: numbe
   );
 }
 
-function PoolCard({ pool }: { pool: PoolStats }) {
+function PoolCard({ pool, ended = false }: { pool: PoolStats; ended?: boolean }) {
   const [, navigate] = useLocation();
   const summary = scoreSummary(pool);
   const { rank } = pool.myStanding;
@@ -130,9 +131,16 @@ function PoolCard({ pool }: { pool: PoolStats }) {
       {/* Pool info column */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-sm font-bold text-foreground leading-tight break-words">
-            {pool.poolName}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-foreground leading-tight break-words">
+              {pool.poolName}
+            </span>
+            {ended && (
+              <span className="flex-shrink-0 text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-white/[0.06] text-muted-foreground/50 border border-border/20">
+                Ended
+              </span>
+            )}
+          </div>
           <SportBadge sport={pool.sport} />
         </div>
 
@@ -172,16 +180,16 @@ export default function Standings() {
         return res.json() as Promise<PoolStats[]>;
       })
       .then((data) => {
-        // Sort: ranked pools ascending, unranked (rank 0) at bottom
-        const sorted = [...data].sort((a, b) => {
+        // Sort within each group: ranked ascending, unranked (rank 0) at bottom
+        const sortFn = (a: PoolStats, b: PoolStats) => {
           const ra = a.myStanding.rank;
           const rb = b.myStanding.rank;
           if (ra === 0 && rb === 0) return 0;
           if (ra === 0) return 1;
           if (rb === 0) return -1;
           return ra - rb;
-        });
-        setPools(sorted);
+        };
+        setPools([...data].sort(sortFn));
         setLoading(false);
       })
       .catch(() => {
@@ -226,15 +234,36 @@ export default function Standings() {
         ) : pools.length === 0 ? (
           <div className="flex items-center justify-center py-24">
             <p className="text-muted-foreground text-sm">
-              You're not in any active pools yet
+              You're not in any pools yet
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {pools.map((pool) => (
-              <PoolCard key={pool.poolId} pool={pool} />
-            ))}
-          </div>
+          (() => {
+            const activePools = pools.filter((p) => p.isActive);
+            const endedPools = pools.filter((p) => !p.isActive);
+            return (
+              <div className="space-y-3">
+                {activePools.map((pool) => (
+                  <PoolCard key={pool.poolId} pool={pool} />
+                ))}
+
+                {endedPools.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-4 pb-1">
+                      <div className="flex-1 h-px bg-border/20" />
+                      <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/50">
+                        Past Pools
+                      </span>
+                      <div className="flex-1 h-px bg-border/20" />
+                    </div>
+                    {endedPools.map((pool) => (
+                      <PoolCard key={pool.poolId} pool={pool} ended />
+                    ))}
+                  </>
+                )}
+              </div>
+            );
+          })()
         )}
       </div>
       </div>
