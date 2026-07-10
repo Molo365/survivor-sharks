@@ -336,13 +336,6 @@ export default function CreatePool() {
     }
   }, [selectedSport]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When pool type switches to pickem, default frequency: weekly for NHL, daily for everything else
-  useEffect(() => {
-    if (selectedType === "pickem" && selectedSport !== PoolInputSport.worldcup) {
-      form.setValue("pickFrequency", selectedSport === PoolInputSport.nhl ? "weekly" : "daily");
-    }
-  }, [selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Ensure prize slots match the pool type's fixed structure
   useEffect(() => {
     if (selectedType === "pickem_season") {
@@ -740,7 +733,7 @@ export default function CreatePool() {
                               {/* Crazy 8's */}
                               <button
                                 type="button"
-                                onClick={() => { form.setValue("poolType", "crazy_8s", { shouldValidate: true }); setEditStep(3); }}
+                                onClick={() => { form.setValue("poolType", "crazy_8s", { shouldValidate: true }); form.setValue("pickFrequency", "weekly"); setEditStep(3); }}
                                 data-testid="pickem-freq-crazy_8s"
                                 className={cn(
                                   "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
