@@ -676,11 +676,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const prevStart = prevWeekBounds.weekStart;
         const prevEnd = prevWeekBounds.weekEnd;
 
-        const [currentRows, prevRows] = await Promise.all([
+        const c8WeeklyPointsSql = sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`;
+
+        const [initialCurrentRows, prevRows] = await Promise.all([
           db
             .select({
               userId: pickemPicksTable.userId,
-              weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+              weeklyPoints: c8WeeklyPointsSql,
               picked: sql<string>`COUNT(*)`,
             })
             .from(pickemPicksTable)
@@ -717,6 +719,39 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`
             ),
         ]);
+
+        // BUG 2 fix: if no picks in the current week, fall back to the most
+        // recent week that has picks for this user (e.g. NHL off-season).
+        let currentRows = initialCurrentRows;
+        if (currentRows.length === 0) {
+          const [latestPickRow] = await db
+            .select({ gameDate: pickemPicksTable.gameDate })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.userId, userId),
+              sql`${pickemPicksTable.gameDate} IS NOT NULL`,
+            ))
+            .orderBy(sql`${pickemPicksTable.gameDate} DESC NULLS LAST`)
+            .limit(1);
+          if (latestPickRow?.gameDate) {
+            const fallbackBounds = getWeekBoundsEt(latestPickRow.gameDate);
+            currentRows = await db
+              .select({
+                userId: pickemPicksTable.userId,
+                weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+                picked: sql<string>`COUNT(*)`,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                gte(pickemPicksTable.gameDate, fallbackBounds.weekStart),
+                lte(pickemPicksTable.gameDate, fallbackBounds.weekEnd),
+              ))
+              .groupBy(pickemPicksTable.userId)
+              .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+          }
+        }
 
         const myIdx = currentRows.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
@@ -850,6 +885,94 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding,
         };
+      }
+
+      // ── Ended weekly pickem: use the actual game week, not the current week ──
+      // The active path below uses currentWeekBounds which is wrong once the
+      // pool's game week has passed. Detect this case and look up the actual
+      // game week from the picks table, mirroring the ended-daily guard above.
+      if (isWeekly && !pool.isActive) {
+        const [latestWeeklyRow] = await db
+          .select({ gameDate: pickemPicksTable.gameDate })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            sql`${pickemPicksTable.gameDate} IS NOT NULL`,
+          ))
+          .orderBy(sql`${pickemPicksTable.gameDate} DESC NULLS LAST`)
+          .limit(1);
+
+        if (latestWeeklyRow?.gameDate) {
+          const actualWeekBounds = getWeekBoundsEt(latestWeeklyRow.gameDate);
+          const [currentRows, winnerRows] = await Promise.all([
+            db
+              .select({
+                userId: pickemPicksTable.userId,
+                correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                picked: sql<string>`COUNT(*)`,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                gte(pickemPicksTable.gameDate, actualWeekBounds.weekStart),
+                lte(pickemPicksTable.gameDate, actualWeekBounds.weekEnd),
+              ))
+              .groupBy(pickemPicksTable.userId)
+              .orderBy(
+                sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+                sql`COUNT(*) DESC`,
+              ),
+            db
+              .select({
+                userId: entriesTable.userId,
+                username: usersTable.username,
+                displayName: usersTable.displayName,
+              })
+              .from(entriesTable)
+              .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))),
+          ]);
+
+          const myIdx = currentRows.findIndex((r) => r.userId === userId);
+          const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+          const lastWinners =
+            winnerRows.length > 0
+              ? winnerRows.map((w) => {
+                  const scoreRow = currentRows.find((r) => r.userId === w.userId);
+                  return {
+                    userId: w.userId,
+                    username: w.username,
+                    displayName: w.displayName ?? null,
+                    correct: scoreRow ? Number(scoreRow.correct) : null,
+                    picked: scoreRow ? Number(scoreRow.picked) : null,
+                    score: null,
+                    prizeWon: computeSplitPrize(pool, winnerRows.length, memberCountMap.get(pool.id) ?? 0),
+                  };
+                })
+              : null;
+
+          const myStanding =
+            myRow != null
+              ? {
+                  rank: myIdx + 1,
+                  correct: Number(myRow.correct),
+                  picked: Number(myRow.picked),
+                  hasPicks: Number(myRow.picked) > 0,
+                  status: null, eliminatedWeek: null, score: null, maxScore: null,
+                }
+              : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+
+          return {
+            poolId: pool.id,
+            poolName: pool.name,
+            poolType,
+            sport: pool.sport as string,
+            totalPlayers: memberCountMap.get(pool.id) ?? 0,
+            lastWinners,
+            myStanding,
+          };
+        }
       }
 
       const currentStart = isWc
