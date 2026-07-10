@@ -1104,10 +1104,27 @@ export default function CreatePool() {
                     n={5}
                     title="Entry & Prize Setup"
                     complete={isStepComplete(5)}
-                    onEdit={() => setEditStep(5)}
+                    onEdit={() => { setPrizeStep(1); setEditStep(5); }}
                   />
                   {isStepActive(5) ? (
                     <div className="space-y-6">
+
+                      {/* ─── Progress indicator (paid pools only) ─── */}
+                      {watchedEntryFee && watchedEntryFee > 0 && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={prizeStep === 1 ? "text-primary font-bold" : "text-muted-foreground"}>
+                            ① Entry &amp; Fee
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className={prizeStep === 2 ? "text-primary font-bold" : "text-muted-foreground"}>
+                            ② Commissioner Cut
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className={prizeStep === 3 ? "text-primary font-bold" : "text-muted-foreground"}>
+                            ③ Prize Split
+                          </span>
+                        </div>
+                      )}
 
                       {/* ─── SUB-STEP 5A — Max Entries & Entry Fee ─── */}
                       {prizeStep === 1 && (
