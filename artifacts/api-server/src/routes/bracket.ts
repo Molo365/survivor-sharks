@@ -572,6 +572,7 @@ router.get("/tree", requireAuth, async (req, res) => {
           ? (espnByPair.get(`${team1}|${team2}`) ?? espnByPair.get(`${team2}|${team1}`))
           : undefined;
         const result = espn ? (resultById.get(espn.espnEventId) ?? null) : null;
+        const pick   = espn ? (pickById.get(espn.espnEventId)   ?? null) : null;
         if (result?.winner) winners.set(`${round}:${side}:${pos}`, result.winner);
 
         slots.push({
@@ -580,7 +581,7 @@ router.get("/tree", requireAuth, async (req, res) => {
           team1Logo: logoFor(team1, espn?.team1Logo), team2Logo: logoFor(team2, espn?.team2Logo),
           matchDate: espn?.matchDate ?? null,
           isCompleted: result !== null, winner: result?.winner ?? null, winType: result?.winType ?? null,
-          pickedTeam: null, isCorrect: null,
+          pickedTeam: pick?.pickedTeam ?? null, isCorrect: pick?.isCorrect ?? null,
         });
       }
     }
@@ -593,6 +594,7 @@ router.get("/tree", requireAuth, async (req, res) => {
     ? (espnByPair.get(`${finalTeam1}|${finalTeam2}`) ?? espnByPair.get(`${finalTeam2}|${finalTeam1}`))
     : undefined;
   const finalResult = finalEspn ? (resultById.get(finalEspn.espnEventId) ?? null) : null;
+  const finalPick   = finalEspn ? (pickById.get(finalEspn.espnEventId)   ?? null) : null;
   slots.push({
     round: "final", bracketPos: 1, side: "left",
     team1: finalTeam1, team2: finalTeam2,
@@ -600,7 +602,8 @@ router.get("/tree", requireAuth, async (req, res) => {
     team2Logo: logoFor(finalTeam2, finalEspn?.team2Logo),
     matchDate: finalEspn?.matchDate ?? null,
     isCompleted: finalResult !== null, winner: finalResult?.winner ?? null,
-    winType: finalResult?.winType ?? null, pickedTeam: null, isCorrect: null,
+    winType: finalResult?.winType ?? null,
+    pickedTeam: finalPick?.pickedTeam ?? null, isCorrect: finalPick?.isCorrect ?? null,
   });
 
   res.json(slots);
