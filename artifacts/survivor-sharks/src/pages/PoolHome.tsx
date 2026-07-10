@@ -335,7 +335,7 @@ export default function PoolHome() {
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsView poolId={pool.id} sport={pool.sport} />
+                    <CrazyEightsView poolId={pool.id} sport={pool.sport} pickFrequency={(pool as any).pickFrequency ?? "daily"} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
                     <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />

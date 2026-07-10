@@ -24,6 +24,7 @@ function isGameStarted(game: { status: string; startTime: string }, sandboxMode:
 interface CrazyEightsViewProps {
   poolId: number;
   sport: string;
+  pickFrequency?: string;
 }
 
 interface PitcherInfo {
@@ -596,11 +597,22 @@ function GameCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
+export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isNhl = sport === "nhl";
+  const isWeekly = pickFrequency === "weekly";
+  const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const weekSunday = (() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? 0 : 7 - day;
+    const sun = new Date(d);
+    sun.setDate(d.getDate() + diff);
+    return sun.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  })();
+  const isLastDayOfWeek = isWeekly && weekSunday === todayEt;
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confidence, setConfidence] = useState<Record<string, number>>({});
@@ -725,51 +737,21 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
     });
   }
 
-  function handleSubmitClick() {
-    if (selectedIds.length < MAX_PICKS) {
-      toast({ title: `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}`, description: `You must choose exactly ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}.`, variant: "destructive" });
-      return;
-    }
-    if (!selectedIds.every((id) => pickedTeams[id])) {
-      toast({ title: "Pick a winner", description: "Choose a winning team for each selected game.", variant: "destructive" });
-      return;
-    }
-    if (!allReady) {
-      toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
-      return;
-    }
-    setShowTiebreaker(true);
+  function buildPicks() {
+    return selectedIds.map((id) => {
+      const g = games.find(gm => gm.id === id);
+      const teamId = pickedTeams[id] ?? "";
+      const pickedTeamName = g
+        ? (teamId === g.homeTeam.id ? g.homeTeam.abbreviation : g.awayTeam.abbreviation)
+        : teamId;
+      return { gameId: id, pickedTeam: teamId, pickedTeamName, confidencePoints: confidence[id] };
+    });
   }
 
-  async function handleFinalSubmit() {
-    if (isNhl) {
-      if (!tbShots || !tbPim) {
-        toast({ title: "Tiebreaker required", description: "Enter both shots on goal and penalty minutes.", variant: "destructive" });
-        return;
-      }
-    } else {
-      if (!tbRuns || !tbStrikeouts) {
-        toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
-        return;
-      }
-    }
-
+  async function postPicks(body: object) {
     setSubmitting(true);
     try {
-      const picks = selectedIds.map((id) => {
-        const g = games.find(gm => gm.id === id);
-        const teamId = pickedTeams[id] ?? "";
-        const pickedTeamName = g
-          ? (teamId === g.homeTeam.id ? g.homeTeam.abbreviation : g.awayTeam.abbreviation)
-          : teamId;
-        return { gameId: id, pickedTeam: teamId, pickedTeamName, confidencePoints: confidence[id] };
-      });
-
       const token = localStorage.getItem("auth_token");
-      const body = isNhl
-        ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10), tiebreakerPenaltyMinutes: parseInt(tbPim, 10) }
-        : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
-
       const res = await fetch(`/api/pools/${poolId}/crazy-eights/picks`, {
         method: "POST",
         headers: {
@@ -797,6 +779,45 @@ export function CrazyEightsView({ poolId, sport }: CrazyEightsViewProps) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleSubmitClick() {
+    if (selectedIds.length < MAX_PICKS) {
+      toast({ title: `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}`, description: `You must choose exactly ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}.`, variant: "destructive" });
+      return;
+    }
+    if (!selectedIds.every((id) => pickedTeams[id])) {
+      toast({ title: "Pick a winner", description: "Choose a winning team for each selected game.", variant: "destructive" });
+      return;
+    }
+    if (!allReady) {
+      toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
+      return;
+    }
+    if (!isWeekly || isLastDayOfWeek) {
+      setShowTiebreaker(true);
+    } else {
+      void postPicks({ picks: buildPicks() });
+    }
+  }
+
+  async function handleFinalSubmit() {
+    if (isNhl) {
+      if (!tbShots || !tbPim) {
+        toast({ title: "Tiebreaker required", description: "Enter both shots on goal and penalty minutes.", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!tbRuns || !tbStrikeouts) {
+        toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
+        return;
+      }
+    }
+    const picks = buildPicks();
+    const body = isNhl
+      ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10), tiebreakerPenaltyMinutes: parseInt(tbPim, 10) }
+      : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
+    await postPicks(body);
   }
 
   // ── Loading state ─────────────────────────────────────────────────────────

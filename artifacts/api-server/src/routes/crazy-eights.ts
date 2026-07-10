@@ -500,11 +500,6 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   if (pool.sport === "nhl") {
-    if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number") {
-      res.status(400).json({ error: "tiebreakerShotsOnGoal and tiebreakerPenaltyMinutes are required" });
-      return;
-    }
-
     const isSandbox = (pool as any).sandboxMode as boolean;
     const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
@@ -591,11 +586,6 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   // MLB
-  if (typeof tiebreakerRuns !== "number" || typeof tiebreakerStrikeouts !== "number") {
-    res.status(400).json({ error: "tiebreakerRuns and tiebreakerStrikeouts are required" });
-    return;
-  }
-
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
   const games = await fetchGamesForDate("mlb", todayEspn);
