@@ -73,7 +73,7 @@ router.get("/slate", requireAuth, async (req, res) => {
     if (isSandbox) {
       const rows = await db.select().from(sandboxGameScoresTable)
         .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
-      for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore });
+      for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
     }
 
     const [sy, sm, sd] = satDate.split("-").map(Number);
@@ -350,7 +350,7 @@ router.get("/picks", requireAuth, async (req, res) => {
     if (isSandbox) {
       const sbRows = await db.select().from(sandboxGameScoresTable)
         .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
-      for (const r of sbRows) sandboxScores.set(r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore });
+      for (const r of sbRows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
     }
 
     const details = picks.map((pick) => {

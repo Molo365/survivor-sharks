@@ -48,6 +48,7 @@ import {
 import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
+import { processReplayTick } from "./replayMode";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -1794,6 +1795,7 @@ export function startAutoEliminator(): void {
       processPickEmResults(),
       processCrazyEightsResults(),
       processWcBracketResults(),
+      processReplayTick(),
     ]);
     return {
       ...nonMlb,

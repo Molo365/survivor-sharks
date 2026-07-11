@@ -480,7 +480,7 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     .from(sandboxGameScoresTable)
     .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
   const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
-    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]),
+    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]),
   );
 
   // Generate and persist scores only for games that don't yet have stored scores

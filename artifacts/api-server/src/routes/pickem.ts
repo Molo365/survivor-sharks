@@ -88,7 +88,7 @@ router.get("/games", requireAuth, async (req, res) => {
     allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const sbRows = await db.select().from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
-    sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+    sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
   }
 
   const games = allGames.filter((g) => g.status !== "suspended");
@@ -992,7 +992,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   if (isNhl && pool.sandboxMode && isWeekly) {
     const sbRows = await db.select().from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
-    lbSandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+    lbSandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
   }
 
   // Build per-day breakdown map for weekly pools
@@ -1418,7 +1418,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     .from(sandboxGameScoresTable)
     .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
   const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
-    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]),
+    existingScoreRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]),
   );
 
   // Generate scores for any unscored games (NHL: 0–7 goals, no ties)
