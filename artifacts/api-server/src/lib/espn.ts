@@ -215,7 +215,7 @@ async function fetchGames(sport: string, week?: number, season?: number): Promis
     : `${base}/scoreboard`;
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return [];
     const data = await res.json() as { events?: EspnEvent[] };
     return (data.events ?? []).map(parseGame);
