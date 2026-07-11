@@ -25,6 +25,7 @@ import JoinInvite from "@/pages/JoinInvite";
 import Picks from "@/pages/Picks";
 import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
+import Profile from "@/pages/Profile";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -145,6 +146,9 @@ function Router() {
       </Route>
       <Route path="/scores">
         {() => <ProtectedRoute component={Scores} />}
+      </Route>
+      <Route path="/profile">
+        {() => <ProtectedRoute component={Profile} />}
       </Route>
 
       <Route component={NotFound} />
