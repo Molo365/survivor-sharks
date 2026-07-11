@@ -95,6 +95,7 @@ import type {
   SurvivorGrid,
   Team,
   TeamInjuryReport,
+  UserBalance,
   WcBracketLeaderboardEntry,
   WcBracketMatch,
   WcBracketPicksInput,
@@ -471,6 +472,83 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetUserBalanceUrl = () => {
+
+
+
+
+  return `/api/users/me/balance`
+}
+
+/**
+ * @summary Get current user's pool membership and prize balance
+ */
+export const getUserBalance = async ( options?: RequestInit): Promise<UserBalance> => {
+
+  return customFetch<UserBalance>(getGetUserBalanceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserBalanceQueryKey = () => {
+    return [
+    `/api/users/me/balance`
+    ] as const;
+    }
+
+
+export const getGetUserBalanceQueryOptions = <TData = Awaited<ReturnType<typeof getUserBalance>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserBalanceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserBalance>>> = ({ signal }) => getUserBalance({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserBalance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUserBalanceQueryResult = NonNullable<Awaited<ReturnType<typeof getUserBalance>>>
+export type GetUserBalanceQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get current user's pool membership and prize balance
+ */
+
+export function useGetUserBalance<TData = Awaited<ReturnType<typeof getUserBalance>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUserBalanceQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

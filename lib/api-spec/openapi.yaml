@@ -30,6 +30,8 @@ tags:
     description: Weekly results processing
   - name: admin
     description: Admin / commissioner operations
+  - name: users
+    description: User profile and balance
 
 paths:
   /healthz:
@@ -127,6 +129,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Users ─────────────────────────────────────────────────────────────────
+  /users/me/balance:
+    get:
+      operationId: getUserBalance
+      tags: [users]
+      summary: Get current user's pool membership and prize balance
+      responses:
+        "200":
+          description: Active and past pool entries with prize info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserBalance"
         "401":
           description: Not authenticated
           content:
@@ -4287,6 +4309,63 @@ components:
         isCorrect:
           type: boolean
           nullable: true
+
+    UserBalanceActivePool:
+      type: object
+      required: [poolId, poolName, sport, poolType, entryFee, commissionerName, status]
+      properties:
+        poolId:
+          type: integer
+        poolName:
+          type: string
+        sport:
+          type: string
+        poolType:
+          type: string
+        entryFee:
+          type: number
+          nullable: true
+        commissionerName:
+          type: string
+        status:
+          type: string
+
+    UserBalancePastPool:
+      type: object
+      required: [poolId, poolName, sport, poolType, entryFee, commissionerName, result, prizeWon]
+      properties:
+        poolId:
+          type: integer
+        poolName:
+          type: string
+        sport:
+          type: string
+        poolType:
+          type: string
+        entryFee:
+          type: number
+          nullable: true
+        commissionerName:
+          type: string
+        result:
+          type: string
+          enum: [won, lost, unknown]
+        prizeWon:
+          type: number
+          nullable: true
+
+    UserBalance:
+      type: object
+      required: [activePools, pastPools]
+      properties:
+        activePools:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserBalanceActivePool"
+        pastPools:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserBalancePastPool"
 
     NflPickEmSeasonWeekResults:
       type: object

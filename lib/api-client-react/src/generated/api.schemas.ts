@@ -1728,6 +1728,41 @@ export interface BracketTreeSlot {
   isCorrect: boolean | null;
 }
 
+export interface UserBalanceActivePool {
+  poolId: number;
+  poolName: string;
+  sport: string;
+  poolType: string;
+  entryFee: number | null;
+  commissionerName: string;
+  status: string;
+}
+
+export type UserBalancePastPoolResult = typeof UserBalancePastPoolResult[keyof typeof UserBalancePastPoolResult];
+
+
+export const UserBalancePastPoolResult = {
+  won: 'won',
+  lost: 'lost',
+  unknown: 'unknown',
+} as const;
+
+export interface UserBalancePastPool {
+  poolId: number;
+  poolName: string;
+  sport: string;
+  poolType: string;
+  entryFee: number | null;
+  commissionerName: string;
+  result: UserBalancePastPoolResult;
+  prizeWon: number | null;
+}
+
+export interface UserBalance {
+  activePools: UserBalanceActivePool[];
+  pastPools: UserBalancePastPool[];
+}
+
 export interface NflPickEmSeasonWeekResults {
   week: number;
   games: NflPickEmSeasonGame[];

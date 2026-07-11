@@ -77,6 +77,32 @@ export const GetMeResponse = zod.object({
 
 
 /**
+ * @summary Get current user's pool membership and prize balance
+ */
+export const GetUserBalanceResponse = zod.object({
+  "activePools": zod.array(zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "sport": zod.string(),
+  "poolType": zod.string(),
+  "entryFee": zod.number().nullable(),
+  "commissionerName": zod.string(),
+  "status": zod.string()
+})),
+  "pastPools": zod.array(zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "sport": zod.string(),
+  "poolType": zod.string(),
+  "entryFee": zod.number().nullable(),
+  "commissionerName": zod.string(),
+  "result": zod.enum(['won', 'lost', 'unknown']),
+  "prizeWon": zod.number().nullable()
+}))
+})
+
+
+/**
  * @summary Pick-em stats for all user's pools (for dashboard cards)
  */
 export const GetPickEmDashboardStatsResponseItem = zod.object({

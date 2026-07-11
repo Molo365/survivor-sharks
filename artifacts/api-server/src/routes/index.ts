@@ -24,6 +24,7 @@ import pickemSeasonRouter from "./pickem-season";
 import bracketRouter from "./bracket";
 import scoresRouter from "./scores";
 import picksSummaryRouter from "./picks-summary";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -57,5 +58,6 @@ router.use("/admin", adminRouter);
 router.use("/admin-auth", adminAuthRouter);
 router.use("/admin-panel", adminPanelRouter);
 router.use("/agent", agentRouter);
+router.use("/users", usersRouter);
 
 export default router;
