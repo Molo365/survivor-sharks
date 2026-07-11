@@ -89,7 +89,7 @@ export function CrazyEightsSnapshotView({
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
   const { data, isLoading } = useQuery<GridResponse>({
-    queryKey: ["crazy-eights-grid", poolId, todayEt],
+    queryKey: ["crazy-eights-snapshot", poolId, todayEt],
     queryFn: () =>
       authedFetch<GridResponse>(
         `/api/pools/${poolId}/crazy-eights/grid?date=${todayEt}`,
