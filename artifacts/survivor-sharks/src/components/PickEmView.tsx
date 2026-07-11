@@ -959,44 +959,6 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
     [entries],
   );
 
-  function downloadCsv() {
-    const header = [
-      "Player",
-      ...snapshotGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`),
-      "Correct",
-      "Picked",
-    ];
-    const csvRows = sortedEntries.map((entry) => {
-      const name = entry.displayName || entry.username;
-      const pickMap = new Map(
-        entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
-      );
-      const todayCorrect = snapshotGames.filter((g) => pickMap.get(g.id)?.result === "correct").length;
-      const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
-      const pickCells = snapshotGames.map((g) => {
-        const pick = pickMap.get(g.id);
-        if (!pick) return "—";
-        const suffix =
-          pick.result === "correct" ? " (W)"
-          : pick.result === "incorrect" ? " (L)"
-          : pick.result === "postponed" ? " (PPD)"
-          : "";
-        return `${pick.pickedTeamName}${suffix}`;
-      });
-      return [name, ...pickCells, String(todayCorrect), String(todayPicked)];
-    });
-    const csv = [header, ...csvRows]
-      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${poolName.replace(/\s+/g, "_")}_snapshot_${slate.date}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
   function handleDownloadPdf() {
     const year = slate.date.substring(0, 4);
     const sportLabel = sport.toUpperCase().replace("WORLDCUP", "WORLD CUP").replace("INTL", "INTL SOCCER");
@@ -1039,7 +1001,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
 
   return (
     <div className="space-y-3">
-      {/* Header row with CSV + PDF buttons */}
+      {/* Header row with PDF button */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-bebas text-2xl tracking-wide text-foreground">Pick Snapshot</h3>
@@ -1048,14 +1010,6 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadCsv}
-            className="font-bebas text-base tracking-wider gap-1.5"
-          >
-            <Download className="w-4 h-4" /> Download CSV
-          </Button>
           <Button
             variant="outline"
             size="sm"

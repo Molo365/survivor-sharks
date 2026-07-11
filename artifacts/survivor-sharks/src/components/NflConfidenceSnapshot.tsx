@@ -113,39 +113,6 @@ export function NflConfidenceSnapshot({
 
   const minWidth = Math.max(420, 240 + sortedGames.length * 82);
 
-  function downloadCsv() {
-    const header = [
-      "Player",
-      ...sortedGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`),
-      "Week Pts",
-    ];
-    const rows = enrichedPlayers.map((p) => {
-      const name = p.displayName ?? p.username;
-      const cells = sortedGames.map((g) => {
-        const pick = p.picks[g.id];
-        if (!pick) return "—";
-        const pts = pick.confidencePoints != null ? ` (${pick.confidencePoints}pts)` : "";
-        const outcome =
-          pick.result === "correct" ? " (W)"
-          : pick.result === "incorrect" ? " (L)"
-          : pick.result === "postponed" ? " (PPD)"
-          : "";
-        return `${pick.pickedTeamName}${pts}${outcome}`;
-      });
-      return [name, ...cells, String(p.weekPts)];
-    });
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${poolName.replace(/\s+/g, "_")}_confidence_snapshot_week${selectedWeek}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
   function handleDownloadPdf() {
     const gameColHeaders = sortedGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`);
     const pdfRows = enrichedPlayers.map((p, idx) => {
@@ -222,14 +189,6 @@ export function NflConfidenceSnapshot({
 
           {anyGameStarted && enrichedPlayers.length > 0 && (
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={downloadCsv}
-                className="font-bebas text-base tracking-wider gap-1.5 h-8"
-              >
-                <Download className="w-4 h-4" /> Download CSV
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
