@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock, Snowflake } from "lucide-react";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CrazyEightsSnapshotView } from "@/components/CrazyEightsSnapshotView";
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -25,6 +27,7 @@ interface CrazyEightsViewProps {
   poolId: number;
   sport: string;
   pickFrequency?: string;
+  poolName?: string;
 }
 
 interface PitcherInfo {
@@ -572,7 +575,7 @@ function GameCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: CrazyEightsViewProps) {
+export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", poolName = "" }: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -807,21 +810,6 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     );
   }
 
-  // ── Locked view — picks already submitted ─────────────────────────────────
-
-  if (hasPicks) {
-    return (
-      <LockedPicksView
-        picks={existingPicks}
-        sport={sport}
-        tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
-        tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
-        tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
-        tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
-      />
-    );
-  }
-
   // ── No games ──────────────────────────────────────────────────────────────
 
   if (games.length === 0) {
@@ -840,22 +828,20 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     );
   }
 
-  // ── All games started ─────────────────────────────────────────────────────
+  // ── Snapshot tab visibility ────────────────────────────────────────────────
 
-  if (MAX_PICKS === 0) {
-    return (
-      <div className="text-center py-16 text-muted-foreground">
-        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">No Games Available</p>
-        <p className="text-sm">All games for this period have already started.</p>
-      </div>
-    );
-  }
-
-  // ── Open selection UI ─────────────────────────────────────────────────────
+  const anyGameStarted = games.some(
+    (g) =>
+      g.status === "final" ||
+      g.status === "in_progress" ||
+      (!sandboxMode && Date.now() >= new Date(g.startTime).getTime()),
+  );
+  const showSnapshot = anyGameStarted || hasPicks;
 
   const missingWinner = selectedIds.some((id) => !pickedTeams[id]);
-  const missingPoints = selectedIds.length === MAX_PICKS && !selectedIds.every((id) => confidence[id] !== undefined);
+  const missingPoints =
+    selectedIds.length === MAX_PICKS &&
+    !selectedIds.every((id) => confidence[id] !== undefined);
 
   const tbGame: TiebreakerGame | null =
     myPicksData?.tiebreakerGame ??
@@ -868,7 +854,24 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         }
       : null);
 
-  return (
+  // ── Build picks tab content ────────────────────────────────────────────────
+
+  const picksTabContent = hasPicks ? (
+    <LockedPicksView
+      picks={existingPicks}
+      sport={sport}
+      tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
+      tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
+      tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
+      tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
+    />
+  ) : MAX_PICKS === 0 ? (
+    <div className="text-center py-16 text-muted-foreground">
+      <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+      <p className="font-bebas text-2xl tracking-wide mb-1">No Games Available</p>
+      <p className="text-sm">All games for this period have already started.</p>
+    </div>
+  ) : (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1118,5 +1121,37 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         </DialogContent>
       </Dialog>
     </div>
+  );
+
+  if (!showSnapshot) return picksTabContent;
+
+  return (
+    <Tabs defaultValue="picks" className="space-y-4">
+      <TabsList className="bg-card border border-border h-auto p-1 gap-1 w-max">
+        <TabsTrigger
+          value="picks"
+          className="font-bebas text-base tracking-wider px-3 py-1.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400"
+        >
+          {isNhl ? "Weekend Picks" : "Today's Picks"}
+        </TabsTrigger>
+        <TabsTrigger
+          value="snapshot"
+          className="font-bebas text-base tracking-wider px-3 py-1.5"
+        >
+          Snapshot
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+        {picksTabContent}
+      </TabsContent>
+      <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
+        <CrazyEightsSnapshotView
+          poolId={poolId}
+          currentUserId={user?.id ?? null}
+          poolName={poolName}
+          sport={sport}
+        />
+      </TabsContent>
+    </Tabs>
   );
 }
