@@ -1,4 +1,5 @@
 import { useParams, Link, useLocation, Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
@@ -70,6 +71,23 @@ export default function PoolHome() {
       enabled: isWcBracket && !!poolId,
       queryKey: getGetWcBracketQueryKey(poolId),
     },
+  });
+
+  // Replay Mode status — polled for nfl_confidence pools in sandbox mode
+  const { data: replayStatusData } = useQuery({
+    queryKey: ["replay-status", poolId],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const r = await fetch(`/api/pools/${poolId}/replay/status`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return null;
+      return r.json() as Promise<{ active: boolean; summary: { live: number; final: number; pending: number } }>;
+    },
+    enabled: (isNflConfidence || isNflConfidenceWeekly) && !!((pool as any)?.sandboxMode),
+    refetchInterval: 30_000,
+    staleTime: 25_000,
   });
 
   const mobilePrizeData = (() => {
@@ -228,6 +246,11 @@ export default function PoolHome() {
                   {isNdp && (pool as any).sandboxMode && (
                     <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
                       <Zap className="w-2.5 h-2.5" /> Sandbox
+                    </span>
+                  )}
+                  {(isNflConfidence || isNflConfidenceWeekly) && (pool as any).sandboxMode && replayStatusData?.active && (
+                    <span className="flex items-center gap-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
+                      🎬 Replay
                     </span>
                   )}
                   <span>Season {pool.season}</span>

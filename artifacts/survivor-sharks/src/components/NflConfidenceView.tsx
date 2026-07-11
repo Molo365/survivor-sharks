@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2, BarChart3 } from "lucide-react";
+import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2, BarChart3, Play, Clapperboard } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
@@ -515,6 +515,49 @@ export function NflConfidenceCommissionerPanel({
   const [togglingsandbox, setTogglingSandbox] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);
+  const [replayWeek, setReplayWeek] = useState(initialSandboxWeek);
+  const [replayStartTime, setReplayStartTime] = useState(() => {
+    const d = new Date(Date.now() + 5 * 60_000);
+    return d.toTimeString().slice(0, 5);
+  });
+  const [startingReplay, setStartingReplay] = useState(false);
+
+  const { data: replayStatus } = useQuery({
+    queryKey: ["replay-status", poolId],
+    queryFn: async () => {
+      const r = await fetch(`/api/pools/${poolId}/replay/status`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return null;
+      return r.json() as Promise<{ active: boolean; summary: { live: number; final: number; pending: number }; games: unknown[] }>;
+    },
+    enabled: localSandboxMode && isSuperAdmin,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
+
+  async function handleStartReplay() {
+    setStartingReplay(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const startTime = new Date(`${today}T${replayStartTime}:00`).toISOString();
+      const res = await fetch(`/api/pools/${poolId}/replay/start`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ week: replayWeek, startTime }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data = await res.json();
+      toast({ title: "Replay armed!", description: `${(data as { gamesLoaded: number }).gamesLoaded} games loaded for week ${replayWeek}.` });
+      queryClient.invalidateQueries({ queryKey: ["replay-status", poolId] });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to arm replay", description: (err as Error).message });
+    } finally {
+      setStartingReplay(false);
+    }
+  }
 
   async function handleToggleSandbox(enabled: boolean) {
     setTogglingSandbox(true);
@@ -781,6 +824,72 @@ export function NflConfidenceCommissionerPanel({
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Replay Mode — Super Admin only, requires sandbox ON */}
+      {localSandboxMode && isSuperAdmin && (
+        <Card className="border-amber-500/30 bg-[linear-gradient(145deg,rgba(245,158,11,0.06)_0%,rgba(10,14,26,1)_100%)]">
+          <CardHeader>
+            <CardTitle className="font-bebas text-2xl tracking-wide text-amber-400 flex items-center gap-2">
+              <Clapperboard className="w-5 h-5" /> Replay Mode
+            </CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Load real 2025 NFL scores and simulate a live Sunday compressed into ~2 hours.
+              Quarter scores are revealed every 30 minutes by the auto-eliminator tick.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-2">
+              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">Week to Replay</Label>
+              <Select value={String(replayWeek)} onValueChange={(v) => setReplayWeek(Number(v))}>
+                <SelectTrigger className="w-[180px] bg-background/50 border-amber-500/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 18 }, (_, i) => i + 1).map((w) => (
+                    <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">Replay Start Time (today)</Label>
+              <input
+                type="time"
+                value={replayStartTime}
+                onChange={e => setReplayStartTime(e.target.value)}
+                className="w-[180px] h-9 rounded-md border border-amber-500/20 bg-background/50 px-3 text-sm text-foreground"
+              />
+              <p className="text-xs text-muted-foreground/60">First game kicks off at this time. Later games are spaced proportionally.</p>
+            </div>
+
+            <Button
+              onClick={handleStartReplay}
+              disabled={startingReplay}
+              className="font-bebas text-lg tracking-wider bg-amber-600 hover:bg-amber-500 text-black"
+            >
+              <Play className="w-4 h-4 mr-1.5" />
+              {startingReplay ? "Loading…" : "Load & Start Replay"}
+            </Button>
+
+            {replayStatus?.active && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <p className="font-semibold text-amber-300 text-sm mb-1">Replay in progress</p>
+                <p className="text-muted-foreground text-xs">
+                  🟢 {replayStatus.summary.live} live
+                  {" · "}🏁 {replayStatus.summary.final} final
+                  {" · "}⏳ {replayStatus.summary.pending} pending
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">
+              Fetches real ESPN 2025 data for the chosen week, then compresses all kickoff times so a full Sunday plays out in ~2 hours.
+              The auto-eliminator tick advances game_status and reveals scores every 5 minutes of real time.
+            </p>
           </CardContent>
         </Card>
       )}
