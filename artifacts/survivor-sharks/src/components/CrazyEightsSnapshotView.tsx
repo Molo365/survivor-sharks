@@ -88,7 +88,7 @@ export function CrazyEightsSnapshotView({
 }: CrazyEightsSnapshotViewProps) {
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-  const { data, isLoading } = useQuery<GridResponse>({
+  const { data, isLoading, isError, error } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-snapshot", poolId, todayEt],
     queryFn: () =>
       authedFetch<GridResponse>(
@@ -152,6 +152,15 @@ export function CrazyEightsSnapshotView({
       rows: pdfRows,
       footer: `Snapshot · ${data.date}`,
     });
+  }
+
+  if (isError) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <p>Could not load snapshot data.</p>
+        <p className="text-xs mt-1">{String(error)}</p>
+      </div>
+    );
   }
 
   if (isLoading) {
