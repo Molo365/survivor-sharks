@@ -1,17 +1,13 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { LogOut, ChevronLeft, KeyRound } from "lucide-react";
+import { LogOut, ChevronLeft } from "lucide-react";
 
 const NO_BACK_PATHS = new Set(["/", "/dashboard", "/login", "/register"]);
 
 export function NavBar() {
   const { user, isLoading, logout } = useAuth();
   const [location] = useLocation();
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-
   const showBack = user && !NO_BACK_PATHS.has(location);
 
   return (
@@ -81,9 +77,6 @@ export function NavBar() {
                 <span className="text-sm text-muted-foreground truncate max-w-[72px] sm:max-w-[90px]">
                   {user.displayName || user.username}
                 </span>
-                <Button variant="ghost" size="icon" onClick={() => setChangePasswordOpen(true)} data-testid="button-change-password" title="Change password">
-                  <KeyRound className="h-4 w-4" />
-                </Button>
                 <Button variant="ghost" size="icon" onClick={logout} data-testid="button-logout" title="Log out">
                   <LogOut className="h-4 w-4" />
                 </Button>
@@ -106,9 +99,6 @@ export function NavBar() {
         </div>
 
       </div>
-      {changePasswordOpen && (
-        <ChangePasswordDialog onClose={() => setChangePasswordOpen(false)} />
-      )}
     </header>
   );
 }

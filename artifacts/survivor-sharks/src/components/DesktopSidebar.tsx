@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, Target, Trophy, Tv } from "lucide-react";
+import { Home, Target, Trophy, Tv, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -8,6 +8,7 @@ const TABS = [
   { label: "Picks",     icon: Target, href: "/picks"     },
   { label: "Standings", icon: Trophy, href: "/standings" },
   { label: "Scores",    icon: Tv,     href: "/scores"    },
+  { label: "Profile",   icon: User,   href: "/profile"   },
 ] as const;
 
 const HIDDEN_PREFIXES = ["/", "/login", "/register", "/reset-password", "/join/", "/admin"];
