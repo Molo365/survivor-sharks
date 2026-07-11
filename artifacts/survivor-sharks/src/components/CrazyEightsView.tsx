@@ -211,23 +211,6 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
             {score}
           </span>
         )}
-        {isPicked && (
-          <div className="flex items-center gap-1 mt-0.5">
-            {isCorrect ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
-                <Check className="w-3 h-3" /> Correct · My Pick
-              </span>
-            ) : isWrong ? (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80 flex items-center gap-0.5">
-                <X className="w-3 h-3" /> Wrong · My Pick
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
-                <Check className="w-3 h-3" /> My Pick
-              </span>
-            )}
-          </div>
-        )}
       </div>
     );
 
@@ -491,14 +474,6 @@ function GameCard({
                 </div>
               )}
             </>
-          )}
-          {isPicked && (
-            <div className={cn(
-              "text-[9px] font-bold uppercase tracking-widest text-purple-400 flex items-center gap-0.5 mt-0.5",
-              isHome ? "justify-end" : "",
-            )}>
-              <Check className="w-2.5 h-2.5" /> My Pick
-            </div>
           )}
         </div>
       </button>
