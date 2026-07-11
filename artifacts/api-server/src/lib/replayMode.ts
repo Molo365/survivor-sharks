@@ -60,6 +60,8 @@ export async function fetchAndStoreReplayWeek(
         q4Away,
         gameStatus: "scheduled",
         replayKickoff,
+        homeTeam: game.homeTeam.abbreviation,
+        awayTeam: game.awayTeam.abbreviation,
       })
       .onConflictDoUpdate({
         target: [
@@ -80,6 +82,8 @@ export async function fetchAndStoreReplayWeek(
           q4Away,
           gameStatus: "scheduled",
           replayKickoff,
+          homeTeam: game.homeTeam.abbreviation,
+          awayTeam: game.awayTeam.abbreviation,
         },
       });
   }

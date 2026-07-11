@@ -21,6 +21,8 @@ export const sandboxGameScoresTable = pgTable(
     q4Away: integer("q4_away"),
     gameStatus: text("game_status"),
     replayKickoff: timestamp("replay_kickoff", { withTimezone: true }),
+    homeTeam: text("home_team"),
+    awayTeam: text("away_team"),
   },
   (t) => [unique("sgs_pool_week_game_uniq").on(t.poolId, t.week, t.gameId)],
 );

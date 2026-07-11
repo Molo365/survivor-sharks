@@ -394,3 +394,50 @@ export function sandboxGameToPickEmShape(game: SandboxGame) {
     homeScore: null as null,
   };
 }
+
+type ReplayRow = {
+  gameId: string;
+  homeTeam: string | null;
+  awayTeam: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  gameStatus: string | null;
+  replayKickoff: Date | null;
+};
+
+const REPLAY_STATUS_MAP: Record<string, "scheduled" | "in_progress" | "final"> = {
+  scheduled: "scheduled",
+  q1: "in_progress",
+  q2: "in_progress",
+  halftime: "in_progress",
+  q3: "in_progress",
+  q4: "in_progress",
+  final: "final",
+};
+
+export function replayRowToPickEmShape(row: ReplayRow) {
+  const homeAbbr = row.homeTeam ?? "";
+  const awayAbbr = row.awayTeam ?? "";
+  const home = NFL_TEAM_INFO[homeAbbr];
+  const away = NFL_TEAM_INFO[awayAbbr];
+  return {
+    id: row.gameId,
+    startTime: row.replayKickoff?.toISOString() ?? "",
+    status: REPLAY_STATUS_MAP[row.gameStatus ?? "scheduled"] ?? ("scheduled" as const),
+    liveDetail: null as null,
+    awayTeam: {
+      id: NFL_TEAM_INFO[awayAbbr]?.id ?? awayAbbr,
+      abbreviation: awayAbbr,
+      name: away?.displayName ?? awayAbbr,
+      logoUrl: `${LOGO_BASE}/${awayAbbr.toLowerCase()}.png`,
+    },
+    homeTeam: {
+      id: NFL_TEAM_INFO[homeAbbr]?.id ?? homeAbbr,
+      abbreviation: homeAbbr,
+      name: home?.displayName ?? homeAbbr,
+      logoUrl: `${LOGO_BASE}/${homeAbbr.toLowerCase()}.png`,
+    },
+    awayScore: row.awayScore,
+    homeScore: row.homeScore,
+  };
+}

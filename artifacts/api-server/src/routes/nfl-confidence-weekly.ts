@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNotNull } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
-import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
+import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -28,6 +28,19 @@ router.get("/games", requireAuth, async (req, res) => {
   const week = pool.currentWeek;
 
   if ((pool as any).sandboxMode) {
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      const games = replayRows.map(replayRowToPickEmShape);
+      res.json({ week, games, sandboxMode: true, replayMode: true });
+      return;
+    }
     const sandboxGames = getSandboxGamesForWeek(week);
     const games = sandboxGames.map(sandboxGameToPickEmShape);
     res.json({ week, games, sandboxMode: true });
@@ -64,19 +77,33 @@ router.get("/picks", requireAuth, async (req, res) => {
   const gameMap = new Map<string, any>();
 
   if (isSandbox) {
-    const sandboxGames = getSandboxGamesForWeek(week);
-    for (const g of sandboxGames) {
-      gameMap.set(g.id, sandboxGameToPickEmShape(g));
-    }
-    // Overlay any stored sandbox scores from simulate-grading
-    const storedScores = await db
+    const replayRows = await db
       .select()
       .from(sandboxGameScoresTable)
-      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
-    for (const row of storedScores) {
-      const existing = gameMap.get(row.gameId);
-      if (existing) {
-        gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore, awayScore: row.awayScore });
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      for (const row of replayRows) {
+        gameMap.set(row.gameId, replayRowToPickEmShape(row));
+      }
+    } else {
+      const sandboxGames = getSandboxGamesForWeek(week);
+      for (const g of sandboxGames) {
+        gameMap.set(g.id, sandboxGameToPickEmShape(g));
+      }
+      // Overlay any stored sandbox scores from simulate-grading
+      const storedScores = await db
+        .select()
+        .from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+      for (const row of storedScores) {
+        const existing = gameMap.get(row.gameId);
+        if (existing) {
+          gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore, awayScore: row.awayScore });
+        }
       }
     }
   } else {
@@ -132,8 +159,9 @@ router.get("/picks", requireAuth, async (req, res) => {
   const tiebreakerPassingYards = (entry as any).tiebreakerPassingYards ?? null;
   const tiebreakerRushingYards = (entry as any).tiebreakerRushingYards ?? null;
 
-  const allGames = isSandbox ? getSandboxGamesForWeek(week).map(sandboxGameToPickEmShape) : [];
-  allGames.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allGames = isSandbox ? ([...gameMap.values()] as any[]) : [];
+  allGames.sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const lastGame = allGames.at(-1);
 
   res.json({
@@ -183,8 +211,27 @@ router.post("/picks", requireAuth, async (req, res) => {
   const week = pool.currentWeek;
   const isSandbox = (pool as any).sandboxMode as boolean;
 
-  const validGames = isSandbox ? getSandboxGamesForWeek(week) : [];
-  const validGameIds = new Set(validGames.map(g => g.id));
+  // Validate game IDs — use replay game IDs if armed, else static sandbox schedule
+  let validGameIds = new Set<string>();
+  let expectedCount = 0;
+  if (isSandbox) {
+    const replayRows = await db
+      .select({ gameId: sandboxGameScoresTable.gameId })
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      validGameIds = new Set(replayRows.map(r => r.gameId));
+      expectedCount = replayRows.length;
+    } else {
+      const validGames = getSandboxGamesForWeek(week);
+      validGameIds = new Set(validGames.map(g => g.id));
+      expectedCount = validGames.length;
+    }
+  }
 
   if (isSandbox) {
     for (const p of picks) {
@@ -194,7 +241,6 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
-    const expectedCount = validGames.length;
     if (picks.length !== expectedCount) {
       res.status(400).json({ error: `Expected ${expectedCount} picks, got ${picks.length}` });
       return;
@@ -289,21 +335,36 @@ router.get("/grid", requireAuth, async (req, res) => {
   ]);
 
   const isSandbox = (pool as any).sandboxMode as boolean;
-  const sandboxGames = isSandbox ? getSandboxGamesForWeek(week).map(sandboxGameToPickEmShape) : [];
-  sandboxGames.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  const gameMap = new Map(sandboxGames.map(g => [g.id, g]));
-
-  // Overlay stored sandbox scores so the grid reflects graded results
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gameMap = new Map<string, any>();
   if (isSandbox) {
-    const storedScores = await db
+    const replayRows = await db
       .select()
       .from(sandboxGameScoresTable)
-      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
-    for (const row of storedScores) {
-      const existing = gameMap.get(row.gameId);
-      if (existing) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore as any, awayScore: row.awayScore as any });
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      for (const row of replayRows) {
+        gameMap.set(row.gameId, replayRowToPickEmShape(row));
+      }
+    } else {
+      const sandboxGames = getSandboxGamesForWeek(week).map(sandboxGameToPickEmShape);
+      sandboxGames.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      for (const g of sandboxGames) { gameMap.set(g.id, g); }
+      // Overlay stored sandbox scores so the grid reflects graded results
+      const storedScores = await db
+        .select()
+        .from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+      for (const row of storedScores) {
+        const existing = gameMap.get(row.gameId);
+        if (existing) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          gameMap.set(row.gameId, { ...existing, homeScore: row.homeScore as any, awayScore: row.awayScore as any });
+        }
       }
     }
   } else {
