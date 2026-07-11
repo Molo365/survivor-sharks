@@ -16,26 +16,31 @@ export async function fetchAndStoreReplayWeek(
   replayStartTime: Date,
 ): Promise<void> {
   const games = await fetchNflGamesByWeek(week, 2025);
-  if (games.length === 0) {
-    logger.warn({ poolId, week }, "fetchAndStoreReplayWeek: no games returned from ESPN 2025");
+
+  const validGames = games.filter(g => g.date && !isNaN(new Date(g.date).getTime()));
+  if (validGames.length === 0) {
+    logger.warn({ poolId, week }, "fetchAndStoreReplayWeek: no valid games found for replay week");
     return;
   }
 
-  const kickoffMs = games.map(g => new Date(g.date).getTime());
+  const getQ = (scores: { value: number; period: number }[], period: number): number | null =>
+    scores.find(s => s.period === period)?.value ?? null;
+
+  const kickoffMs = validGames.map(g => new Date(g.date).getTime());
   const earliestMs = Math.min(...kickoffMs);
 
-  for (const game of games) {
+  for (const game of validGames) {
     const realOffsetMs = new Date(game.date).getTime() - earliestMs;
     const replayKickoff = new Date(replayStartTime.getTime() + realOffsetMs / 4);
 
-    const q1Home = game.homeLinescores.find(l => l.period === 1)?.value ?? null;
-    const q1Away = game.awayLinescores.find(l => l.period === 1)?.value ?? null;
-    const q2Home = game.homeLinescores.find(l => l.period === 2)?.value ?? null;
-    const q2Away = game.awayLinescores.find(l => l.period === 2)?.value ?? null;
-    const q3Home = game.homeLinescores.find(l => l.period === 3)?.value ?? null;
-    const q3Away = game.awayLinescores.find(l => l.period === 3)?.value ?? null;
-    const q4Home = game.homeLinescores.find(l => l.period === 4)?.value ?? null;
-    const q4Away = game.awayLinescores.find(l => l.period === 4)?.value ?? null;
+    const q1Home = getQ(game.homeLinescores, 1);
+    const q1Away = getQ(game.awayLinescores, 1);
+    const q2Home = getQ(game.homeLinescores, 2);
+    const q2Away = getQ(game.awayLinescores, 2);
+    const q3Home = getQ(game.homeLinescores, 3);
+    const q3Away = getQ(game.awayLinescores, 3);
+    const q4Home = getQ(game.homeLinescores, 4);
+    const q4Away = getQ(game.awayLinescores, 4);
 
     await db
       .insert(sandboxGameScoresTable)

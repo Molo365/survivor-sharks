@@ -4,6 +4,7 @@ import { sandboxGameScoresTable, poolsTable } from "@workspace/db";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import { fetchAndStoreReplayWeek } from "../lib/replayMode";
+import { logger } from "../lib/logger";
 
 const router = Router({ mergeParams: true });
 
@@ -33,7 +34,16 @@ router.post("/start", requireAuth, requireCommissioner, async (req, res) => {
     return;
   }
 
-  await fetchAndStoreReplayWeek(poolId, week, new Date(startTime));
+  try {
+    await fetchAndStoreReplayWeek(poolId, week, new Date(startTime));
+  } catch (err) {
+    logger.error({ err, poolId, week }, "Replay fetch error");
+    res.status(500).json({
+      error: "Failed to load replay data",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
 
   const rows = await db
     .select({ id: sandboxGameScoresTable.id })
