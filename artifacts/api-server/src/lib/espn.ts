@@ -211,7 +211,7 @@ async function fetchGames(sport: string, week?: number, season?: number): Promis
 
   const resolvedSeason = season ?? new Date().getFullYear();
   const url = sport === "nfl" && week
-    ? `${base}/scoreboard?week=${week}&seasontype=2&dates=${resolvedSeason}`
+    ? `${base}/scoreboard?week=${week}&seasontype=2&season=${resolvedSeason}`
     : `${base}/scoreboard`;
 
   try {
