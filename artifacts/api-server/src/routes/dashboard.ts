@@ -691,6 +691,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               userId: pickemPicksTable.userId,
               weeklyPoints: c8WeeklyPointsSql,
               picked: sql<string>`COUNT(*)`,
+              correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct' AND ${pickemPicksTable.gameDate} BETWEEN ${weekStart} AND ${weekEnd})`,
             })
             .from(pickemPicksTable)
             .where(
@@ -748,6 +749,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                 userId: pickemPicksTable.userId,
                 weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
                 picked: sql<string>`COUNT(*)`,
+                correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct' AND ${pickemPicksTable.gameDate} BETWEEN ${fallbackBounds.weekStart} AND ${fallbackBounds.weekEnd})`,
               })
               .from(pickemPicksTable)
               .where(and(
@@ -792,7 +794,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
-            correct: 0,
+            correct: myRow ? Number(myRow.correctCount) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks: myRow ? Number(myRow.picked) > 0 : false,
             status: null,
