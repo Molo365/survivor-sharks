@@ -57,7 +57,11 @@ export interface CrazyEightsSnapshotViewProps {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function authedFetch<T>(url: string): Promise<T> {
-  return fetch(url, { credentials: "include" }).then((r) => {
+  const token = localStorage.getItem("auth_token");
+  return fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json() as Promise<T>;
   });
