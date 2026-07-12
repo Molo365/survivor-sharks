@@ -28,10 +28,13 @@ export async function fetchAndStoreReplayWeek(
 
   const kickoffMs = validGames.map(g => new Date(g.date).getTime());
   const earliestMs = Math.min(...kickoffMs);
+  const latestMs = Math.max(...kickoffMs);
+  const totalSpreadMs = latestMs - earliestMs || 1;
+  const REPLAY_WINDOW_MS = 120 * 60 * 1000;
 
   for (const game of validGames) {
     const realOffsetMs = new Date(game.date).getTime() - earliestMs;
-    const replayKickoff = new Date(replayStartTime.getTime() + realOffsetMs / 4);
+    const replayKickoff = new Date(replayStartTime.getTime() + (realOffsetMs / totalSpreadMs) * REPLAY_WINDOW_MS);
 
     const q1Home = getQ(game.homeLinescores, 1);
     const q1Away = getQ(game.awayLinescores, 1);
