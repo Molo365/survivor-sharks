@@ -96,7 +96,7 @@ router.get("/", requireAuth, async (req, res) => {
       .select()
       .from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
-    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore }]));
+    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore, gameStatus: r.gameStatus, replayKickoff: r.replayKickoff }]));
 
     // Group by date
     const byDate = new Map<string, typeof sandboxGames>();
@@ -126,8 +126,13 @@ router.get("/", requireAuth, async (req, res) => {
             startTime: g.gameTime,
             week,
             season: pool.season,
-            status: scored ? "final" : "scheduled",
-            hasStarted: scored ? true : false,
+            status: scored?.gameStatus === "final" ? "final"
+              : scored?.gameStatus && scored.gameStatus !== "scheduled" ? "in_progress"
+              : scored?.replayKickoff && new Date(scored.replayKickoff) <= new Date() ? "in_progress"
+              : "scheduled",
+            hasStarted: scored?.gameStatus && scored.gameStatus !== "scheduled" ? true
+              : scored?.replayKickoff && new Date(scored.replayKickoff) <= new Date() ? true
+              : false,
             homeScore: scored?.homeScore ?? null,
             awayScore: scored?.awayScore ?? null,
             homeRecord: null,
