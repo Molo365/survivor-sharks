@@ -593,10 +593,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);
   const [replayWeek, setReplayWeek] = useState(initialSandboxWeek);
-  const [replayStartTime, setReplayStartTime] = useState(() => {
-    const d = new Date(Date.now() + 5 * 60_000);
-    return d.toTimeString().slice(0, 5);
-  });
+  const [replayDelay, setReplayDelay] = useState(5);
   const [startingReplay, setStartingReplay] = useState(false);
 
   const { data: replayStatus } = useQuery({
@@ -617,9 +614,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
   async function handleStartReplay() {
     setStartingReplay(true);
     try {
-      const now = new Date();
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const startTime = new Date(`${today}T${replayStartTime}:00`).toISOString();
+      const startTime = new Date(Date.now() + replayDelay * 60_000).toISOString();
       const res = await fetch(`/api/pools/${poolId}/replay/start`, {
         method: "POST",
         credentials: "include",
@@ -907,14 +902,18 @@ export function NflConfidenceWeeklyCommissionerPanel({
             </div>
 
             <div className="grid gap-2">
-              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">Replay Start Time (today)</Label>
-              <input
-                type="time"
-                value={replayStartTime}
-                onChange={e => setReplayStartTime(e.target.value)}
-                className="w-[180px] h-9 rounded-md border border-amber-500/20 bg-background/50 px-3 text-sm text-foreground"
-              />
-              <p className="text-xs text-muted-foreground/60">First game kicks off at this time. Later games are spaced proportionally.</p>
+              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">When to Start</Label>
+              <select
+                value={replayDelay}
+                onChange={e => setReplayDelay(Number(e.target.value))}
+                className="border border-gray-600 bg-gray-800 text-white rounded px-3 py-2"
+              >
+                <option value={0}>Start immediately</option>
+                <option value={5}>Start in 5 minutes</option>
+                <option value={10}>Start in 10 minutes</option>
+                <option value={15}>Start in 15 minutes</option>
+                <option value={30}>Start in 30 minutes</option>
+              </select>
             </div>
 
             <Button
