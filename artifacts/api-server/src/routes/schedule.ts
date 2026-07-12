@@ -96,7 +96,11 @@ router.get("/", requireAuth, async (req, res) => {
       .select()
       .from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
-    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore, gameStatus: r.gameStatus, replayKickoff: r.replayKickoff, homeTeam: r.homeTeam, awayTeam: r.awayTeam }]));
+    const storedScores = new Map(storedScoreRows.map(r => [
+      `${r.awayTeam}-${r.homeTeam}`,
+      { homeScore: r.homeScore, awayScore: r.awayScore, gameStatus: r.gameStatus,
+        replayKickoff: r.replayKickoff, homeTeam: r.homeTeam, awayTeam: r.awayTeam }
+    ]));
 
     // Group by date
     const byDate = new Map<string, typeof sandboxGames>();
@@ -117,7 +121,7 @@ router.get("/", requireAuth, async (req, res) => {
         games: byDate.get(dateStr)!.map(g => {
           const awayInfo = NFL_TEAM_INFO[g.awayAbbr];
           const homeInfo = NFL_TEAM_INFO[g.homeAbbr];
-          const scored = storedScores.get(g.id);
+          const scored = storedScores.get(`${g.awayAbbr}-${g.homeAbbr}`);
           return {
             id: g.id,
             sport: "nfl",
