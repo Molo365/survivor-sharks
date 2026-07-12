@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useGetPool, useGetSportTeams, useUpdatePool, useProcessResults, getGetPoolQueryKey, getGetResultsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3, OctagonX } from "lucide-react";
+import { Copy, AlertTriangle, Settings2, CheckCircle2, ChevronDown, ChevronUp, Bug, Zap, Play, BarChart3, OctagonX, Clapperboard } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
@@ -54,6 +55,9 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
   const [loadingWeek, setLoadingWeek] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<{ week: number; graded: number } | null>(null);
+  const [replayWeek, setReplayWeek] = useState(1);
+  const [replayDelay, setReplayDelay] = useState(5);
+  const [startingReplay, setStartingReplay] = useState(false);
 
   const initRef = useRef<number | null>(null);
 
@@ -141,6 +145,32 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
     }
   };
 
+  async function handleStartReplay() {
+    const token = localStorage.getItem("auth_token");
+    setStartingReplay(true);
+    try {
+      const startTime = new Date(Date.now() + replayDelay * 60_000).toISOString();
+      const res = await fetch(`/api/pools/${poolId}/replay/start`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ week: replayWeek, startTime }),
+      });
+      if (!res.ok) throw new Error("Failed to start replay");
+      const data = await res.json();
+      toast({ title: "Replay started!", description: `${(data as { gamesLoaded: number }).gamesLoaded} games loaded.` });
+      queryClient.invalidateQueries({ queryKey: ["replay-status", poolId] });
+      queryClient.invalidateQueries({ queryKey: ["games", poolId] });
+    } catch {
+      toast({ title: "Error", description: "Could not start replay.", variant: "destructive" });
+    } finally {
+      setStartingReplay(false);
+    }
+  }
+
   const handleUpdate = () => {
     updatePool.mutate(
       { poolId, data: { name, description: desc, currentWeek: week } } as any,
@@ -195,6 +225,22 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
       toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
     }
   };
+
+  const { data: replayStatus } = useQuery({
+    queryKey: ["replay-status", poolId],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const r = await fetch(`/api/pools/${poolId}/replay/status`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return null;
+      return r.json() as Promise<{ active: boolean; summary: { live: number; final: number; pending: number }; games: unknown[] }>;
+    },
+    enabled: !!(pool as any)?.sandboxMode && isSuperAdmin,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
 
   if (loadingPool || !pool) return <Skeleton className="h-[400px] w-full" />;
 
@@ -424,6 +470,71 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
                 </p>
               </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Replay Mode — NFL survivor, super admin only, requires sandbox ON */}
+      {(pool as any).sandboxMode && pool.sport === "nfl" && isSuperAdmin && (
+        <Card className="border-amber-500/30 bg-[linear-gradient(145deg,rgba(245,158,11,0.06)_0%,rgba(10,14,26,1)_100%)]">
+          <CardHeader>
+            <CardTitle className="font-bebas text-2xl tracking-wide text-amber-400 flex items-center gap-2">
+              <Clapperboard className="w-5 h-5" /> Replay Mode
+            </CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Load real 2025 NFL scores and simulate a live Sunday compressed into ~2 hours.
+              Quarter scores are revealed every 30 minutes by the auto-eliminator tick.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-2">
+              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">Week to Replay</Label>
+              <Select value={String(replayWeek)} onValueChange={(v) => setReplayWeek(Number(v))}>
+                <SelectTrigger className="w-[180px] bg-background/50 border-amber-500/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 18 }, (_, i) => i + 1).map((w) => (
+                    <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="font-bebas text-lg tracking-wide text-amber-300/80">When to Start</Label>
+              <select
+                value={replayDelay}
+                onChange={e => setReplayDelay(Number(e.target.value))}
+                className="border border-gray-600 bg-gray-800 text-white rounded px-3 py-2"
+              >
+                <option value={0}>Start immediately</option>
+                <option value={5}>Start in 5 minutes</option>
+                <option value={10}>Start in 10 minutes</option>
+                <option value={15}>Start in 15 minutes</option>
+                <option value={30}>Start in 30 minutes</option>
+              </select>
+            </div>
+            <Button
+              onClick={handleStartReplay}
+              disabled={startingReplay}
+              className="font-bebas text-lg tracking-wider bg-amber-600 hover:bg-amber-500 text-black"
+            >
+              <Play className="w-4 h-4 mr-1.5" />
+              {startingReplay ? "Loading…" : "Load & Start Replay"}
+            </Button>
+            {replayStatus?.active && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <p className="font-semibold text-amber-300 text-sm mb-1">Replay in progress</p>
+                <p className="text-muted-foreground text-xs">
+                  🟢 {replayStatus.summary.live} live
+                  {" · "}🏁 {replayStatus.summary.final} final
+                  {" · "}⏳ {replayStatus.summary.pending} pending
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">
+              Fetches real ESPN 2025 data for the chosen week, then compresses all kickoff times so a full Sunday plays out in ~2 hours.
+            </p>
           </CardContent>
         </Card>
       )}
