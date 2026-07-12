@@ -96,7 +96,7 @@ router.get("/", requireAuth, async (req, res) => {
       .select()
       .from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
-    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore, gameStatus: r.gameStatus, replayKickoff: r.replayKickoff }]));
+    const storedScores = new Map(storedScoreRows.map(r => [r.gameId, { homeScore: r.homeScore, awayScore: r.awayScore, gameStatus: r.gameStatus, replayKickoff: r.replayKickoff, homeTeam: r.homeTeam, awayTeam: r.awayTeam }]));
 
     // Group by date
     const byDate = new Map<string, typeof sandboxGames>();
@@ -123,7 +123,7 @@ router.get("/", requireAuth, async (req, res) => {
             sport: "nfl",
             awayTeam: { id: g.awayTeamId, name: awayInfo?.displayName ?? g.awayAbbr, abbreviation: g.awayAbbr, sport: "nfl", logoUrl: `${LOGO_BASE}/${g.awayAbbr.toLowerCase()}.png`, location: null, conference: null, division: null, flagUrl: null },
             homeTeam: { id: g.homeTeamId, name: homeInfo?.displayName ?? g.homeAbbr, abbreviation: g.homeAbbr, sport: "nfl", logoUrl: `${LOGO_BASE}/${g.homeAbbr.toLowerCase()}.png`, location: null, conference: null, division: null, flagUrl: null },
-            startTime: g.gameTime,
+            startTime: scored?.replayKickoff ? scored.replayKickoff.toISOString() : g.gameTime,
             week,
             season: pool.season,
             status: scored?.gameStatus === "final" ? "final"
