@@ -1314,7 +1314,7 @@ export async function processPickEmResults(): Promise<{
 
         await db
           .update(pickemPicksTable)
-          .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct' ELSE 'incorrect' END` })
+          .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
           .where(and(
             eq(pickemPicksTable.poolId, pool.id),
             eq(pickemPicksTable.gameId, game.gameId),
