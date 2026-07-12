@@ -155,6 +155,14 @@ router.get("/picks", requireAuth, async (req, res) => {
       awayScore: game?.awayScore ?? null,
       startTime: game?.startTime ?? "",
       status: (isGraded ? "final" : (game?.status ?? "unknown")) as string,
+      q1Home: game?.q1Home ?? null,
+      q1Away: game?.q1Away ?? null,
+      q2Home: game?.q2Home ?? null,
+      q2Away: game?.q2Away ?? null,
+      q3Home: game?.q3Home ?? null,
+      q3Away: game?.q3Away ?? null,
+      q4Home: game?.q4Home ?? null,
+      q4Away: game?.q4Away ?? null,
     };
   });
 

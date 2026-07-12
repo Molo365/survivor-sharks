@@ -403,6 +403,14 @@ type ReplayRow = {
   awayScore: number | null;
   gameStatus: string | null;
   replayKickoff: Date | null;
+  q1Home: number | null;
+  q1Away: number | null;
+  q2Home: number | null;
+  q2Away: number | null;
+  q3Home: number | null;
+  q3Away: number | null;
+  q4Home: number | null;
+  q4Away: number | null;
 };
 
 const REPLAY_STATUS_MAP: Record<string, "scheduled" | "in_progress" | "final"> = {
@@ -447,5 +455,13 @@ export function replayRowToPickEmShape(row: ReplayRow) {
     },
     awayScore: row.awayScore,
     homeScore: row.homeScore,
+    q1Home: row.q1Home ?? null,
+    q1Away: row.q1Away ?? null,
+    q2Home: row.q2Home ?? null,
+    q2Away: row.q2Away ?? null,
+    q3Home: row.q3Home ?? null,
+    q3Away: row.q3Away ?? null,
+    q4Home: row.q4Home ?? null,
+    q4Away: row.q4Away ?? null,
   };
 }
