@@ -1295,7 +1295,9 @@ export async function processPickEmResults(): Promise<{
     }
   }
 
+  logger.info({ nflConfidencePoolCount: nflConfidencePools.length }, "NFL Confidence grading loop starting");
   for (const pool of nflConfidencePools) {
+    logger.info({ poolId: pool.id }, "Processing NFL Confidence pool for grading");
     const finalGames = await db
       .select()
       .from(sandboxGameScoresTable)
