@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable } from "@workspace/db";
+import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
@@ -149,18 +149,66 @@ router.get("/games", requireAuth, async (req, res) => {
 
   // ── Sandbox path ────────────────────────────────────────────────────────────
   if (pool.sandboxMode) {
+    // Check for replay rows first
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+
+    if (replayRows.length > 0) {
+      // Replay Mode — use live ESPN 2025 data from sandbox_game_scores
+      const replayMap = new Map(replayRows.map(r => [`${r.awayTeam}-${r.homeTeam}`, r]));
+      const sandboxGames = getSandboxGamesForWeek(week);
+      const formattedGames = sandboxGames.map(g => {
+        const shaped = sandboxGameToPickEmShape(g);
+        const replay = replayMap.get(`${g.awayAbbr}-${g.homeAbbr}`);
+        const existing = pickMap.get(g.id);
+        const gameStatus = replay?.gameStatus ?? "scheduled";
+        const status = gameStatus === "final" ? "final"
+          : gameStatus !== "scheduled" ? "in_progress"
+          : replay?.replayKickoff && new Date(replay.replayKickoff) <= new Date() ? "in_progress"
+          : "scheduled";
+        return {
+          ...shaped,
+          startTime: replay?.replayKickoff ? replay.replayKickoff.toISOString() : shaped.startTime,
+          status,
+          deadlinePassed: status === "final" || status === "in_progress",
+          awayScore: replay?.awayScore ?? null,
+          homeScore: replay?.homeScore ?? null,
+          userPickTeamId: existing?.pickedTeamId ?? null,
+          userPickResult: existing?.result ?? null,
+          liveDetail: (() => {
+            const s = replay?.gameStatus;
+            if (s === "q1") return "Q1";
+            if (s === "q2") return "Q2";
+            if (s === "halftime") return "HALF";
+            if (s === "q3") return "Q3";
+            if (s === "q4") return "Q4";
+            return null;
+          })(),
+          homeRecord: null,
+          awayRecord: null,
+        };
+      });
+      res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, sandboxMode: true, replayMode: true });
+      return;
+    }
+
+    // Static sandbox (no replay rows)
     const sandboxGames = getSandboxGamesForWeek(week);
     const formattedGames = sandboxGames.map(g => {
       const shaped = sandboxGameToPickEmShape(g);
       const existing = pickMap.get(g.id);
-      // Merge stored scores from grading — required for locked pick display
       const awayScore = existing?.awayScore ?? null;
       const homeScore = existing?.homeScore ?? null;
-      const isGraded = existing?.result != null && existing.result !== "pending";
+      const isGraded  = existing?.result != null && existing.result !== "pending";
       return {
         ...shaped,
-        // Graded games: mark final so NflGameCard renders scores + winner highlight
-        status: isGraded && awayScore != null ? "final" : shaped.status,
+        status:       isGraded && awayScore != null ? "final" : shaped.status,
         deadlinePassed: isGraded,
         awayScore,
         homeScore,
