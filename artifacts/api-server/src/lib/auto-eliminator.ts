@@ -49,7 +49,7 @@ import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
-import { NFL_TEAM_INFO } from "./nfl2025Schedule";
+import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID } from "./nfl2025Schedule";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -79,6 +79,7 @@ export async function processCompletedGames(): Promise<{
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       poolCreatedAt: poolsTable.createdAt,
+      sandboxMode: poolsTable.sandboxMode,
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
@@ -146,11 +147,39 @@ export async function processCompletedGames(): Promise<{
 
     for (const row of pendingRows) {
       // NHL: look up the game from the week-specific batch, not today's scoreboard
-      const game = row.sport === "nhl"
-        ? (nhlGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
-            g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
-          )
-        : completedByTeam.get(row.teamId);
+      let game;
+      if (row.sandboxMode && row.sport === "nfl") {
+        // Replay mode — look up from sandbox_game_scores instead of ESPN
+        const replayRows = await db
+          .select()
+          .from(sandboxGameScoresTable)
+          .where(and(
+            eq(sandboxGameScoresTable.poolId, row.poolId),
+            eq(sandboxGameScoresTable.gameStatus, "final"),
+            or(
+              eq(sandboxGameScoresTable.homeTeam, NFL_TEAM_INFO_BY_ID[row.teamId] ?? ""),
+              eq(sandboxGameScoresTable.awayTeam, NFL_TEAM_INFO_BY_ID[row.teamId] ?? ""),
+            ),
+          ));
+        if (replayRows.length > 0) {
+          const r = replayRows[0];
+          const homeScore = r.homeScore ?? 0;
+          const awayScore = r.awayScore ?? 0;
+          game = {
+            homeTeam: { id: NFL_TEAM_INFO[r.homeTeam ?? ""]?.id ?? "", abbreviation: r.homeTeam ?? "", displayName: r.homeTeam ?? "" },
+            awayTeam: { id: NFL_TEAM_INFO[r.awayTeam ?? ""]?.id ?? "", abbreviation: r.awayTeam ?? "", displayName: r.awayTeam ?? "" },
+            homeScore,
+            awayScore,
+            isCompleted: true,
+          };
+        }
+      } else if (row.sport === "nhl") {
+        game = (nhlGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+        );
+      } else {
+        game = completedByTeam.get(row.teamId);
+      }
 
       // ── Comparison log (always emitted for pending picks) ──
       logger.info(

@@ -465,3 +465,7 @@ export function replayRowToPickEmShape(row: ReplayRow) {
     q4Away: row.q4Away ?? null,
   };
 }
+
+export const NFL_TEAM_INFO_BY_ID: Record<string, string> = Object.fromEntries(
+  Object.entries(NFL_TEAM_INFO).map(([abbr, info]) => [info.id, abbr])
+);
