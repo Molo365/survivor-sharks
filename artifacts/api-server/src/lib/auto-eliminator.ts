@@ -1298,27 +1298,31 @@ export async function processPickEmResults(): Promise<{
   logger.info({ nflConfidencePoolCount: nflConfidencePools.length }, "NFL Confidence grading loop starting");
   for (const pool of nflConfidencePools) {
     logger.info({ poolId: pool.id }, "Processing NFL Confidence pool for grading");
-    const finalGames = await db
-      .select()
-      .from(sandboxGameScoresTable)
-      .where(and(
-        eq(sandboxGameScoresTable.poolId, pool.id),
-        eq(sandboxGameScoresTable.gameStatus, "final"),
-      ));
-
-    for (const game of finalGames) {
-      if (!game.homeScore || !game.awayScore || !game.homeTeam || !game.awayTeam) continue;
-      const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
-      const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
-
-      await db
-        .update(pickemPicksTable)
-        .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct' ELSE 'incorrect' END` })
+    try {
+      const finalGames = await db
+        .select()
+        .from(sandboxGameScoresTable)
         .where(and(
-          eq(pickemPicksTable.poolId, pool.id),
-          eq(pickemPicksTable.gameId, game.gameId),
-          eq(pickemPicksTable.result, "pending"),
+          eq(sandboxGameScoresTable.poolId, pool.id),
+          eq(sandboxGameScoresTable.gameStatus, "final"),
         ));
+
+      for (const game of finalGames) {
+        if (!game.homeScore || !game.awayScore || !game.homeTeam || !game.awayTeam) continue;
+        const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
+        const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
+
+        await db
+          .update(pickemPicksTable)
+          .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct' ELSE 'incorrect' END` })
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameId, game.gameId),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+      }
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "NFL Confidence grading loop error");
     }
   }
 
