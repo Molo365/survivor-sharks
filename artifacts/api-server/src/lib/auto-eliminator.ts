@@ -18,8 +18,8 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count, or, isNull, max, gte, lte } from "drizzle-orm";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable } from "@workspace/db";
+import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, sql } from "drizzle-orm";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -891,7 +891,16 @@ export async function processPickEmResults(): Promise<{
     .from(poolsTable)
     .where(and(eq(poolsTable.poolType, "pickem"), eq(poolsTable.isActive, true)));
 
-  if (pickemPools.length === 0) return { picksGraded };
+  const nflConfidencePools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(
+      inArray(poolsTable.poolType, ["nfl_confidence", "nfl_confidence_weekly"]),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.sandboxMode, true),
+    ));
+
+  if (pickemPools.length === 0 && nflConfidencePools.length === 0) return { picksGraded };
 
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -1282,6 +1291,30 @@ export async function processPickEmResults(): Promise<{
           }
         }
       }
+    }
+  }
+
+  for (const pool of nflConfidencePools) {
+    const finalGames = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, pool.id),
+        eq(sandboxGameScoresTable.gameStatus, "final"),
+      ));
+
+    for (const game of finalGames) {
+      if (!game.homeScore || !game.awayScore || !game.homeTeam || !game.awayTeam) continue;
+      const winnerTeam = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
+
+      await db
+        .update(pickemPicksTable)
+        .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeam} THEN 'correct' ELSE 'incorrect' END` })
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.gameId, game.gameId),
+          eq(pickemPicksTable.result, "pending"),
+        ));
     }
   }
 
