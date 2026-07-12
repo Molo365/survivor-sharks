@@ -424,7 +424,15 @@ export function replayRowToPickEmShape(row: ReplayRow) {
     id: row.gameId,
     startTime: row.replayKickoff?.toISOString() ?? "",
     status: REPLAY_STATUS_MAP[row.gameStatus ?? "scheduled"] ?? ("scheduled" as const),
-    liveDetail: null as null,
+    liveDetail: (() => {
+      const s = row.gameStatus;
+      if (s === "q1") return "Q1";
+      if (s === "q2") return "Q2";
+      if (s === "halftime") return "HALF";
+      if (s === "q3") return "Q3";
+      if (s === "q4") return "Q4";
+      return null;
+    })(),
     awayTeam: {
       id: NFL_TEAM_INFO[awayAbbr]?.id ?? awayAbbr,
       abbreviation: awayAbbr,
