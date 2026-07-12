@@ -49,6 +49,7 @@ import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
+import { NFL_TEAM_INFO } from "./nfl2025Schedule";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -1305,11 +1306,12 @@ export async function processPickEmResults(): Promise<{
 
     for (const game of finalGames) {
       if (!game.homeScore || !game.awayScore || !game.homeTeam || !game.awayTeam) continue;
-      const winnerTeam = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
+      const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
+      const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
       await db
         .update(pickemPicksTable)
-        .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeam} THEN 'correct' ELSE 'incorrect' END` })
+        .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct' ELSE 'incorrect' END` })
         .where(and(
           eq(pickemPicksTable.poolId, pool.id),
           eq(pickemPicksTable.gameId, game.gameId),
