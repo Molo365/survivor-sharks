@@ -189,12 +189,18 @@ export default function JoinInvite() {
         </Link>
         {!authLoading && !user && (
           <div className="flex items-center gap-2">
-            <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <LogIn className="w-3.5 h-3.5 mr-1.5" />
-                Sign in
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                localStorage.setItem("pending_invite_code", inviteCode);
+                setLocation("/login");
+              }}
+            >
+              <LogIn className="w-3.5 h-3.5 mr-1.5" />
+              Sign in
+            </Button>
           </div>
         )}
         {!authLoading && user && (
