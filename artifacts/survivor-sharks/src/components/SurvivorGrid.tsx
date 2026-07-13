@@ -1,5 +1,4 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { useGetSurvivorGrid, getGetSurvivorGridQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Skull } from "lucide-react";
@@ -15,32 +14,31 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
 
   function handleDownloadPdf() {
     if (!grid) return;
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(16);
-    doc.text(`${poolName} — Survivor Grid`, 14, 16);
-    const weekHeaders = grid.weeks.map(w => `WK ${w}`);
-    const head = [["Player", "Status", ...weekHeaders]];
-    const body = grid.members.map(member => {
+    const columns = ["Player", "Status", ...grid.weeks.map(w => `WK ${w}`)];
+    const rows = grid.members.map(member => {
       const statusLabel = member.status === "eliminated"
-        ? `❌ Out W${member.eliminatedWeek ?? "?"}`
-        : "✅ Alive";
+        ? `Out W${member.eliminatedWeek ?? "?"}`
+        : "Alive";
       const weekCells = grid.weeks.map(w => {
         const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
         if (!pick) return "—";
-        const resultIcon = pick.result === "win" ? "✅" : pick.result === "loss" ? "❌" : "";
-        return `${pick.teamName} ${resultIcon}`.trim();
+        const suffix = pick.result === "win" ? " W" : pick.result === "loss" ? " L" : "";
+        return `${pick.teamName}${suffix}`;
       });
-      return [member.displayName ?? member.username, statusLabel, ...weekCells];
+      return {
+        cells: [member.displayName ?? member.username, statusLabel, ...weekCells],
+        isCurrentUser: false,
+      };
     });
-    autoTable(doc, {
-      head,
-      body,
-      startY: 24,
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [88, 28, 135], textColor: 255, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [240, 240, 255] },
+    downloadGridPdf({
+      filename: `${poolName.replace(/\s+/g, "_")}_survivor_grid.pdf`,
+      poolName,
+      sport: "NFL · Survivor",
+      subtitle: `${grid.members.length} players · ${grid.weeks.length} week${grid.weeks.length !== 1 ? "s" : ""}`,
+      columns,
+      rows,
+      footer: "Survivor Grid",
     });
-    doc.save(`${poolName.replace(/\s+/g, "_")}_survivor_grid.pdf`);
   }
 
   return (
