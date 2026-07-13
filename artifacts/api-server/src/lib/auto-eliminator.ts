@@ -155,6 +155,7 @@ export async function processCompletedGames(): Promise<{
           .from(sandboxGameScoresTable)
           .where(and(
             eq(sandboxGameScoresTable.poolId, row.poolId),
+            eq(sandboxGameScoresTable.week, row.week),
             eq(sandboxGameScoresTable.gameStatus, "final"),
             or(
               eq(sandboxGameScoresTable.homeTeam, NFL_TEAM_INFO_BY_ID[row.teamId] ?? ""),
