@@ -542,7 +542,7 @@ export default function PoolHome() {
                   <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} prizeMode={(pool as any).prizeMode ?? "fixed"} entryFee={pool.entryFee} />
                 </TabsContent>
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
-                  <SurvivorGrid poolId={pool.id} />
+                  <SurvivorGrid poolId={pool.id} poolName={pool.name} />
                 </TabsContent>
                 {isCommissioner && (
                   <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
