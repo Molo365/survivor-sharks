@@ -22,6 +22,7 @@ import type {
 } from "@workspace/api-client-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { NflConfidenceSnapshot } from "@/components/NflConfidenceSnapshot";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tabs,
@@ -74,6 +75,7 @@ import {
   ChevronRight,
   Clapperboard,
   Play,
+  Camera,
 } from "lucide-react";
 import {
   Select,
@@ -1611,6 +1613,12 @@ export function PickEmSeasonView({
               >
                 <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Weekly Grid
               </TabsTrigger>
+              <TabsTrigger
+                value="snapshot"
+                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2"
+              >
+                <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
+              </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
                   value="commissioner"
@@ -1898,6 +1906,10 @@ export function PickEmSeasonView({
                 currentUserId={user?.id ?? null}
               />
             )}
+          </TabsContent>
+
+          <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
+            <NflConfidenceSnapshot poolId={poolId} currentWeek={currentWeek} variant="pickem_season" poolName={poolName} />
           </TabsContent>
 
           {/* ── Commissioner ── */}

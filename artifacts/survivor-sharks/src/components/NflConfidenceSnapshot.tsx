@@ -58,7 +58,7 @@ function authedFetch<T>(url: string): Promise<T> {
 export interface NflConfidenceSnapshotProps {
   poolId: number;
   currentWeek: number;
-  variant: "season" | "weekly";
+  variant: "season" | "weekly" | "pickem_season";
   poolName?: string;
 }
 
@@ -71,7 +71,9 @@ export function NflConfidenceSnapshot({
   const { user } = useAuth();
   const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
 
-  const urlBase = variant === "weekly" ? "nfl-confidence-weekly" : "nfl-confidence";
+  const urlBase = variant === "weekly" ? "nfl-confidence-weekly"
+    : variant === "pickem_season" ? "pickem-season"
+    : "nfl-confidence";
   const accentClass = variant === "weekly" ? "text-cyan-400" : "text-purple-400";
 
   const { data, isLoading } = useQuery<GridResponse>({
