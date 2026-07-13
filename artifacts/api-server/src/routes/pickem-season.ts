@@ -373,7 +373,7 @@ router.post("/picks", requireAuth, async (req, res) => {
           set: { pickedTeamId: pick.pickedTeamId, pickedTeamName, result: "pending" },
         });
       }
-      res.json({ success: true });
+      res.json({ saved: picks.length, skipped: 0 });
       return;
     }
 
@@ -1226,19 +1226,36 @@ router.get("/grid", requireAuth, async (req, res) => {
       ));
     const sandboxGames = getSandboxGamesForWeek(week);
     if (replayRows.length > 0) {
-      // Replay mode — match by team pair
-      const replayMap = new Map(replayRows.map(r => [`${r.awayTeam}-${r.homeTeam}`, r]));
-      for (const g of sandboxGames) {
-        const replay = replayMap.get(`${g.awayAbbr}-${g.homeAbbr}`);
-        const shaped = sandboxGameToPickEmShape(g);
-        gameMap.set(g.id, {
-          ...shaped,
-          startTime: replay?.replayKickoff ? replay.replayKickoff.toISOString() : shaped.startTime,
-          status: replay?.gameStatus === "final" ? "final"
-            : replay?.gameStatus && replay.gameStatus !== "scheduled" ? "in_progress"
-            : "scheduled",
-          homeScore: replay?.homeScore ?? null,
-          awayScore: replay?.awayScore ?? null,
+      // Replay mode — key by ESPN game ID directly (matches how picks are stored)
+      const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
+      for (const r of replayRows) {
+        const awayAbbr = r.awayTeam ?? "";
+        const homeAbbr = r.homeTeam ?? "";
+        const awayInfo = NFL_TEAM_INFO[awayAbbr];
+        const homeInfo = NFL_TEAM_INFO[homeAbbr];
+        const gameStatus = r.gameStatus ?? "scheduled";
+        const status = gameStatus === "final" ? "final"
+          : gameStatus !== "scheduled" ? "in_progress"
+          : r.replayKickoff && new Date(r.replayKickoff) <= new Date() ? "in_progress"
+          : "scheduled";
+        gameMap.set(r.gameId, {
+          id: r.gameId,
+          awayTeam: {
+            id: awayInfo?.id ?? awayAbbr,
+            name: awayInfo?.displayName ?? awayAbbr,
+            abbreviation: awayAbbr,
+            logoUrl: `${LOGO_BASE}/${awayAbbr.toLowerCase()}.png`,
+          },
+          homeTeam: {
+            id: homeInfo?.id ?? homeAbbr,
+            name: homeInfo?.displayName ?? homeAbbr,
+            abbreviation: homeAbbr,
+            logoUrl: `${LOGO_BASE}/${homeAbbr.toLowerCase()}.png`,
+          },
+          startTime: r.replayKickoff ? r.replayKickoff.toISOString() : "",
+          status,
+          awayScore: r.awayScore ?? null,
+          homeScore: r.homeScore ?? null,
         });
       }
     } else {
