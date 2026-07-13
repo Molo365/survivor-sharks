@@ -152,25 +152,7 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
               {score}
             </span>
           )}
-          {(isFinal || isLive) && (pick.q1Home != null || pick.q1Away != null) && (
-            <div className={cn("flex gap-1 mt-1", isHome ? "justify-end" : "justify-start")}>
-              {[
-                { label: "Q1", home: pick.q1Home, away: pick.q1Away },
-                { label: "Q2", home: pick.q2Home, away: pick.q2Away },
-                { label: "Q3", home: pick.q3Home, away: pick.q3Away },
-                { label: "Q4", home: pick.q4Home, away: pick.q4Away },
-              ].map(({ label, home, away }) => {
-                const val = isHome ? home : away;
-                if (val == null) return null;
-                return (
-                  <div key={label} className="flex flex-col items-center">
-                    <span className="text-[8px] text-muted-foreground/50 uppercase tracking-widest">{label}</span>
-                    <span className="font-bebas text-sm text-muted-foreground/70 leading-none">{val}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+
           {isPicked && (isCorrect || isWrong) && (
             <div className="flex items-center gap-1 mt-0.5">
               {isCorrect ? (
