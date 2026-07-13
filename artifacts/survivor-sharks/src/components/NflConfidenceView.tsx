@@ -139,7 +139,8 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
             "font-bebas tracking-wide text-base sm:text-lg leading-tight",
             isPicked ? "text-foreground" : "text-muted-foreground",
           )}>
-            {team.name}
+            <span className="sm:hidden">{team.abbreviation}</span>
+            <span className="hidden sm:inline">{team.name}</span>
           </span>
           {(isFinal || isLive) && score != null && (
             <span className={cn(
@@ -172,12 +173,13 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+      {/* Badge — above card on mobile, left of card on desktop */}
       <div className={cn(
-        "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
+        "self-start sm:self-auto shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
         pick.result === "correct"   ? "bg-green-500/15 border-green-500/40 text-green-300" :
         pick.result === "incorrect" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
-                                      "bg-purple-500/15 border-purple-500/40 text-purple-300",
+        "bg-purple-500/15 border-purple-500/40 text-purple-300",
       )}>
         {pick.confidencePoints ?? "—"}
       </div>
