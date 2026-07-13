@@ -54,6 +54,17 @@ router.post("/start", requireAuth, requireCommissioner, async (req, res) => {
       isNotNull(sandboxGameScoresTable.replayKickoff),
     ));
 
+  // For pickem_season pools: loading a new replay week is the explicit signal
+  // that the previous week is complete. Advance currentWeek so the UI, pick
+  // submission, and grading all align with the newly armed week.
+  if (pool.poolType === "pickem_season" && week > pool.currentWeek) {
+    await db
+      .update(poolsTable)
+      .set({ currentWeek: week })
+      .where(eq(poolsTable.id, poolId));
+    req.log.info({ poolId, week, previousWeek: pool.currentWeek }, "Replay Mode: advanced currentWeek for pickem_season pool");
+  }
+
   req.log.info({ poolId, week, gamesLoaded: rows.length }, "Replay Mode armed");
   res.json({ success: true, gamesLoaded: rows.length });
 });
