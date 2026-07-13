@@ -1,9 +1,11 @@
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useGetSurvivorGrid, getGetSurvivorGridQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Skull } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-export function SurvivorGrid({ poolId }: { poolId: number }) {
+export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; poolName?: string }) {
   const { data: grid, isLoading } = useGetSurvivorGrid(poolId, { query: { enabled: !!poolId, queryKey: getGetSurvivorGridQueryKey(poolId) } });
 
   if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -11,8 +13,47 @@ export function SurvivorGrid({ poolId }: { poolId: number }) {
 
   const sortedWeeks = [...grid.weeks].sort((a, b) => a - b);
 
+  function handleDownloadPdf() {
+    if (!grid) return;
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(16);
+    doc.text(`${poolName} — Survivor Grid`, 14, 16);
+    const weekHeaders = grid.weeks.map(w => `WK ${w}`);
+    const head = [["Player", "Status", ...weekHeaders]];
+    const body = grid.members.map(member => {
+      const statusLabel = member.status === "eliminated"
+        ? `❌ Out W${member.eliminatedWeek ?? "?"}`
+        : "✅ Alive";
+      const weekCells = grid.weeks.map(w => {
+        const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
+        if (!pick) return "—";
+        const resultIcon = pick.result === "win" ? "✅" : pick.result === "loss" ? "❌" : "";
+        return `${pick.teamName} ${resultIcon}`.trim();
+      });
+      return [member.displayName ?? member.username, statusLabel, ...weekCells];
+    });
+    autoTable(doc, {
+      head,
+      body,
+      startY: 24,
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [88, 28, 135], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [240, 240, 255] },
+    });
+    doc.save(`${poolName.replace(/\s+/g, "_")}_survivor_grid.pdf`);
+  }
+
   return (
     <Card className="bg-card border-border/50 overflow-hidden">
+      <div className="flex justify-end mb-3 px-4 pt-4">
+        <button
+          onClick={handleDownloadPdf}
+          disabled={!grid}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
+        >
+          ⬇ Download PDF
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left border-collapse min-w-max">
           <thead className="bg-muted/30 border-b border-border/50">
