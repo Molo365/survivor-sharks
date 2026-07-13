@@ -610,7 +610,8 @@ router.get("/tree", requireAuth, async (req, res) => {
 });
 
 // ── GET /api/pools/:poolId/bracket/current-round/all-picks ───────────────────
-// Returns the current active round's matches + every pool member's pick per match.
+// Returns a round's matches + every pool member's pick per match.
+// Optional ?round= query param selects a specific round; omit to use auto-resolved current round.
 router.get("/current-round/all-picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -628,9 +629,17 @@ router.get("/current-round/all-picks", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const [allMatches, dbResults] = await Promise.all([
+  // Parse optional ?round= param
+  const requestedRound = req.query["round"] as string | undefined;
+  const isValidRound = requestedRound && (ROUND_ORDER as readonly string[]).includes(requestedRound);
+
+  const [allMatches, dbResults, pickedRoundRows] = await Promise.all([
     fetchWcBracketMatches(),
     db.select().from(wcBracketResultsTable).where(eq(wcBracketResultsTable.poolId, poolId)),
+    db
+      .selectDistinct({ round: wcBracketPicksTable.round })
+      .from(wcBracketPicksTable)
+      .where(eq(wcBracketPicksTable.poolId, poolId)),
   ]);
 
   if (allMatches.length === 0) {
@@ -641,10 +650,27 @@ router.get("/current-round/all-picks", requireAuth, async (req, res) => {
   const gradedEventIds = new Set(dbResults.map((r) => r.espnEventId));
   const now = new Date();
   const current = resolveCurrentRound(allMatches, gradedEventIds, now);
-  const activeRound: BracketRound = current?.round ?? "round_of_32";
-  const activeGames = current?.games ?? allMatches.filter((m) => m.round === "round_of_32");
+  const currentRound: BracketRound = current?.round ?? "round_of_32";
+
+  // Determine which round to actually serve
+  const activeRound: BracketRound = isValidRound ? (requestedRound as BracketRound) : currentRound;
+
+  // Games for the requested round (filter ESPN data by round)
+  const byRound = new Map<string, typeof allMatches>();
+  for (const m of allMatches) {
+    if (!byRound.has(m.round)) byRound.set(m.round, []);
+    byRound.get(m.round)!.push(m);
+  }
+  const activeGames = isValidRound
+    ? (byRound.get(activeRound) ?? []).filter((g) => !isTbdName(g.team1) && !isTbdName(g.team2))
+    : (current?.games ?? allMatches.filter((m) => m.round === "round_of_32"));
+
   const activeEventIds = activeGames.map((g) => g.espnEventId);
   const resultsByEvent = new Map(dbResults.map((r) => [r.espnEventId, r]));
+
+  // Rounds that have at least one pick in the DB (sorted by round order)
+  const pickedRoundSet = new Set(pickedRoundRows.map((r) => r.round));
+  const availableRounds = ROUND_ORDER.filter((r) => pickedRoundSet.has(r));
 
   const [members, allPicks] = await Promise.all([
     db
@@ -698,7 +724,14 @@ router.get("/current-round/all-picks", requireAuth, async (req, res) => {
     return { userId: m.userId, displayName: m.displayName ?? null, picks };
   });
 
-  res.json({ round: activeRound, roundLabel: ROUND_LABEL[activeRound] ?? activeRound, matches, members: membersPayload });
+  res.json({
+    round: activeRound,
+    roundLabel: ROUND_LABEL[activeRound] ?? activeRound,
+    currentRound,
+    availableRounds,
+    matches,
+    members: membersPayload,
+  });
 });
 
 export default router;

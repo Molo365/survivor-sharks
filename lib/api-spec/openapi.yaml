@@ -1250,6 +1250,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: round
+          in: query
+          required: false
+          description: "Specific round to view: round_of_32 | round_of_16 | quarterfinals | semifinals | final. Defaults to auto-resolved current round."
+          schema:
+            type: string
       responses:
         "200":
           description: Current round with all members' picks
@@ -4114,12 +4120,21 @@ components:
 
     WcBracketRoundAllPicks:
       type: object
-      required: [round, roundLabel, matches, members]
+      required: [round, roundLabel, currentRound, availableRounds, matches, members]
       properties:
         round:
           type: string
+          description: The round whose data is returned (equals currentRound when no ?round= param supplied)
         roundLabel:
           type: string
+        currentRound:
+          type: string
+          description: The auto-resolved active round (open or most-recently graded), regardless of the ?round= param
+        availableRounds:
+          type: array
+          description: Rounds that have at least one pick recorded in the DB
+          items:
+            type: string
         matches:
           type: array
           items:

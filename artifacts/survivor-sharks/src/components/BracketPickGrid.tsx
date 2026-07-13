@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useGetWcBracketRoundAllPicks,
   getGetWcBracketRoundAllPicksQueryKey,
@@ -8,6 +9,22 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Check, X, Clock, Download } from "lucide-react";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+
+const ROUND_ORDER = [
+  "round_of_32",
+  "round_of_16",
+  "quarterfinals",
+  "semifinals",
+  "final",
+] as const;
+
+const ROUND_LABEL: Record<string, string> = {
+  round_of_32: "Round of 32",
+  round_of_16: "Round of 16",
+  quarterfinals: "Quarterfinals",
+  semifinals: "Semifinals",
+  final: "Final",
+};
 
 function formatMatchDate(iso: string): string {
   try {
@@ -189,9 +206,13 @@ function MemberRow({
 }
 
 export function BracketPickGrid({ poolId }: { poolId: number }) {
-  const { data, isLoading, isError } = useGetWcBracketRoundAllPicks(poolId, {
+  const [selectedRound, setSelectedRound] = useState<string | undefined>(undefined);
+
+  const params = selectedRound ? { round: selectedRound } : undefined;
+
+  const { data, isLoading, isError } = useGetWcBracketRoundAllPicks(poolId, params, {
     query: {
-      queryKey: getGetWcBracketRoundAllPicksQueryKey(poolId),
+      queryKey: getGetWcBracketRoundAllPicksQueryKey(poolId, params),
       refetchInterval: 60_000,
     },
   });
@@ -213,7 +234,15 @@ export function BracketPickGrid({ poolId }: { poolId: number }) {
     );
   }
 
-  const { roundLabel, matches, members } = data;
+  const { roundLabel, currentRound, availableRounds, matches, members } = data;
+
+  // Build the ordered list of rounds to show in the selector:
+  // all rounds with picks, plus the current active round, deduped and ordered.
+  const selectorRoundSet = new Set([...availableRounds, currentRound]);
+  const selectorRounds = ROUND_ORDER.filter((r) => selectorRoundSet.has(r));
+
+  // The round currently displayed (from the response)
+  const displayedRound = data.round;
 
   function handleDownloadPdf() {
     const matchColHeaders = matches.map((m) => `${m.team1} vs ${m.team2}`);
@@ -244,16 +273,41 @@ export function BracketPickGrid({ poolId }: { poolId: number }) {
     });
   }
 
-  if (matches.length === 0) {
-    return (
-      <div className="px-4 py-8 text-center text-muted-foreground text-sm border border-dashed border-border/40 rounded-xl">
-        No matches available for the current round yet.
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
+      {/* Round selector — only shown when multiple rounds are available */}
+      {selectorRounds.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectorRounds.map((round) => {
+            const isActive = round === displayedRound;
+            const isCurrent = round === currentRound;
+            return (
+              <button
+                key={round}
+                type="button"
+                onClick={() => setSelectedRound(round === currentRound ? undefined : round)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all",
+                  isActive
+                    ? "bg-primary/10 border-primary/40 text-primary"
+                    : "bg-card border-border/40 text-muted-foreground hover:border-border hover:text-foreground",
+                )}
+              >
+                {ROUND_LABEL[round] ?? round}
+                {isCurrent && (
+                  <span className={cn(
+                    "text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded-sm",
+                    isActive ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground/60",
+                  )}>
+                    Live
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Heading */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -289,39 +343,45 @@ export function BracketPickGrid({ poolId }: { poolId: number }) {
         </div>
       </div>
 
-      {/* Scrollable table */}
-      <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-sm [scrollbar-width:thin]">
-        <table className="border-collapse text-sm w-full">
-          <thead>
-            <tr>
-              <th className="px-3 py-3 text-left border-b-2 border-border/40 border-r border-r-border/20 sticky left-0 bg-card z-20 min-w-[120px] max-w-[160px]">
-                <span className="font-bebas text-base tracking-wider text-muted-foreground">
-                  Member
-                </span>
-              </th>
-              {matches.map((match) => (
-                <MatchHeader key={match.espnEventId} match={match} />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {members.length === 0 ? (
+      {matches.length === 0 ? (
+        <div className="px-4 py-8 text-center text-muted-foreground text-sm border border-dashed border-border/40 rounded-xl">
+          No matches available for this round yet.
+        </div>
+      ) : (
+        /* Scrollable table */
+        <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-sm [scrollbar-width:thin]">
+          <table className="border-collapse text-sm w-full">
+            <thead>
               <tr>
-                <td
-                  colSpan={matches.length + 1}
-                  className="px-4 py-8 text-center text-muted-foreground text-sm"
-                >
-                  No members yet.
-                </td>
+                <th className="px-3 py-3 text-left border-b-2 border-border/40 border-r border-r-border/20 sticky left-0 bg-card z-20 min-w-[120px] max-w-[160px]">
+                  <span className="font-bebas text-base tracking-wider text-muted-foreground">
+                    Member
+                  </span>
+                </th>
+                {matches.map((match) => (
+                  <MatchHeader key={match.espnEventId} match={match} />
+                ))}
               </tr>
-            ) : (
-              members.map((member) => (
-                <MemberRow key={member.userId} member={member} matches={matches} />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {members.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={matches.length + 1}
+                    className="px-4 py-8 text-center text-muted-foreground text-sm"
+                  >
+                    No members yet.
+                  </td>
+                </tr>
+              ) : (
+                members.map((member) => (
+                  <MemberRow key={member.userId} member={member} matches={matches} />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

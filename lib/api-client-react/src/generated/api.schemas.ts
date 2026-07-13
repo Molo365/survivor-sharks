@@ -1632,8 +1632,13 @@ export interface WcBracketGridMember {
 }
 
 export interface WcBracketRoundAllPicks {
+  /** The round whose data is returned (equals currentRound when no ?round= param supplied) */
   round: string;
   roundLabel: string;
+  /** The auto-resolved active round (open or most-recently graded), regardless of the ?round= param */
+  currentRound: string;
+  /** Rounds that have at least one pick recorded in the DB */
+  availableRounds: string[];
   matches: WcBracketGridMatch[];
   members: WcBracketGridMember[];
 }
@@ -1824,6 +1829,13 @@ export type GetPickEmYesterdayWinnerParams = {
  * Date in YYYY-MM-DD format (ET)
  */
 date: string;
+};
+
+export type GetWcBracketRoundAllPicksParams = {
+/**
+ * Specific round to view: round_of_32 | round_of_16 | quarterfinals | semifinals | final. Defaults to auto-resolved current round.
+ */
+round?: string;
 };
 
 export type AdminProcessPickemResultsBody = {

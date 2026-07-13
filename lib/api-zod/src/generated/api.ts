@@ -1639,9 +1639,15 @@ export const GetWcBracketRoundAllPicksParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const GetWcBracketRoundAllPicksQueryParams = zod.object({
+  "round": zod.coerce.string().optional().describe('Specific round to view: round_of_32 | round_of_16 | quarterfinals | semifinals | final. Defaults to auto-resolved current round.')
+})
+
 export const GetWcBracketRoundAllPicksResponse = zod.object({
-  "round": zod.string(),
+  "round": zod.string().describe('The round whose data is returned (equals currentRound when no ?round= param supplied)'),
   "roundLabel": zod.string(),
+  "currentRound": zod.string().describe('The auto-resolved active round (open or most-recently graded), regardless of the ?round= param'),
+  "availableRounds": zod.array(zod.string()).describe('Rounds that have at least one pick recorded in the DB'),
   "matches": zod.array(zod.object({
   "espnEventId": zod.string(),
   "team1": zod.string(),
