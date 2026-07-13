@@ -369,7 +369,7 @@ router.post("/picks", requireAuth, async (req, res) => {
           gameDate: r.replayKickoff ? r.replayKickoff.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
           result: "pending",
         }).onConflictDoUpdate({
-          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.week, pickemPicksTable.gameId],
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
           set: { pickedTeamId: pick.pickedTeamId, pickedTeamName, result: "pending" },
         });
       }
