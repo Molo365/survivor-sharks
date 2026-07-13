@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, X, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy } from "lucide-react";
+import { Check, X, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy, Skull } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
@@ -676,12 +676,16 @@ export function MatchupPickGrid({
   poolType,
   currentWeek,
   isActive = true,
+  isEliminated = false,
+  eliminatedWeek,
 }: {
   poolId: number;
   sport: Sport;
   poolType: string;
   currentWeek: number;
   isActive?: boolean;
+  isEliminated?: boolean;
+  eliminatedWeek?: number | null;
 }) {
   // MLB, NFL, NHL: pool-scoped schedule (correctly date-bounded per week)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
@@ -760,6 +764,22 @@ export function MatchupPickGrid({
         <Trophy className="w-16 h-16 text-yellow-500/60 mb-6" />
         <h3 className="font-bebas text-3xl tracking-widest mb-3 text-muted-foreground/70">SEASON ENDED</h3>
         <p className="text-muted-foreground text-lg">This pool has concluded. Picks are no longer accepted.</p>
+      </div>
+    );
+  }
+
+  // ── Eliminated — player cannot make picks ──────────────────────────────────
+
+  if (isEliminated) {
+    return (
+      <div className="flex flex-col items-center justify-center p-16 text-center border border-dashed border-destructive/40 rounded-lg bg-destructive/5">
+        <Skull className="w-16 h-16 text-destructive/60 mb-6" />
+        <h3 className="font-bebas text-3xl tracking-widest mb-3 text-destructive/80">YOU'VE BEEN ELIMINATED</h3>
+        <p className="text-muted-foreground text-lg">
+          {eliminatedWeek != null
+            ? `Your run ended in Week ${eliminatedWeek}. No further picks are allowed.`
+            : "Your run has ended. No further picks are allowed."}
+        </p>
       </div>
     );
   }

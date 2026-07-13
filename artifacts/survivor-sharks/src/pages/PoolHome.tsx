@@ -535,7 +535,15 @@ export default function PoolHome() {
                   {(pool as any).pickFrequency === "daily" ? (
                     <DailyPickGrid poolId={pool.id} />
                   ) : (
-                    <MatchupPickGrid poolId={pool.id} sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"} poolType={pool.poolType} currentWeek={pool.currentWeek} isActive={pool.isActive} />
+                    <MatchupPickGrid
+                      poolId={pool.id}
+                      sport={pool.sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa"}
+                      poolType={pool.poolType}
+                      currentWeek={pool.currentWeek}
+                      isActive={pool.isActive}
+                      isEliminated={pool.members.find(m => m.userId === user?.id)?.status === "eliminated"}
+                      eliminatedWeek={pool.members.find(m => m.userId === user?.id)?.eliminatedWeek ?? null}
+                    />
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
