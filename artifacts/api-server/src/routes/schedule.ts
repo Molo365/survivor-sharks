@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   getMlbWeekBounds,
@@ -88,8 +88,83 @@ router.get("/", requireAuth, async (req, res) => {
   // ── NFL Sandbox path ─────────────────────────────────────────────────────
   if (pool.sport === "nfl" && pool.sandboxMode) {
     const week = pool.currentWeek;
-    const sandboxGames = getSandboxGamesForWeek(week);
     const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
+
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+
+    if (replayRows.length > 0) {
+      // Replay Mode — build game list entirely from sandbox_game_scores
+      const days = new Map<string, any[]>();
+      for (const r of replayRows) {
+        const awayAbbr = r.awayTeam ?? "";
+        const homeAbbr = r.homeTeam ?? "";
+        const awayInfo = NFL_TEAM_INFO[awayAbbr];
+        const homeInfo = NFL_TEAM_INFO[homeAbbr];
+        const gameStatus = r.gameStatus ?? "scheduled";
+        const status = gameStatus === "final" ? "final"
+          : gameStatus !== "scheduled" ? "in_progress"
+          : r.replayKickoff && new Date(r.replayKickoff) <= new Date() ? "in_progress"
+          : "scheduled";
+        const startTime = r.replayKickoff ? r.replayKickoff.toISOString() : "";
+        const dateKey = startTime.slice(0, 10);
+        if (!days.has(dateKey)) days.set(dateKey, []);
+        days.get(dateKey)!.push({
+          id: r.gameId,
+          sport: "nfl",
+          awayTeam: {
+            id: awayInfo?.id ?? awayAbbr,
+            name: awayInfo?.displayName ?? awayAbbr,
+            abbreviation: awayAbbr,
+            sport: "nfl",
+            logoUrl: `${LOGO_BASE}/${awayAbbr.toLowerCase()}.png`,
+            location: null, conference: null, division: null, flagUrl: null,
+          },
+          homeTeam: {
+            id: homeInfo?.id ?? homeAbbr,
+            name: homeInfo?.displayName ?? homeAbbr,
+            abbreviation: homeAbbr,
+            sport: "nfl",
+            logoUrl: `${LOGO_BASE}/${homeAbbr.toLowerCase()}.png`,
+            location: null, conference: null, division: null, flagUrl: null,
+          },
+          startTime,
+          week,
+          season: pool.season,
+          status,
+          hasStarted: status !== "scheduled",
+          homeScore: r.homeScore ?? null,
+          awayScore: r.awayScore ?? null,
+          homeRecord: null,
+          awayRecord: null,
+          odds: null,
+          awayMoneyline: null,
+          homeMoneyline: null,
+          awayPrimaryColor: null,
+          homePrimaryColor: null,
+          liveState: null,
+        });
+      }
+      const sortedDays = Array.from(days.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dateStr, games]) => {
+          const [yr, mo, dy] = dateStr.split("-").map(Number);
+          const dtForLabel = new Date(Date.UTC(yr, mo - 1, dy, 17, 0, 0));
+          const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" });
+          return { date: dateStr, label: fmt.format(dtForLabel), games };
+        });
+      res.json({ week, days: sortedDays, sandboxMode: true, replayMode: true });
+      return;
+    }
+
+    // Static sandbox fallback (no replay rows)
+    const sandboxGames = getSandboxGamesForWeek(week);
 
     // Load any scores stored by simulate-grading so graded cards show final scores.
     const storedScoreRows = await db
