@@ -945,7 +945,41 @@ router.get("/week-results", requireAuth, async (req, res) => {
 
   const [rawGames, allPicks] = await Promise.all([
     pool.sandboxMode
-      ? Promise.resolve(getSandboxGamesForWeek(pool.sandboxWeek ?? week).map(sandboxGameToPickEmShape))
+      ? (async () => {
+          const replayRows = await db
+            .select()
+            .from(sandboxGameScoresTable)
+            .where(and(
+              eq(sandboxGameScoresTable.poolId, poolId),
+              eq(sandboxGameScoresTable.week, week),
+              isNotNull(sandboxGameScoresTable.gameStatus),
+            ));
+          if (replayRows.length > 0) {
+            const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
+            return replayRows.map(r => ({
+              id: r.gameId,
+              startTime: r.replayKickoff ? r.replayKickoff.toISOString() : "",
+              status: r.gameStatus === "final" ? "final"
+                : r.gameStatus !== "scheduled" ? "in_progress"
+                : "scheduled",
+              awayTeam: {
+                id: NFL_TEAM_INFO[r.awayTeam ?? ""]?.id ?? r.awayTeam ?? "",
+                name: NFL_TEAM_INFO[r.awayTeam ?? ""]?.displayName ?? r.awayTeam ?? "",
+                abbreviation: r.awayTeam ?? "",
+                logoUrl: `${LOGO_BASE}/${(r.awayTeam ?? "").toLowerCase()}.png`,
+              },
+              homeTeam: {
+                id: NFL_TEAM_INFO[r.homeTeam ?? ""]?.id ?? r.homeTeam ?? "",
+                name: NFL_TEAM_INFO[r.homeTeam ?? ""]?.displayName ?? r.homeTeam ?? "",
+                abbreviation: r.homeTeam ?? "",
+                logoUrl: `${LOGO_BASE}/${(r.homeTeam ?? "").toLowerCase()}.png`,
+              },
+              awayScore: r.awayScore ?? null,
+              homeScore: r.homeScore ?? null,
+            }));
+          }
+          return getSandboxGamesForWeek(pool.sandboxWeek ?? week).map(sandboxGameToPickEmShape);
+        })()
       : fetchNflGamesByWeek(week, pool.season).then(gs => gs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())),
     db
       .select({
