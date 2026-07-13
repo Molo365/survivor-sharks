@@ -199,7 +199,7 @@ function CrazyEightsDayPanel({ poolId, userId, date }: { poolId: number; userId:
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = false }: { poolId: number; sport?: string; sandboxMode?: boolean }) {
+export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = false, defaultToPreviousWeek = false }: { poolId: number; sport?: string; sandboxMode?: boolean; defaultToPreviousWeek?: boolean }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
 
@@ -210,7 +210,14 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
     return sandboxMode ? "" : getCurrentNhlSat();
   });
 
-  const [mlbWeekOf, setMlbWeekOf] = useState(() => getMondayEt());
+  const [mlbWeekOf, setMlbWeekOf] = useState(() => {
+    const monday = getMondayEt();
+    if (defaultToPreviousWeek) {
+      const [y, m, d] = monday.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d - 7)).toISOString().slice(0, 10);
+    }
+    return monday;
+  });
 
   // Expand state: which (userId, date) cell is open — shared across both paths
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);

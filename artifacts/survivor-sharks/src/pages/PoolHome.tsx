@@ -373,7 +373,7 @@ export default function PoolHome() {
                     <CrazyEightsView poolId={pool.id} sport={pool.sport} pickFrequency={(pool as any).pickFrequency ?? "daily"} poolName={pool.name} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                    <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
+                    <CrazyEightsLeaderboard poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} defaultToPreviousWeek={!pool.isActive} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <CrazyEightsGrid poolId={pool.id} sport={pool.sport} sandboxMode={(pool as any).sandboxMode ?? false} />
