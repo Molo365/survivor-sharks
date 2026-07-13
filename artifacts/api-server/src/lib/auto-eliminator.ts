@@ -1342,19 +1342,13 @@ export async function processPickEmResults(): Promise<{
         const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
         if (pool.poolType === "pickem_season") {
-          // pickem_season picks use static schedule game IDs — match by team pair instead
-          const sandboxGames = getSandboxGamesForWeek(pool.sandboxWeek ?? 1);
-          const matchingGame = sandboxGames.find(
-            g => g.awayAbbr === game.awayTeam && g.homeAbbr === game.homeTeam
-          );
-          if (!matchingGame) continue;
-
+          // pickem_season replay picks are stored with ESPN game IDs directly
           await db
             .update(pickemPicksTable)
             .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
             .where(and(
               eq(pickemPicksTable.poolId, pool.id),
-              eq(pickemPicksTable.gameId, matchingGame.id),
+              eq(pickemPicksTable.gameId, game.gameId),
               eq(pickemPicksTable.result, "pending"),
             ));
         } else {
