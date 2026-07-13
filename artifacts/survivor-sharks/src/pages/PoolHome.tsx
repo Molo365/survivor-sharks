@@ -335,7 +335,15 @@ export default function PoolHome() {
             ) : isNdp ? (
               <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
             ) : isCrazyEights ? (
-              <Tabs defaultValue="picks" className="w-full">
+              <div className="space-y-6">
+                {!pool.isActive && (pool as any).closureReason !== "min_entries_not_met" && (
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+                    <Trophy className="w-16 h-16 text-yellow-500/60 mb-4" />
+                    <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
+                    <p className="text-muted-foreground">Results are final. Check the leaderboard for final standings.</p>
+                  </div>
+                )}
+              <Tabs defaultValue={!pool.isActive ? "leaderboard" : "picks"} className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
@@ -385,6 +393,7 @@ export default function PoolHome() {
                   )}
                 </div>
               </Tabs>
+              </div>
             ) : isNflConfidenceWeekly ? (
               <div className="space-y-4">
               <NflConfidenceWeeklyWinnerBanner poolId={pool.id} currentWeek={pool.currentWeek} />

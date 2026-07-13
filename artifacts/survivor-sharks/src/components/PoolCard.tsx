@@ -207,6 +207,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                       <span>{pickEmStat.myStanding.score ?? 0} pts</span>
                     </div>
                   )
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -241,6 +246,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                       <span>{pickEmStat.myStanding.score ?? 0} pts this week</span>
                     </div>
                   )
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -285,6 +295,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span aria-hidden>📋</span>
                     <span>In Progress</span>
                   </div>
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
@@ -319,6 +334,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                       <span>{pickEmStat.myStanding.correct}/{pickEmStat.myStanding.picked} correct</span>
                     </div>
                   )
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
                     <span aria-hidden>⚠️</span>
