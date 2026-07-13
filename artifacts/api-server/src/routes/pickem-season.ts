@@ -1117,4 +1117,162 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   });
 });
 
+// GET /api/pools/:poolId/pickem-season/grid?week=W
+router.get("/grid", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  const weekParam = req.query.week ? parseInt(String(req.query.week)) : pool.currentWeek;
+  const week = isNaN(weekParam) ? pool.currentWeek : weekParam;
+  const allPicks = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      gameId: pickemPicksTable.gameId,
+      pickedTeamId: pickemPicksTable.pickedTeamId,
+      pickedTeamName: pickemPicksTable.pickedTeamName,
+      result: pickemPicksTable.result,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)));
+  const isSandbox = pool.sandboxMode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gameMap = new Map<string, any>();
+  if (isSandbox) {
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    const sandboxGames = getSandboxGamesForWeek(week);
+    if (replayRows.length > 0) {
+      // Replay mode — match by team pair
+      const replayMap = new Map(replayRows.map(r => [`${r.awayTeam}-${r.homeTeam}`, r]));
+      for (const g of sandboxGames) {
+        const replay = replayMap.get(`${g.awayAbbr}-${g.homeAbbr}`);
+        const shaped = sandboxGameToPickEmShape(g);
+        gameMap.set(g.id, {
+          ...shaped,
+          startTime: replay?.replayKickoff ? replay.replayKickoff.toISOString() : shaped.startTime,
+          status: replay?.gameStatus === "final" ? "final"
+            : replay?.gameStatus && replay.gameStatus !== "scheduled" ? "in_progress"
+            : "scheduled",
+          homeScore: replay?.homeScore ?? null,
+          awayScore: replay?.awayScore ?? null,
+        });
+      }
+    } else {
+      for (const g of sandboxGames) {
+        gameMap.set(g.id, sandboxGameToPickEmShape(g));
+      }
+    }
+  } else {
+    // Live ESPN path
+    try {
+      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
+      for (const ev of espnData.events ?? []) {
+        const comp = ev.competitions?.[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+        const isCompleted = comp?.status?.type?.completed ?? false;
+        const state = comp?.status?.type?.state ?? "pre";
+        const gameId = String(ev.id);
+        gameMap.set(gameId, {
+          id: gameId,
+          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
+          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
+          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
+          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
+          startTime: ev.date ?? "",
+          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
+        });
+      }
+    } catch { /* ESPN unavailable */ }
+  }
+  const userMap = new Map<number, {
+    userId: number;
+    username: string;
+    displayName: string | null;
+    picks: Map<string, {
+      pickedTeamId: string;
+      pickedTeamName: string;
+      pickedTeamLogoUrl: string | null;
+      result: string | null;
+    }>;
+  }>();
+  for (const pick of allPicks) {
+    if (!userMap.has(pick.userId)) {
+      userMap.set(pick.userId, {
+        userId: pick.userId,
+        username: pick.username,
+        displayName: pick.displayName ?? null,
+        picks: new Map(),
+      });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const game = gameMap.get(pick.gameId) as any;
+    const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+    userMap.get(pick.userId)!.picks.set(pick.gameId, {
+      pickedTeamId: pick.pickedTeamId,
+      pickedTeamName: pick.pickedTeamName,
+      pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logoUrl : game.awayTeam.logoUrl) ?? null : null,
+      result: pick.result ?? null,
+    });
+  }
+  // Visibility rule
+  {
+    const totalGamesInWeek = gameMap.size;
+    const now = Date.now();
+    const slateIsLive =
+      totalGamesInWeek === 0 ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      [...gameMap.values()].some(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (g: any) =>
+          new Date(g.startTime).getTime() <= now ||
+          (g.status && g.status !== "scheduled"),
+      );
+    if (!slateIsLive) {
+      for (const [uid, player] of userMap) {
+        if (uid === userId) continue;
+        if (player.picks.size >= totalGamesInWeek) continue;
+        player.picks.clear();
+      }
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const games = [...gameMap.values()].map((g: any) => ({
+    id: g.id,
+    awayTeam: g.awayTeam,
+    homeTeam: g.homeTeam,
+    startTime: g.startTime,
+    status: g.status,
+    awayScore: g.awayScore ?? null,
+    homeScore: g.homeScore ?? null,
+  }));
+  const players = Array.from(userMap.values()).map(u => ({
+    userId: u.userId,
+    username: u.username,
+    displayName: u.displayName,
+    picks: Object.fromEntries(u.picks.entries()),
+  }));
+  res.json({ week, games, players });
+});
+
 export default router;
