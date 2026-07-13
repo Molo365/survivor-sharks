@@ -49,7 +49,7 @@ import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
-import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID } from "./nfl2025Schedule";
+import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -921,16 +921,16 @@ export async function processPickEmResults(): Promise<{
     .from(poolsTable)
     .where(and(eq(poolsTable.poolType, "pickem"), eq(poolsTable.isActive, true)));
 
-  const nflConfidencePools = await db
+  const nflReplayPools = await db
     .select()
     .from(poolsTable)
     .where(and(
-      inArray(poolsTable.poolType, ["nfl_confidence", "nfl_confidence_weekly"]),
+      inArray(poolsTable.poolType, ["nfl_confidence", "nfl_confidence_weekly", "pickem_season"]),
       eq(poolsTable.isActive, true),
       eq(poolsTable.sandboxMode, true),
     ));
 
-  if (pickemPools.length === 0 && nflConfidencePools.length === 0) return { picksGraded };
+  if (pickemPools.length === 0 && nflReplayPools.length === 0) return { picksGraded };
 
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -1324,9 +1324,9 @@ export async function processPickEmResults(): Promise<{
     }
   }
 
-  logger.info({ nflConfidencePoolCount: nflConfidencePools.length }, "NFL Confidence grading loop starting");
-  for (const pool of nflConfidencePools) {
-    logger.info({ poolId: pool.id }, "Processing NFL Confidence pool for grading");
+  logger.info({ nflReplayPoolCount: nflReplayPools.length }, "NFL replay grading loop starting");
+  for (const pool of nflReplayPools) {
+    logger.info({ poolId: pool.id, poolType: pool.poolType }, "Processing NFL replay pool for grading");
     try {
       const finalGames = await db
         .select()
@@ -1341,17 +1341,36 @@ export async function processPickEmResults(): Promise<{
         const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
         const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
-        await db
-          .update(pickemPicksTable)
-          .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
-          .where(and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, game.gameId),
-            eq(pickemPicksTable.result, "pending"),
-          ));
+        if (pool.poolType === "pickem_season") {
+          // pickem_season picks use static schedule game IDs — match by team pair instead
+          const sandboxGames = getSandboxGamesForWeek(pool.sandboxWeek ?? 1);
+          const matchingGame = sandboxGames.find(
+            g => g.awayAbbr === game.awayTeam && g.homeAbbr === game.homeTeam
+          );
+          if (!matchingGame) continue;
+
+          await db
+            .update(pickemPicksTable)
+            .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, matchingGame.id),
+              eq(pickemPicksTable.result, "pending"),
+            ));
+        } else {
+          // nfl_confidence / nfl_confidence_weekly — match by ESPN game ID directly
+          await db
+            .update(pickemPicksTable)
+            .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, game.gameId),
+              eq(pickemPicksTable.result, "pending"),
+            ));
+        }
       }
     } catch (err) {
-      logger.error({ poolId: pool.id, err }, "NFL Confidence grading loop error");
+      logger.error({ poolId: pool.id, err }, "NFL replay grading loop error");
     }
   }
 
