@@ -325,6 +325,59 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // ── Sandbox path — skip lock validation ────────────────────────────────────
   if (pool.sandboxMode) {
+    // Check for replay rows first
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, numWeek),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+
+    if (replayRows.length > 0) {
+      // Replay mode — validate against sandbox_game_scores (ESPN game IDs)
+      const replayGameMap = new Map(replayRows.map(r => [r.gameId, r]));
+      const unknownIds = picks.filter(p => !replayGameMap.has(p.gameId)).map(p => p.gameId);
+      if (unknownIds.length > 0) {
+        res.status(400).json({ error: `Unknown replay game IDs: ${unknownIds.join(", ")}` }); return;
+      }
+      // Check lock — don't allow picks on games that have already started
+      const lockedIds = picks.filter(p => {
+        const r = replayGameMap.get(p.gameId);
+        return r?.replayKickoff && new Date(r.replayKickoff) <= new Date();
+      }).map(p => p.gameId);
+      if (lockedIds.length > 0) {
+        res.status(400).json({ error: "Some games have already locked." }); return;
+      }
+      // Save picks using ESPN game IDs
+      for (const pick of picks) {
+        const r = replayGameMap.get(pick.gameId)!;
+        const awayInfo = NFL_TEAM_INFO[r.awayTeam ?? ""];
+        const homeInfo = NFL_TEAM_INFO[r.homeTeam ?? ""];
+        const pickedIsHome = pick.pickedTeamId === (homeInfo?.id ?? r.homeTeam);
+        const pickedTeamName = pickedIsHome
+          ? (homeInfo?.displayName ?? r.homeTeam ?? "")
+          : (awayInfo?.displayName ?? r.awayTeam ?? "");
+        await db.insert(pickemPicksTable).values({
+          poolId,
+          userId,
+          week: numWeek,
+          gameId: pick.gameId,
+          pickedTeamId: pick.pickedTeamId,
+          pickedTeamName,
+          gameDate: r.replayKickoff ? r.replayKickoff.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          result: "pending",
+        }).onConflictDoUpdate({
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.week, pickemPicksTable.gameId],
+          set: { pickedTeamId: pick.pickedTeamId, pickedTeamName, result: "pending" },
+        });
+      }
+      res.json({ success: true });
+      return;
+    }
+
+    // Static sandbox fallback
     const sandboxGames = getSandboxGamesForWeek(numWeek);
     const validGameIds = new Set(sandboxGames.map(g => g.id));
     const unknownSandboxIds = picks.filter(p => !validGameIds.has(p.gameId)).map(p => p.gameId);
