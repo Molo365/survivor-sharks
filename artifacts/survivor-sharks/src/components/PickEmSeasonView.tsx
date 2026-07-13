@@ -20,7 +20,7 @@ import type {
   NflPickEmSeasonWeekResults,
   NflPickEmSeasonPlayerPick,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -72,7 +72,16 @@ import {
   Settings2,
   ChevronLeft,
   ChevronRight,
+  Clapperboard,
+  Play,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
@@ -1154,6 +1163,9 @@ export function PickEmSeasonView({
   const [sandboxWeekInput, setSandboxWeekInput] = useState<string>(
     String(sandboxWeek),
   );
+  const [replayWeek, setReplayWeek] = useState(sandboxWeek ?? 1);
+  const [replayDelay, setReplayDelay] = useState(5);
+  const [startingReplay, setStartingReplay] = useState(false);
   const [settingsName, setSettingsName] = useState(poolName);
   const [settingsDesc, setSettingsDesc] = useState(poolDescription ?? "");
 
@@ -1273,6 +1285,22 @@ export function PickEmSeasonView({
         queryClient.invalidateQueries({ queryKey: getGetNflPickEmSeasonGamesQueryKey(poolId) });
       },
     },
+  });
+
+  const { data: replayStatus } = useQuery({
+    queryKey: ["replay-status", poolId],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const r = await fetch(`/api/pools/${poolId}/replay/status`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return null;
+      return r.json() as Promise<{ active: boolean; summary: { live: number; final: number; pending: number }; games: unknown[] }>;
+    },
+    enabled: !!sandboxMode && isSuperAdmin,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
   });
 
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
@@ -1424,6 +1452,32 @@ export function PickEmSeasonView({
           }),
       },
     );
+  }
+
+  async function handleStartReplay() {
+    const token = localStorage.getItem("auth_token");
+    setStartingReplay(true);
+    try {
+      const startTime = new Date(Date.now() + replayDelay * 60_000).toISOString();
+      const res = await fetch(`/api/pools/${poolId}/replay/start`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ week: replayWeek, startTime }),
+      });
+      if (!res.ok) throw new Error("Failed to start replay");
+      const data = await res.json();
+      toast({ title: "Replay started!", description: `${data.gamesLoaded} games loaded.` });
+      queryClient.invalidateQueries({ queryKey: ["replay-status", poolId] });
+      queryClient.invalidateQueries({ queryKey: ["games", poolId] });
+    } catch {
+      toast({ title: "Error", description: "Could not start replay.", variant: "destructive" });
+    } finally {
+      setStartingReplay(false);
+    }
   }
 
   function copyInvite() {
@@ -2035,6 +2089,60 @@ export function PickEmSeasonView({
                           ) : null}
                           Simulate Grading
                         </Button>
+                        {/* Replay Mode */}
+                        <div className="border-t border-yellow-500/20 pt-4 space-y-4">
+                          <p className="text-sm font-semibold text-amber-400 flex items-center gap-2">
+                            <Clapperboard className="w-4 h-4" /> Replay Mode
+                          </p>
+                          <p className="text-xs text-muted-foreground/70">
+                            Load real 2025 NFL scores and simulate a live Sunday compressed into ~2 hours.
+                          </p>
+                          <div className="grid gap-2">
+                            <label className="text-xs font-semibold text-amber-300/80 uppercase tracking-widest">Week to Replay</label>
+                            <Select value={String(replayWeek)} onValueChange={(v) => setReplayWeek(Number(v))}>
+                              <SelectTrigger className="w-[180px] bg-background/50 border-amber-500/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 18 }, (_, i) => i + 1).map((w) => (
+                                  <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <label className="text-xs font-semibold text-amber-300/80 uppercase tracking-widest">When to Start</label>
+                            <select
+                              value={replayDelay}
+                              onChange={e => setReplayDelay(Number(e.target.value))}
+                              className="border border-gray-600 bg-gray-800 text-white rounded px-3 py-2"
+                            >
+                              <option value={0}>Start immediately</option>
+                              <option value={5}>Start in 5 minutes</option>
+                              <option value={10}>Start in 10 minutes</option>
+                              <option value={15}>Start in 15 minutes</option>
+                              <option value={30}>Start in 30 minutes</option>
+                            </select>
+                          </div>
+                          <Button
+                            onClick={handleStartReplay}
+                            disabled={startingReplay}
+                            className="font-bebas text-lg tracking-wider bg-amber-600 hover:bg-amber-500 text-black"
+                          >
+                            <Play className="w-4 h-4 mr-1.5" />
+                            {startingReplay ? "Loading…" : "Load & Start Replay"}
+                          </Button>
+                          {replayStatus?.active && (
+                            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                              <p className="font-semibold text-amber-300 text-sm mb-1">Replay in progress</p>
+                              <p className="text-muted-foreground text-xs">
+                                🟢 {replayStatus.summary.live} live
+                                {" · "}🏁 {replayStatus.summary.final} final
+                                {" · "}⏳ {replayStatus.summary.pending} pending
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
