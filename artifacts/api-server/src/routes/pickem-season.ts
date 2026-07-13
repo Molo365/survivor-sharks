@@ -4,7 +4,7 @@ import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceRe
 import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
-import { getSandboxGamesForWeek, sandboxGameToPickEmShape } from "../lib/nfl2025Schedule";
+import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 
 const router = Router({ mergeParams: true });
 
@@ -160,29 +160,44 @@ router.get("/games", requireAuth, async (req, res) => {
       ));
 
     if (replayRows.length > 0) {
-      // Replay Mode — use live ESPN 2025 data from sandbox_game_scores
-      const replayMap = new Map(replayRows.map(r => [`${r.awayTeam}-${r.homeTeam}`, r]));
-      const sandboxGames = getSandboxGamesForWeek(week);
-      const formattedGames = sandboxGames.map(g => {
-        const shaped = sandboxGameToPickEmShape(g);
-        const replay = replayMap.get(`${g.awayAbbr}-${g.homeAbbr}`);
-        const existing = pickMap.get(g.id);
-        const gameStatus = replay?.gameStatus ?? "scheduled";
+      // Replay Mode — build game list ENTIRELY from sandbox_game_scores (real ESPN data)
+      // Do NOT use the static schedule — it has different matchups than ESPN
+      const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/nfl/500";
+      const formattedGames = replayRows.map(r => {
+        const awayAbbr = r.awayTeam ?? "";
+        const homeAbbr = r.homeTeam ?? "";
+        const awayInfo = NFL_TEAM_INFO[awayAbbr];
+        const homeInfo = NFL_TEAM_INFO[homeAbbr];
+        const gameStatus = r.gameStatus ?? "scheduled";
         const status = gameStatus === "final" ? "final"
           : gameStatus !== "scheduled" ? "in_progress"
-          : replay?.replayKickoff && new Date(replay.replayKickoff) <= new Date() ? "in_progress"
+          : r.replayKickoff && new Date(r.replayKickoff) <= new Date() ? "in_progress"
           : "scheduled";
+        // Look up existing pick by ESPN game ID
+        const existing = pickMap.get(r.gameId);
         return {
-          ...shaped,
-          startTime: replay?.replayKickoff ? replay.replayKickoff.toISOString() : shaped.startTime,
+          id: r.gameId,
+          startTime: r.replayKickoff ? r.replayKickoff.toISOString() : "",
           status,
           deadlinePassed: status === "final" || status === "in_progress",
-          awayScore: replay?.awayScore ?? null,
-          homeScore: replay?.homeScore ?? null,
+          awayTeam: {
+            id: awayInfo?.id ?? awayAbbr,
+            name: awayInfo?.displayName ?? awayAbbr,
+            abbreviation: awayAbbr,
+            logoUrl: `${LOGO_BASE}/${awayAbbr.toLowerCase()}.png`,
+          },
+          homeTeam: {
+            id: homeInfo?.id ?? homeAbbr,
+            name: homeInfo?.displayName ?? homeAbbr,
+            abbreviation: homeAbbr,
+            logoUrl: `${LOGO_BASE}/${homeAbbr.toLowerCase()}.png`,
+          },
+          awayScore: r.awayScore ?? null,
+          homeScore: r.homeScore ?? null,
           userPickTeamId: existing?.pickedTeamId ?? null,
           userPickResult: existing?.result ?? null,
           liveDetail: (() => {
-            const s = replay?.gameStatus;
+            const s = r.gameStatus;
             if (s === "q1") return "Q1";
             if (s === "q2") return "Q2";
             if (s === "halftime") return "HALF";
