@@ -363,13 +363,15 @@ export async function customFetch<T = unknown>(
   const response = await fetch(input, { ...init, method, headers });
 
   if (response.status === 401) {
-    // Session expired — redirect to login (skip if already on login or landing page)
-    if (
-      typeof window !== "undefined" &&
-      !window.location.pathname.includes("/login") &&
-      window.location.pathname !== "/"
-    ) {
-      window.location.href = "/login";
+    // Session expired — redirect to login (skip if on a public page)
+    if (typeof window !== "undefined") {
+      const PUBLIC_PATHS = ["/login", "/register", "/reset-password", "/join/", "/pools/join", "/"];
+      const isPublicPath = PUBLIC_PATHS.some(
+        (p) => window.location.pathname === p || window.location.pathname.startsWith(p),
+      );
+      if (!isPublicPath) {
+        window.location.href = "/login";
+      }
     }
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);
