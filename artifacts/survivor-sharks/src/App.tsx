@@ -105,9 +105,7 @@ function Router() {
       <Route path="/pools/new">
         {() => <ProtectedRoute component={CreatePool} />}
       </Route>
-      <Route path="/pools/join">
-        {() => <ProtectedRoute component={JoinPool} />}
-      </Route>
+      <Route path="/pools/join" component={JoinPool} />
       <Route path="/pools/:poolId">
         {() => <ProtectedRoute component={PoolHome} />}
       </Route>
