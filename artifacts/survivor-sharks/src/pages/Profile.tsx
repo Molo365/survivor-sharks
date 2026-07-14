@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { KeyRound, Trophy, Wallet, User } from "lucide-react";
+import { KeyRound, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SPORT_LABELS: Record<string, string> = {
@@ -196,6 +196,65 @@ function WinningsHeader({ pastPools }: { pastPools: UserBalancePastPool[] }) {
   );
 }
 
+// ── History tab ──────────────────────────────────────────────────────────────
+
+function HistoryTab({ pastPools }: { pastPools: UserBalancePastPool[] }) {
+  const totalFees = pastPools.reduce((s, p) => s + (p.entryFee ?? 0), 0);
+  const totalWon = pastPools.reduce((s, p) => s + (p.prizeAmount ?? 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-bebas text-2xl tracking-widest text-foreground">POOL HISTORY</h3>
+        <p className="text-sm text-muted-foreground">
+          {pastPools.length} pool{pastPools.length !== 1 ? "s" : ""} played
+        </p>
+      </div>
+
+      <div className="divide-y divide-border/30">
+        {pastPools.map((pool) => {
+          const isFree = !pool.entryFee || pool.entryFee <= 0;
+          const posLabel = pool.finishPosition != null ? ordinal(pool.finishPosition) : "Eliminated";
+
+          return (
+            <Link href={`/pools/${pool.poolId}`} key={pool.poolId}>
+              <div className="py-3 px-2 flex flex-col gap-1.5 hover:bg-card/40 rounded transition-colors cursor-pointer">
+                <span className="font-medium text-sm text-foreground leading-tight">
+                  {pool.poolName}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <SportBadge sport={pool.sport} />
+                  <span className="text-xs text-muted-foreground">
+                    {POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{posLabel}</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>Entry fee: {isFree ? "Free" : `$${pool.entryFee}`}</span>
+                  <span>Prize won: ${Math.round(pool.prizeAmount ?? 0)}</span>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {pastPools.length > 0 && (
+        <div className="border-t border-border/40 pt-4 space-y-1.5">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Total entry fees</span>
+            <span>${Math.round(totalFees).toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Total prizes won</span>
+            <span>${Math.round(totalWon).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Profile() {
@@ -244,6 +303,10 @@ export default function Profile() {
             <TabsTrigger value="balance" className="flex-1 flex items-center gap-1.5">
               <Wallet className="w-3.5 h-3.5" />
               Balance
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex-1 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5" />
+              History
             </TabsTrigger>
             <TabsTrigger value="account" className="flex-1 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
@@ -294,6 +357,23 @@ export default function Profile() {
                 </div>
               )}
             </section>
+          </TabsContent>
+
+          {/* ── HISTORY tab ── */}
+          <TabsContent value="history" className="mt-0">
+            {isLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-8 w-40" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : !balance?.pastPools.length ? (
+              <p className="text-sm text-muted-foreground">No past pools yet.</p>
+            ) : (
+              <HistoryTab pastPools={balance.pastPools} />
+            )}
           </TabsContent>
 
           {/* ── ACCOUNT tab ── */}
