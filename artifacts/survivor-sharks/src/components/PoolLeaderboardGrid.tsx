@@ -170,7 +170,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
               <th className="sticky left-0 bg-card z-10 w-8 px-1 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center">
                 #
               </th>
-              <th className="sticky left-8 bg-card z-10 w-44 px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-left">
+              <th className="sticky left-8 bg-card z-10 w-24 sm:w-44 px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-left">
                 Player
               </th>
               {weekColumns.map((wk) => (

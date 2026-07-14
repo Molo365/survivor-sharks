@@ -400,8 +400,8 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
   const todayEt = getTodayEt();
   const weekWinner = !isCurrentMlbWeek && players.length > 0 ? players[0] : null;
 
-  // Table min-width: sticky player col (150) + 7 day cols (52px each) + total col (80)
-  const minWidth = Math.max(380, 150 + weekDays.length * 52 + 80);
+  // Table min-width: sticky player col (100 mobile / 150 desktop) + 7 day cols (52px each) + total col (80)
+  const minWidth = Math.max(380, 100 + weekDays.length * 52 + 80);
 
   return (
     <div className="space-y-4">
@@ -455,7 +455,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
             <thead>
               <tr className="bg-muted/[0.05]">
                 {/* Sticky player header */}
-                <th className="sticky left-0 z-20 bg-card px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[150px]">
+                <th className="sticky left-0 z-20 bg-card px-3 py-2 border-b border-border/30 border-r border-border/20 text-left font-bebas text-xs tracking-wider text-muted-foreground/40 min-w-[100px] sm:min-w-[150px]">
                   Player
                 </th>
                 {/* Day headers */}
@@ -508,7 +508,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
                         {/* Sticky player cell */}
                         <td
                           className={cn(
-                            "sticky left-0 z-20 px-3 py-1.5 sm:py-2.5 border-r border-border/20 min-w-[150px]",
+                            "sticky left-0 z-20 px-3 py-1.5 sm:py-2.5 border-r border-border/20 min-w-[100px] sm:min-w-[150px]",
                             isMe ? "bg-[hsl(215,50%,7%)]" : "bg-card",
                           )}
                         >
