@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -711,6 +714,7 @@ function GameDetailSheet({
 // ── Scores page ───────────────────────────────────────────────────────────────
 
 export default function Scores() {
+  const { logout } = useAuth();
   const [data, setData] = useState<ScoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -777,15 +781,20 @@ export default function Scores() {
 
         <div className="max-w-5xl mx-auto px-4 pt-10 pb-24">
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="font-bebas text-5xl tracking-wide text-foreground leading-none">
-              Scores
-            </h1>
-            {data?.date && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {formatTodayLabel(data.date)}
-              </p>
-            )}
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="font-bebas text-5xl tracking-wide text-foreground leading-none">
+                Scores
+              </h1>
+              {data?.date && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {formatTodayLabel(data.date)}
+                </p>
+              )}
+            </div>
+            <Button variant="ghost" size="icon" onClick={logout} title="Log out" className="mt-1 -mr-2 text-muted-foreground hover:text-foreground">
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
 
           {loading ? (

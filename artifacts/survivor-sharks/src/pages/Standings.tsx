@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 interface MyStanding {
   rank: number;
@@ -163,6 +166,7 @@ function PoolCard({ pool, ended = false }: { pool: PoolStats; ended?: boolean })
 }
 
 export default function Standings() {
+  const { logout } = useAuth();
   const [pools, setPools] = useState<PoolStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -212,13 +216,18 @@ export default function Standings() {
 
       <div className="max-w-lg mx-auto px-4 pt-10 pb-24">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="font-bebas text-5xl tracking-wide text-foreground leading-none">
-            Standings
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Your current rank across all pools
-          </p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="font-bebas text-5xl tracking-wide text-foreground leading-none">
+              Standings
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your current rank across all pools
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={logout} title="Log out" className="mt-1 -mr-2 text-muted-foreground hover:text-foreground">
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
 
         {loading ? (
