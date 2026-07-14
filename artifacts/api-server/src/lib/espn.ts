@@ -827,16 +827,27 @@ export async function fetchNflWeek18TiebreakerStats(
     if (result.status !== "fulfilled" || !result.value) continue;
     const teams = result.value.boxscore?.teams ?? [];
     for (const team of teams) {
+      // Accumulate one passing value per team to avoid double-counting when ESPN
+      // returns both "passingYards" and "netPassingYards" in the same team object.
+      // Prefer "netPassingYards" (passing yards minus sack yards, the standard NFL
+      // tiebreaker figure); fall back to "passingYards" only when net is absent.
+      let teamPassing: number | null = null;
+      let teamRushing: number | null = null;
       for (const stat of team.statistics ?? []) {
-        if (stat.name === "passingYards" || stat.name === "netPassingYards") {
+        if (stat.name === "netPassingYards") {
           const v = parseInt(stat.displayValue, 10);
-          if (!isNaN(v)) { totalPassing += v; passingFound = true; }
+          if (!isNaN(v)) teamPassing = v;
+        } else if (stat.name === "passingYards" && teamPassing === null) {
+          const v = parseInt(stat.displayValue, 10);
+          if (!isNaN(v)) teamPassing = v;
         }
         if (stat.name === "rushingYards") {
           const v = parseInt(stat.displayValue, 10);
-          if (!isNaN(v)) { totalRushing += v; rushingFound = true; }
+          if (!isNaN(v)) teamRushing = v;
         }
       }
+      if (teamPassing !== null) { totalPassing += teamPassing; passingFound = true; }
+      if (teamRushing !== null) { totalRushing += teamRushing; rushingFound = true; }
     }
   }
 

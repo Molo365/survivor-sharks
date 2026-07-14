@@ -131,30 +131,35 @@ async function applyPickEmSeasonClosure(opts: {
     .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
     .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerUserIds)));
 
-  if (hasPrizePlace(ps, 2)) {
-    const winnerSet = new Set(winnerUserIds);
-    const nonWinners = seasonTotals
-      .filter((r) => !winnerSet.has(r.userId))
-      .sort((a, b) => Number(b.seasonCorrect) - Number(a.seasonCorrect));
-    if (nonWinners.length > 0) {
-      const place2Score = Number(nonWinners[0].seasonCorrect);
-      const secondGroup = nonWinners.filter((r) => Number(r.seasonCorrect) === place2Score);
-      const secondPrize = calcPrize({ place: 2, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries });
-      await db.update(entriesTable)
-        .set({ finishPosition: 2, prizeAmount: secondPrize })
-        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+  // Always write finishPosition for 2nd and 3rd place so every placer has a
+  // recorded position regardless of whether the prize structure awards them
+  // money.  prizeAmount is only written when the pool's prize structure
+  // actually pays that place (hasPrizePlace guard stays on the prize calc only).
+  const winnerSet = new Set(winnerUserIds);
+  const nonWinners = seasonTotals
+    .filter((r) => !winnerSet.has(r.userId))
+    .sort((a, b) => Number(b.seasonCorrect) - Number(a.seasonCorrect));
 
-      if (hasPrizePlace(ps, 3)) {
-        const rest2 = nonWinners.filter((r) => Number(r.seasonCorrect) !== place2Score);
-        if (rest2.length > 0) {
-          const place3Score = Number(rest2[0].seasonCorrect);
-          const thirdGroup = rest2.filter((r) => Number(r.seasonCorrect) === place3Score);
-          const thirdPrize = calcPrize({ place: 3, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries });
-          await db.update(entriesTable)
-            .set({ finishPosition: 3, prizeAmount: thirdPrize })
-            .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
-        }
-      }
+  if (nonWinners.length > 0) {
+    const place2Score = Number(nonWinners[0].seasonCorrect);
+    const secondGroup = nonWinners.filter((r) => Number(r.seasonCorrect) === place2Score);
+    const secondPrize = hasPrizePlace(ps, 2)
+      ? calcPrize({ place: 2, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries })
+      : null;
+    await db.update(entriesTable)
+      .set({ finishPosition: 2, ...(secondPrize !== null ? { prizeAmount: secondPrize } : {}) })
+      .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+
+    const rest2 = nonWinners.filter((r) => Number(r.seasonCorrect) !== place2Score);
+    if (rest2.length > 0) {
+      const place3Score = Number(rest2[0].seasonCorrect);
+      const thirdGroup = rest2.filter((r) => Number(r.seasonCorrect) === place3Score);
+      const thirdPrize = hasPrizePlace(ps, 3)
+        ? calcPrize({ place: 3, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries })
+        : null;
+      await db.update(entriesTable)
+        .set({ finishPosition: 3, ...(thirdPrize !== null ? { prizeAmount: thirdPrize } : {}) })
+        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
     }
   }
 
