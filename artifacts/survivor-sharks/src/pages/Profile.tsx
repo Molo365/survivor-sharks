@@ -115,27 +115,15 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
 
 function BalancePastPoolCard({ pool }: { pool: UserBalancePastPool }) {
   const isFree = !pool.entryFee || pool.entryFee <= 0;
-  const net = pool.netResult;
+  const hasPrize = pool.prizeAmount != null && pool.prizeAmount > 0;
 
-  const netLabel = isFree
-    ? pool.prizeAmount && pool.prizeAmount > 0
-      ? `+$${Math.round(pool.prizeAmount)} (free pool)`
-      : "Free pool"
-    : net > 0
-      ? `+$${Math.round(net)}`
-      : net < 0
-        ? `-$${Math.round(Math.abs(net))}`
-        : "$0";
+  const prizeLabel = isFree
+    ? "Free pool"
+    : hasPrize
+      ? `Prize won: $${Math.round(pool.prizeAmount!)}`
+      : "Prize won: $0";
 
-  const netColor = isFree
-    ? pool.prizeAmount && pool.prizeAmount > 0
-      ? "text-green-400"
-      : "text-muted-foreground"
-    : net > 0
-      ? "text-green-400"
-      : net < 0
-        ? "text-destructive/80"
-        : "text-muted-foreground";
+  const prizeColor = hasPrize ? "text-green-400" : "text-muted-foreground/60";
 
   return (
     <Link href={`/pools/${pool.poolId}`}>
@@ -144,9 +132,6 @@ function BalancePastPoolCard({ pool }: { pool: UserBalancePastPool }) {
           <div className="flex items-start justify-between gap-2">
             <span className="font-bebas text-xl tracking-wide text-foreground/90 leading-tight line-clamp-1">
               {pool.poolName}
-            </span>
-            <span className={cn("text-sm font-semibold shrink-0", netColor)}>
-              {netLabel}
             </span>
           </div>
 
@@ -178,21 +163,17 @@ function BalancePastPoolCard({ pool }: { pool: UserBalancePastPool }) {
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
               {pool.winnerName ? (
-                <>
-                  <span className="text-amber-400/80">
-                    <Trophy className="w-2.5 h-2.5 inline mr-0.5" />
-                    {pool.winnerName}
-                  </span>
-                </>
+                <span className="text-amber-400/80">
+                  <Trophy className="w-2.5 h-2.5 inline mr-0.5" />
+                  {pool.winnerName}
+                </span>
               ) : (
                 <span>by {pool.commissionerName}</span>
               )}
             </span>
-            {!isFree && (
-              <span className="text-xs text-muted-foreground/60">
-                ${pool.entryFee} entry
-              </span>
-            )}
+            <span className={cn("text-xs font-medium shrink-0", prizeColor)}>
+              {prizeLabel}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -200,48 +181,17 @@ function BalancePastPoolCard({ pool }: { pool: UserBalancePastPool }) {
   );
 }
 
-// ── Net total banner ─────────────────────────────────────────────────────────
+// ── Winnings header ──────────────────────────────────────────────────────────
 
-function NetTotalBanner({ pastPools }: { pastPools: UserBalancePastPool[] }) {
-  const paidPools = pastPools.filter((p) => p.entryFee && p.entryFee > 0);
-  if (paidPools.length === 0) return null;
-
-  const net = paidPools.reduce((sum, p) => sum + p.netResult, 0);
-  const isPositive = net > 0;
-  const isNegative = net < 0;
-
+function WinningsHeader({ pastPools }: { pastPools: UserBalancePastPool[] }) {
+  const totalWon = pastPools.reduce((sum, p) => sum + (p.prizeAmount ?? 0), 0);
+  const count = pastPools.length;
   return (
-    <div
-      className={cn(
-        "rounded-xl border p-4 flex items-center justify-between",
-        isPositive
-          ? "bg-green-500/10 border-green-500/30"
-          : isNegative
-            ? "bg-destructive/10 border-destructive/30"
-            : "bg-card/60 border-border/40",
-      )}
-    >
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
-          All-time net
-        </p>
-        <p
-          className={cn(
-            "font-bebas text-3xl tracking-wide mt-0.5",
-            isPositive ? "text-green-400" : isNegative ? "text-destructive" : "text-foreground",
-          )}
-        >
-          {isPositive ? "+" : isNegative ? "-" : ""}${Math.round(Math.abs(net))}
-        </p>
-      </div>
-      <div className="text-right">
-        <p className="text-xs text-muted-foreground">{paidPools.length} paid pool{paidPools.length !== 1 ? "s" : ""}</p>
-        <p className="text-xs text-muted-foreground/60 mt-0.5">
-          {pastPools.filter((p) => p.result === "won").length} won
-          {" · "}
-          {pastPools.filter((p) => p.result === "lost").length} lost
-        </p>
-      </div>
+    <div>
+      <h3 className="font-bebas text-2xl tracking-widest text-foreground">YOUR WINNINGS</h3>
+      <p className="text-sm text-muted-foreground">
+        {count} pool{count !== 1 ? "s" : ""} played · Total won: ${Math.round(totalWon).toLocaleString()}
+      </p>
     </div>
   );
 }
@@ -335,7 +285,7 @@ export default function Profile() {
                 <p className="text-sm text-muted-foreground">No past pools yet.</p>
               ) : (
                 <div className="space-y-4">
-                  <NetTotalBanner pastPools={balance.pastPools} />
+                  <WinningsHeader pastPools={balance.pastPools} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     {balance.pastPools.map((pool) => (
                       <BalancePastPoolCard key={pool.poolId} pool={pool} />
