@@ -4347,7 +4347,7 @@ components:
 
     UserBalancePastPool:
       type: object
-      required: [poolId, poolName, sport, poolType, entryFee, commissionerName, result, prizeWon]
+      required: [poolId, poolName, sport, poolType, entryFee, commissionerName, result, netResult]
       properties:
         poolId:
           type: integer
@@ -4365,8 +4365,16 @@ components:
         result:
           type: string
           enum: [won, lost, unknown]
-        prizeWon:
+        finishPosition:
+          type: integer
+          nullable: true
+        prizeAmount:
           type: number
+          nullable: true
+        netResult:
+          type: number
+        winnerName:
+          type: string
           nullable: true
 
     UserBalance:

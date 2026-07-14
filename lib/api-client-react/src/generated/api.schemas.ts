@@ -1760,7 +1760,10 @@ export interface UserBalancePastPool {
   entryFee: number | null;
   commissionerName: string;
   result: UserBalancePastPoolResult;
-  prizeWon: number | null;
+  finishPosition?: number | null;
+  prizeAmount?: number | null;
+  netResult: number;
+  winnerName?: string | null;
 }
 
 export interface UserBalance {

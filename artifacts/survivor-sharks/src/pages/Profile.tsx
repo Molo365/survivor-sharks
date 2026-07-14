@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KeyRound, Trophy } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { KeyRound, Trophy, Wallet, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SPORT_LABELS: Record<string, string> = {
@@ -44,13 +45,40 @@ function formatMemberSince(iso: string): string {
   });
 }
 
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]!);
+}
+
 function SportBadge({ sport }: { sport: string }) {
   return (
-    <Badge variant="outline" className="text-[10px] font-bebas tracking-wide px-1.5 py-0 border-primary/30 text-primary/70">
+    <Badge
+      variant="outline"
+      className="text-[10px] font-bebas tracking-wide px-1.5 py-0 border-primary/30 text-primary/70"
+    >
       {SPORT_LABELS[sport] ?? sport.toUpperCase()}
     </Badge>
   );
 }
+
+function CardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/40 bg-card/60 p-4 space-y-2">
+      <Skeleton className="h-5 w-3/4" />
+      <Skeleton className="h-3 w-1/3" />
+      <Skeleton className="h-3 w-1/2" />
+    </div>
+  );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="font-bebas text-2xl tracking-widest text-foreground/80">{children}</h2>
+  );
+}
+
+// ── Active pool card ─────────────────────────────────────────────────────────
 
 function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
   return (
@@ -72,9 +100,7 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
             </span>
           </div>
           <div className="flex items-center justify-between mt-1">
-            <span className="text-xs text-muted-foreground">
-              by {pool.commissionerName}
-            </span>
+            <span className="text-xs text-muted-foreground">by {pool.commissionerName}</span>
             <span className="text-xs font-semibold text-foreground">
               {pool.entryFee && pool.entryFee > 0 ? `$${pool.entryFee}` : "Free"}
             </span>
@@ -85,47 +111,88 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
   );
 }
 
-function PastPoolCard({ pool }: { pool: UserBalancePastPool }) {
-  const resultNode = (() => {
-    if (pool.result === "won") {
-      return (
-        <span className="flex items-center gap-1 text-amber-400 font-semibold text-sm">
-          <Trophy className="w-3.5 h-3.5" />
-          Won{pool.prizeWon && pool.prizeWon > 0
-            ? ` · $${Math.round(pool.prizeWon)}`
-            : " · Free pool"}
-        </span>
-      );
-    }
-    if (pool.result === "lost") {
-      return <span className="text-sm text-destructive/70 font-medium">Lost</span>;
-    }
-    return <span className="text-sm text-muted-foreground">—</span>;
-  })();
+// ── Past pool card (balance view) ────────────────────────────────────────────
+
+function BalancePastPoolCard({ pool }: { pool: UserBalancePastPool }) {
+  const isFree = !pool.entryFee || pool.entryFee <= 0;
+  const net = pool.netResult;
+
+  const netLabel = isFree
+    ? pool.prizeAmount && pool.prizeAmount > 0
+      ? `+$${Math.round(pool.prizeAmount)} (free pool)`
+      : "Free pool"
+    : net > 0
+      ? `+$${Math.round(net)}`
+      : net < 0
+        ? `-$${Math.round(Math.abs(net))}`
+        : "$0";
+
+  const netColor = isFree
+    ? pool.prizeAmount && pool.prizeAmount > 0
+      ? "text-green-400"
+      : "text-muted-foreground"
+    : net > 0
+      ? "text-green-400"
+      : net < 0
+        ? "text-destructive/80"
+        : "text-muted-foreground";
 
   return (
     <Link href={`/pools/${pool.poolId}`}>
-      <Card className="shark-card opacity-75 hover:opacity-90 hover:border-primary/40 transition-all duration-200 cursor-pointer">
-        <CardContent className="p-4 flex flex-col gap-1.5">
+      <Card className="shark-card opacity-80 hover:opacity-100 hover:border-primary/40 transition-all duration-200 cursor-pointer">
+        <CardContent className="p-4 flex flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
-            <span className="font-bebas text-xl tracking-wide text-foreground/80 leading-tight line-clamp-1">
+            <span className="font-bebas text-xl tracking-wide text-foreground/90 leading-tight line-clamp-1">
               {pool.poolName}
             </span>
-            {resultNode}
+            <span className={cn("text-sm font-semibold shrink-0", netColor)}>
+              {netLabel}
+            </span>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
             <SportBadge sport={pool.sport} />
             <span className="text-xs text-muted-foreground">
               {POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}
             </span>
+            {pool.finishPosition != null && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] px-1.5 py-0 font-semibold",
+                  pool.finishPosition === 1
+                    ? "border-amber-500/40 text-amber-400"
+                    : pool.finishPosition === 2
+                      ? "border-slate-400/40 text-slate-300"
+                      : "border-orange-600/40 text-orange-400",
+                )}
+              >
+                {pool.result === "won" && pool.finishPosition === 1 && (
+                  <Trophy className="w-2.5 h-2.5 mr-0.5 inline" />
+                )}
+                {ordinal(pool.finishPosition)}
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center justify-between mt-1">
+
+          <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
-              by {pool.commissionerName}
+              {pool.winnerName ? (
+                <>
+                  <span className="text-amber-400/80">
+                    <Trophy className="w-2.5 h-2.5 inline mr-0.5" />
+                    {pool.winnerName}
+                  </span>
+                </>
+              ) : (
+                <span>by {pool.commissionerName}</span>
+              )}
             </span>
-            <span className="text-xs font-semibold text-foreground/60">
-              {pool.entryFee && pool.entryFee > 0 ? `$${pool.entryFee}` : "Free"}
-            </span>
+            {!isFree && (
+              <span className="text-xs text-muted-foreground/60">
+                ${pool.entryFee} entry
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -133,21 +200,53 @@ function PastPoolCard({ pool }: { pool: UserBalancePastPool }) {
   );
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="font-bebas text-2xl tracking-widest text-foreground/80">{children}</h2>
-  );
-}
+// ── Net total banner ─────────────────────────────────────────────────────────
 
-function CardSkeleton() {
+function NetTotalBanner({ pastPools }: { pastPools: UserBalancePastPool[] }) {
+  const paidPools = pastPools.filter((p) => p.entryFee && p.entryFee > 0);
+  if (paidPools.length === 0) return null;
+
+  const net = paidPools.reduce((sum, p) => sum + p.netResult, 0);
+  const isPositive = net > 0;
+  const isNegative = net < 0;
+
   return (
-    <div className="rounded-xl border border-border/40 bg-card/60 p-4 space-y-2">
-      <Skeleton className="h-5 w-3/4" />
-      <Skeleton className="h-3 w-1/3" />
-      <Skeleton className="h-3 w-1/2" />
+    <div
+      className={cn(
+        "rounded-xl border p-4 flex items-center justify-between",
+        isPositive
+          ? "bg-green-500/10 border-green-500/30"
+          : isNegative
+            ? "bg-destructive/10 border-destructive/30"
+            : "bg-card/60 border-border/40",
+      )}
+    >
+      <div>
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
+          All-time net
+        </p>
+        <p
+          className={cn(
+            "font-bebas text-3xl tracking-wide mt-0.5",
+            isPositive ? "text-green-400" : isNegative ? "text-destructive" : "text-foreground",
+          )}
+        >
+          {isPositive ? "+" : ""}${Math.round(Math.abs(net))}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs text-muted-foreground">{paidPools.length} paid pool{paidPools.length !== 1 ? "s" : ""}</p>
+        <p className="text-xs text-muted-foreground/60 mt-0.5">
+          {pastPools.filter((p) => p.result === "won").length} won
+          {" · "}
+          {pastPools.filter((p) => p.result === "lost").length} lost
+        </p>
+      </div>
     </div>
   );
 }
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Profile() {
   const { user } = useAuth();
@@ -161,15 +260,17 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
-      <main className="container max-w-2xl mx-auto px-4 py-8 space-y-10">
+      <main className="container max-w-2xl mx-auto px-4 py-8 space-y-8">
 
-        {/* ── Header ── */}
+        {/* ── Profile header ── */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className={cn(
-            "w-20 h-20 rounded-full flex items-center justify-center",
-            "bg-primary/20 border-2 border-primary/40 text-primary",
-            "font-bebas text-4xl tracking-wide",
-          )}>
+          <div
+            className={cn(
+              "w-20 h-20 rounded-full flex items-center justify-center",
+              "bg-primary/20 border-2 border-primary/40 text-primary",
+              "font-bebas text-4xl tracking-wide",
+            )}
+          >
             {initials}
           </div>
           <div>
@@ -187,65 +288,85 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* ── Active Pools ── */}
-        <section className="space-y-4">
-          <SectionHeading>Active Pools</SectionHeading>
-          {isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          ) : !balance?.activePools.length ? (
-            <p className="text-sm text-muted-foreground">No active pools right now.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {balance.activePools.map((pool) => (
-                <ActivePoolCard key={pool.poolId} pool={pool} />
-              ))}
-            </div>
-          )}
-        </section>
+        {/* ── Tabs ── */}
+        <Tabs defaultValue="balance" className="space-y-6">
+          <TabsList className="w-full">
+            <TabsTrigger value="balance" className="flex-1 flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5" />
+              Balance
+            </TabsTrigger>
+            <TabsTrigger value="account" className="flex-1 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              Account
+            </TabsTrigger>
+          </TabsList>
 
-        {/* ── Past Pools ── */}
-        <section className="space-y-4">
-          <SectionHeading>Past Pools</SectionHeading>
-          {isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          ) : !balance?.pastPools.length ? (
-            <p className="text-sm text-muted-foreground">No past pools yet.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {balance.pastPools.map((pool) => (
-                <PastPoolCard key={pool.poolId} pool={pool} />
-              ))}
-            </div>
-          )}
-        </section>
+          {/* ── BALANCE tab ── */}
+          <TabsContent value="balance" className="space-y-8 mt-0">
 
-        {/* ── Account ── */}
-        <section className="space-y-4">
-          <SectionHeading>Account</SectionHeading>
-          <Card className="shark-card">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Password</p>
-                <p className="text-xs text-muted-foreground">Change your login password</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setChangePasswordOpen(true)}
-                className="flex items-center gap-1.5"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                Change
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
+            {/* Active Pools */}
+            <section className="space-y-4">
+              <SectionHeading>Active Pools</SectionHeading>
+              {isLoading ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CardSkeleton />
+                  <CardSkeleton />
+                </div>
+              ) : !balance?.activePools.length ? (
+                <p className="text-sm text-muted-foreground">No active pools right now.</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {balance.activePools.map((pool) => (
+                    <ActivePoolCard key={pool.poolId} pool={pool} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Past Pools */}
+            <section className="space-y-4">
+              <SectionHeading>Past Pools</SectionHeading>
+              {isLoading ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CardSkeleton />
+                  <CardSkeleton />
+                </div>
+              ) : !balance?.pastPools.length ? (
+                <p className="text-sm text-muted-foreground">No past pools yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  <NetTotalBanner pastPools={balance.pastPools} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {balance.pastPools.map((pool) => (
+                      <BalancePastPoolCard key={pool.poolId} pool={pool} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          </TabsContent>
+
+          {/* ── ACCOUNT tab ── */}
+          <TabsContent value="account" className="space-y-4 mt-0">
+            <Card className="shark-card">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Password</p>
+                  <p className="text-xs text-muted-foreground">Change your login password</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setChangePasswordOpen(true)}
+                  className="flex items-center gap-1.5"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Change
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
       </main>
 

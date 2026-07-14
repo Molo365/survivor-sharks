@@ -97,7 +97,10 @@ export const GetUserBalanceResponse = zod.object({
   "entryFee": zod.number().nullable(),
   "commissionerName": zod.string(),
   "result": zod.enum(['won', 'lost', 'unknown']),
-  "prizeWon": zod.number().nullable()
+  "finishPosition": zod.number().nullish(),
+  "prizeAmount": zod.number().nullish(),
+  "netResult": zod.number(),
+  "winnerName": zod.string().nullish()
 }))
 })
 
