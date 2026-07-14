@@ -1363,7 +1363,7 @@ export async function processPickEmResults(): Promise<{
         ));
 
       for (const game of finalGames) {
-        if (!game.homeScore || !game.awayScore || !game.homeTeam || !game.awayTeam) continue;
+        if (game.homeScore == null || game.awayScore == null || !game.homeTeam || !game.awayTeam) continue;
         const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
         const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
