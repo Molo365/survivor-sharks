@@ -9,6 +9,7 @@ export interface GridPdfOptions {
   columns: string[];
   rows: { cells: string[]; isCurrentUser?: boolean }[];
   footer: string;
+  cellColorFn?: (rowIdx: number, colIdx: number, text: string) => [number, number, number] | null;
 }
 
 const MLB_TEAM_COLORS: Record<string, string> = {
@@ -51,6 +52,7 @@ export function downloadGridPdf({
   columns,
   rows,
   footer,
+  cellColorFn,
 }: GridPdfOptions): void {
   const doc = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -154,6 +156,11 @@ export function downloadGridPdf({
         styles.textColor = [0, 120, 60];
       } else if (result === "L") {
         styles.textColor = [180, 30, 30];
+      }
+
+      if (cellColorFn) {
+        const callerColor = cellColorFn(data.row.index, data.column.index, text);
+        if (callerColor) styles.fillColor = callerColor;
       }
     },
   });

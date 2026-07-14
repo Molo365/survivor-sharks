@@ -117,18 +117,16 @@ export function NflConfidenceSnapshot({
 
   function handleDownloadPdf() {
     const gameColHeaders = sortedGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`);
+    const lastColIdx = sortedGames.length + 1;
     const pdfRows = enrichedPlayers.map((p, idx) => {
       const name = `${idx + 1}. ${p.displayName ?? p.username}`;
       const pickCells = sortedGames.map((g) => {
         const pick = p.picks[g.id];
         if (!pick) return "—";
-        const pts = pick.confidencePoints != null ? ` ${pick.confidencePoints}pts` : "";
-        const suffix =
-          pick.result === "correct" ? " W"
-          : pick.result === "incorrect" ? " L"
-          : pick.result === "postponed" ? " PPD"
-          : "";
-        return `${pick.pickedTeamName}${pts}${suffix}`;
+        const isAway = pick.pickedTeamId === g.awayTeam.id;
+        const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
+        const pts = pick.confidencePoints != null ? `${pick.confidencePoints}pts` : "";
+        return pts ? `${abbrev}\n${pts}` : abbrev;
       });
       return { cells: [name, ...pickCells, `${p.weekPts}pts`], isCurrentUser: p.userId === user?.id };
     });
@@ -140,6 +138,18 @@ export function NflConfidenceSnapshot({
       columns: ["Player", ...gameColHeaders, "Week Pts"],
       rows: pdfRows,
       footer: `Week ${selectedWeek} Snapshot`,
+      cellColorFn: (rowIdx, colIdx) => {
+        if (colIdx === 0 || colIdx === lastColIdx) return null;
+        const player = enrichedPlayers[rowIdx];
+        if (!player) return null;
+        const game = sortedGames[colIdx - 1];
+        if (!game) return null;
+        const pick = player.picks[game.id];
+        if (!pick) return null;
+        if (pick.result === "correct") return [200, 240, 210];
+        if (pick.result === "incorrect") return [245, 195, 195];
+        return null;
+      },
     });
   }
 
