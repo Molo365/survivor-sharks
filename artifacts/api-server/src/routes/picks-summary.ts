@@ -69,6 +69,25 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Survivor (season / weekly / mid_season) ────────────────────────────
       if (SURVIVOR_TYPES.has(poolType)) {
+        const [entry] = await db
+          .select({ status: entriesTable.status })
+          .from(entriesTable)
+          .where(
+            and(
+              eq(entriesTable.poolId, pool.id),
+              eq(entriesTable.userId, userId),
+            ),
+          )
+          .limit(1);
+
+        if (entry?.status === "eliminated") {
+          return {
+            ...base,
+            pickStatus: "not_required" as PickStatus,
+            summary: "Eliminated",
+          };
+        }
+
         const [pick] = await db
           .select({ teamName: picksTable.teamName })
           .from(picksTable)
