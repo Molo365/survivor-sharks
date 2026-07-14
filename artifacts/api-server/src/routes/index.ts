@@ -26,6 +26,7 @@ import scoresRouter from "./scores";
 import picksSummaryRouter from "./picks-summary";
 import usersRouter from "./users";
 import replayRouter from "./replay";
+import finalResultsRouter from "./final-results";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.use("/pools/:poolId/nfl-confidence-weekly", nflConfidenceWeeklyRouter);
 router.use("/pools/:poolId/pickem-season", pickemSeasonRouter);
 router.use("/pools/:poolId/bracket", bracketRouter);
 router.use("/pools/:poolId/replay", replayRouter);
+router.use("/pools/:poolId/final-results", finalResultsRouter);
 router.use("/scores", scoresRouter);
 router.use("/picks", picksSummaryRouter);
 router.use("/dashboard", dashboardRouter);

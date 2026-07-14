@@ -30,6 +30,7 @@ import type {
   DailySchedule,
   Elimination,
   ErrorResponse,
+  FinalResults,
   Game,
   GetDailyScheduleParams,
   GetNflPickEmSeasonGamesParams,
@@ -1611,6 +1612,83 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFinalResultsUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/final-results`
+}
+
+/**
+ * @summary Get final results for a closed pool
+ */
+export const getFinalResults = async (poolId: number, options?: RequestInit): Promise<FinalResults> => {
+
+  return customFetch<FinalResults>(getGetFinalResultsUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFinalResultsQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/final-results`
+    ] as const;
+    }
+
+
+export const getGetFinalResultsQueryOptions = <TData = Awaited<ReturnType<typeof getFinalResults>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFinalResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFinalResultsQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFinalResults>>> = ({ signal }) => getFinalResults(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFinalResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFinalResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getFinalResults>>>
+export type GetFinalResultsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get final results for a closed pool
+ */
+
+export function useGetFinalResults<TData = Awaited<ReturnType<typeof getFinalResults>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFinalResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFinalResultsQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

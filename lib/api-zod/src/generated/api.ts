@@ -743,6 +743,31 @@ export const GetLeaderboardResponse = zod.object({
 
 
 /**
+ * @summary Get final results for a closed pool
+ */
+export const GetFinalResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetFinalResultsResponse = zod.object({
+  "currentUserEntry": zod.object({
+  "finishPosition": zod.number().nullish(),
+  "prizeAmount": zod.number().nullish(),
+  "finalWinner": zod.boolean(),
+  "coWinners": zod.number()
+}).nullish(),
+  "payouts": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "finishPosition": zod.number(),
+  "prizeAmount": zod.number().nullish()
+})),
+  "isFreePool": zod.boolean(),
+  "hadTiebreaker": zod.boolean()
+})
+
+
+/**
  * @summary Get all weekly results for a pool
  */
 export const GetResultsParams = zod.object({

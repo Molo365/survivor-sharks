@@ -1779,6 +1779,27 @@ export interface NflPickEmSeasonWeekResults {
   hasResults: boolean;
 }
 
+export interface UserFinalEntry {
+  finishPosition?: number | null;
+  prizeAmount?: number | null;
+  finalWinner: boolean;
+  coWinners: number;
+}
+
+export interface FinalPayout {
+  userId: number;
+  username: string;
+  finishPosition: number;
+  prizeAmount?: number | null;
+}
+
+export interface FinalResults {
+  currentUserEntry?: UserFinalEntry | null;
+  payouts: FinalPayout[];
+  isFreePool: boolean;
+  hadTiebreaker: boolean;
+}
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

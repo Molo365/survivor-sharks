@@ -38,6 +38,7 @@ import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats"
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { WcBracketView } from "@/components/WcBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
+import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 
 export default function PoolHome() {
@@ -315,6 +316,10 @@ export default function PoolHome() {
               </div>
             )}
 
+            {!pool.isActive && (pool as any).closureReason !== "min_entries_not_met" && (
+              <PoolEndedResult poolId={pool.id} />
+            )}
+
             {isPickEmSeason ? (
               <PickEmSeasonView
                 poolId={pool.id}
@@ -336,13 +341,6 @@ export default function PoolHome() {
               <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
             ) : isCrazyEights ? (
               <div className="space-y-6">
-                {!pool.isActive && (pool as any).closureReason !== "min_entries_not_met" && (
-                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
-                    <Trophy className="w-16 h-16 text-yellow-500/60 mb-4" />
-                    <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
-                    <p className="text-muted-foreground">Results are final. Check the leaderboard for final standings.</p>
-                  </div>
-                )}
               <Tabs defaultValue={!pool.isActive ? "leaderboard" : "picks"} className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
