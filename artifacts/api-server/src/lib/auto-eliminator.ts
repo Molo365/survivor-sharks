@@ -20,7 +20,7 @@
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, sql } from "drizzle-orm";
-import { calcPrize, hasPrizePlace } from "./prizeCalc";
+import { calcPrize } from "./prizeCalc";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -1303,7 +1303,7 @@ export async function processPickEmResults(): Promise<{
               if (winnerIds.length > 0) {
                 const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
                 const totalEntries = totals.length;
-                const firstPrize = calcPrize({ place: 1, coWinners: winnerIds.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries });
+                const firstPrize = calcPrize({ placeIndex: 0, coWinners: winnerIds.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
 
                 await db
                   .update(entriesTable)
@@ -1313,23 +1313,19 @@ export async function processPickEmResults(): Promise<{
                     inArray(entriesTable.userId, winnerIds),
                   ));
 
-                if (hasPrizePlace(ps, 2)) {
-                  const winnerSet = new Set(winnerIds);
-                  const nonWinners = totals.filter((r) => !winnerSet.has(r.userId)).sort((a, b) => Number(b.correct) - Number(a.correct));
-                  if (nonWinners.length > 0) {
-                    const p2Score = Number(nonWinners[0].correct);
-                    const secondGroup = nonWinners.filter((r) => Number(r.correct) === p2Score);
-                    const secondPrize = calcPrize({ place: 2, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries });
-                    await db.update(entriesTable).set({ finishPosition: 2, prizeAmount: secondPrize }).where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
-                    if (hasPrizePlace(ps, 3)) {
-                      const rest2 = nonWinners.filter((r) => Number(r.correct) !== p2Score);
-                      if (rest2.length > 0) {
-                        const p3Score = Number(rest2[0].correct);
-                        const thirdGroup = rest2.filter((r) => Number(r.correct) === p3Score);
-                        const thirdPrize = calcPrize({ place: 3, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries });
-                        await db.update(entriesTable).set({ finishPosition: 3, prizeAmount: thirdPrize }).where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
-                      }
-                    }
+                const winnerSet = new Set(winnerIds);
+                const nonWinners = totals.filter((r) => !winnerSet.has(r.userId)).sort((a, b) => Number(b.correct) - Number(a.correct));
+                if (nonWinners.length > 0) {
+                  const p2Score = Number(nonWinners[0].correct);
+                  const secondGroup = nonWinners.filter((r) => Number(r.correct) === p2Score);
+                  const secondPrize = calcPrize({ placeIndex: winnerIds.length, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
+                  await db.update(entriesTable).set({ finishPosition: 2, prizeAmount: secondPrize }).where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+                  const rest2 = nonWinners.filter((r) => Number(r.correct) !== p2Score);
+                  if (rest2.length > 0) {
+                    const p3Score = Number(rest2[0].correct);
+                    const thirdGroup = rest2.filter((r) => Number(r.correct) === p3Score);
+                    const thirdPrize = calcPrize({ placeIndex: winnerIds.length + secondGroup.length, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
+                    await db.update(entriesTable).set({ finishPosition: 3, prizeAmount: thirdPrize }).where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
                   }
                 }
 

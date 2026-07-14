@@ -16,6 +16,7 @@ import { requireAuth } from "../middlewares/auth";
 import { getTodayEtDate } from "../lib/espn";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
+import { calcPrize } from "../lib/prizeCalc";
 
 const router = Router();
 
@@ -52,36 +53,16 @@ function computeSplitPrize(
   winnerCount: number,
   memberCount: number,
 ): number | null {
-  // Pct mode: amounts in prizeStructure are percentages, not dollars.
-  // Mirror the exact formula used in calculatePayouts.ts lines 15–22.
-  if (pool.prizeMode === "pct") {
-    if (!pool.entryFee || pool.entryFee <= 0 || memberCount <= 0) return null;
-    if (!pool.prizeStructure || pool.prizeStructure.length === 0) return null;
-    const entryFee = pool.entryFee;
-    const pctAmounts = pool.prizeStructure.map((p) =>
-      Math.floor((p.amount / 100) * entryFee * memberCount / 5) * 5,
-    );
-    const pctFirst = pctAmounts[0] ?? 0;
-    const pctTotal = pctAmounts.reduce((s, a) => s + a, 0);
-    return winnerCount === 1 ? pctFirst : Math.floor(pctTotal / winnerCount);
-  }
-
-  // Fixed mode: scale down proportionally when fewer members than max capacity.
-  const scale =
-    pool.maxEntries && pool.maxEntries > 0 && memberCount > 0 && memberCount < pool.maxEntries
-      ? memberCount / pool.maxEntries
-      : 1;
-
-  if (pool.prizeStructure && pool.prizeStructure.length > 0) {
-    const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-    const scaledTotal = Math.round(total * scale);
-    const scaledFirst = Math.round(pool.prizeStructure[0].amount * scale);
-    return winnerCount === 1 ? scaledFirst : Math.floor(scaledTotal / winnerCount);
-  }
-  if (pool.prizePot && pool.prizePot > 0) {
-    return Math.floor(pool.prizePot * scale / winnerCount);
-  }
-  return null;
+  return calcPrize({
+    prizeStructure: pool.prizeStructure,
+    prizeMode: pool.prizeMode,
+    entryFee: pool.entryFee,
+    prizePot: pool.prizePot,
+    totalEntries: memberCount,
+    maxEntries: pool.maxEntries,
+    placeIndex: 0,
+    coWinners: winnerCount,
+  });
 }
 
 function scoreNdpDivision(
@@ -507,18 +488,19 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myRank = (scoringStarted && myRow) ? computeRank(scored.map((s) => ({ ...s, score: s.total })), userId) : 0;
         let myPrizeWon: number | null = null;
         if (!pool.isActive && myRank > 0) {
-          const ndpPs = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
           const ndpMemberCount = memberCountMap.get(pool.id) ?? 0;
-          if (ndpPs && ndpPs.length > 0 && ndpMemberCount > 0) {
-            const tier = ndpPs.find((p) => p.place === myRank);
-            if (tier) {
-              if (pool.prizeMode === "pct" && pool.entryFee && pool.entryFee > 0) {
-                myPrizeWon = Math.floor((tier.amount / 100) * pool.entryFee * ndpMemberCount / 5) * 5;
-              } else {
-                myPrizeWon = tier.amount;
-              }
-              if (myPrizeWon <= 0) myPrizeWon = null;
-            }
+          if (ndpMemberCount > 0) {
+            myPrizeWon = calcPrize({
+              prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
+              prizeMode: pool.prizeMode,
+              entryFee: pool.entryFee,
+              prizePot: pool.prizePot,
+              totalEntries: ndpMemberCount,
+              maxEntries: pool.maxEntries,
+              placeIndex: myRank - 1,
+              coWinners: 1,
+            });
+            if (myPrizeWon != null && myPrizeWon <= 0) myPrizeWon = null;
           }
         }
 

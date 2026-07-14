@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import { entriesTable, poolsTable } from "@workspace/db";
 import { eq, and, inArray, count } from "drizzle-orm";
 import type { Logger } from "pino";
-import { calcPrize, hasPrizePlace } from "./prizeCalc";
+import { calcPrize } from "./prizeCalc";
 
 /**
  * FIFA World Cup 2026 has 12 groups (A–L).
@@ -154,6 +154,7 @@ export async function closePredictorPool<P extends PositionPick>(params: {
         prizeMode: poolsTable.prizeMode,
         entryFee: poolsTable.entryFee,
         prizePot: poolsTable.prizePot,
+        maxEntries: poolsTable.maxEntries,
       })
       .from(poolsTable)
       .where(eq(poolsTable.id, poolId))
@@ -163,10 +164,10 @@ export async function closePredictorPool<P extends PositionPick>(params: {
     const totalEntries = memberUserIds.length;
 
     const firstPrize = calcPrize({
-      place: 1, coWinners: winnerIds.length,
+      placeIndex: 0, coWinners: winnerIds.length,
       prizeStructure: ps, prizeMode: poolRow?.prizeMode,
       entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
-      totalEntries,
+      totalEntries, maxEntries: poolRow?.maxEntries ?? null,
     });
 
     await db
@@ -174,12 +175,12 @@ export async function closePredictorPool<P extends PositionPick>(params: {
       .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
       .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
 
-    if (hasPrizePlace(ps, 2) && place2Ids.length > 0) {
+    if (place2Ids.length > 0) {
       const secondPrize = calcPrize({
-        place: 2, coWinners: place2Ids.length,
+        placeIndex: winnerIds.length, coWinners: place2Ids.length,
         prizeStructure: ps, prizeMode: poolRow?.prizeMode,
         entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
-        totalEntries,
+        totalEntries, maxEntries: poolRow?.maxEntries ?? null,
       });
       await db
         .update(entriesTable)
@@ -187,12 +188,12 @@ export async function closePredictorPool<P extends PositionPick>(params: {
         .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, place2Ids)));
     }
 
-    if (hasPrizePlace(ps, 3) && place3Ids.length > 0) {
+    if (place3Ids.length > 0) {
       const thirdPrize = calcPrize({
-        place: 3, coWinners: place3Ids.length,
+        placeIndex: winnerIds.length + place2Ids.length, coWinners: place3Ids.length,
         prizeStructure: ps, prizeMode: poolRow?.prizeMode,
         entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
-        totalEntries,
+        totalEntries, maxEntries: poolRow?.maxEntries ?? null,
       });
       await db
         .update(entriesTable)

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
-import { calcPrize, hasPrizePlace } from "../lib/prizeCalc";
+import { calcPrize } from "../lib/prizeCalc";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
@@ -111,6 +111,7 @@ async function applyPickEmSeasonClosure(opts: {
       prizeMode: poolsTable.prizeMode,
       entryFee: poolsTable.entryFee,
       prizePot: poolsTable.prizePot,
+      maxEntries: poolsTable.maxEntries,
     })
     .from(poolsTable)
     .where(eq(poolsTable.id, poolId))
@@ -120,10 +121,10 @@ async function applyPickEmSeasonClosure(opts: {
   const totalEntries = seasonTotals.length;
 
   const firstPrize = calcPrize({
-    place: 1, coWinners: winnerUserIds.length,
+    placeIndex: 0, coWinners: winnerUserIds.length,
     prizeStructure: ps, prizeMode: poolPrize?.prizeMode,
     entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot,
-    totalEntries,
+    totalEntries, maxEntries: poolPrize?.maxEntries ?? null,
   });
 
   await db
@@ -133,8 +134,7 @@ async function applyPickEmSeasonClosure(opts: {
 
   // Always write finishPosition for 2nd and 3rd place so every placer has a
   // recorded position regardless of whether the prize structure awards them
-  // money.  prizeAmount is only written when the pool's prize structure
-  // actually pays that place (hasPrizePlace guard stays on the prize calc only).
+  // money.  prizeAmount is only written when calcPrize returns a non-null value.
   const winnerSet = new Set(winnerUserIds);
   const nonWinners = seasonTotals
     .filter((r) => !winnerSet.has(r.userId))
@@ -143,9 +143,7 @@ async function applyPickEmSeasonClosure(opts: {
   if (nonWinners.length > 0) {
     const place2Score = Number(nonWinners[0].seasonCorrect);
     const secondGroup = nonWinners.filter((r) => Number(r.seasonCorrect) === place2Score);
-    const secondPrize = hasPrizePlace(ps, 2)
-      ? calcPrize({ place: 2, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries })
-      : null;
+    const secondPrize = calcPrize({ placeIndex: winnerUserIds.length, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
     await db.update(entriesTable)
       .set({ finishPosition: 2, ...(secondPrize !== null ? { prizeAmount: secondPrize } : {}) })
       .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
@@ -154,9 +152,7 @@ async function applyPickEmSeasonClosure(opts: {
     if (rest2.length > 0) {
       const place3Score = Number(rest2[0].seasonCorrect);
       const thirdGroup = rest2.filter((r) => Number(r.seasonCorrect) === place3Score);
-      const thirdPrize = hasPrizePlace(ps, 3)
-        ? calcPrize({ place: 3, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries })
-        : null;
+      const thirdPrize = calcPrize({ placeIndex: winnerUserIds.length + secondGroup.length, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
       await db.update(entriesTable)
         .set({ finishPosition: 3, ...(thirdPrize !== null ? { prizeAmount: thirdPrize } : {}) })
         .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
