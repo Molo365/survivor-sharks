@@ -47,24 +47,24 @@ export interface PoolLeaderboardGridProps<TPlayer extends LeaderboardPlayer> {
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1)
     return (
-      <span className="text-yellow-400 font-bebas text-xl leading-none">
+      <span className="text-yellow-400 font-bebas text-base sm:text-xl leading-none">
         🥇
       </span>
     );
   if (rank === 2)
     return (
-      <span className="text-slate-300 font-bebas text-xl leading-none">
+      <span className="text-slate-300 font-bebas text-base sm:text-xl leading-none">
         🥈
       </span>
     );
   if (rank === 3)
     return (
-      <span className="text-amber-600 font-bebas text-xl leading-none">
+      <span className="text-amber-600 font-bebas text-base sm:text-xl leading-none">
         🥉
       </span>
     );
   return (
-    <span className="font-bebas text-lg text-muted-foreground/60">{rank}</span>
+    <span className="font-bebas text-sm sm:text-lg text-muted-foreground/60">{rank}</span>
   );
 }
 
@@ -204,7 +204,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                     {/* Rank — sticky with blended bg */}
                     <td
                       className={cn(
-                        "sticky left-0 z-10 px-1 py-2.5 text-center",
+                        "sticky left-0 z-10 px-1 py-1.5 sm:py-2.5 text-center",
                         isMe
                           ? "bg-[color-mix(in_srgb,var(--color-card)_95%,rgba(168,85,247,0.15)_5%)]"
                           : player.rank === 1
@@ -218,7 +218,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                     {/* Player name — sticky at left-8 (= rank col width) so rank+name scroll together */}
                     <td
                       className={cn(
-                        "sticky left-8 z-10 px-2 py-2.5",
+                        "sticky left-8 z-10 px-2 py-1.5 sm:py-2.5",
                         isMe
                           ? "bg-[color-mix(in_srgb,var(--color-card)_95%,rgba(168,85,247,0.15)_5%)]"
                           : player.rank === 1
@@ -259,7 +259,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                           }
                           title={cell.tooltip}
                           className={cn(
-                            "px-0.5 py-2.5 text-center select-none transition-colors rounded-sm",
+                            "px-0.5 py-1.5 sm:py-2.5 text-center select-none transition-colors rounded-sm",
                             cell.clickable ? "cursor-pointer" : "cursor-default",
                             isCellActive
                               ? "bg-primary/15 ring-1 ring-inset ring-primary/40"
@@ -274,7 +274,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                     })}
 
                     {/* Total */}
-                    <td className="pr-2 py-2.5 text-right">
+                    <td className="pr-2 py-1.5 sm:py-2.5 text-right">
                       {renderTotal(player)}
                     </td>
                   </tr>

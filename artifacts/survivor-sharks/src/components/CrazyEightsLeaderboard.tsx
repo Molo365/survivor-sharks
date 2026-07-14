@@ -104,10 +104,10 @@ function authedFetch<T>(url: string): Promise<T> {
 // ── Rank badge ────────────────────────────────────────────────────────────────
 
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <span className="text-yellow-400 font-bebas text-xl leading-none">🥇</span>;
-  if (rank === 2) return <span className="text-slate-300 font-bebas text-xl leading-none">🥈</span>;
-  if (rank === 3) return <span className="text-amber-600 font-bebas text-xl leading-none">🥉</span>;
-  return <span className="font-bebas text-lg text-muted-foreground/60 w-6 text-center">{rank}</span>;
+  if (rank === 1) return <span className="text-yellow-400 font-bebas text-base sm:text-xl leading-none">🥇</span>;
+  if (rank === 2) return <span className="text-slate-300 font-bebas text-base sm:text-xl leading-none">🥈</span>;
+  if (rank === 3) return <span className="text-amber-600 font-bebas text-base sm:text-xl leading-none">🥉</span>;
+  return <span className="font-bebas text-sm sm:text-lg text-muted-foreground/60 w-6 text-center">{rank}</span>;
 }
 
 // ── Day pick detail panel ─────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
                 <div
                   key={player.userId}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg border transition-all",
+                    "flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-lg border transition-all",
                     isMe ? "border-purple-500/40 bg-purple-500/5 shadow-[0_0_12px_rgba(168,85,247,0.08)]" : "border-border/30 bg-card/40",
                     rank === 1 ? "border-yellow-500/30 bg-yellow-500/5" : "",
                   )}
@@ -349,7 +349,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-bebas text-2xl leading-none">
+                    <div className="font-bebas text-xl sm:text-2xl leading-none">
                       <span className={cn(player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/40")}>
                         {player.pointsEarned}
                       </span>
@@ -508,7 +508,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
                         {/* Sticky player cell */}
                         <td
                           className={cn(
-                            "sticky left-0 z-20 px-3 py-2.5 border-r border-border/20 min-w-[150px]",
+                            "sticky left-0 z-20 px-3 py-1.5 sm:py-2.5 border-r border-border/20 min-w-[150px]",
                             isMe ? "bg-[hsl(215,50%,7%)]" : "bg-card",
                           )}
                         >
@@ -600,7 +600,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
                         })}
 
                         {/* Weekly total */}
-                        <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                        <td className={cn("px-3 py-1.5 sm:py-2.5 text-right", rowBg)}>
                           <span className="font-bebas text-xl text-foreground">{player.weeklyPoints}</span>
                           <div className="text-[10px] text-muted-foreground/50 leading-none">pts</div>
                         </td>

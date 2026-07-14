@@ -44,10 +44,10 @@ function authedFetch<T>(url: string): Promise<T> {
 }
 
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <span className="text-yellow-400 font-bebas text-xl leading-none">🥇</span>;
-  if (rank === 2) return <span className="text-slate-300 font-bebas text-xl leading-none">🥈</span>;
-  if (rank === 3) return <span className="text-amber-600 font-bebas text-xl leading-none">🥉</span>;
-  return <span className="font-bebas text-lg text-muted-foreground/60">{rank}</span>;
+  if (rank === 1) return <span className="text-yellow-400 font-bebas text-base sm:text-xl leading-none">🥇</span>;
+  if (rank === 2) return <span className="text-slate-300 font-bebas text-base sm:text-xl leading-none">🥈</span>;
+  if (rank === 3) return <span className="text-amber-600 font-bebas text-base sm:text-xl leading-none">🥉</span>;
+  return <span className="font-bebas text-sm sm:text-lg text-muted-foreground/60">{rank}</span>;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
               <div
                 key={player.userId}
                 className={cn(
-                  "grid grid-cols-[2rem_1fr_5rem] items-center rounded-lg border py-2.5 px-2",
+                  "grid grid-cols-[2rem_1fr_5rem] items-center rounded-lg border py-1.5 sm:py-2.5 px-2",
                   player.rank === 1
                     ? "border-yellow-500/20 bg-yellow-500/5"
                     : isMe
@@ -214,7 +214,7 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
                   {isGraded ? (
                     <span
                       className={cn(
-                        "font-bebas text-xl leading-none tabular-nums",
+                        "font-bebas text-lg sm:text-xl leading-none tabular-nums",
                         player.weekPoints > 0 ? "text-green-400" : "text-muted-foreground/30",
                       )}
                     >

@@ -246,7 +246,7 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
                     <div
                       key={entry.userId}
                       className={cn(
-                        "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors",
+                        "flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border transition-colors",
                         isMe
                           ? "border-primary/30 bg-primary/5"
                           : "border-border/30 bg-card hover:bg-muted/[0.04]",
@@ -255,7 +255,7 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
                       {/* Rank */}
                       <span
                         className={cn(
-                          "font-bebas text-xl w-7 shrink-0 text-center leading-none",
+                          "font-bebas text-base sm:text-xl w-6 sm:w-7 shrink-0 text-center leading-none",
                           entry.rank === 1
                             ? "text-yellow-400"
                             : entry.rank === 2
@@ -350,14 +350,14 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
                     <div
                       key={entry.userId}
                       className={cn(
-                        "flex items-center gap-3 px-4 py-3 rounded-xl border opacity-55 transition-colors",
+                        "flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border opacity-55 transition-colors",
                         isMe
                           ? "border-destructive/20 bg-destructive/[0.03]"
                           : "border-border/20 bg-card/50",
                       )}
                     >
                       {/* Rank (among eliminated — most recently eliminated = top) */}
-                      <span className="font-bebas text-xl w-7 shrink-0 text-center leading-none text-muted-foreground/30">
+                      <span className="font-bebas text-base sm:text-xl w-6 sm:w-7 shrink-0 text-center leading-none text-muted-foreground/30">
                         {alive.length + idx + 1}
                       </span>
 

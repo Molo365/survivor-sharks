@@ -590,17 +590,17 @@ function WcBracketLeaderboard({
             type="button"
             onClick={() => onSelectPlayer(entry)}
             className={cn(
-              "w-full flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors text-left",
+              "w-full flex items-center gap-3 sm:gap-4 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border transition-colors text-left",
               "hover:brightness-110 active:scale-[0.99] cursor-pointer",
               rankStyle ? rankStyle.bg : "bg-card border-border/40",
             )}
           >
             {/* Rank */}
-            <div className="w-8 text-center shrink-0">
+            <div className="w-7 sm:w-8 text-center shrink-0">
               {rankStyle ? (
-                <span className="text-xl">{rankStyle.icon}</span>
+                <span className="text-base sm:text-xl">{rankStyle.icon}</span>
               ) : (
-                <span className="font-bebas text-xl text-muted-foreground/50">
+                <span className="font-bebas text-base sm:text-xl text-muted-foreground/50">
                   {entry.rank}
                 </span>
               )}
@@ -608,7 +608,7 @@ function WcBracketLeaderboard({
 
             {/* Name */}
             <div className="flex-1 min-w-0">
-              <p className="font-bebas text-lg tracking-wide leading-tight truncate">
+              <p className="font-bebas text-sm sm:text-lg tracking-wide leading-tight truncate">
                 {entry.displayName || entry.username}
               </p>
               {entry.displayName && (
@@ -627,9 +627,9 @@ function WcBracketLeaderboard({
 
             {/* Points */}
             <div className="text-right shrink-0">
-              <div className="font-bebas text-2xl leading-none text-accent">
+              <div className="font-bebas text-xl sm:text-2xl leading-none text-accent">
                 {entry.points}
-                <span className="text-sm text-muted-foreground/60"> pts</span>
+                <span className="text-xs sm:text-sm text-muted-foreground/60"> pts</span>
               </div>
               <div className="text-[10px] text-muted-foreground/50 font-semibold">
                 of 800

@@ -193,12 +193,12 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
             return (
               <div
                 key={entry.userId}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-card border border-border/50 rounded-lg hover:border-primary/50 transition-all shark-card"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-5 bg-card border border-border/50 rounded-lg hover:border-primary/50 transition-all shark-card"
               >
-                <div className="flex items-center gap-5 mb-3 sm:mb-0">
-                  <div className="font-bebas text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
+                <div className="flex items-center gap-3 sm:gap-5 mb-2 sm:mb-0">
+                  <div className="font-bebas text-2xl sm:text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
                   <div>
-                    <div className="font-medium text-xl flex items-center gap-2">
+                    <div className="font-medium text-base sm:text-xl flex items-center gap-2">
                       {entry.displayName || entry.username}
                       {maxLives > 1 && strikeCount > 0 && (
                         <span
@@ -243,7 +243,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                     </span>
                   )}
                   <Badge className={cn(
-                    "font-bebas text-lg px-4 py-1 tracking-wider",
+                    "font-bebas text-sm sm:text-lg px-3 sm:px-4 py-0.5 sm:py-1 tracking-wider",
                     coWinners
                       ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/30"
                       : "bg-accent/10 text-accent border border-accent/30",
@@ -271,13 +271,13 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
             {leaderboard.eliminated.map((entry, idx) => (
               <div
                 key={entry.userId}
-                className="flex items-center justify-between p-5 bg-destructive/5 border border-destructive/20 rounded-lg opacity-80"
+                className="flex items-center justify-between p-3 sm:p-5 bg-destructive/5 border border-destructive/20 rounded-lg opacity-80"
               >
-                <div className="flex items-center gap-5">
-                  <div className="font-bebas text-2xl text-muted-foreground/50 w-8 text-center">
+                <div className="flex items-center gap-3 sm:gap-5">
+                  <div className="font-bebas text-xl sm:text-2xl text-muted-foreground/50 w-8 text-center">
                     {entry.rank}
                   </div>
-                  <div className="font-medium text-lg line-through text-muted-foreground">
+                  <div className="font-medium text-sm sm:text-lg line-through text-muted-foreground">
                     {entry.displayName || entry.username}
                   </div>
                 </div>
