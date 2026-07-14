@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, isNotNull, inArray } from "drizzle-orm";
+import { calcPrize, hasPrizePlace } from "../lib/prizeCalc";
 import { requireAuth } from "../middlewares/auth";
 import {
   isPickLocked,
@@ -462,10 +463,11 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   let sovUsed = false;
 
   if (!voidFired && pool.poolType !== "weekly") {
+    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+
     if (coWinnersTriggered) {
-      // Mark all alive entries as final winners before closing the pool
       await db.update(entriesTable)
-        .set({ finalWinner: true })
+        .set({ finalWinner: true, finishPosition: 1, prizeAmount: coWinnerPrize })
         .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
       await db.update(poolsTable)
         .set({ isActive: false, endedAt: new Date(), closureReason: "co_winners" })
@@ -480,10 +482,65 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
       const remainingCount = Number(remaining);
 
       if (remainingCount <= 1) {
-        // Mark survivor(s) as final winner(s) before closing the pool
+        const [{ totalEntries }] = await db
+          .select({ totalEntries: count() })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId));
+        const totalEntriesCount = Number(totalEntries);
+        const firstPrize = calcPrize({
+          place: 1, coWinners: Math.max(1, remainingCount),
+          prizeStructure: ps, prizeMode: pool.prizeMode,
+          entryFee: pool.entryFee, prizePot: pool.prizePot,
+          totalEntries: totalEntriesCount,
+        });
+
         await db.update(entriesTable)
-          .set({ finalWinner: true })
+          .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
           .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.status, "alive")));
+
+        // 2nd and 3rd place: last-eliminated entries by week
+        if (hasPrizePlace(ps, 2)) {
+          const elimEntries = await db
+            .select({ userId: entriesTable.userId, eliminatedWeek: entriesTable.eliminatedWeek })
+            .from(entriesTable)
+            .where(and(
+              eq(entriesTable.poolId, poolId),
+              eq(entriesTable.status, "eliminated"),
+              isNotNull(entriesTable.eliminatedWeek),
+            ));
+
+          if (elimEntries.length > 0) {
+            const maxElimWeek = Math.max(...elimEntries.map((e) => e.eliminatedWeek!));
+            const secondGroup = elimEntries.filter((e) => e.eliminatedWeek === maxElimWeek);
+            const secondPrize = calcPrize({
+              place: 2, coWinners: secondGroup.length,
+              prizeStructure: ps, prizeMode: pool.prizeMode,
+              entryFee: pool.entryFee, prizePot: pool.prizePot,
+              totalEntries: totalEntriesCount,
+            });
+            await db.update(entriesTable)
+              .set({ finishPosition: 2, prizeAmount: secondPrize })
+              .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((e) => e.userId))));
+
+            if (hasPrizePlace(ps, 3)) {
+              const rest = elimEntries.filter((e) => e.eliminatedWeek !== maxElimWeek);
+              if (rest.length > 0) {
+                const nextElimWeek = Math.max(...rest.map((e) => e.eliminatedWeek!));
+                const thirdGroup = rest.filter((e) => e.eliminatedWeek === nextElimWeek);
+                const thirdPrize = calcPrize({
+                  place: 3, coWinners: thirdGroup.length,
+                  prizeStructure: ps, prizeMode: pool.prizeMode,
+                  entryFee: pool.entryFee, prizePot: pool.prizePot,
+                  totalEntries: totalEntriesCount,
+                });
+                await db.update(entriesTable)
+                  .set({ finishPosition: 3, prizeAmount: thirdPrize })
+                  .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((e) => e.userId))));
+              }
+            }
+          }
+        }
+
         await db.update(poolsTable)
           .set({ isActive: false, endedAt: new Date() })
           .where(eq(poolsTable.id, poolId));
@@ -505,9 +562,21 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
           if (pick.marginOfVictory == null) continue;
           sovByUser.set(pick.userId, (sovByUser.get(pick.userId) ?? 0) + pick.marginOfVictory);
         }
+
+        const [{ totalEntries }] = await db
+          .select({ totalEntries: count() })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId));
+        const sovPrize = calcPrize({
+          place: 1, coWinners: aliveEntriesForSOV.length,
+          prizeStructure: ps, prizeMode: pool.prizeMode,
+          entryFee: pool.entryFee, prizePot: pool.prizePot,
+          totalEntries: Number(totalEntries),
+        });
+
         for (const entry of aliveEntriesForSOV) {
           await db.update(entriesTable)
-            .set({ sovTotal: sovByUser.get(entry.userId) ?? 0, finalWinner: true })
+            .set({ sovTotal: sovByUser.get(entry.userId) ?? 0, finalWinner: true, finishPosition: 1, prizeAmount: sovPrize })
             .where(eq(entriesTable.id, entry.id));
         }
 

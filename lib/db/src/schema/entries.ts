@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, integer, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, integer, pgEnum, boolean, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -23,6 +23,8 @@ export const entriesTable = pgTable("entries", {
   tiebreakerPenaltyMinutes: integer("tiebreaker_penalty_minutes"),
   sovTotal: integer("sov_total"),
   finalWinner: boolean("final_winner").notNull().default(false),
+  finishPosition: integer("finish_position"),
+  prizeAmount: real("prize_amount"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

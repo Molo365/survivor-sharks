@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { entriesTable, poolsTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, count } from "drizzle-orm";
 import type { Logger } from "pino";
+import { calcPrize, hasPrizePlace } from "./prizeCalc";
 
 /**
  * FIFA World Cup 2026 has 12 groups (A–L).
@@ -131,11 +132,73 @@ export async function closePredictorPool<P extends PositionPick>(params: {
     }
   }
 
+  // Build place groups from scored for 2nd and 3rd prize assignment
+  const nonWinners = scored
+    .filter((s) => !winnerIds.includes(s.userId))
+    .sort((a, b) => b.total - a.total);
+  const place2Score = nonWinners[0]?.total ?? null;
+  const place2Ids = place2Score !== null
+    ? nonWinners.filter((s) => s.total === place2Score).map((s) => s.userId)
+    : [];
+  const place3Candidates = nonWinners.filter((s) => s.total !== place2Score);
+  const place3Score = place3Candidates[0]?.total ?? null;
+  const place3Ids = place3Score !== null
+    ? place3Candidates.filter((s) => s.total === place3Score).map((s) => s.userId)
+    : [];
+
   try {
+    // Fetch pool prize fields for prize calculation
+    const [poolRow] = await db
+      .select({
+        prizeStructure: poolsTable.prizeStructure,
+        prizeMode: poolsTable.prizeMode,
+        entryFee: poolsTable.entryFee,
+        prizePot: poolsTable.prizePot,
+      })
+      .from(poolsTable)
+      .where(eq(poolsTable.id, poolId))
+      .limit(1);
+
+    const ps = poolRow?.prizeStructure ?? null;
+    const totalEntries = memberUserIds.length;
+
+    const firstPrize = calcPrize({
+      place: 1, coWinners: winnerIds.length,
+      prizeStructure: ps, prizeMode: poolRow?.prizeMode,
+      entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
+      totalEntries,
+    });
+
     await db
       .update(entriesTable)
-      .set({ finalWinner: true })
+      .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
       .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+
+    if (hasPrizePlace(ps, 2) && place2Ids.length > 0) {
+      const secondPrize = calcPrize({
+        place: 2, coWinners: place2Ids.length,
+        prizeStructure: ps, prizeMode: poolRow?.prizeMode,
+        entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
+        totalEntries,
+      });
+      await db
+        .update(entriesTable)
+        .set({ finishPosition: 2, prizeAmount: secondPrize })
+        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, place2Ids)));
+    }
+
+    if (hasPrizePlace(ps, 3) && place3Ids.length > 0) {
+      const thirdPrize = calcPrize({
+        place: 3, coWinners: place3Ids.length,
+        prizeStructure: ps, prizeMode: poolRow?.prizeMode,
+        entryFee: poolRow?.entryFee, prizePot: poolRow?.prizePot,
+        totalEntries,
+      });
+      await db
+        .update(entriesTable)
+        .set({ finishPosition: 3, prizeAmount: thirdPrize })
+        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, place3Ids)));
+    }
 
     await db
       .update(poolsTable)

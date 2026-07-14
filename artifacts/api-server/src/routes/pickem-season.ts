@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
+import { calcPrize, hasPrizePlace } from "../lib/prizeCalc";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
@@ -103,10 +104,59 @@ async function applyPickEmSeasonClosure(opts: {
 
   const winnerUserIds = topGroup.map((r) => r.userId);
 
+  // Fetch pool prize fields for finish position / prize amount
+  const [poolPrize] = await db
+    .select({
+      prizeStructure: poolsTable.prizeStructure,
+      prizeMode: poolsTable.prizeMode,
+      entryFee: poolsTable.entryFee,
+      prizePot: poolsTable.prizePot,
+    })
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+
+  const ps = poolPrize?.prizeStructure ?? null;
+  const totalEntries = seasonTotals.length;
+
+  const firstPrize = calcPrize({
+    place: 1, coWinners: winnerUserIds.length,
+    prizeStructure: ps, prizeMode: poolPrize?.prizeMode,
+    entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot,
+    totalEntries,
+  });
+
   await db
     .update(entriesTable)
-    .set({ finalWinner: true })
+    .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
     .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerUserIds)));
+
+  if (hasPrizePlace(ps, 2)) {
+    const winnerSet = new Set(winnerUserIds);
+    const nonWinners = seasonTotals
+      .filter((r) => !winnerSet.has(r.userId))
+      .sort((a, b) => Number(b.seasonCorrect) - Number(a.seasonCorrect));
+    if (nonWinners.length > 0) {
+      const place2Score = Number(nonWinners[0].seasonCorrect);
+      const secondGroup = nonWinners.filter((r) => Number(r.seasonCorrect) === place2Score);
+      const secondPrize = calcPrize({ place: 2, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries });
+      await db.update(entriesTable)
+        .set({ finishPosition: 2, prizeAmount: secondPrize })
+        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+
+      if (hasPrizePlace(ps, 3)) {
+        const rest2 = nonWinners.filter((r) => Number(r.seasonCorrect) !== place2Score);
+        if (rest2.length > 0) {
+          const place3Score = Number(rest2[0].seasonCorrect);
+          const thirdGroup = rest2.filter((r) => Number(r.seasonCorrect) === place3Score);
+          const thirdPrize = calcPrize({ place: 3, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries });
+          await db.update(entriesTable)
+            .set({ finishPosition: 3, prizeAmount: thirdPrize })
+            .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
+        }
+      }
+    }
+  }
 
   await db
     .update(poolsTable)
