@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey } from "@workspace/api-client-react";
@@ -46,6 +47,10 @@ export default function PoolHome() {
   const poolId = parseInt(poolIdStr || "0");
   const { user } = useAuth();
   const [location] = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
 
