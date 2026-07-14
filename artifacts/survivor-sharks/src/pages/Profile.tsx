@@ -231,7 +231,7 @@ function NetTotalBanner({ pastPools }: { pastPools: UserBalancePastPool[] }) {
             isPositive ? "text-green-400" : isNegative ? "text-destructive" : "text-foreground",
           )}
         >
-          {isPositive ? "+" : ""}${Math.round(Math.abs(net))}
+          {isPositive ? "+" : isNegative ? "-" : ""}${Math.round(Math.abs(net))}
         </p>
       </div>
       <div className="text-right">
