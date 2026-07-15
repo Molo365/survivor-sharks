@@ -388,8 +388,16 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   }
 
   // Phase 4: void / co-winner check (Classic Season only)
+  // maxStrikes is hoisted here (also used in Phase 5) so the void check can
+  // exclude players who have already exhausted their strikes — those players
+  // should be eliminated, not counted as genuine survivors that trigger a void.
+  const maxStrikes = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 0;
+  const genuineSurvivors = aliveAtStart.filter(e =>
+    maxStrikes === 0 || e.strikeCount < maxStrikes
+  );
   const allAliveAtStartLost =
-    aliveAtStart.length > 0 && losersThisWeek.size === aliveAtStart.length;
+    genuineSurvivors.length > 0 &&
+    genuineSurvivors.every(e => losersThisWeek.has(e.userId));
   let voidFired = false;
   let coWinnersTriggered = false;
   let coWinnerPrize: number | null = null;
@@ -410,7 +418,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   // Phase 5: conditionally apply eliminations
   // NHL Survivor Season uses 3 lives (maxStrikes = 2 warning strikes before elimination).
-  const maxStrikes = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 0;
+  // maxStrikes is declared in Phase 4 above.
   const aliveById = new Map(aliveAtStart.map(e => [e.id, e]));
 
   if (!voidFired && !coWinnersTriggered) {
