@@ -18,7 +18,7 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable, usersTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, sql } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import {
@@ -1489,6 +1489,223 @@ export async function processPickEmResults(): Promise<{
       }
     } catch (err) {
       logger.error({ poolId: pool.id, err }, "NFL replay grading loop error");
+    }
+  }
+
+  // ── NFL Pick-Ems Weekly: auto-closure for non-recurring pools ──────────────
+  // Once every pick for the current week is graded, rank players by correct
+  // picks, apply the passing+rushing yards tiebreaker (from entries +
+  // nfl_confidence_results), assign finishPosition / prizeAmount, and close.
+  // Recurring pools are intentionally left open — they advance week-by-week.
+
+  const nflPickemWeeklyPools = pickemPools.filter(
+    (p) => p.sport === "nfl" && p.pickFrequency === "weekly" && !p.isRecurring,
+  );
+
+  for (const pool of nflPickemWeeklyPools) {
+    try {
+      // 1. Skip if any picks for this week are still pending.
+      const [{ pendingCount }] = await db
+        .select({ pendingCount: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        );
+      if (Number(pendingCount) > 0) continue;
+
+      // Guard: must have at least one pick this week (pool may not yet be live).
+      const [{ totalPicks }] = await db
+        .select({ totalPicks: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+      if (Number(totalPicks) === 0) continue;
+
+      // 2. Sum correct picks per user for this week.
+      const scoreRows = await db
+        .select({ userId: pickemPicksTable.userId, correct: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "correct"),
+          ),
+        )
+        .groupBy(pickemPicksTable.userId);
+
+      // All participating user IDs (include players with 0 correct).
+      const allPickUsers = await db
+        .selectDistinct({ userId: pickemPicksTable.userId })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      const scoreByUser = new Map<number, number>();
+      for (const row of scoreRows) {
+        scoreByUser.set(row.userId, Number(row.correct));
+      }
+      for (const { userId } of allPickUsers) {
+        if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
+      }
+
+      // 3. Fetch tiebreaker actuals (actualPassingYards + actualRushingYards).
+      const actualsRow = await db
+        .select({
+          actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
+          actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+        })
+        .from(nflConfidenceResultsTable)
+        .where(
+          and(
+            eq(nflConfidenceResultsTable.poolId, pool.id),
+            eq(nflConfidenceResultsTable.week, pool.currentWeek),
+          ),
+        )
+        .limit(1);
+
+      const actualCombined =
+        actualsRow.length > 0
+          ? actualsRow[0].actualPassingYards + actualsRow[0].actualRushingYards
+          : null;
+
+      // Fetch each user's tiebreaker guess from their entry row.
+      const entryTbRows = await db
+        .select({
+          userId: entriesTable.userId,
+          tbPassing: entriesTable.tiebreakerPassingYards,
+          tbRushing: entriesTable.tiebreakerRushingYards,
+        })
+        .from(entriesTable)
+        .where(eq(entriesTable.poolId, pool.id));
+
+      const tbGuessByUser = new Map<number, number | null>();
+      for (const e of entryTbRows) {
+        const combined =
+          e.tbPassing != null && e.tbRushing != null
+            ? e.tbPassing + e.tbRushing
+            : null;
+        tbGuessByUser.set(e.userId, combined);
+      }
+
+      // 4. Build sorted player list: correct desc, tiebreaker diff asc.
+      const players = [...scoreByUser.entries()].map(([userId, correct]) => {
+        const guess = tbGuessByUser.get(userId) ?? null;
+        const tbDiff =
+          actualCombined != null && guess != null
+            ? Math.abs(guess - actualCombined)
+            : Infinity;
+        return { userId, correct, tbDiff };
+      });
+
+      players.sort((a, b) => {
+        if (b.correct !== a.correct) return b.correct - a.correct;
+        return a.tbDiff - b.tbDiff;
+      });
+
+      // 5. Group into tie groups.
+      // When tiebreaker data exists: group by identical (correct, tbDiff).
+      // When no tiebreaker data (all Infinity): group by score alone → co-winners.
+      const groups: (typeof players)[] = [];
+      let i = 0;
+      while (i < players.length) {
+        const { correct, tbDiff } = players[i];
+        let j = i + 1;
+        while (
+          j < players.length &&
+          players[j].correct === correct &&
+          (actualCombined == null || players[j].tbDiff === tbDiff)
+        ) {
+          j++;
+        }
+        groups.push(players.slice(i, j));
+        i = j;
+      }
+
+      // 6. Write finishPosition and prizeAmount to entries.
+      const totalEntries = players.length;
+      const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+      let placeIndex = 0;
+
+      for (const group of groups) {
+        const finishPosition = placeIndex + 1;
+        const prize = calcPrize({
+          prizeStructure: ps,
+          prizeMode: pool.prizeMode,
+          entryFee: pool.entryFee,
+          prizePot: pool.prizePot,
+          totalEntries,
+          maxEntries: pool.maxEntries,
+          placeIndex,
+          coWinners: group.length,
+        });
+
+        await db
+          .update(entriesTable)
+          .set({
+            finishPosition,
+            prizeAmount: prize,
+            ...(finishPosition === 1 ? { finalWinner: true } : {}),
+          })
+          .where(
+            and(
+              eq(entriesTable.poolId, pool.id),
+              inArray(
+                entriesTable.userId,
+                group.map((p) => p.userId),
+              ),
+            ),
+          );
+
+        placeIndex += group.length;
+      }
+
+      // 7. Determine closureReason: winner's displayName (or username), or
+      //    "co_winners" when multiple players share 1st place.
+      const firstGroup = groups[0] ?? [];
+      let closureReason = "co_winners";
+      if (firstGroup.length === 1) {
+        const [winnerUser] = await db
+          .select({ displayName: usersTable.displayName, username: usersTable.username })
+          .from(usersTable)
+          .where(eq(usersTable.id, firstGroup[0].userId))
+          .limit(1);
+        if (winnerUser) {
+          closureReason = winnerUser.displayName ?? winnerUser.username;
+        }
+      }
+
+      // 8. Close the pool.
+      await db
+        .update(poolsTable)
+        .set({ isActive: false, endedAt: new Date(), closureReason })
+        .where(eq(poolsTable.id, pool.id));
+
+      logger.info(
+        {
+          poolId: pool.id,
+          week: pool.currentWeek,
+          closureReason,
+          winnerCount: firstGroup.length,
+          totalEntries,
+          actualCombined,
+        },
+        "NFL Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
+      );
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "NFL Pick-Ems Weekly auto-closure error");
     }
   }
 
