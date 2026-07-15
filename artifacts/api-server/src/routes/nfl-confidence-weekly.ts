@@ -609,7 +609,7 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
   req.log.info({ poolId, week, graded, actualPassingYards, actualRushingYards }, "NFL Confidence Weekly sandbox grading complete");
 
   // Branch on isRecurring: close the pool or advance to the next week
-  if ((pool as any).isRecurring === false) {
+  if ((pool as any).isRecurring === false || (pool as any).isRecurring === 'false') {
     // ── 1. Compute final scores for this week ──────────────────────────────
     const scoreRows = await db
       .select({
