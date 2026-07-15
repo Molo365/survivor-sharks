@@ -569,6 +569,26 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
     gameWinners.set(gameId, scores.homeScore > scores.awayScore ? game.homeTeamId : game.awayTeamId);
   }
 
+  // Second pass: ESPN numeric game IDs (replay / live games) are stored in
+  // sandbox_game_scores but are NOT keys in gameMap (which uses synthetic
+  // "sandbox-2025-wN-NN" IDs). gameMap.get() returns undefined for them, so
+  // the loop above skips those rows and no winner is added. Fix: for any row
+  // whose gameId is all-digits (ESPN format), derive the winning team ID
+  // directly from home_score vs away_score and the homeTeam/awayTeam
+  // abbreviation columns, then add to gameWinners using the numeric gameId.
+  for (const row of existingScoreRows) {
+    if (!/^\d+$/.test(row.gameId)) continue;         // skip synthetic IDs already handled
+    if (gameWinners.has(row.gameId)) continue;        // idempotent
+    if (row.homeScore == null || row.awayScore == null) continue;
+    if (!row.homeTeam || !row.awayTeam) continue;
+    const homeTeamId = NFL_TEAM_INFO[row.homeTeam]?.id ?? row.homeTeam;
+    const awayTeamId = NFL_TEAM_INFO[row.awayTeam]?.id ?? row.awayTeam;
+    gameWinners.set(
+      row.gameId,
+      row.homeScore > row.awayScore ? homeTeamId : awayTeamId,
+    );
+  }
+
   const pendingPicks = await db
     .select()
     .from(pickemPicksTable)
