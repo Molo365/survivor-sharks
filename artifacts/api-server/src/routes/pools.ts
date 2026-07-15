@@ -85,7 +85,7 @@ router.get("/", requireAuth, async (req, res) => {
       .from(sandboxGameScoresTable)
       .where(and(
         inArray(sandboxGameScoresTable.poolId, sandboxPoolIds),
-        eq(sandboxGameScoresTable.gameStatus, "in_progress"),
+        inArray(sandboxGameScoresTable.gameStatus, ["q1", "q2", "half", "q3", "q4", "in_progress"]),
       ));
     for (const r of liveRows) sandboxLiveSet.add(r.poolId);
   }
