@@ -22,7 +22,6 @@ router.get("/", requireAuth, async (req, res) => {
   const [pool] = await db
     .select({
       entryFee: poolsTable.entryFee,
-      closureReason: poolsTable.closureReason,
       poolType: poolsTable.poolType,
     })
     .from(poolsTable)
@@ -32,7 +31,6 @@ router.get("/", requireAuth, async (req, res) => {
   if (!pool) return res.status(404).json({ error: "Pool not found" });
 
   const isFreePool = !pool.entryFee || pool.entryFee <= 0;
-  const hadTiebreaker = pool.closureReason === "sov_tiebreaker";
 
   const [rawUserEntry] = await db
     .select({
@@ -83,9 +81,13 @@ router.get("/", requireAuth, async (req, res) => {
       }
     : null;
 
-  // ── Tiebreaker summary (pickem_season only) ─────────────────────────────
-  // When a sole winner was determined via tiebreaker, reconstruct who was tied
-  // and each player's guess/delta so the UI can show the tiebreaker card.
+  // ── Tiebreaker detection and summary (pickem_season only) ────────────────
+  // A tiebreaker resolved the pool when:
+  //   • 2+ players share the highest season correct-pick count, AND
+  //   • exactly 1 entry has finalWinner = true (sole winner, not a co-winner split)
+  // Detection reads from the actual data rather than relying on closureReason,
+  // which stores the winner's display name rather than a sentinel string.
+  let hadTiebreaker = false;
   let tiebreakerSummary: {
     actualPassingYards: number;
     actualRushingYards: number;
@@ -101,49 +103,50 @@ router.get("/", requireAuth, async (req, res) => {
     }>;
   } | null = null;
 
-  if (hadTiebreaker && pool.poolType === "pickem_season") {
-    const [actualsRow] = await db
+  if (pool.poolType === "pickem_season") {
+    // Season-total correct picks per user across all weeks.
+    const seasonTotals = await db
       .select({
-        actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
-        actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+        userId: pickemPicksTable.userId,
+        correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
       })
-      .from(nflConfidenceResultsTable)
-      .where(
-        and(
-          eq(nflConfidenceResultsTable.poolId, poolId),
-          eq(nflConfidenceResultsTable.week, PICKEM_SEASON_TIEBREAKER_WEEK),
-        ),
-      )
-      .limit(1);
+      .from(pickemPicksTable)
+      .where(eq(pickemPicksTable.poolId, poolId))
+      .groupBy(pickemPicksTable.userId);
 
-    if (actualsRow) {
-      // Season-total correct picks per user — used to identify the tied group.
-      const seasonTotals = await db
-        .select({
-          userId: pickemPicksTable.userId,
-          correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
-        })
-        .from(pickemPicksTable)
-        .where(eq(pickemPicksTable.poolId, poolId))
-        .groupBy(pickemPicksTable.userId);
+    if (seasonTotals.length > 0) {
+      const topCorrect = Math.max(...seasonTotals.map((r) => Number(r.correct)));
+      const topScorerIds = seasonTotals
+        .filter((r) => Number(r.correct) === topCorrect)
+        .map((r) => r.userId);
 
-      // The sole winner's userId — there should be exactly one finalWinner row.
-      const [winnerRow] = await db
+      // Count how many entries carry the finalWinner flag.
+      const winnerEntries = await db
         .select({ userId: entriesTable.userId })
         .from(entriesTable)
-        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.finalWinner, true)))
-        .limit(1);
+        .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.finalWinner, true)));
 
-      if (winnerRow) {
-        const winnerSeasonRow = seasonTotals.find((r) => r.userId === winnerRow.userId);
-        if (winnerSeasonRow) {
-          const topCorrect = Number(winnerSeasonRow.correct);
-          // Tied group = everyone who matched the winner's season total.
-          const tiedUserIds = seasonTotals
-            .filter((r) => Number(r.correct) === topCorrect)
-            .map((r) => r.userId);
+      // Tiebreaker: 2+ players tied at the top, but only one ended up as winner
+      // (meaning the tie was broken, not split as co-winners).
+      hadTiebreaker = topScorerIds.length >= 2 && winnerEntries.length === 1;
 
-          // Fetch entries for tied players: tiebreaker guesses + winner flag.
+      if (hadTiebreaker) {
+        const [actualsRow] = await db
+          .select({
+            actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
+            actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+          })
+          .from(nflConfidenceResultsTable)
+          .where(
+            and(
+              eq(nflConfidenceResultsTable.poolId, poolId),
+              eq(nflConfidenceResultsTable.week, PICKEM_SEASON_TIEBREAKER_WEEK),
+            ),
+          )
+          .limit(1);
+
+        if (actualsRow) {
+          // Fetch entries for all tied players (the full top-score group).
           const tiedEntries = await db
             .select({
               userId: entriesTable.userId,
@@ -158,7 +161,7 @@ router.get("/", requireAuth, async (req, res) => {
             .where(
               and(
                 eq(entriesTable.poolId, poolId),
-                inArray(entriesTable.userId, tiedUserIds),
+                inArray(entriesTable.userId, topScorerIds),
               ),
             );
 
@@ -175,7 +178,8 @@ router.get("/", requireAuth, async (req, res) => {
                   e.tiebreakerPassingYards != null && e.tiebreakerRushingYards != null
                     ? e.tiebreakerPassingYards + e.tiebreakerRushingYards
                     : null;
-                const delta = guessCombined != null ? Math.abs(guessCombined - actualCombined) : null;
+                const delta =
+                  guessCombined != null ? Math.abs(guessCombined - actualCombined) : null;
                 return {
                   userId: e.userId,
                   username: e.displayName ?? e.username,
@@ -187,7 +191,7 @@ router.get("/", requireAuth, async (req, res) => {
                 };
               })
               .sort((a, b) => {
-                // Winner first; then ascending by delta (closest guess wins).
+                // Closest guesser first; null deltas (no guess) go last.
                 if (a.delta == null && b.delta == null) return 0;
                 if (a.delta == null) return 1;
                 if (b.delta == null) return -1;
