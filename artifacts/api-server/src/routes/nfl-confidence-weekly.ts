@@ -631,15 +631,15 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
       .from(entriesTable)
       .where(eq(entriesTable.poolId, poolId));
 
-    // Fetch usernames so the winner's name can be stored on the pool row
+    // Fetch display names so the winner's name can be stored on the pool row
     const allUserIds = entryRows.map(e => e.userId);
     const userRows = allUserIds.length > 0
       ? await db
-          .select({ id: usersTable.id, username: usersTable.username })
+          .select({ id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName })
           .from(usersTable)
           .where(inArray(usersTable.id, allUserIds))
       : [];
-    const usernameMap = new Map(userRows.map(u => [u.id, u.username]));
+    const usernameMap = new Map(userRows.map(u => [u.id, u.displayName ?? u.username]));
 
     // ── 2. Sort by points desc, then by combined tiebreaker diff asc ───────
     const actualCombined = actualPassingYards + actualRushingYards;

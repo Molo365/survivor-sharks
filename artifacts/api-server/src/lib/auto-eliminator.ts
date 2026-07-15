@@ -583,13 +583,13 @@ export async function processCompletedGames(): Promise<{
       ei = ej;
     }
 
-    // ── 3. Close pool with winner's username in closureReason ──────────────
+    // ── 3. Close pool with winner's display name in closureReason ─────────
     const [winnerUser] = await db
-      .select({ username: usersTable.username })
+      .select({ username: usersTable.username, displayName: usersTable.displayName })
       .from(usersTable)
       .where(eq(usersTable.id, winner.userId))
       .limit(1);
-    const winnerUsername = winnerUser?.username ?? null;
+    const winnerUsername = winnerUser ? (winnerUser.displayName ?? winnerUser.username) : null;
 
     await db
       .update(poolsTable)

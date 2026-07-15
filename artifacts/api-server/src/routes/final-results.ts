@@ -36,6 +36,7 @@ router.get("/", requireAuth, async (req, res) => {
     .select({
       userId: entriesTable.userId,
       username: usersTable.username,
+      displayName: usersTable.displayName,
       finishPosition: entriesTable.finishPosition,
       prizeAmount: entriesTable.prizeAmount,
     })
@@ -54,7 +55,7 @@ router.get("/", requireAuth, async (req, res) => {
 
   const payouts = payoutRows.map((r) => ({
     userId: r.userId,
-    username: r.username,
+    username: r.displayName ?? r.username,
     finishPosition: r.finishPosition!,
     prizeAmount: r.prizeAmount ?? null,
   }));
