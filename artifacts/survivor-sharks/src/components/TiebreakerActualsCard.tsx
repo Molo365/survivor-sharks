@@ -49,27 +49,40 @@ export function TiebreakerActualsCard({
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest font-semibold pb-0.5">
             Tied players — tiebreaker guesses
           </p>
-          {tiedPlayers.map((p) => (
-            <div key={p.userId} className="flex items-center gap-3 text-xs">
-              <span className="flex-1 truncate font-medium text-foreground/80">
-                {p.displayName ?? p.username}
-              </span>
-              <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                <span className="text-muted-foreground/40">{abbrLabel1} </span>
-                <span className="text-foreground/80">{p.tiebreakerPassingYardsGuess ?? "—"}</span>
-                {p.tiebreakerDiff1 != null && (
-                  <span className="text-yellow-400/70"> (Δ{p.tiebreakerDiff1})</span>
+          {tiedPlayers.map((p) => {
+            const noGuess =
+              p.tiebreakerPassingYardsGuess == null &&
+              p.tiebreakerRushingYardsGuess == null;
+            return (
+              <div key={p.userId} className="flex items-center gap-3 text-xs">
+                <span className="flex-1 truncate font-medium text-foreground/80">
+                  {p.displayName ?? p.username}
+                </span>
+                {noGuess ? (
+                  <span className="text-muted-foreground/40 italic shrink-0">
+                    No tiebreaker submitted
+                  </span>
+                ) : (
+                  <>
+                    <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                      <span className="text-muted-foreground/40">{abbrLabel1} </span>
+                      <span className="text-foreground/80">{p.tiebreakerPassingYardsGuess ?? "—"}</span>
+                      {p.tiebreakerDiff1 != null && (
+                        <span className="text-yellow-400/70"> (Δ{p.tiebreakerDiff1})</span>
+                      )}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground/60 shrink-0">
+                      <span className="text-muted-foreground/40">{abbrLabel2} </span>
+                      <span className="text-foreground/80">{p.tiebreakerRushingYardsGuess ?? "—"}</span>
+                      {p.tiebreakerDiff2 != null && (
+                        <span className="text-yellow-400/70"> (Δ{p.tiebreakerDiff2})</span>
+                      )}
+                    </span>
+                  </>
                 )}
-              </span>
-              <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                <span className="text-muted-foreground/40">{abbrLabel2} </span>
-                <span className="text-foreground/80">{p.tiebreakerRushingYardsGuess ?? "—"}</span>
-                {p.tiebreakerDiff2 != null && (
-                  <span className="text-yellow-400/70"> (Δ{p.tiebreakerDiff2})</span>
-                )}
-              </span>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -769,7 +769,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       return tbRushingDelta(a.userId) - tbRushingDelta(b.userId);
     });
 
-    // Assign sub-ranks; flag sub-groups that are still tied after both TBs
+    // All players in the same score group share the same rank — do not sub-rank
+    // by tiebreaker closeness. Tiebreaker diffs are included so the frontend can
+    // display who was closest, but rank stays flat so all tied players appear
+    // together in the leaderboard and tiebreaker card.
     let i = 0;
     while (i < group.length) {
       const d1 = tbPassingDelta(group[i].userId);
@@ -785,7 +788,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       for (const u of subGroup) {
         const tb = tiebreakerMap.get(u.userId);
         entries.push({
-          rank: currentRank + i,
+          rank: currentRank,
           userId: u.userId,
           username: u.username,
           displayName: u.displayName ?? null,

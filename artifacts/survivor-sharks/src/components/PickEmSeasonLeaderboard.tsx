@@ -334,10 +334,9 @@ export function PickEmSeasonLeaderboard({
     );
   }
 
-  // Candidates: rank-1 players who submitted tiebreaker guesses
-  const tbCandidates = entries.filter(
-    (e) => e.rank === 1 && (e.tiebreakerPassingYards != null || e.tiebreakerRushingYards != null),
-  );
+  // All rank-1 players — include those without tiebreaker guesses so every
+  // tied player is visible; the card handles the null-guess display.
+  const tbCandidates = entries.filter((e) => e.rank === 1);
   const footer = tbCandidates.length > 0 ? (
     <TiebreakerActualsCard
       actualPassingYards={actualPassingYards}
