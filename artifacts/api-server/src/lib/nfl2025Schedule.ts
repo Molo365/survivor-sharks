@@ -336,6 +336,7 @@ export const NFL_TEAM_INFO: Record<string, NflTeamInfo> = {
   TB:  { id: "27",  displayName: "Tampa Bay Buccaneers"  },
   TEN: { id: "10",  displayName: "Tennessee Titans"      },
   WAS: { id: "28",  displayName: "Washington Commanders" },
+  WSH: { id: "28",  displayName: "Washington Commanders" },
 };
 
 // ── Public API ─────────────────────────────────────────────────────────────────
