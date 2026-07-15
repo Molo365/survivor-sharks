@@ -720,19 +720,12 @@ export function MatchupPickGrid({
     setShowHint(false);
   }
 
-  // NHL Survivor Season: teams may be reused up to 2 times. Compute which teams
-  // are "exhausted" (used max times in prior weeks, excluding current week) so
-  // MatchupCard grays them out correctly.
   const isNhlSurvivorSeason = sport === "nhl" && poolType === "season";
-  const maxTeamUses = isNhlSurvivorSeason ? 2 : 1;
+
+  // Compute which teams are exhausted (picked in any prior week, excluding the
+  // current week) so MatchupCard grays them out. Each team can only be used once.
   const priorPickTeamIds = picks?.filter(p => p.week !== currentWeek).map(p => p.teamId) ?? [];
-  const teamUseCounts = priorPickTeamIds.reduce<Map<string, number>>((acc, id) => {
-    acc.set(id, (acc.get(id) ?? 0) + 1);
-    return acc;
-  }, new Map<string, number>());
-  const exhaustedTeamIds = [...teamUseCounts.entries()]
-    .filter(([, count]) => count >= maxTeamUses)
-    .map(([id]) => id);
+  const exhaustedTeamIds = [...new Set(priorPickTeamIds)];
 
   const handleSubmit = () => {
     if (!selectedTeam) return;

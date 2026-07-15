@@ -227,13 +227,9 @@ router.post("/", requireAuth, async (req, res) => {
       ? previousPicks.filter(p => p.week >= pool.startWeek!)
       : previousPicks;
 
-    // NHL Survivor Season allows each team to be picked up to 2 times; all other season/mid_season pools allow 1 use.
-    const maxTeamUses = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 1;
     const timesUsed = relevantPicks.filter(p => p.teamId === teamId && p.week !== week).length;
-    if (timesUsed >= maxTeamUses) {
-      res.status(400).json({ error: timesUsed >= 2
-        ? "You have already used this team twice — maximum reuse reached"
-        : "You have already used this team in a previous week" });
+    if (timesUsed >= 1) {
+      res.status(400).json({ error: "You have already used this team in a previous week" });
       return;
     }
   }
