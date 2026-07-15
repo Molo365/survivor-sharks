@@ -2266,6 +2266,9 @@ components:
         sandboxWeek:
           type: integer
           description: "Active week when sandboxMode is true"
+        hasLiveGames:
+          type: boolean
+          description: "True when at least one game for this pool's sport is currently in progress"
 
     PoolDetail:
       type: object

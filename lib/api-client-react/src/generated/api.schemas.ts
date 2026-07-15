@@ -306,6 +306,8 @@ export interface Pool {
   sandboxMode?: boolean;
   /** Active week when sandboxMode is true */
   sandboxWeek?: number;
+  /** True when at least one game for this pool's sport is currently in progress */
+  hasLiveGames?: boolean;
 }
 
 export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];

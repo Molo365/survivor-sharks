@@ -13,6 +13,7 @@ interface PoolSummary {
   pickStatus: "submitted" | "pending" | "not_required";
   summary: string | null;
   poolUrl: string;
+  hasLiveGames?: boolean;
 }
 
 const SPORT_LABEL: Record<string, string> = {
@@ -87,7 +88,18 @@ function PoolCard({ pool }: { pool: PoolSummary }) {
         <span className="text-sm font-bold text-foreground leading-tight">
           {pool.poolName}
         </span>
-        <SportBadge sport={pool.sport} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {pool.hasLiveGames && (
+            <div className="flex items-center gap-1">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-[11px] font-semibold text-green-400 tracking-wide">Live</span>
+            </div>
+          )}
+          <SportBadge sport={pool.sport} />
+        </div>
       </div>
 
       <StatusBadge status={pool.pickStatus} />

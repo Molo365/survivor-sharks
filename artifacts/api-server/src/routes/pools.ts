@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable } from "@workspace/db";
+import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
@@ -72,11 +72,44 @@ router.get("/", requireAuth, async (req, res) => {
       )
     ));
 
+  // ── Compute hasLiveGames per pool ──────────────────────────────────────
+  const todayEt = getTodayEtDate();
+  const todayDateStr = todayEt.replace(/-/g, "");
+
+  // Sandbox pools: check the DB for any row with game_status = "in_progress"
+  const sandboxPoolIds = pools.filter((p) => p.sandboxMode).map((p) => p.id);
+  const sandboxLiveSet = new Set<number>();
+  if (sandboxPoolIds.length > 0) {
+    const liveRows = await db
+      .select({ poolId: sandboxGameScoresTable.poolId })
+      .from(sandboxGameScoresTable)
+      .where(and(
+        inArray(sandboxGameScoresTable.poolId, sandboxPoolIds),
+        eq(sandboxGameScoresTable.gameStatus, "in_progress"),
+      ));
+    for (const r of liveRows) sandboxLiveSet.add(r.poolId);
+  }
+
+  // Live pools: fetch ESPN once per unique sport (only active pools can have live games)
+  const activeLivePools = pools.filter((p) => p.isActive && !p.sandboxMode);
+  const uniqueSports = [...new Set(activeLivePools.map((p) => p.sport))];
+  const sportsWithLive = new Set<string>();
+  await Promise.all(uniqueSports.map(async (sport) => {
+    const games = await fetchGamesForDate(sport, todayDateStr);
+    if (games.some((g) => g.status === "in_progress")) sportsWithLive.add(sport);
+  }));
+
+  const hasLiveGamesFor = (pool: PoolRow): boolean => {
+    if (pool.sandboxMode) return sandboxLiveSet.has(pool.id);
+    if (!pool.isActive) return false;
+    return sportsWithLive.has(pool.sport);
+  };
+
   const result = await Promise.all(pools.map(async (pool) => {
     const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
     const [{ active }] = await db.select({ active: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
     const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
-    return formatPool(pool, Number(total), Number(active), commissioner?.username ?? "");
+    return { ...formatPool(pool, Number(total), Number(active), commissioner?.username ?? ""), hasLiveGames: hasLiveGamesFor(pool) };
   }));
 
   res.json(result);

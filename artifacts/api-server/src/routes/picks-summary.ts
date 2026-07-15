@@ -9,10 +9,11 @@ import {
   wcBracketPicksTable,
   groupStagePredictorPicksTable,
   pickemSeasonWeekGameCountsTable,
+  sandboxGameScoresTable,
 } from "@workspace/db";
 import { eq, and, count, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate } from "../lib/espn";
+import { getTodayEtDate, fetchGamesForDate } from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 
 const router = Router();
@@ -49,11 +50,40 @@ router.get("/summary", requireAuth, async (req, res) => {
       currentWeek: poolsTable.currentWeek,
       pickFrequency: poolsTable.pickFrequency,
       isActive: poolsTable.isActive,
+      sandboxMode: poolsTable.sandboxMode,
     })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
 
   const pools = allPools.filter((p) => p.isActive);
+
+  // ── Compute hasLiveGames for each pool ──────────────────────────────────
+  const todayDateStr = todayEt.replace(/-/g, "");
+
+  const sandboxPoolIds2 = pools.filter((p) => p.sandboxMode).map((p) => p.id);
+  const sandboxLiveSet2 = new Set<number>();
+  if (sandboxPoolIds2.length > 0) {
+    const liveRows = await db
+      .select({ poolId: sandboxGameScoresTable.poolId })
+      .from(sandboxGameScoresTable)
+      .where(and(
+        inArray(sandboxGameScoresTable.poolId, sandboxPoolIds2),
+        eq(sandboxGameScoresTable.gameStatus, "in_progress"),
+      ));
+    for (const r of liveRows) sandboxLiveSet2.add(r.poolId);
+  }
+
+  const uniqueSports2 = [...new Set(pools.filter((p) => !p.sandboxMode).map((p) => p.sport))];
+  const sportsWithLive2 = new Set<string>();
+  await Promise.all(uniqueSports2.map(async (sport) => {
+    const games = await fetchGamesForDate(sport, todayDateStr);
+    if (games.some((g) => g.status === "in_progress")) sportsWithLive2.add(sport);
+  }));
+
+  const hasLiveGamesFor2 = (pool: { id: number; sandboxMode: boolean | null; sport: string }): boolean => {
+    if (pool.sandboxMode) return sandboxLiveSet2.has(pool.id);
+    return sportsWithLive2.has(pool.sport);
+  };
 
   const results = await Promise.all(
     pools.map(async (pool) => {
@@ -65,6 +95,7 @@ router.get("/summary", requireAuth, async (req, res) => {
         sport: pool.sport,
         currentWeek: pool.currentWeek,
         poolUrl: `/pools/${pool.id}`,
+        hasLiveGames: hasLiveGamesFor2(pool),
       };
 
       // ── Survivor (season / weekly / mid_season) ────────────────────────────

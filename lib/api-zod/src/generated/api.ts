@@ -172,7 +172,8 @@ export const ListPoolsResponseItem = zod.object({
   "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
-  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true')
+  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 
@@ -247,7 +248,8 @@ export const JoinPoolResponse = zod.object({
   "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
-  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true')
+  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 
 
@@ -376,7 +378,8 @@ export const UpdatePoolResponse = zod.object({
   "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
-  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true')
+  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 
 
@@ -1987,7 +1990,8 @@ export const AdminListPoolsResponseItem = zod.object({
   "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
-  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true')
+  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)
 
