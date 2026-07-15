@@ -403,10 +403,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
       // Save picks using ESPN game IDs
       for (const pick of picks) {
+        const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
         const r = replayGameMap.get(pick.gameId)!;
         const awayInfo = NFL_TEAM_INFO[r.awayTeam ?? ""];
         const homeInfo = NFL_TEAM_INFO[r.homeTeam ?? ""];
-        const pickedIsHome = pick.pickedTeamId === (homeInfo?.id ?? r.homeTeam);
+        const pickedIsHome = resolvedTeamId === (homeInfo?.id ?? r.homeTeam);
         const pickedTeamName = pickedIsHome
           ? (homeInfo?.displayName ?? r.homeTeam ?? "")
           : (awayInfo?.displayName ?? r.awayTeam ?? "");
@@ -415,13 +416,13 @@ router.post("/picks", requireAuth, async (req, res) => {
           userId,
           week: numWeek,
           gameId: pick.gameId,
-          pickedTeamId: pick.pickedTeamId,
+          pickedTeamId: resolvedTeamId,
           pickedTeamName,
           gameDate: r.replayKickoff ? r.replayKickoff.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
           result: "pending",
         }).onConflictDoUpdate({
           target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-          set: { pickedTeamId: pick.pickedTeamId, pickedTeamName, result: "pending" },
+          set: { pickedTeamId: resolvedTeamId, pickedTeamName, result: "pending" },
         });
       }
       res.json({ saved: picks.length, skipped: 0 });
@@ -438,15 +439,16 @@ router.post("/picks", requireAuth, async (req, res) => {
     const sandboxGameMap = new Map(sandboxGames.map(g => [g.id, g]));
     let saved = 0;
     for (const pick of picks) {
+      const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
       const g = sandboxGameMap.get(pick.gameId)!;
       await db.insert(pickemPicksTable).values({
         poolId, userId, gameId: pick.gameId,
         gameDate: g.gameTime.slice(0, 10),
-        week: numWeek, pickedTeamId: pick.pickedTeamId,
+        week: numWeek, pickedTeamId: resolvedTeamId,
         pickedTeamName: pick.pickedTeamName, result: "pending",
       }).onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-        set: { pickedTeamId: pick.pickedTeamId, pickedTeamName: pick.pickedTeamName, result: "pending", updatedAt: new Date() },
+        set: { pickedTeamId: resolvedTeamId, pickedTeamName: pick.pickedTeamName, result: "pending", updatedAt: new Date() },
       });
       saved++;
     }

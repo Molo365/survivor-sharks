@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
-import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape } from "../lib/nfl2025Schedule";
+import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { calcPrize } from "../lib/prizeCalc";
 
 const router = Router({ mergeParams: true });
@@ -265,6 +265,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   let saved = 0;
   for (const pick of picks) {
+    const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
     await db
       .insert(pickemPicksTable)
       .values({
@@ -273,7 +274,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         gameId: pick.gameId,
         gameDate,
         week,
-        pickedTeamId: pick.pickedTeamId,
+        pickedTeamId: resolvedTeamId,
         pickedTeamName: pick.pickedTeamName,
         confidencePoints: pick.confidencePoints,
         result: "pending",
@@ -281,7 +282,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
-          pickedTeamId: pick.pickedTeamId,
+          pickedTeamId: resolvedTeamId,
           pickedTeamName: pick.pickedTeamName,
           confidencePoints: pick.confidencePoints,
           result: "pending",

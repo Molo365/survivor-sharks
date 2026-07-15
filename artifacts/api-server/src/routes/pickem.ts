@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, count } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
+import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
@@ -374,6 +375,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   let saved = 0;
 
   for (const pick of picks) {
+    const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
     const pickedTeamName = is3way
       ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
       : pick.pickedTeamName;
@@ -389,14 +391,14 @@ router.post("/picks", requireAuth, async (req, res) => {
         gameId: pick.gameId,
         gameDate,
         week: pool.currentWeek,
-        pickedTeamId: pick.pickedTeamId,
+        pickedTeamId: resolvedTeamId,
         pickedTeamName,
         result: "pending",
       })
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
-          pickedTeamId: pick.pickedTeamId,
+          pickedTeamId: resolvedTeamId,
           pickedTeamName,
           result: "pending",
           updatedAt: new Date(),
