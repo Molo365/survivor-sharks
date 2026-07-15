@@ -286,7 +286,46 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const prevWeek = week - 1;
 
         let lastWinners = null;
-        if (prevWeek >= 1) {
+        if (!pool.isActive) {
+          // Pool ended — read the settled finalWinner flag and prizeAmount from
+          // the entries table. Also fetch the winning week's confidence score
+          // from pickemPicksTable (week = pool.currentWeek, the last graded week).
+          const winnerRows = await db
+            .select({
+              userId: entriesTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              prizeAmount: entriesTable.prizeAmount,
+            })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+          if (winnerRows.length > 0) {
+            const winnerUserIds = winnerRows.map(w => w.userId);
+            const scoreRows = await db
+              .select({
+                userId: pickemPicksTable.userId,
+                weekPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0)`,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.week, week),
+                inArray(pickemPicksTable.userId, winnerUserIds),
+              ))
+              .groupBy(pickemPicksTable.userId);
+            const scoreMap = new Map(scoreRows.map(s => [s.userId, Number(s.weekPoints)]));
+            lastWinners = winnerRows.map(w => ({
+              userId: w.userId,
+              username: w.username,
+              displayName: w.displayName ?? null,
+              correct: 0,
+              picked: 0,
+              score: scoreMap.get(w.userId) ?? null,
+              prizeWon: w.prizeAmount != null ? Number(w.prizeAmount) : null,
+            }));
+          }
+        } else if (prevWeek >= 1) {
           const prevRows = await db
             .select({
               userId: pickemPicksTable.userId,
