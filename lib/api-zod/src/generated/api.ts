@@ -766,7 +766,21 @@ export const GetFinalResultsResponse = zod.object({
   "prizeAmount": zod.number().nullish()
 })),
   "isFreePool": zod.boolean(),
-  "hadTiebreaker": zod.boolean()
+  "hadTiebreaker": zod.boolean(),
+  "tiebreakerSummary": zod.object({
+  "actualPassingYards": zod.number(),
+  "actualRushingYards": zod.number(),
+  "actualCombinedYards": zod.number(),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "guessPassingYards": zod.number().nullish(),
+  "guessRushingYards": zod.number().nullish(),
+  "guessCombinedYards": zod.number().nullish(),
+  "delta": zod.number().nullish(),
+  "isWinner": zod.boolean()
+}))
+}).nullish()
 })
 
 

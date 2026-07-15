@@ -1795,11 +1795,29 @@ export interface FinalPayout {
   prizeAmount?: number | null;
 }
 
+export interface TiebreakerPlayer {
+  userId: number;
+  username: string;
+  guessPassingYards?: number | null;
+  guessRushingYards?: number | null;
+  guessCombinedYards?: number | null;
+  delta?: number | null;
+  isWinner: boolean;
+}
+
+export interface TiebreakerSummary {
+  actualPassingYards: number;
+  actualRushingYards: number;
+  actualCombinedYards: number;
+  players: TiebreakerPlayer[];
+}
+
 export interface FinalResults {
   currentUserEntry?: UserFinalEntry | null;
   payouts: FinalPayout[];
   isFreePool: boolean;
   hadTiebreaker: boolean;
+  tiebreakerSummary?: TiebreakerSummary | null;
 }
 
 export type GetDailyScheduleParams = {

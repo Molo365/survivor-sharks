@@ -4449,6 +4449,48 @@ components:
           type: boolean
         hadTiebreaker:
           type: boolean
+        tiebreakerSummary:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/TiebreakerSummary"
+
+    TiebreakerSummary:
+      type: object
+      required: [actualPassingYards, actualRushingYards, actualCombinedYards, players]
+      properties:
+        actualPassingYards:
+          type: integer
+        actualRushingYards:
+          type: integer
+        actualCombinedYards:
+          type: integer
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/TiebreakerPlayer"
+
+    TiebreakerPlayer:
+      type: object
+      required: [userId, username, isWinner]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        guessPassingYards:
+          type: integer
+          nullable: true
+        guessRushingYards:
+          type: integer
+          nullable: true
+        guessCombinedYards:
+          type: integer
+          nullable: true
+        delta:
+          type: integer
+          nullable: true
+        isWinner:
+          type: boolean
 
     UserFinalEntry:
       type: object

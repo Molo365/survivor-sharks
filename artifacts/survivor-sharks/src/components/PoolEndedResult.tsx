@@ -1,6 +1,8 @@
 import { useGetFinalResults } from "@workspace/api-client-react";
+import type { TiebreakerSummary } from "@workspace/api-client-react";
 import { Trophy, Loader2 } from "lucide-react";
 import { ORDINALS } from "@/lib/calculatePayouts";
+import { cn } from "@/lib/utils";
 
 interface Props {
   poolId: number;
@@ -21,6 +23,54 @@ function coWinnerPositionText(count: number): string {
   return `Co-winners split ${rest} & ${last} place`;
 }
 
+function TiebreakerCard({ summary }: { summary: TiebreakerSummary }) {
+  return (
+    <div className="w-full max-w-sm mx-auto border border-amber-500/30 rounded-lg bg-amber-950/20 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20">
+        <span className="text-xs font-bebas tracking-widest text-amber-400/80">TIEBREAKER</span>
+        <span className="ml-auto text-xs text-muted-foreground/60">
+          Actual: {summary.actualCombinedYards.toLocaleString()} combined yds
+          <span className="text-muted-foreground/40 ml-1">
+            ({summary.actualPassingYards} pass + {summary.actualRushingYards} rush)
+          </span>
+        </span>
+      </div>
+      <div className="divide-y divide-border/20">
+        {summary.players.map((p) => (
+          <div
+            key={p.userId}
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 text-sm",
+              p.isWinner ? "bg-amber-500/10" : "bg-transparent",
+            )}
+          >
+            <span className={cn("w-4 shrink-0 text-center", p.isWinner ? "text-amber-400" : "text-muted-foreground/40")}>
+              {p.isWinner ? "🏆" : ""}
+            </span>
+            <span className={cn("flex-1 font-medium truncate", p.isWinner ? "text-amber-300" : "text-foreground/70")}>
+              {p.username}
+            </span>
+            {p.guessCombinedYards != null ? (
+              <span className="text-right tabular-nums shrink-0">
+                <span className={p.isWinner ? "text-amber-300 font-semibold" : "text-foreground/60"}>
+                  {p.guessCombinedYards.toLocaleString()} combined
+                </span>
+                {p.delta != null && (
+                  <span className={cn("ml-2 text-xs", p.isWinner ? "text-emerald-400" : "text-muted-foreground/60")}>
+                    Δ{p.delta.toLocaleString()}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-xs italic text-muted-foreground/40">No guess submitted</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PoolEndedResult({ poolId }: Props) {
   const { data, isLoading } = useGetFinalResults(poolId);
 
@@ -36,7 +86,14 @@ export function PoolEndedResult({ poolId }: Props) {
 
   if (!data) return null;
 
-  const { currentUserEntry: entry, payouts, isFreePool, hadTiebreaker } = data;
+  const { currentUserEntry: entry, payouts, isFreePool, hadTiebreaker, tiebreakerSummary } = data;
+
+  // Only show the tiebreaker card when a tiebreaker actually resolved a tie
+  // (closureReason = sov_tiebreaker) AND we have the summary data with 2+ players.
+  const showTiebreakerCard =
+    hadTiebreaker &&
+    tiebreakerSummary != null &&
+    tiebreakerSummary.players.length >= 2;
 
   let personalSection: React.ReactNode = null;
 
@@ -101,6 +158,8 @@ export function PoolEndedResult({ poolId }: Props) {
       </div>
 
       {personalSection}
+
+      {showTiebreakerCard && <TiebreakerCard summary={tiebreakerSummary!} />}
 
       {payouts.length > 0 && (
         <div className="w-full max-w-xs mx-auto">
