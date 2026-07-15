@@ -359,7 +359,35 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const prevWeek = week - 1;
 
         let lastWinners = null;
-        if (prevWeek >= 1) {
+        if (!pool.isActive) {
+          // Pool is closed — read the settled finalWinner flag and prizeAmount
+          // from the entries table, exactly like nfl_division_predictor and the
+          // ended-weekly-pickem branch do.  Do NOT recompute from prevWeek scores;
+          // the tiebreaker may have resolved a sole winner among players who were
+          // score-tied across the whole season.
+          const winnerRows = await db
+            .select({
+              userId: entriesTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              prizeAmount: entriesTable.prizeAmount,
+            })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+          if (winnerRows.length > 0) {
+            lastWinners = winnerRows.map((w) => ({
+              userId: w.userId,
+              username: w.username,
+              displayName: w.displayName ?? null,
+              correct: null,
+              picked: null,
+              score: null,
+              prizeWon: w.prizeAmount != null ? Number(w.prizeAmount) : null,
+            }));
+          }
+        } else if (prevWeek >= 1) {
+          // Pool is still active — show last week's top scorer(s) as a preview.
           const prevRows = await db
             .select({
               userId: pickemPicksTable.userId,
@@ -388,10 +416,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               correct: Number(r.correct),
               picked: Number(r.picked),
               score: null,
-              // Only show the dollar amount once the season is fully closed — no real
-              // payout exists mid-season. Mirrors the !pool.isActive gate already used
-              // by nfl_division_predictor and group_stage_predictor.
-              prizeWon: pool.isActive ? null : computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
+              prizeWon: null,
             }));
           }
         }
