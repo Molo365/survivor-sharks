@@ -23,7 +23,12 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
         const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
         if (!pick) return "—";
         const suffix = pick.result === "win" ? " W" : pick.result === "loss" ? " L" : "";
-        return `${pick.teamName}${suffix}`;
+        // Derive abbreviation from ESPN logo URL (e.g. .../phi.png → PHI),
+        // falling back to the first 3 characters of the stored team name.
+        const abbr = pick.teamLogoUrl
+          ? (pick.teamLogoUrl.split("/").pop()?.replace(".png", "").toUpperCase() ?? pick.teamName.substring(0, 3))
+          : pick.teamName.substring(0, 3);
+        return `${abbr}${suffix}`;
       });
       return {
         cells: [member.displayName ?? member.username, statusLabel, ...weekCells],

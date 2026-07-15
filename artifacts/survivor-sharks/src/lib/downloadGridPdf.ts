@@ -97,6 +97,8 @@ export function downloadGridPdf({
   doc.line(margin, y, pageWidth - margin, y);
   y += 4;
 
+  const cellPadding = numCols <= 12 ? 1.5 : 1;
+
   const lastCol = columns.length - 1;
   const gameColEntries = Array.from({ length: lastCol - 1 }, (_, i) => [
     String(i + 1),
@@ -116,7 +118,7 @@ export function downloadGridPdf({
     margin: { left: margin, right: margin, bottom: 16 },
     styles: {
       fontSize,
-      cellPadding: 1.5,
+      cellPadding,
       halign: "center",
       overflow: "linebreak",
     },
@@ -148,14 +150,21 @@ export function downloadGridPdf({
 
       const hex = abbrev ? MLB_TEAM_COLORS[abbrev] : undefined;
       const styles = data.cell.styles as unknown as Record<string, unknown>;
-      if (hex) {
-        styles.fillColor = blendWithWhite(hex, 0.2);
-      }
 
-      if (result === "W") {
-        styles.textColor = [0, 120, 60];
-      } else if (result === "L") {
-        styles.textColor = [180, 30, 30];
+      if (hex) {
+        // MLB: team-colour background + green/red text per result
+        styles.fillColor = blendWithWhite(hex, 0.2);
+        if (result === "W") styles.textColor = [0, 120, 60];
+        else if (result === "L") styles.textColor = [180, 30, 30];
+      } else {
+        // NFL / other sports: solid green or red background per result
+        if (result === "W") {
+          styles.fillColor = [220, 252, 231]; // ~green-100
+          styles.textColor = [21, 128, 61];   // ~green-700
+        } else if (result === "L") {
+          styles.fillColor = [254, 226, 226]; // ~red-100
+          styles.textColor = [185, 28, 28];   // ~red-700
+        }
       }
 
       if (cellColorFn) {
