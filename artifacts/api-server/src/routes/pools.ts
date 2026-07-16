@@ -129,6 +129,8 @@ router.get("/past", requireAuth, async (req, res) => {
     return;
   }
 
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
   const SURVIVOR_POOL_TYPES = ["season", "weekly", "mid_season"] as const;
 
   const pools = await db.select().from(poolsTable)
@@ -136,6 +138,7 @@ router.get("/past", requireAuth, async (req, res) => {
       inArray(poolsTable.id, poolIds),
       eq(poolsTable.isActive, false),
       isNotNull(poolsTable.endedAt),
+      lte(poolsTable.endedAt, twoDaysAgo),
     ));
 
   const result = await Promise.all(pools.map(async (pool) => {
