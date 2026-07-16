@@ -11,7 +11,7 @@ import {
   groupStageResultsTable,
   wcBracketPicksTable,
 } from "@workspace/db";
-import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, sql, gte, lte, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getTodayEtDate } from "../lib/espn";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
@@ -108,6 +108,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
     return;
   }
 
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
   const pools = await db
     .select({
       id: poolsTable.id,
@@ -128,6 +130,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
     .where(and(
       inArray(poolsTable.id, allPoolIds),
       inArray(poolsTable.poolType as any, SUPPORTED_TYPES),
+      or(
+        eq(poolsTable.isActive, true),
+        and(eq(poolsTable.isActive, false), isNotNull(poolsTable.endedAt), gt(poolsTable.endedAt, twoDaysAgo)),
+      ),
     ));
 
   if (pools.length === 0) {

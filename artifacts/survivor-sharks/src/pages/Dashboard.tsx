@@ -6,7 +6,7 @@ import { PoolCard } from "@/components/PoolCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Plus, UserPlus, Info, ChevronRight, Trophy, Users, Calendar, Clock } from "lucide-react";
+import { Plus, UserPlus, Info, ChevronRight, Trophy, Users, Calendar, Clock, History } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -154,12 +154,22 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* ── View Past Pools link ── */}
+        <div className="mt-6 flex justify-center">
+          <Link href="/profile">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground/60 hover:text-muted-foreground text-xs uppercase tracking-wider">
+              <History className="w-3.5 h-3.5" />
+              View Past Pools
+            </Button>
+          </Link>
+        </div>
+
         {/* ── Past Pools ── */}
         {(hasPastPools || isPastLoading) && (
           <div className="mt-12">
             <div className="mb-4">
               <h2 className="font-bebas text-2xl tracking-wide text-foreground/70">PAST POOLS</h2>
-              <p className="text-muted-foreground text-xs uppercase tracking-wider">Pools that ended more than 2 days ago — available for 30 days</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">Pools you've participated in</p>
             </div>
 
             {isPastLoading ? (
