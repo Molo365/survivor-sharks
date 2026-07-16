@@ -75,9 +75,11 @@ router.get("/summary", requireAuth, async (req, res) => {
 
   const uniqueSports2 = [...new Set(pools.filter((p) => !p.sandboxMode).map((p) => p.sport))];
   const sportsWithLive2 = new Set<string>();
+  const sportsWithGamesTodaySet = new Set<string>();
   await Promise.all(uniqueSports2.map(async (sport) => {
     const games = await fetchGamesForDate(sport, todayDateStr);
     if (games.some((g) => g.status === "in_progress")) sportsWithLive2.add(sport);
+    if (games.length > 0) sportsWithGamesTodaySet.add(sport);
   }));
 
   const hasLiveGamesFor2 = (pool: { id: number; sandboxMode: boolean | null; sport: string }): boolean => {
@@ -178,6 +180,29 @@ router.get("/summary", requireAuth, async (req, res) => {
 
         const summary =
           total !== null ? `${picked}/${total} picked` : `${picked} picked`;
+
+        // MLB weekly: games play daily so the week-level pick count hides the
+        // case where earlier days were picked but today has new unpicked games.
+        // If ESPN shows games today for this sport and the user has zero picks
+        // for today specifically, override the status to "pending".
+        if (!isDaily && pool.sport === "mlb" && !pool.sandboxMode && sportsWithGamesTodaySet.has(pool.sport)) {
+          const [todayCountRow] = await db
+            .select({ cnt: count() })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.userId, userId),
+              eq(pickemPicksTable.gameDate, todayEt),
+            ));
+          const pickedToday = todayCountRow?.cnt ?? 0;
+          if (pickedToday === 0) {
+            return {
+              ...base,
+              pickStatus: "pending" as PickStatus,
+              summary: picked > 0 ? summary : null,
+            };
+          }
+        }
 
         return {
           ...base,
