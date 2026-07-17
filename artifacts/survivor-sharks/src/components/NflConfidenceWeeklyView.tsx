@@ -567,6 +567,7 @@ interface NflConfidenceWeeklyCommissionerPanelProps {
   sandboxMode: boolean;
   sandboxWeek: number;
   isSuperAdmin: boolean;
+  isActive: boolean;
 }
 
 export function NflConfidenceWeeklyCommissionerPanel({
@@ -578,6 +579,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
   sandboxMode,
   sandboxWeek: initialSandboxWeek,
   isSuperAdmin,
+  isActive,
 }: NflConfidenceWeeklyCommissionerPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -815,6 +817,11 @@ export function NflConfidenceWeeklyCommissionerPanel({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {!isActive && (
+              <div className="flex items-center gap-2 rounded-lg border border-muted-foreground/20 bg-muted/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground/70">This pool has ended and cannot be modified.</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
               <div>
                 <p className="font-semibold text-sm text-yellow-300">Sandbox Mode</p>
@@ -845,12 +852,12 @@ export function NflConfidenceWeeklyCommissionerPanel({
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
-                  <Button onClick={handleLoadSandboxWeek} className="font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black">
+                  <Button onClick={handleLoadSandboxWeek} disabled={!isActive} className="font-bebas text-lg tracking-wider bg-yellow-600 hover:bg-yellow-500 text-black disabled:opacity-50">
                     <Zap className="w-4 h-4 mr-1.5" /> Load Week
                   </Button>
                   <Button
                     onClick={handleSimulateGrading}
-                    disabled={simulating}
+                    disabled={simulating || !isActive}
                     variant="outline"
                     className="font-bebas text-lg tracking-wider border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/60"
                   >
@@ -918,8 +925,8 @@ export function NflConfidenceWeeklyCommissionerPanel({
 
             <Button
               onClick={handleStartReplay}
-              disabled={startingReplay}
-              className="font-bebas text-lg tracking-wider bg-amber-600 hover:bg-amber-500 text-black"
+              disabled={startingReplay || !isActive}
+              className="font-bebas text-lg tracking-wider bg-amber-600 hover:bg-amber-500 text-black disabled:opacity-50"
             >
               <Play className="w-4 h-4 mr-1.5" />
               {startingReplay ? "Loading…" : "Load & Start Replay"}
