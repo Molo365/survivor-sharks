@@ -204,6 +204,21 @@ router.get("/summary", requireAuth, async (req, res) => {
           }
         }
 
+        // NHL weekly Pick-Ems only have games on Sat–Sun; suppress "Pick needed"
+        // on weekdays so players aren't nagged when there's nothing to pick.
+        if (picked === 0 && pool.sport === "nhl" && pool.pickFrequency === "weekly") {
+          const [y, m, d] = todayEt.split("-").map(Number);
+          const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun, 6=Sat
+          const isWeekendGameDay = dow === 0 || dow === 6;
+          if (!isWeekendGameDay) {
+            return {
+              ...base,
+              pickStatus: "not_required" as PickStatus,
+              summary: null,
+            };
+          }
+        }
+
         return {
           ...base,
           pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
