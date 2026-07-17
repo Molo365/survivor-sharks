@@ -92,6 +92,13 @@ function computeRank<T extends { score: number }>(rows: T[], userId: number): nu
   return rows.filter((r) => r.score > myRow.score).length + 1;
 }
 
+function computeIsTied<T extends { score: number }>(rows: T[], userId: number): boolean {
+  if (rows.length === 0) return false;
+  const myRow = rows.find((r) => (r as any).userId === userId);
+  if (!myRow) return false;
+  return rows.filter((r) => r.score === myRow.score).length > 1;
+}
+
 // GET /api/dashboard/pickem-stats
 router.get("/pickem-stats", requireAuth, async (req, res) => {
   const userId = req.user!.id;
@@ -240,7 +247,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           totalPlayers: memberCountMap.get(pool.id) ?? 0,
           lastWinners: null,
           myStanding: {
-            rank: survivorRank, correct: 0, picked: 0,
+            rank: survivorRank, isTied: computeIsTied(survivorScored, userId), correct: 0, picked: 0,
             hasPicks: !!entry,
             status,
             eliminatedWeek,
@@ -274,6 +281,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners: null,
           myStanding: {
             rank: computeRank(rows.map((r) => ({ ...r, score: Number(r.score) })), userId),
+            isTied: computeIsTied(rows.map((r) => ({ ...r, score: Number(r.score) })), userId),
             correct: 0, picked: 0,
             hasPicks: !!myRow,
             status: null, eliminatedWeek: null,
@@ -384,6 +392,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId),
+            isTied: computeIsTied(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId),
             correct: 0,
             picked: 0,
             hasPicks: !!myRow,
@@ -489,6 +498,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.correct) })), userId),
+            isTied: computeIsTied(currentRows.map((r) => ({ ...r, score: Number(r.correct) })), userId),
             correct: myRow ? Number(myRow.correct) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks: !!myRow,
@@ -581,6 +591,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: myRank,
+            isTied: scoringStarted && myRow ? computeIsTied(scored.map((s) => ({ ...s, score: s.total })), userId) : false,
             correct: 0, picked: 0,
             hasPicks,
             status: null, eliminatedWeek: null,
@@ -651,6 +662,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: computeRank(scored.map((s) => ({ ...s, score: s.total })), userId),
+            isTied: computeIsTied(scored.map((s) => ({ ...s, score: s.total })), userId),
             correct: 0, picked: 0,
             hasPicks,
             status: null, eliminatedWeek: null,
@@ -714,6 +726,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners: null,
           myStanding: {
             rank: computeRank(allPickRows.map((r) => ({ ...r, score: Number(r.score) })), userId),
+            isTied: computeIsTied(allPickRows.map((r) => ({ ...r, score: Number(r.score) })), userId),
             correct: myRow ? Number(myRow.correct) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks,
@@ -846,6 +859,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: myRow ? myIdx + 1 : 0,
+            isTied: myRow ? currentRows.filter(r => Number(r.weeklyPoints) === Number(myRow!.weeklyPoints)).length > 1 : false,
             correct: myRow ? Number(myRow.correctCount) : 0,
             picked: myRow ? Number(myRow.picked) : 0,
             hasPicks: myRow ? Number(myRow.picked) > 0 : false,
@@ -931,12 +945,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           myRow != null
             ? {
                 rank: myIdx + 1,
+                isTied: currentRows.filter(r => Number(r.correct) === Number(myRow!.correct)).length > 1,
                 correct: Number(myRow.correct),
                 picked: Number(myRow.picked),
                 hasPicks: Number(myRow.picked) > 0,
                 status: null, eliminatedWeek: null, score: null, maxScore: null,
               }
-            : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+            : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
         return {
           poolId: pool.id,
@@ -1019,12 +1034,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             myRow != null
               ? {
                   rank: myIdx + 1,
+                  isTied: currentRows.filter(r => Number(r.correct) === Number(myRow!.correct)).length > 1,
                   correct: Number(myRow.correct),
                   picked: Number(myRow.picked),
                   hasPicks: Number(myRow.picked) > 0,
                   status: null, eliminatedWeek: null, score: null, maxScore: null,
                 }
-              : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+              : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
           return {
             poolId: pool.id,
@@ -1116,12 +1132,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         myIdx >= 0
           ? {
               rank: myIdx + 1,
+              isTied: currentRows.filter(r => Number(r.correct) === Number(currentRows[myIdx].correct)).length > 1,
               correct: Number(currentRows[myIdx].correct),
               picked: Number(currentRows[myIdx].picked),
               hasPicks: Number(currentRows[myIdx].picked) > 0,
               status: null, eliminatedWeek: null, score: null, maxScore: null,
             }
-          : { rank: 0, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+          : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
       return {
         poolId: pool.id,
