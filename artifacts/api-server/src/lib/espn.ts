@@ -548,9 +548,9 @@ export async function fetchNbaGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
       }
     }
   }
-  // Post-fetch filter: ESPN ignores &seasontype= on date-based endpoints, so we
-  // enforce the season type here by inspecting the per-event e.season.type field.
-  return games.filter(g => g.seasonType === seasonType);
+  // NBA's ESPN API does not reliably tag games with the correct seasonType on
+  // date-based endpoints, so we skip the filter and return all games for the week.
+  return games;
 }
 
 /**
