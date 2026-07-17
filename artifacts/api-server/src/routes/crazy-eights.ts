@@ -19,10 +19,10 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   const isSandbox = (pool as any).sandboxMode as boolean;
   const anchor = isSandbox ? NHL_SANDBOX_ANCHOR : pool.createdAt;
   const { espnDates, days } = getNhlWeekBounds(anchor, pool.currentWeek);
-  const satEspn = espnDates[5];
-  const sunEspn = espnDates[6];
-  const satDate = days[5];
-  const sunDate = days[6];
+  const satEspn = espnDates[0];
+  const sunEspn = espnDates[1];
+  const satDate = days[0];
+  const sunDate = days[1];
   const [satGames, sunGames] = await Promise.all([
     fetchGamesForDate("nhl", satEspn),
     fetchGamesForDate("nhl", sunEspn),
@@ -147,7 +147,7 @@ router.get("/grid", requireAuth, async (req, res) => {
   if (!date) {
     if (pool.sport === "nhl" && (pool as any).sandboxMode) {
       const { days } = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
-      date = days[5]; // index 5 = Saturday
+      date = days[0]; // index 0 = Saturday (filtered array: Sat=0, Sun=1)
     } else {
       date = getTodayEtDate();
     }
