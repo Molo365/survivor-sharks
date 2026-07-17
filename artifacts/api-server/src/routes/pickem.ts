@@ -11,6 +11,8 @@ import {
   fetchNhlGamesByWeek,
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
+  getNbaWeekBounds,
+  NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
 } from "../lib/espn";
@@ -93,6 +95,21 @@ router.get("/games", requireAuth, async (req, res) => {
     sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
   }
 
+  // Sandbox mode for NBA weekly Pick'em: same day-of-week mapping onto the anchor week.
+  if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly") {
+    const [ry2, rm2, rd2] = requestedDate.split("-").map(Number);
+    const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay(); // 0=Sun…6=Sat
+    const mondayOffset = dow === 0 ? 6 : dow - 1; // Mon=0…Sun=6
+    const anchorBounds = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
+    const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+    const sandboxDay = sandboxDayDate.toISOString().slice(0, 10); // YYYY-MM-DD
+    allGames = await fetchGamesForDate("nba", sandboxDay.replace(/-/g, ""));
+    allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sbRows = await db.select().from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+    sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
+  }
+
   const games = allGames.filter((g) => g.status !== "suspended");
 
   const existingPicks = await db
@@ -109,16 +126,18 @@ router.get("/games", requireAuth, async (req, res) => {
   const pickMap = new Map(existingPicks.map((p) => [p.gameId, p]));
 
   const isSandboxNhl = pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly";
+  const isSandboxNba = pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly";
+  const isSandboxWeekly = isSandboxNhl || isSandboxNba;
 
   const formattedGames = games.map((g, idx) => {
     const existing = pickMap.get(g.id);
     const sbScore = sandboxScoreMap.get(g.id);
     // In sandbox mode: locked iff the game has been graded (score exists). Otherwise always unlocked.
-    const locked = isSandboxNhl ? sbScore != null : isGameLocked(g.date);
+    const locked = isSandboxWeekly ? sbScore != null : isGameLocked(g.date);
     const base = {
       id: g.id,
       startTime: g.date,
-      status: isSandboxNhl ? (sbScore ? "final" : "scheduled") : g.status,
+      status: isSandboxWeekly ? (sbScore ? "final" : "scheduled") : g.status,
       deadlinePassed: locked,
       isTiebreakerGame: !is3way && (
         (sport === "mlb" && idx === games.length - 1) ||
@@ -136,8 +155,8 @@ router.get("/games", requireAuth, async (req, res) => {
         abbreviation: g.homeTeam.abbreviation,
         logoUrl: g.homeTeam.logo ?? null,
       },
-      awayScore: isSandboxNhl ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
-      homeScore: isSandboxNhl ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
+      awayScore: isSandboxWeekly ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
+      homeScore: isSandboxWeekly ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
       userPickTeamId: is3way ? null : (existing?.pickedTeamId ?? null),
       userPickResult: existing?.result ?? null,
       liveDetail: g.liveState?.shortDetail ?? null,
@@ -179,7 +198,7 @@ router.get("/games", requireAuth, async (req, res) => {
   // Sandbox NHL: deadline passed iff every game has been graded (score in sandboxGameScoresTable).
   // Live: past dates are always locked; present/future check actual game times.
   const isPastDate = requestedDate < todayEt;
-  const slateDeadlinePassed = isSandboxNhl
+  const slateDeadlinePassed = isSandboxWeekly
     ? games.every(g => sandboxScoreMap.has(g.id))
     : isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
 

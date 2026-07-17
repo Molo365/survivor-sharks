@@ -465,6 +465,94 @@ export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
   return games.filter(g => g.seasonType === seasonType);
 }
 
+// ---------------------------------------------------------------------------
+// NBA week utilities (mirrors NHL — Mon-Sun calendar anchored to pool.createdAt)
+// ---------------------------------------------------------------------------
+
+// Sandbox anchor: createdAt that places NBA Week 1 at the 2025-26 opening night week (Oct 22–28, 2025).
+// All NBA sandbox pools use this constant instead of pool.createdAt so that
+// "Week 1" always means the first week of actual regular-season games.
+export const NBA_SANDBOX_ANCHOR = new Date("2025-10-22T12:00:00Z");
+
+export function getFirstNbaWeekMonday(poolCreatedAt: Date): Date {
+  const etDate = asEtDate(poolCreatedAt);
+  const dow = etDate.getUTCDay(); // 0=Sun … 6=Sat
+  const daysToMonday = dow === 1 ? 0 : (8 - dow) % 7;
+  const mondayEt = new Date(etDate);
+  mondayEt.setUTCHours(0, 0, 0, 0);
+  mondayEt.setUTCDate(mondayEt.getUTCDate() + daysToMonday);
+  return fromEtDate(mondayEt); // UTC: Monday 04:00 UTC (EDT)
+}
+
+export interface NbaWeekBounds {
+  /** UTC timestamp of Monday 00:00 ET for the week */
+  weekStart: Date;
+  /** UTC timestamp of Sunday 23:59:59 ET for the week */
+  weekEnd: Date;
+  /** Human-readable label e.g. "Oct 22 – Oct 28" */
+  weekLabel: string;
+  /** Array of ET date strings (YYYY-MM-DD) for each day Mon–Sun */
+  days: string[];
+  /** Array of YYYYMMDD formatted date strings for ESPN API calls */
+  espnDates: string[];
+}
+
+/**
+ * Compute bounds for the Nth NBA week of a pool.
+ * Weeks run Monday–Sunday ET, anchored to pool.createdAt (same pattern as NHL/MLB).
+ * No day-of-week filtering — NBA plays most nights.
+ *
+ * @param poolCreatedAt  pool.createdAt (UTC)
+ * @param weekNumber     pool.currentWeek (1-indexed)
+ */
+export function getNbaWeekBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
+  const firstMonday = getFirstNbaWeekMonday(poolCreatedAt);
+  const weekStartUtc = new Date(firstMonday.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000);
+  const weekEndUtc = new Date(weekStartUtc.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+
+  const days: string[] = [];
+  const espnDates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const dayUtc = new Date(weekStartUtc.getTime() + i * 24 * 60 * 60 * 1000);
+    days.push(formatDateEtDash(dayUtc));
+    espnDates.push(formatDateEt(dayUtc));
+  }
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+  });
+  const weekLabel = `${fmt.format(weekStartUtc)} – ${fmt.format(weekEndUtc)}`;
+
+  return { weekStart: weekStartUtc, weekEnd: weekEndUtc, weekLabel, days, espnDates };
+}
+
+/**
+ * Fetch all NBA games for a full week (7 days, Mon–Sun ET).
+ * Calls ESPN once per day in parallel and deduplicates by game ID.
+ * Season is implicitly encoded in poolCreatedAt — never hardcoded.
+ *
+ * @param seasonType ESPN season type (1=preseason, 2=regular, 3=postseason). Defaults to 2.
+ */
+export async function fetchNbaGamesByWeek(poolCreatedAt: Date, weekNumber: number, seasonType = 2): Promise<EspnGame[]> {
+  const { espnDates } = getNbaWeekBounds(poolCreatedAt, weekNumber);
+  const results = await Promise.all(espnDates.map(d => fetchGamesForDate("nba", d, seasonType)));
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of results) {
+    for (const g of dayGames) {
+      if (!seen.has(g.id)) {
+        seen.add(g.id);
+        games.push(g);
+      }
+    }
+  }
+  // Post-fetch filter: ESPN ignores &seasontype= on date-based endpoints, so we
+  // enforce the season type here by inspecting the per-event e.season.type field.
+  return games.filter(g => g.seasonType === seasonType);
+}
+
 /**
  * Return the "current slate date" as YYYY-MM-DD in ET (America/New_York).
  * The slate rolls over at 5 AM ET, not midnight, so that games finishing
