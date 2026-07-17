@@ -5,6 +5,7 @@ import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { calcPrize } from "../lib/prizeCalc";
+import { settleNflConfidenceWeeklyPool } from "../lib/auto-eliminator";
 
 const router = Router({ mergeParams: true });
 
@@ -629,100 +630,11 @@ router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, r
 
   req.log.info({ poolId, week, graded, actualPassingYards, actualRushingYards }, "NFL Confidence Weekly sandbox grading complete");
 
-  // Branch on isRecurring: close the pool or advance to the next week
-  if ((pool as any).isRecurring === false || (pool as any).isRecurring === 'false') {
-    // ── 1. Compute final scores for this week ──────────────────────────────
-    const scoreRows = await db
-      .select({
-        userId: pickemPicksTable.userId,
-        points: sql<number>`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE(${pickemPicksTable.confidencePoints}::integer, 0) ELSE 0 END), 0)`,
-      })
-      .from(pickemPicksTable)
-      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)))
-      .groupBy(pickemPicksTable.userId);
-
-    const entryRows = await db
-      .select({
-        id: entriesTable.id,
-        userId: entriesTable.userId,
-        tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
-        tiebreakerRushingYards: entriesTable.tiebreakerRushingYards,
-      })
-      .from(entriesTable)
-      .where(eq(entriesTable.poolId, poolId));
-
-    // Fetch display names so the winner's name can be stored on the pool row
-    const allUserIds = entryRows.map(e => e.userId);
-    const userRows = allUserIds.length > 0
-      ? await db
-          .select({ id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName })
-          .from(usersTable)
-          .where(inArray(usersTable.id, allUserIds))
-      : [];
-    const usernameMap = new Map(userRows.map(u => [u.id, u.displayName ?? u.username]));
-
-    // ── 2. Sort by points desc, then by combined tiebreaker diff asc ───────
-    const actualCombined = actualPassingYards + actualRushingYards;
-    const scoreMap = new Map(scoreRows.map(r => [r.userId, Number(r.points)]));
-
-    const players = entryRows.map(e => ({
-      userId: e.userId,
-      entryId: e.id,
-      points: scoreMap.get(e.userId) ?? 0,
-      tbDiff: Math.abs(
-        ((e.tiebreakerPassingYards ?? 0) + (e.tiebreakerRushingYards ?? 0)) - actualCombined,
-      ),
-    }));
-
-    players.sort((a, b) => b.points - a.points || a.tbDiff - b.tbDiff);
-
-    // ── 3. Walk groups, assign positions, compute and write prizes ─────────
-    const totalEntries = players.length;
-    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
-    let positionOffset = 0;
-    let i = 0;
-
-    while (i < players.length) {
-      // Extend the tie group while both points AND tbDiff are equal
-      let j = i + 1;
-      while (
-        j < players.length &&
-        players[j].points === players[i].points &&
-        players[j].tbDiff === players[i].tbDiff
-      ) j++;
-
-      const group = players.slice(i, j);
-      const finishPosition = positionOffset + 1;
-      const coWinners = group.length;
-      const prize = calcPrize({
-        prizeStructure: ps,
-        prizeMode: pool.prizeMode,
-        entryFee: pool.entryFee,
-        prizePot: pool.prizePot,
-        totalEntries,
-        maxEntries: pool.maxEntries,
-        placeIndex: positionOffset,
-        coWinners,
-      });
-
-      await db
-        .update(entriesTable)
-        .set({ finishPosition, prizeAmount: prize, finalWinner: finishPosition === 1 })
-        .where(inArray(entriesTable.id, group.map(p => p.entryId)));
-
-      positionOffset += coWinners;
-      i = j;
-    }
-
-    // ── 4. Close pool; store winner username in closureReason ──────────────
-    const winnerUsername = players[0] ? (usernameMap.get(players[0].userId) ?? null) : null;
-    await db
-      .update(poolsTable)
-      .set({ isActive: false, endedAt: new Date(), closureReason: winnerUsername })
-      .where(eq(poolsTable.id, poolId));
-
+  // Branch on isRecurring: settle and close the pool or advance to the next week
+  if (!pool.isRecurring) {
+    const { winnerUsername } = await settleNflConfidenceWeeklyPool(pool, week);
     req.log.info(
-      { poolId, totalEntries, winnerUsername },
+      { poolId, week, winnerUsername },
       "NFL Confidence Weekly pool closed — isRecurring=false, standings written",
     );
   } else {

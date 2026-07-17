@@ -1010,6 +1010,123 @@ export async function processMlbDailyResults(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// Shared settlement helper for NFL Confidence Weekly pools
+// Called by both the simulate-grading route (sandbox) and the live auto-grader.
+// ---------------------------------------------------------------------------
+
+export async function settleNflConfidenceWeeklyPool(
+  pool: {
+    id: number;
+    prizeStructure: unknown;
+    prizeMode: string | null;
+    entryFee: number | null;
+    prizePot: number | null;
+    maxEntries: number | null;
+  },
+  week: number,
+): Promise<{ winnerUsername: string | null }> {
+  // Tiebreaker actuals — may not exist for live pools (simulate-grading inserts
+  // them before calling this; live auto-grader falls back to 0).
+  const [resultsRow] = await db
+    .select({
+      actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
+      actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
+    })
+    .from(nflConfidenceResultsTable)
+    .where(and(eq(nflConfidenceResultsTable.poolId, pool.id), eq(nflConfidenceResultsTable.week, week)))
+    .limit(1);
+
+  const actualCombined = (resultsRow?.actualPassingYards ?? 0) + (resultsRow?.actualRushingYards ?? 0);
+
+  const scoreRows = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      points: sql<number>`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE(${pickemPicksTable.confidencePoints}::integer, 0) ELSE 0 END), 0)`,
+    })
+    .from(pickemPicksTable)
+    .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+    .groupBy(pickemPicksTable.userId);
+
+  const entryRows = await db
+    .select({
+      id: entriesTable.id,
+      userId: entriesTable.userId,
+      tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
+      tiebreakerRushingYards: entriesTable.tiebreakerRushingYards,
+    })
+    .from(entriesTable)
+    .where(eq(entriesTable.poolId, pool.id));
+
+  const allUserIds = entryRows.map((e) => e.userId);
+  const userRows =
+    allUserIds.length > 0
+      ? await db
+          .select({ id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName })
+          .from(usersTable)
+          .where(inArray(usersTable.id, allUserIds))
+      : [];
+  const usernameMap = new Map(userRows.map((u) => [u.id, u.displayName ?? u.username]));
+
+  const scoreMap = new Map(scoreRows.map((r) => [r.userId, Number(r.points)]));
+  const players = entryRows.map((e) => ({
+    userId: e.userId,
+    entryId: e.id,
+    points: scoreMap.get(e.userId) ?? 0,
+    tbDiff: Math.abs(((e.tiebreakerPassingYards ?? 0) + (e.tiebreakerRushingYards ?? 0)) - actualCombined),
+  }));
+  players.sort((a, b) => b.points - a.points || a.tbDiff - b.tbDiff);
+
+  const totalEntries = players.length;
+  const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+  let positionOffset = 0;
+  let i = 0;
+
+  while (i < players.length) {
+    let j = i + 1;
+    while (
+      j < players.length &&
+      players[j].points === players[i].points &&
+      players[j].tbDiff === players[i].tbDiff
+    ) j++;
+
+    const group = players.slice(i, j);
+    const finishPosition = positionOffset + 1;
+    const coWinners = group.length;
+    const prize = calcPrize({
+      prizeStructure: ps,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex: positionOffset,
+      coWinners,
+    });
+
+    await db
+      .update(entriesTable)
+      .set({ finishPosition, prizeAmount: prize, finalWinner: finishPosition === 1 })
+      .where(inArray(entriesTable.id, group.map((p) => p.entryId)));
+
+    positionOffset += coWinners;
+    i = j;
+  }
+
+  const winnerUsername = players[0] ? (usernameMap.get(players[0].userId) ?? null) : null;
+  await db
+    .update(poolsTable)
+    .set({ isActive: false, endedAt: new Date(), closureReason: winnerUsername })
+    .where(eq(poolsTable.id, pool.id));
+
+  logger.info(
+    { poolId: pool.id, week, totalEntries, winnerUsername },
+    "NFL Confidence Weekly: pool settled and closed",
+  );
+
+  return { winnerUsername };
+}
+
+// ---------------------------------------------------------------------------
 // Pick-Em auto-grading (all active pickem pools, runs every poll cycle)
 // ---------------------------------------------------------------------------
 
@@ -1034,7 +1151,16 @@ export async function processPickEmResults(): Promise<{
       eq(poolsTable.sandboxMode, true),
     ));
 
-  if (pickemPools.length === 0 && nflReplayPools.length === 0) return { picksGraded };
+  const nflConfidenceLivePools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(
+      inArray(poolsTable.poolType, ["nfl_confidence", "nfl_confidence_weekly"]),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.sandboxMode, false),
+    ));
+
+  if (pickemPools.length === 0 && nflReplayPools.length === 0 && nflConfidenceLivePools.length === 0) return { picksGraded };
 
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -1444,6 +1570,152 @@ export async function processPickEmResults(): Promise<{
             }
           }
         }
+      }
+    }
+  }
+
+  // ── NFL Confidence live grading ────────────────────────────────────────────
+  // Grades picks for active non-sandbox nfl_confidence / nfl_confidence_weekly
+  // pools from live ESPN scores.  Follows the MLB pick-em pattern (today +
+  // yesterday) so late-finishing games are picked up on the next cycle.
+
+  if (nflConfidenceLivePools.length > 0) {
+    const [todayNflGames, yesterdayNflGames] = await Promise.all([
+      fetchGamesForDate("nfl", todayEspn),
+      fetchGamesForDate("nfl", yesterdayEspn),
+    ]);
+    const allNflGames = [...todayNflGames, ...yesterdayNflGames];
+
+    const finalNflGames = allNflGames.filter(
+      (g) => g.isCompleted && g.homeScore != null && g.awayScore != null && g.homeScore !== g.awayScore,
+    );
+
+    const winnerByNflGameId = new Map<string, string>();
+    for (const game of finalNflGames) {
+      const winningTeamId = game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
+      winnerByNflGameId.set(game.id, winningTeamId);
+      logger.info(
+        {
+          gameId: game.id,
+          winner: winningTeamId,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} - ${game.homeScore} ${game.homeTeam.abbreviation}`,
+        },
+        "NFL Confidence live: completed game found",
+      );
+    }
+
+    const nflPostponedIds = allNflGames.filter((g) => g.isPostponed).map((g) => g.id);
+
+    for (const pool of nflConfidenceLivePools) {
+      try {
+        for (const [gameId, winningTeamId] of winnerByNflGameId) {
+          const gamePicks = await db
+            .select()
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, gameId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            );
+
+          for (const pick of gamePicks) {
+            const result: "correct" | "incorrect" =
+              pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+
+            await db
+              .update(pickemPicksTable)
+              .set({ result, updatedAt: new Date() })
+              .where(eq(pickemPicksTable.id, pick.id));
+
+            picksGraded++;
+            logger.info(
+              {
+                poolId: pool.id,
+                userId: pick.userId,
+                gameId,
+                pickedTeamId: pick.pickedTeamId,
+                winningTeamId,
+                result,
+              },
+              "Auto-graded NFL confidence pick",
+            );
+          }
+        }
+
+        for (const gameId of nflPostponedIds) {
+          const updated = await db
+            .update(pickemPicksTable)
+            .set({ result: "postponed", updatedAt: new Date() })
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, gameId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            )
+            .returning({ id: pickemPicksTable.id });
+          if (updated.length > 0) {
+            logger.info(
+              { poolId: pool.id, gameId, count: updated.length },
+              "NFL Confidence live: marked picks as postponed",
+            );
+          }
+        }
+
+        // Week closure applies only to nfl_confidence_weekly pools.
+        // nfl_confidence (season) pools stay open — picks for the next week
+        // come in naturally and no week advancement is needed.
+        if (pool.poolType === "nfl_confidence_weekly") {
+          const [stillPending] = await db
+            .select({ id: pickemPicksTable.id })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            )
+            .limit(1);
+
+          if (!stillPending) {
+            // Guard: must have at least one pick this week before closing.
+            const [{ totalPicks }] = await db
+              .select({ totalPicks: count() })
+              .from(pickemPicksTable)
+              .where(
+                and(
+                  eq(pickemPicksTable.poolId, pool.id),
+                  eq(pickemPicksTable.week, pool.currentWeek),
+                ),
+              );
+
+            if (Number(totalPicks) > 0) {
+              if (!pool.isRecurring) {
+                await settleNflConfidenceWeeklyPool(pool, pool.currentWeek);
+                logger.info(
+                  { poolId: pool.id, week: pool.currentWeek },
+                  "NFL Confidence Weekly live: week fully graded — pool settled and closed",
+                );
+              } else {
+                await db
+                  .update(poolsTable)
+                  .set({ currentWeek: pool.currentWeek + 1 })
+                  .where(eq(poolsTable.id, pool.id));
+                logger.info(
+                  { poolId: pool.id, nextWeek: pool.currentWeek + 1 },
+                  "NFL Confidence Weekly live: week fully graded — advanced to next week",
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, err }, "NFL Confidence live grading error");
       }
     }
   }
