@@ -414,6 +414,15 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
     espnDates.push(formatDateEt(dayUtc));
   }
 
+  // NHL regular-season slates run Saturday–Sunday; keep only those two days.
+  // weekStart/weekEnd still span Mon–Sun for labelling and deadline purposes.
+  const isWeekend = (yyyymmdd: string): boolean => {
+    const dow = new Date(Date.UTC(+yyyymmdd.slice(0, 4), +yyyymmdd.slice(4, 6) - 1, +yyyymmdd.slice(6, 8))).getUTCDay();
+    return dow === 0 || dow === 6;
+  };
+  const filteredDays = days.filter((_, i) => isWeekend(espnDates[i]));
+  const filteredEspnDates = espnDates.filter(isWeekend);
+
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     month: "short",
@@ -421,7 +430,7 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
   });
   const weekLabel = `${fmt.format(weekStartUtc)} – ${fmt.format(weekEndUtc)}`;
 
-  return { weekStart: weekStartUtc, weekEnd: weekEndUtc, weekLabel, days, espnDates };
+  return { weekStart: weekStartUtc, weekEnd: weekEndUtc, weekLabel, days: filteredDays, espnDates: filteredEspnDates };
 }
 
 /**
@@ -433,7 +442,12 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
  *   Pass 3 for a future playoff-bracket pool type without modifying this function.
  */
 export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: number, seasonType = 2): Promise<EspnGame[]> {
-  const { espnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
+  const { espnDates: rawEspnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
+  // getNhlWeekBounds already filters to Sat/Sun; filter again here defensively.
+  const espnDates = rawEspnDates.filter(d => {
+    const dow = new Date(Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8))).getUTCDay();
+    return dow === 0 || dow === 6;
+  });
   const results = await Promise.all(espnDates.map(d => fetchGamesForDate("nhl", d, seasonType)));
   const seen = new Set<string>();
   const games: EspnGame[] = [];
