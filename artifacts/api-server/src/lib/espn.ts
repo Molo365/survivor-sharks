@@ -472,7 +472,7 @@ export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
 // Sandbox anchor: createdAt that places NBA Week 1 at the 2025-26 opening night week (Oct 22–28, 2025).
 // All NBA sandbox pools use this constant instead of pool.createdAt so that
 // "Week 1" always means the first week of actual regular-season games.
-export const NBA_SANDBOX_ANCHOR = new Date("2025-10-22T12:00:00Z");
+export const NBA_SANDBOX_ANCHOR = new Date("2025-11-01T12:00:00Z");
 
 export function getFirstNbaWeekMonday(poolCreatedAt: Date): Date {
   const etDate = asEtDate(poolCreatedAt);
