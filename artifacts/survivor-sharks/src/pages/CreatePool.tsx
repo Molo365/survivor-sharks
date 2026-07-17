@@ -54,9 +54,9 @@ const SPORTS = [
   },
   {
     id: PoolInputSport.worldcup,
-    label: "WC",
-    sublabel: "World Cup",
-    logoImg: '/WorldCup2026.png',
+    label: "SOC",
+    sublabel: "Soccer",
+    logoImg: '/soccer_badge.jpg',
   },
 ] as const;
 
@@ -65,7 +65,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
-  [PoolInputSport.worldcup]: ["pickem", "group_stage_predictor", "wc_bracket"],
+  [PoolInputSport.worldcup]: ["pickem"],
 };
 
 const POOL_TYPES = [
@@ -97,8 +97,8 @@ const POOL_TYPES = [
     icon: Target,
     tagline: "Pick Every Game, Every Day",
     description:
-      "Pick the winner of every game. Whoever has the most correct picks wins.",
-    badge: "New",
+      "Pick the winner of every soccer match. Whoever has the most correct picks wins.",
+    badge: "",
     badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
     cardClass:
       "border-green-500/30 bg-[linear-gradient(145deg,rgba(34,197,94,0.05)_0%,transparent_100%)]",

@@ -31,7 +31,7 @@ const SPORT_LABEL: Record<string, string> = {
   nba: "NBA",
   nhl: "NHL",
   fifa: "Soccer",
-  worldcup: "World Cup",
+  worldcup: "Soccer",
 };
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -40,7 +40,7 @@ const SPORT_EMOJI: Record<string, string> = {
   nba: "🏀",
   nhl: "🏒",
   fifa: "⚽",
-  worldcup: "🌍",
+  worldcup: "⚽",
 };
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);

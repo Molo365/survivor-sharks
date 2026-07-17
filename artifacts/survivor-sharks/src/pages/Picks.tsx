@@ -22,7 +22,7 @@ const SPORT_LABEL: Record<string, string> = {
   nba: "NBA",
   nhl: "NHL",
   fifa: "Soccer",
-  worldcup: "World Cup",
+  worldcup: "Soccer",
 };
 
 const SPORT_EMOJI: Record<string, string> = {
