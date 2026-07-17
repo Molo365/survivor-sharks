@@ -322,7 +322,7 @@ export default function PoolHome() {
             )}
 
             {!pool.isActive && (pool as any).closureReason !== "min_entries_not_met" && (
-              <PoolEndedResult poolId={pool.id} />
+              <PoolEndedResult poolId={pool.id} isRecurring={pool.isRecurring} />
             )}
 
             {isPickEmSeason ? (

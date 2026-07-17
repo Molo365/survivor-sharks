@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   poolId: number;
+  isRecurring?: boolean;
 }
 
 function medalEmoji(pos: number): string {
@@ -71,7 +72,7 @@ function TiebreakerCard({ summary }: { summary: TiebreakerSummary }) {
   );
 }
 
-export function PoolEndedResult({ poolId }: Props) {
+export function PoolEndedResult({ poolId, isRecurring }: Props) {
   const { data, isLoading } = useGetFinalResults(poolId);
 
   if (isLoading) {
@@ -155,6 +156,9 @@ export function PoolEndedResult({ poolId }: Props) {
       <div className="space-y-2">
         <Trophy className="w-14 h-14 text-yellow-500/60 mx-auto" />
         <h3 className="font-bebas text-3xl tracking-widest text-muted-foreground/70">POOL ENDED</h3>
+        {isRecurring === false && (
+          <p className="text-xs text-muted-foreground/50">Non-recurring pool ended</p>
+        )}
       </div>
 
       {personalSection}
