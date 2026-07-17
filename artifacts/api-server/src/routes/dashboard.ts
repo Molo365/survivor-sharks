@@ -300,10 +300,11 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const prevWeek = week - 1;
 
         let lastWinners = null;
+        let endedIsTied = false;
         if (!pool.isActive) {
           // Pool ended — read the settled finalWinner flag and prizeAmount from
-          // the entries table. Also fetch the winning week's confidence score
-          // from pickemPicksTable (week = pool.currentWeek, the last graded week).
+          // the entries table. Fetch the winner's confidence score from
+          // pickemPicksTable for the final graded week (pool.currentWeek - 1).
           const winnerRows = await db
             .select({
               userId: entriesTable.userId,
@@ -315,6 +316,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
             .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
           if (winnerRows.length > 0) {
+            endedIsTied = winnerRows.length > 1;
             const winnerUserIds = winnerRows.map(w => w.userId);
             const scoreRows = await db
               .select({
@@ -324,7 +326,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               .from(pickemPicksTable)
               .where(and(
                 eq(pickemPicksTable.poolId, pool.id),
-                eq(pickemPicksTable.week, week),
+                eq(pickemPicksTable.week, prevWeek),
                 inArray(pickemPicksTable.userId, winnerUserIds),
               ))
               .groupBy(pickemPicksTable.userId);
@@ -392,7 +394,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners,
           myStanding: {
             rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId),
-            isTied: computeIsTied(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId),
+            isTied: pool.isActive
+              ? computeIsTied(currentRows.map((r) => ({ ...r, score: Number(r.weekPoints) })), userId)
+              : endedIsTied,
             correct: 0,
             picked: 0,
             hasPicks: !!myRow,
