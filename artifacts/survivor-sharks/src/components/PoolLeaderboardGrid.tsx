@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useState } from "react";
+import { Fragment, ReactNode, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Users, X, Info } from "lucide-react";
@@ -98,6 +98,8 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
     week: number;
   } | null>(null);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   function handleCellClick(userId: number, week: number) {
     const next =
       selectedCell?.userId === userId && selectedCell?.week === week
@@ -105,6 +107,9 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
         : { userId, week };
     setSelectedCell(next);
     onCellSelect(next);
+    if (next !== null && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
   }
 
   function handleClose() {
@@ -163,7 +168,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
       )}
 
       {/* ── Leaderboard table ─────────────────────────────────────────── */}
-      <div className="overflow-x-auto -mx-1 px-1">
+      <div ref={scrollContainerRef} className="overflow-x-auto -mx-1 px-1">
         <table className="w-full text-sm border-collapse min-w-max">
           <thead>
             <tr>
