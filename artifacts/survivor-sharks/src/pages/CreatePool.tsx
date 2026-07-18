@@ -59,10 +59,10 @@ const SPORTS = [
     logoImg: '/Soccer-Logo.png',
   },
   {
-    id: "mls" as any,
+    id: PoolInputSport.mls,
     label: "MLS",
     sublabel: "Soccer",
-    logoImg: '/Soccer-Logo.png',
+    logoImg: '/MLS-Major-League-Soccer-Logo.png',
   },
 ] as const;
 
