@@ -56,13 +56,13 @@ const SPORTS = [
     id: PoolInputSport.worldcup,
     label: "SOC",
     sublabel: "Soccer",
-    logoImg: '/Soccer-Logo.png',
+    logoImg: '/Premier-League-Logo.png',
   },
   {
     id: PoolInputSport.mls,
     label: "MLS",
     sublabel: "Soccer",
-    logoImg: '/MLS-Major-League-Soccer-Logo.png',
+    logoImg: '/MLS_Logo.png',
   },
 ] as const;
 
