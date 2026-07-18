@@ -14,6 +14,7 @@ const SPORTS = [
   { sport: "nhl",       label: "NHL",      emoji: "🏒" },
   { sport: "nfl",       label: "NFL",      emoji: "🏈" },
   { sport: "worldcup", label: "World Cup", emoji: "⚽" },
+  { sport: "mls",      label: "MLS",       emoji: "⚽" },
 ] as const;
 
 type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup";
@@ -25,6 +26,7 @@ const ESPN_SPORT_PATHS: Record<string, string> = {
   nhl:      "hockey/nhl",
   soccer:   "soccer/fifa.world",
   worldcup: "soccer/fifa.world",
+  mls:      "soccer/usa.1",
 };
 
 // GET /api/scores/today — public, no auth required
@@ -170,7 +172,7 @@ router.get("/game/:gameId", async (req, res) => {
       } else {
         // Soccer, NHL, NBA, NFL — period-based columns, no R/H/E, append "T" total
         function periodLabel(value: number): string {
-          if (sport === "soccer" || sport === "worldcup") {
+          if (sport === "soccer" || sport === "worldcup" || sport === "mls") {
             if (value === 1) return "1H";
             if (value === 2) return "2H";
             if (value === 3) return "AET";
