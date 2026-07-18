@@ -65,7 +65,8 @@ router.get("/games", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const is3way = isWc || isIntl;
+  const isMls = sport === "mls";
+  const is3way = isWc || isIntl || isMls;
   const todayEt = getTodayEtDate();
 
   // Accept an optional ?date=YYYY-MM-DD param; fall back to today
@@ -331,7 +332,8 @@ router.post("/picks", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const is3way = isWc || isIntl;
+  const isMls = sport === "mls";
+  const is3way = isWc || isIntl || isMls;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -1211,7 +1213,8 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const is3way = isWc || isIntl;
+  const isMls = sport === "mls";
+  const is3way = isWc || isIntl || isMls;
   const todayEt = getTodayEtDate();
 
   // Find every distinct gameDate that has pending picks in this pool.
