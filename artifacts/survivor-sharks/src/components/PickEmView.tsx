@@ -2541,6 +2541,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p className="font-bebas text-2xl tracking-wide">No games today</p>
               <p className="text-sm mt-1">Check back when the schedule is posted.</p>
+              <button
+                onClick={() => setSelectedDate((d) => offsetDate(d, -1))}
+                className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Yesterday
+              </button>
             </div>
           ) : (
             <div className="space-y-6">
