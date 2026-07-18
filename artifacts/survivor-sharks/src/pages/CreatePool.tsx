@@ -435,7 +435,7 @@ export default function CreatePool() {
       return;
     }
     setStep3Confirmed(false);
-    setEditStep(hasOptions ? null : 4);
+    setEditStep(4);
     setPrizeStep(1);
   }, [selectedSport, selectedType, hasOptions]);
 
