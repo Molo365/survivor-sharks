@@ -24,6 +24,7 @@ import { calcPrize } from "./prizeCalc";
 import {
   fetchGames,
   fetchGamesForDate,
+  fetchSuperLeagueGamesForDate,
   fetchIntlGamesForDate,
   getTodayEtDate,
   formatDateEt,
@@ -1178,6 +1179,7 @@ export async function processPickEmResults(): Promise<{
   const wcPools = pickemPools.filter((p) => p.sport === "worldcup");
   const intlPools = pickemPools.filter((p) => p.sport === "intl");
   const mlsPools = pickemPools.filter((p) => p.sport === "mls");
+  const superleaguePools = pickemPools.filter((p) => p.sport === "superleague");
 
   // ── MLB grading ───────────────────────────────────────────────────────────
 
@@ -1503,6 +1505,83 @@ export async function processPickEmResults(): Promise<{
           .returning({ id: pickemPicksTable.id });
         if (updated.length > 0) {
           logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em mls: marked picks as postponed");
+        }
+      }
+    }
+  }
+
+  // ── Super League grading (3-way: home_win / draw / away_win) ────────────────
+
+  if (superleaguePools.length > 0) {
+    const [todaySlGames, yesterdaySlGames] = await Promise.all([
+      fetchSuperLeagueGamesForDate(todayEspn),
+      fetchSuperLeagueGamesForDate(yesterdayEspn),
+    ]);
+    const allSlGames = [...todaySlGames, ...yesterdaySlGames];
+    const completedSlGames = allSlGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
+
+    const outcomeBySlGameId = new Map<string, "home_win" | "draw" | "away_win">();
+    for (const game of completedSlGames) {
+      const h = game.homeScore!, a = game.awayScore!;
+      const outcome: "home_win" | "draw" | "away_win" = h > a ? "home_win" : a > h ? "away_win" : "draw";
+      outcomeBySlGameId.set(game.id, outcome);
+      logger.info(
+        {
+          gameId: game.id,
+          outcome,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} - ${game.homeScore} ${game.homeTeam.abbreviation}`,
+        },
+        "Pick-Em superleague: completed game found",
+      );
+    }
+
+    const slPostponedIds = allSlGames.filter((g) => g.isPostponed).map((g) => g.id);
+
+    for (const pool of superleaguePools) {
+      for (const [gameId, outcome] of outcomeBySlGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              inArray(pickemPicksTable.gameDate, datesToCheck),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          );
+
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" =
+            pick.pickedTeamId === outcome ? "correct" : "incorrect";
+
+          await db
+            .update(pickemPicksTable)
+            .set({ result, updatedAt: new Date() })
+            .where(eq(pickemPicksTable.id, pick.id));
+
+          picksGraded++;
+          logger.info(
+            { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
+            "Auto-graded superleague pickem pick",
+          );
+        }
+      }
+
+      for (const gameId of slPostponedIds) {
+        const updated = await db
+          .update(pickemPicksTable)
+          .set({ result: "postponed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          )
+          .returning({ id: pickemPicksTable.id });
+        if (updated.length > 0) {
+          logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em superleague: marked picks as postponed");
         }
       }
     }

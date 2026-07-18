@@ -7,6 +7,7 @@ import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
+  fetchSuperLeagueGamesForDate,
   fetchIntlGamesForDate,
   fetchNhlGamesByWeek,
   getNhlWeekBounds,
@@ -65,7 +66,7 @@ router.get("/games", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const isMls = sport === "mls";
+  const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
   const todayEt = getTodayEtDate();
 
@@ -332,7 +333,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const isMls = sport === "mls";
+  const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -952,6 +953,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
+    : (sport === "superleague" && isWeekly && weekBounds)
+      ? (() => {
+          const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
+          const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+          const slWeekEspnDates = Array.from({ length: 7 }, (_, i) =>
+            new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          );
+          return Promise.all(slWeekEspnDates.map((d) => fetchSuperLeagueGamesForDate(d))).then((results) => {
+            const seen = new Set<string>();
+            return results.flat().filter((g) => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
+          });
+        })()
     : (sport === "mls" && isWeekly && weekBounds)
       ? (() => {
           const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
@@ -1225,7 +1238,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const isMls = sport === "mls";
+  const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
   const todayEt = getTodayEtDate();
 
