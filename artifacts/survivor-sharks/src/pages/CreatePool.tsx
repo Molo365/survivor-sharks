@@ -56,7 +56,7 @@ const SPORTS = [
     id: PoolInputSport.worldcup,
     label: "SOC",
     sublabel: "Soccer",
-    logoImg: '/Premier_League_Logo.png',
+    logoImg: '/Soccer-Logo.png',
   },
 ] as const;
 
