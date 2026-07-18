@@ -7,6 +7,16 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
   mls: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1",
   // intl intentionally omitted — use fetchIntlGamesForDate() which merges multiple leagues
+  // Super League domestic leagues (used by fetchSuperLeagueGamesForDate)
+  "eng.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1",
+  "esp.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1",
+  "ita.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1",
+  "ger.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1",
+  "fra.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1",
+  "tur.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1",
+  "por.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/por.1",
+  "sco.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/sco.1",
+  "ksa.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/ksa.1",
 };
 
 // Soccer league slugs for international matches:
@@ -17,6 +27,32 @@ const INTL_SOCCER_SLUGS = [
   "fifa.world",
 ];
 
+export const SUPER_LEAGUE_SLUGS = [
+  "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
+  "tur.1", "por.1", "sco.1", "ksa.1",
+];
+
+// ESPN numeric team IDs for all 30 Super League clubs
+export const SUPER_LEAGUE_TEAM_IDS = new Set([
+  // England
+  359, 363, 364, 382, 360, 367,
+  // Spain
+  83, 86, 1068, 243,
+  // Italy
+  103, 110, 111, 114, 104,
+  // Germany
+  132, 124, 131, 11420,
+  // France
+  160, 176, 167,
+  // Turkey
+  432, 436,
+  // Portugal
+  1929, 437, 2250,
+  // Scotland
+  256, 257,
+  // Saudi Arabia
+  817, 929,
+]);
 
 export interface EspnTeam {
   id: string;
@@ -659,6 +695,41 @@ export async function fetchMlbWeekGames(espnDates: string[], seasonType = 2): Pr
     for (const g of dayGames) {
       if (!seen.has(g.id)) {
         seen.add(g.id);
+        games.push(g);
+      }
+    }
+  }
+  return games;
+}
+
+/**
+ * Fetch Super League games for a given date (YYYYMMDD ET).
+ * Queries all 9 domestic league feeds in parallel, deduplicates by game ID,
+ * then keeps only games involving a Super League club (home or away)
+ * that fall on a Friday, Saturday, or Sunday (ET).
+ */
+export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<EspnGame[]> {
+  // Day-of-week guard (dateStr is YYYYMMDD in ET)
+  const y = parseInt(dateStr.slice(0, 4), 10);
+  const m = parseInt(dateStr.slice(4, 6), 10) - 1;
+  const d = parseInt(dateStr.slice(6, 8), 10);
+  const dow = new Date(Date.UTC(y, m, d)).getUTCDay(); // 0=Sun,5=Fri,6=Sat
+  if (dow !== 5 && dow !== 6 && dow !== 0) return [];
+
+  const results = await Promise.all(
+    SUPER_LEAGUE_SLUGS.map((slug) => fetchGamesForDate(slug, dateStr)),
+  );
+
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of results) {
+    for (const g of dayGames) {
+      if (seen.has(g.id)) continue;
+      seen.add(g.id);
+      if (
+        SUPER_LEAGUE_TEAM_IDS.has(Number(g.homeTeam.id)) ||
+        SUPER_LEAGUE_TEAM_IDS.has(Number(g.awayTeam.id))
+      ) {
         games.push(g);
       }
     }
