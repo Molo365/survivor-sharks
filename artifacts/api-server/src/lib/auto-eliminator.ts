@@ -1177,6 +1177,7 @@ export async function processPickEmResults(): Promise<{
   const mlbPools = pickemPools.filter((p) => p.sport === "mlb");
   const wcPools = pickemPools.filter((p) => p.sport === "worldcup");
   const intlPools = pickemPools.filter((p) => p.sport === "intl");
+  const mlsPools = pickemPools.filter((p) => p.sport === "mls");
 
   // ── MLB grading ───────────────────────────────────────────────────────────
 
@@ -1425,6 +1426,83 @@ export async function processPickEmResults(): Promise<{
           .returning({ id: pickemPicksTable.id });
         if (updated.length > 0) {
           logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em intl: marked picks as postponed");
+        }
+      }
+    }
+  }
+
+  // ── MLS grading (3-way: home_win / draw / away_win) ──────────────────────
+
+  if (mlsPools.length > 0) {
+    const [todayMlsGames, yesterdayMlsGames] = await Promise.all([
+      fetchGamesForDate("mls", todayEspn),
+      fetchGamesForDate("mls", yesterdayEspn),
+    ]);
+    const allMlsGames = [...todayMlsGames, ...yesterdayMlsGames];
+    const completedMlsGames = allMlsGames.filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null);
+
+    const outcomeByMlsGameId = new Map<string, "home_win" | "draw" | "away_win">();
+    for (const game of completedMlsGames) {
+      const h = game.homeScore!, a = game.awayScore!;
+      const outcome: "home_win" | "draw" | "away_win" = h > a ? "home_win" : a > h ? "away_win" : "draw";
+      outcomeByMlsGameId.set(game.id, outcome);
+      logger.info(
+        {
+          gameId: game.id,
+          outcome,
+          score: `${game.awayTeam.abbreviation} ${game.awayScore} - ${game.homeScore} ${game.homeTeam.abbreviation}`,
+        },
+        "Pick-Em mls: completed game found",
+      );
+    }
+
+    const mlsPostponedIds = allMlsGames.filter((g) => g.isPostponed).map((g) => g.id);
+
+    for (const pool of mlsPools) {
+      for (const [gameId, outcome] of outcomeByMlsGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              inArray(pickemPicksTable.gameDate, datesToCheck),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          );
+
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" =
+            pick.pickedTeamId === outcome ? "correct" : "incorrect";
+
+          await db
+            .update(pickemPicksTable)
+            .set({ result, updatedAt: new Date() })
+            .where(eq(pickemPicksTable.id, pick.id));
+
+          picksGraded++;
+          logger.info(
+            { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
+            "Auto-graded mls pickem pick",
+          );
+        }
+      }
+
+      for (const gameId of mlsPostponedIds) {
+        const updated = await db
+          .update(pickemPicksTable)
+          .set({ result: "postponed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          )
+          .returning({ id: pickemPicksTable.id });
+        if (updated.length > 0) {
+          logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em mls: marked picks as postponed");
         }
       }
     }
