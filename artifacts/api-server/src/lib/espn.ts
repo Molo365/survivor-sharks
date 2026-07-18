@@ -5,6 +5,7 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   nhl: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl",
   fifa: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
   worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
+  mls: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1",
   // intl intentionally omitted — use fetchIntlGamesForDate() which merges multiple leagues
 };
 

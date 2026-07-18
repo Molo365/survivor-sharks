@@ -58,6 +58,12 @@ const SPORTS = [
     sublabel: "Soccer",
     logoImg: '/Soccer-Logo.png',
   },
+  {
+    id: "mls" as any,
+    label: "MLS",
+    sublabel: "Soccer",
+    logoImg: '/Soccer-Logo.png',
+  },
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
@@ -66,6 +72,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nba]: ["season", "weekly"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem"],
+  mls: ["pickem"],
 };
 
 const POOL_TYPES = [
