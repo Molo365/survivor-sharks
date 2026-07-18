@@ -2507,7 +2507,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   </p>
                   <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
                     {is3way
-                      ? "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
+                      ? sport === "mls"
+                        ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
+                        : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                       : pickFrequency === "weekly"
                       ? (isNhl
                           ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
