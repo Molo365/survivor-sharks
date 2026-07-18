@@ -952,6 +952,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
+    : (sport === "mls" && isWeekly && weekBounds)
+      ? (() => {
+          const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
+          const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+          const mlsWeekEspnDates = Array.from({ length: 7 }, (_, i) =>
+            new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          );
+          return Promise.all(mlsWeekEspnDates.map((d) => fetchGamesForDate("mls", d))).then((results) => {
+            const seen = new Set<string>();
+            return results.flat().filter((g) => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
+          });
+        })()
     : fetchGamesForDate(sport, todayEspn),
     db.select().from(pickemPicksTable).where(picksWhereClause),
     db
