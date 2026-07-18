@@ -75,6 +75,7 @@ export const PoolInputSport = {
   worldcup: 'worldcup',
   intl: 'intl',
   mls: 'mls',
+  superleague: 'superleague',
 } as const;
 
 export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputPoolType];

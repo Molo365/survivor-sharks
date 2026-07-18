@@ -189,7 +189,7 @@ export const createPoolBodyPrizeModeDefault = `fixed`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
-  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls']),
+  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls', 'superleague']),
   "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
