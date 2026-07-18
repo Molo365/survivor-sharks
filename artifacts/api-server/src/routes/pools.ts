@@ -244,7 +244,7 @@ router.post("/", requireAuth, async (req, res) => {
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
-    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl" | "mls",
+    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl" | "mls" | "superleague",
     poolType: resolvedPoolType,
     startWeek: startWeek ?? null,
     description: description ?? null,

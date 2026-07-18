@@ -64,6 +64,12 @@ const SPORTS = [
     sublabel: "Soccer",
     logoImg: '/MLS_Logo.png',
   },
+  {
+    id: "superleague" as any,
+    label: "ESL",
+    sublabel: "Super League",
+    logoImg: '/Super-League-Logo.png',
+  },
 ] as const;
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
@@ -73,6 +79,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
+  superleague: ["pickem"],
 };
 
 const POOL_TYPES = [
@@ -861,6 +868,7 @@ export default function CreatePool() {
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "8 Games. 8 Confidence Points."
                                           : type.tagline}</p>
                                         <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
+                                          : type.id === "pickem" && (selectedSport as string) === "superleague" ? "Pick the winner of every Super League match — Home Win, Draw, or Away Win. Friday, Saturday and Sunday games only. Most correct picks by Sunday wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
                                           : type.id === "season"
                                             ? selectedSport === PoolInputSport.nfl
