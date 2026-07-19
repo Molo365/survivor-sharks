@@ -977,6 +977,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
             return results.flat().filter((g) => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
           });
         })()
+    : (sport === "nfl" && pool.sandboxMode && isWeekly && weekBounds)
+      ? (() => {
+          const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
+          const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+          const nflWeekEspnDates = Array.from({ length: 7 }, (_, i) =>
+            new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          );
+          return Promise.all(nflWeekEspnDates.map((d) => fetchGamesForDate("nfl", d))).then((results) => results.flat());
+        })()
     : fetchGamesForDate(sport, todayEspn),
     db.select().from(pickemPicksTable).where(picksWhereClause),
     db
