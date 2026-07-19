@@ -1120,6 +1120,21 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     picksByUser.get(pick.userId)!.set(pick.gameId, pick);
   }
 
+  // Build gameId → ISO start-time map for pick redaction.
+  // WC picks span the full phase so we pull from wcSchedule; all other sports use espnGames.
+  const gameStartMap = new Map<string, string>();
+  if (isWc && wcSchedule) {
+    for (const day of wcSchedule) {
+      for (const g of day.games) {
+        gameStartMap.set(g.id, g.date);
+      }
+    }
+  } else {
+    for (const g of espnGames) {
+      gameStartMap.set(g.id, g.date);
+    }
+  }
+
   const entries = aggregates.map((row, i) => {
     const userPicks = picksByUser.get(row.userId) ?? new Map();
     const tb = tiebreakerByUser.get(row.userId);
@@ -1147,13 +1162,26 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       displayName: row.displayName ?? null,
       correct: Number(row.correct),
       picked: Number(row.picked),
-      picks: Array.from(userPicks.values()).map((p) => ({
-        gameId: p.gameId,
-        pickedTeamId: p.pickedTeamId,
-        pickedTeamName: p.pickedTeamName,
-        result: p.result,
-        pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined,
-      })),
+      picks: Array.from(userPicks.values()).map((p) => {
+        const startTime = gameStartMap.get(p.gameId);
+        const revealed = !startTime || isGameLocked(startTime);
+        if (!revealed) {
+          return {
+            gameId: p.gameId,
+            pickedTeamId: null as string | null,
+            pickedTeamName: null as string | null,
+            result: p.result,
+            pickOption: null as string | null | undefined,
+          };
+        }
+        return {
+          gameId: p.gameId,
+          pickedTeamId: p.pickedTeamId as string | null,
+          pickedTeamName: p.pickedTeamName as string | null,
+          result: p.result,
+          pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined as string | null | undefined,
+        };
+      }),
       dailyBreakdown: isWeekly ? (dailyByUser.get(row.userId) ?? []) : undefined,
       tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,

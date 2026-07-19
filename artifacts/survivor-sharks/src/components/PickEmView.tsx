@@ -737,10 +737,10 @@ function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
   const gamePickStats = games
     .map((game) => {
       const awayCount = entries.filter((e) =>
-        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId === game.awayTeam.id),
+        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId !== null && p.pickedTeamId === game.awayTeam.id),
       ).length;
       const homeCount = entries.filter((e) =>
-        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId === game.homeTeam.id),
+        e.picks.some((p) => p.gameId === game.id && p.pickedTeamId !== null && p.pickedTeamId === game.homeTeam.id),
       ).length;
       const total = awayCount + homeCount;
       return {
