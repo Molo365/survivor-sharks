@@ -360,6 +360,20 @@ router.post("/picks", requireAuth, async (req, res) => {
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
     const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
+  } else if (pool.sandboxMode && sport === "nfl") {
+    // For NFL sandbox/replay pools, fetch games using the stored pick game dates
+    // rather than today's date (which has no NFL games in the off-season).
+    // Get unique game dates from the submitted picks and fetch each one.
+    const uniqueDates = [...new Set(picks.map((p: { gameDate?: string }) => p.gameDate).filter(Boolean))] as string[];
+    if (uniqueDates.length > 0) {
+      const results = await Promise.all(
+        uniqueDates.map((d: string) => fetchGamesForDate("nfl", d.replace(/-/g, "")))
+      );
+      for (const dayGames of results) {
+        for (const g of dayGames) gameMap.set(g.id, { date: g.date });
+      }
+    }
+    // If no gameDate supplied on picks, gameMap stays empty → picks rejected as "unknown games"
   } else {
     const games = await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
