@@ -1098,7 +1098,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
       total,
       picks: data.picks.map(p => {
         const startTime = gameStartMap.get(p.gameId);
-        const isLocked = !pool.sandboxMode && startTime
+        const isLocked = startTime
           ? new Date(startTime).getTime() - 5 * 60 * 1000 <= Date.now()
           : false;
         if (!isLocked) {
