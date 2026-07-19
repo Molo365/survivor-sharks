@@ -1081,6 +1081,12 @@ router.get("/week-results", requireAuth, async (req, res) => {
   // total is always the full game count for the week, regardless of how many
   // picks the player submitted — unpicked games count as incorrect (0 correct).
   const totalGamesInSlate = games.length;
+
+  // Build start-time map for pick redaction: game.date holds the kickoff ISO string
+  const gameStartMap = new Map<string, string>(
+    games.map(g => [g.id, g.date]),
+  );
+
   const players = Array.from(picksByUser.entries()).map(([uid, data]) => {
     const correct = data.picks.filter(p => p.result === "correct").length;
     const total = totalGamesInSlate;
@@ -1090,12 +1096,26 @@ router.get("/week-results", requireAuth, async (req, res) => {
       displayName: data.displayName,
       correct,
       total,
-      picks: data.picks.map(p => ({
-        gameId: p.gameId,
-        pickedTeamId: p.pickedTeamId,
-        pickedTeamName: p.pickedTeamName,
-        result: p.result ?? null,
-      })),
+      picks: data.picks.map(p => {
+        const startTime = gameStartMap.get(p.gameId);
+        const isLocked = startTime
+          ? new Date(startTime).getTime() - 5 * 60 * 1000 <= Date.now()
+          : false;
+        if (!isLocked) {
+          return {
+            gameId: p.gameId,
+            pickedTeamId: null as string | null,
+            pickedTeamName: null as string | null,
+            result: p.result ?? null,
+          };
+        }
+        return {
+          gameId: p.gameId,
+          pickedTeamId: p.pickedTeamId,
+          pickedTeamName: p.pickedTeamName,
+          result: p.result ?? null,
+        };
+      }),
     };
   });
 
