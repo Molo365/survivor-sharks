@@ -1167,6 +1167,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
     awayRecord: g.awayRecord ?? null,
   }));
 
+  console.log("WEEK-RESULTS DEBUG - pool:", pool.id, "sandboxMode:", pool.sandboxMode, "gameStartMap size:", gameStartMap.size, "sample pick redacted:", players[0]?.picks[0]?.pickedTeamId ?? "no picks");
   res.json({ week, games: formattedGames, players: rankedPlayers, winners, hasResults });
 });
 
