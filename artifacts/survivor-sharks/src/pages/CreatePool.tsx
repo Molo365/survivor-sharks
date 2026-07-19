@@ -68,7 +68,7 @@ const SPORTS = [
     id: PoolInputSport.superleague,
     label: "ESL",
     sublabel: "Super League",
-    logoImg: '/The_Super_League.jpg',
+    logoImg: '/European-Super-League.jpg',
   },
 ] as const;
 
