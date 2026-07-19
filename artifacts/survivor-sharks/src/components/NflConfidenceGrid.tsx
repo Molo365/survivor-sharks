@@ -25,8 +25,8 @@ interface GameSummary {
 }
 
 interface PlayerPick {
-  pickedTeamId: string;
-  pickedTeamName: string;
+  pickedTeamId: string | null;
+  pickedTeamName: string | null;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
   result: string | null;
@@ -72,6 +72,14 @@ function PickCell({ pick, game }: { pick: PlayerPick | undefined; game: GameSumm
       <div className="flex items-center justify-center min-w-[76px] h-full">
         <span className="text-muted-foreground/20 text-xs">—</span>
       </div>
+    );
+  }
+
+  if (!pick.pickedTeamId) {
+    return (
+      <td className="px-1 py-2 text-center">
+        <span className="text-muted-foreground/20 text-xs">—</span>
+      </td>
     );
   }
 
