@@ -544,7 +544,9 @@ function PickEmPickDetailPanel({
     const pickMap = new Map<string, NflPickEmSeasonPlayerPick>(
       player.picks.map((p) => [p.gameId, p]),
     );
+    const now = Date.now();
     const joined = weekData.games
+      .filter((game) => new Date(game.startTime).getTime() <= now)
       .map((game) => ({ game: game as NflPickEmSeasonGame | null, pick: pickMap.get(game.id) ?? null }))
       .filter(({ pick }) => pick !== null) as {
         game: NflPickEmSeasonGame | null;
