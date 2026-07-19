@@ -643,7 +643,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
 
                       // Non-WC pick cells
                       const pick = pickMap.get(game.id);
-                      if (!pick) {
+                      if (!pick || !pick.pickedTeamId) {
                         return (
                           <td key={game.id} className="px-1 py-2 text-center">
                             <span className="text-muted-foreground/20 text-xs">—</span>
@@ -1635,7 +1635,7 @@ function DayResultsModal({
                           {/* Per-game pick cells */}
                           {games.map((game) => {
                             const pick = pickMap.get(game.id);
-                            if (!pick) {
+                            if (!pick || !pick.pickedTeamId) {
                               return (
                                 <td key={game.id} className="px-1 py-2.5 text-center">
                                   <span className="text-muted-foreground/25 text-xs">—</span>
