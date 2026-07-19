@@ -450,7 +450,7 @@ function PickEmPickCard({
     );
   }
 
-  const pickedTeam = game
+  const pickedTeam = game && pick.pickedTeamId
     ? pick.pickedTeamId === game.awayTeam.id
       ? game.awayTeam
       : game.homeTeam

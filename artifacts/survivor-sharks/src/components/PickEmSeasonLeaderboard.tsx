@@ -230,7 +230,8 @@ export function PickEmSeasonLeaderboard({
       },
     });
 
-  // Week columns: union of all weeks where any player has data
+  // Week columns: union of all weeks where any player has data, always
+  // including currentWeek so the column is visible even before games start.
   const weekColumns = useMemo(() => {
     const set = new Set<number>();
     for (const e of entries) {
@@ -238,8 +239,9 @@ export function PickEmSeasonLeaderboard({
         set.add(Number(w));
       }
     }
+    set.add(currentWeek);
     return Array.from(set).sort((a, b) => a - b);
-  }, [entries]);
+  }, [entries, currentWeek]);
 
   // ── Render props ──────────────────────────────────────────────────────────
 
