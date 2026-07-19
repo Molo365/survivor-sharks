@@ -1208,6 +1208,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
         new Date(g.date).getTime() <= now ||
         (g.status && g.status !== "scheduled"),
     );
+  console.log("WEEK-RESULTS GATE - pool:", pool.id, "games.length:", games.length, "slateIsLive:", slateIsLive, "userId:", userId);
   if (!slateIsLive) {
     for (const player of rankedPlayers) {
       if (player.userId === userId) continue;
