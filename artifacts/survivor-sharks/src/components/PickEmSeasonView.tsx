@@ -787,6 +787,13 @@ function WeeklyGrid({
                           );
                         }
 
+                        if (!pick.pickedTeamId) {
+                          return (
+                            <td key={game.id} className="px-1 py-2 text-center">
+                              <span className="text-muted-foreground/20 text-xs">—</span>
+                            </td>
+                          );
+                        }
                         const pickedIsHome =
                           pick.pickedTeamId === game.homeTeam.id;
                         const team = pickedIsHome
