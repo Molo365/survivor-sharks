@@ -1126,6 +1126,13 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                           );
                         }
 
+                        if (!pick.pickedTeamId) {
+                          return (
+                            <td key={game.id} className="px-1 py-2 text-center">
+                              <span className="text-muted-foreground/20 text-xs">—</span>
+                            </td>
+                          );
+                        }
                         const isAway = pick.pickedTeamId === game.awayTeam.id;
                         const team = isAway ? game.awayTeam : game.homeTeam;
 
