@@ -716,8 +716,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     // Use the full game count for graded weeks; fall back to submitted count for pending weeks
     const weekTotal = storedTotal ?? Number(row.total);
 
-    // Only include currentWeek score once the slate has started
-    if (row.week !== pool.currentWeek || currentWeekStarted) {
+    // Include currentWeek score once the slate has started, or always for the requesting user
+    if (row.week !== pool.currentWeek || currentWeekStarted || row.userId === userId) {
       weeklyMap.get(row.userId)![row.week] = { correct, total: weekTotal };
     }
 
