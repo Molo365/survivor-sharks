@@ -21,8 +21,8 @@ interface GridGame {
 }
 
 interface GridPick {
-  pickedTeamId: string;
-  pickedTeamName: string;
+  pickedTeamId: string | null;
+  pickedTeamName: string | null;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
   result: string | null;
@@ -122,7 +122,7 @@ export function NflConfidenceSnapshot({
       const name = `${idx + 1}. ${p.displayName ?? p.username}`;
       const pickCells = sortedGames.map((g) => {
         const pick = p.picks[g.id];
-        if (!pick) return "—";
+        if (!pick || !pick.pickedTeamId) return "—";
         const isAway = pick.pickedTeamId === g.awayTeam.id;
         const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
         const pts = pick.confidencePoints != null ? `${pick.confidencePoints}pts` : "";
@@ -321,7 +321,7 @@ export function NflConfidenceSnapshot({
                         {/* Per-game cells */}
                         {sortedGames.map((g) => {
                           const pick = p.picks[g.id];
-                          if (!pick) {
+                          if (!pick || !pick.pickedTeamId) {
                             return (
                               <td key={g.id} className="px-1 py-2 text-center">
                                 <span className="text-muted-foreground/20 text-xs">—</span>
