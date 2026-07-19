@@ -1202,7 +1202,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
   // hide picks for players who haven't locked a full slate (same rule as nfl-confidence).
   const now = Date.now();
   const slateIsLive =
-    games.length === 0 ||
+    games.length > 0 &&
     games.some(
       (g) =>
         new Date(g.date).getTime() <= now ||
