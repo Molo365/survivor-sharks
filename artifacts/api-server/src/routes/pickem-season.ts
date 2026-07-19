@@ -1198,7 +1198,24 @@ router.get("/week-results", requireAuth, async (req, res) => {
     awayRecord: g.awayRecord ?? null,
   }));
 
-  console.log("WEEK-RESULTS DEBUG - pool:", pool.id, "sandboxMode:", pool.sandboxMode, "gameStartMap size:", gameStartMap.size, "sample pick redacted:", players[0]?.picks[0]?.pickedTeamId ?? "no picks");
+  // Slate-level visibility gate: if no game in the week has kicked off yet,
+  // hide picks for players who haven't locked a full slate (same rule as nfl-confidence).
+  const now = Date.now();
+  const slateIsLive =
+    games.length === 0 ||
+    games.some(
+      (g) =>
+        new Date(g.date).getTime() <= now ||
+        (g.status && g.status !== "scheduled"),
+    );
+  if (!slateIsLive) {
+    for (const player of rankedPlayers) {
+      if (player.userId === userId) continue;
+      if (player.picks.length >= games.length) continue;
+      player.picks = [];
+    }
+  }
+
   res.json({ week, games: formattedGames, players: rankedPlayers, winners, hasResults });
 });
 
