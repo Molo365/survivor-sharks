@@ -1405,8 +1405,8 @@ router.get("/grid", requireAuth, async (req, res) => {
     username: string;
     displayName: string | null;
     picks: Map<string, {
-      pickedTeamId: string;
-      pickedTeamName: string;
+      pickedTeamId: string | null;
+      pickedTeamName: string | null;
       pickedTeamLogoUrl: string | null;
       result: string | null;
     }>;
@@ -1423,10 +1423,18 @@ router.get("/grid", requireAuth, async (req, res) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const game = gameMap.get(pick.gameId) as any;
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    userMap.get(pick.userId)!.picks.set(pick.gameId, {
+    const isLocked = game
+      ? new Date(game.startTime).getTime() - 5 * 60 * 1000 <= Date.now()
+      : false;
+    userMap.get(pick.userId)!.picks.set(pick.gameId, isLocked ? {
       pickedTeamId: pick.pickedTeamId,
       pickedTeamName: pick.pickedTeamName,
       pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logoUrl : game.awayTeam.logoUrl) ?? null : null,
+      result: pick.result ?? null,
+    } : {
+      pickedTeamId: null,
+      pickedTeamName: null,
+      pickedTeamLogoUrl: null,
       result: pick.result ?? null,
     });
   }
