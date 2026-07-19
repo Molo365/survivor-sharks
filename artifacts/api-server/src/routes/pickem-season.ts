@@ -675,34 +675,6 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
-  // Determine if the current week's slate has started (first game kicked off).
-  // Week scores for currentWeek are hidden until the slate goes live.
-  let currentWeekStarted = true; // safe default: show (past/graded weeks are always shown)
-  {
-    if (pool.sandboxMode) {
-      const [firstGame] = await db
-        .select({ replayKickoff: sandboxGameScoresTable.replayKickoff })
-        .from(sandboxGameScoresTable)
-        .where(and(
-          eq(sandboxGameScoresTable.poolId, poolId),
-          eq(sandboxGameScoresTable.week, pool.currentWeek),
-          isNotNull(sandboxGameScoresTable.replayKickoff),
-        ))
-        .orderBy(sandboxGameScoresTable.replayKickoff)
-        .limit(1);
-      currentWeekStarted = firstGame?.replayKickoff
-        ? new Date(firstGame.replayKickoff).getTime() <= Date.now()
-        : false;
-    } else {
-      try {
-        const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${pool.currentWeek}&seasontype=2`;
-        const espnData = await (await fetch(espnUrl)).json() as { events?: { date?: string }[] };
-        const firstDate = espnData.events?.[0]?.date;
-        currentWeekStarted = firstDate ? new Date(firstDate).getTime() <= Date.now() : true;
-      } catch { /* ESPN unavailable; default to showing */ }
-    }
-  }
-
   // weeklyMap: per-user per-week scores.  The denominator (total) is always the
   // full game count for that week — not just the picks the player submitted.
   // For ungraded/pending weeks the total falls back to submitted pick count.
@@ -716,8 +688,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     // Use the full game count for graded weeks; fall back to submitted count for pending weeks
     const weekTotal = storedTotal ?? Number(row.total);
 
-    // Include currentWeek score once the slate has started, or always for the requesting user
-    if (row.week !== pool.currentWeek || currentWeekStarted || row.userId === userId) {
+    // For currentWeek: only include once the week has been graded (storedTotal exists),
+    // or always for the requesting user's own row.
+    if (row.week !== pool.currentWeek || storedTotal !== undefined || row.userId === userId) {
       weeklyMap.get(row.userId)![row.week] = { correct, total: weekTotal };
     }
 
