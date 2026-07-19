@@ -430,6 +430,26 @@ function PickEmPickCard({
   const isCorrect = pick.result === "correct";
   const isIncorrect = pick.result === "incorrect";
 
+  if (!pick.pickedTeamId) {
+    const matchupLabel = game
+      ? `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
+      : null;
+    return (
+      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-border/30 bg-muted/10">
+        <div className="shrink-0 w-7 h-7 rounded-full bg-muted/30 flex items-center justify-center">
+          <span className="text-muted-foreground/20 text-xs">—</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          {matchupLabel && (
+            <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">
+              {matchupLabel}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const pickedTeam = game
     ? pick.pickedTeamId === game.awayTeam.id
       ? game.awayTeam
