@@ -947,7 +947,16 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     ? (phaseParam as WcPhase)
     : "group_stage";
 
-  const weekBounds = isWeekly ? getWeekBoundsEt(todayEt) : null;
+  // For NHL/NBA weekly sandbox pools picks are stored against anchor dates
+  // (e.g. "2025-10-04"), not the real-world current week. Use the same anchor
+  // week bounds here so the picksWhereClause actually matches those rows.
+  const weekBounds = isWeekly
+    ? (sport === "nhl" && pool.sandboxMode)
+      ? (() => { const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek); return { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! }; })()
+      : (sport === "nba" && pool.sandboxMode)
+      ? (() => { const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek); return { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! }; })()
+      : getWeekBoundsEt(todayEt)
+    : null;
 
   // For ended daily pools use the actual last game date so the leaderboard
   // returns the final standings rather than an empty today-date result set.
