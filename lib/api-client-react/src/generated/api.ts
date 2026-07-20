@@ -52,6 +52,7 @@ import type {
   JoinPoolInput,
   Leaderboard,
   LoginInput,
+  MlsWeekGames,
   NdpDivisionResult,
   NdpDivisionWithPick,
   NdpLeaderboardResponse,
@@ -2317,6 +2318,83 @@ export function useGetPickEmGames<TData = Awaited<ReturnType<typeof getPickEmGam
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPickEmGamesQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPickEmWeekGamesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/week-games`
+}
+
+/**
+ * @summary Get the full Mon–Sun week's MLS games for a weekly pick-em pool, grouped by day
+ */
+export const getPickEmWeekGames = async (poolId: number, options?: RequestInit): Promise<MlsWeekGames> => {
+
+  return customFetch<MlsWeekGames>(getGetPickEmWeekGamesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmWeekGamesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem/week-games`
+    ] as const;
+    }
+
+
+export const getGetPickEmWeekGamesQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmWeekGames>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmWeekGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmWeekGamesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmWeekGames>>> = ({ signal }) => getPickEmWeekGames(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmWeekGames>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmWeekGamesQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmWeekGames>>>
+export type GetPickEmWeekGamesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the full Mon–Sun week's MLS games for a weekly pick-em pool, grouped by day
+ */
+
+export function useGetPickEmWeekGames<TData = Awaited<ReturnType<typeof getPickEmWeekGames>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmWeekGames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmWeekGamesQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

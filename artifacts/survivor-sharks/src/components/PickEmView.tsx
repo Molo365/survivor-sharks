@@ -3,12 +3,14 @@ import { CancelPoolButton } from "@/components/CancelPoolButton";
 import {
   useGetPickEmDailyPicks,
   useGetPickEmGames,
+  useGetPickEmWeekGames,
   useSubmitPickEmPicks,
   useGetPickEmLeaderboard,
   useGetPickEmYesterdayWinner,
   useGetPickEmDailyResults,
   useGetPickEmPrevWeekResults,
   getGetPickEmGamesQueryKey,
+  getGetPickEmWeekGamesQueryKey,
   getGetPickEmLeaderboardQueryKey,
   getGetPickEmYesterdayWinnerQueryKey,
   getGetPickEmDailyResultsQueryKey,
@@ -19,7 +21,7 @@ import {
   getGetPoolQueryKey,
   getGetPoolScheduleQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -2055,6 +2057,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
   const isNhlWeekly = isNhl && isWeekly;
+  const isMlsWeekly = sport === "mls" && pickFrequency === "weekly";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -2131,6 +2134,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   const submitPicks = useSubmitPickEmPicks();
 
+  // MLS weekly combined view — fetch the full Mon–Sun slate in one request.
+  const { data: mlsWeekData, isLoading: mlsWeekLoading } = useGetPickEmWeekGames(poolId, {
+    query: {
+      queryKey: getGetPickEmWeekGamesQueryKey(poolId),
+      enabled: isMlsWeekly,
+      refetchInterval: isMlsWeekly ? 60_000 : false,
+      staleTime: 30_000,
+    },
+  });
+
   // For NHL weekly: fetch the full weekend schedule (both Sat + Sun) so we can
   // show all games on one combined page and derive day labels.
   // For sandbox weekly pools (non-NHL): still fetch so we can land on the first
@@ -2193,6 +2206,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     : [];
   const nhlWeeklyAllGames = nhlWeeklyDays.flatMap((d) => d.games);
 
+  // MLS weekly combined view — derive typed day/game arrays from the week-games response.
+  const mlsWeeklyDays: MlsWeekGames["days"] = isMlsWeekly ? (mlsWeekData?.days ?? []) : [];
+  const mlsWeeklyAllGames = mlsWeeklyDays.flatMap((d) => d.games);
+
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
   const isLastDayOfWeek = (isMlb || isNhl) && isWeekly && isToday && weekSunday === todayEt;
@@ -2239,6 +2256,20 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     });
   }, [isNhlWeekly, sunSlate]);
 
+  // MLS weekly: hydrate localPicks from the week-games response (userPickOption stored per game).
+  useEffect(() => {
+    if (!isMlsWeekly || !mlsWeekData?.days) return;
+    setLocalPicks((prev) => {
+      const next = new Map(prev);
+      for (const day of mlsWeekData.days) {
+        for (const game of day.games) {
+          if (game.userPickOption && !next.has(game.id)) next.set(game.id, game.userPickOption);
+        }
+      }
+      return next;
+    });
+  }, [isMlsWeekly, mlsWeekData]);
+
   function togglePick(gameId: string, teamId: string) {
     setLocalPicks((prev) => {
       const next = new Map(prev);
@@ -2255,6 +2286,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     // NHL weekly combined view: delegate to the multi-day submit path.
     if (isNhlWeekly) {
       void handleNhlWeeklySubmit();
+      return;
+    }
+    // MLS weekly combined view: delegate to the per-day MLS submit path.
+    if (isMlsWeekly) {
+      void handleMlsWeeklySubmit();
       return;
     }
 
@@ -2368,6 +2404,38 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     void invalidatePoolQueries(queryClient, poolId);
   }
 
+  // MLS weekly combined submit: iterates each day-group, submits open picks per day.
+  async function handleMlsWeeklySubmit() {
+    let totalSaved = 0;
+    for (const day of mlsWeeklyDays) {
+      const dayGameIds = new Set(day.games.map((g) => g.id));
+      const dayPicks = Array.from(localPicks.entries())
+        .map(([gameId, pickValue]) => {
+          if (!dayGameIds.has(gameId)) return null;
+          const game = day.games.find((g) => g.id === gameId);
+          if (!game || game.deadlinePassed) return null;
+          const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
+          return { gameId, pickedTeamId: pickValue, pickedTeamName: label };
+        })
+        .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
+
+      if (dayPicks.length === 0) continue;
+      try {
+        const res = await submitPicks.mutateAsync({ poolId, data: { picks: dayPicks, date: day.date } });
+        totalSaved += res.saved;
+      } catch {
+        toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+        return;
+      }
+    }
+    if (totalSaved === 0) {
+      toast({ title: "No open picks to submit", description: "All games may have already started." });
+      return;
+    }
+    toast({ title: "Picks saved!", description: `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved.` });
+    void invalidatePoolQueries(queryClient, poolId);
+  }
+
   function doFinalSubmit(
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     tiebreakerRuns?: number,
@@ -2414,24 +2482,32 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     toast({ title: "Invite code copied to clipboard!" });
   }
 
-  // NHL weekly combined view overrides — use merged Sat+Sun data instead of single-day slate.
+  // Combined view overrides — NHL uses Sat+Sun merged data; MLS uses full week data.
   const openGames = isNhlWeekly
     ? nhlWeeklyAllGames.filter((g) => !g.deadlinePassed)
+    : isMlsWeekly
+    ? mlsWeeklyAllGames.filter((g) => !g.deadlinePassed)
     : (slate?.games.filter((g) => !g.deadlinePassed) ?? []);
   const lockedGames = isNhlWeekly
     ? nhlWeeklyAllGames.filter((g) => g.deadlinePassed)
+    : isMlsWeekly
+    ? mlsWeeklyAllGames.filter((g) => g.deadlinePassed)
     : (slate?.games.filter((g) => g.deadlinePassed) ?? []);
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
 
   const slateLocked = isNhlWeekly
     ? (scheduleData?.deadlinePassed ?? false)
+    : isMlsWeekly
+    ? openGames.length === 0 && mlsWeeklyAllGames.length > 0
     : (slate?.deadlinePassed ?? false);
   const myPickCount = isNhlWeekly
     ? nhlWeeklyAllGames.filter((g) => !!g.userPickTeamId).length
+    : isMlsWeekly
+    ? mlsWeeklyAllGames.filter((g) => !!g.userPickOption).length
     : (slate?.games.filter((g) => is3way ? !!g.userPickOption : !!g.userPickTeamId).length ?? 0);
 
   const lockTimeFormatted = useMemo(() => {
-    const games = isNhlWeekly ? nhlWeeklyAllGames : (slate?.games ?? []);
+    const games = isNhlWeekly ? nhlWeeklyAllGames : isMlsWeekly ? mlsWeeklyAllGames : (slate?.games ?? []);
     if (!games.length) return null;
     const firstMs = Math.min(...games.map((g) => new Date(g.startTime).getTime()));
     const lockMs = firstMs - 5 * 60 * 1000;
@@ -2443,12 +2519,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       timeZoneName: "short",
     }).format(new Date(lockMs));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNhlWeekly, nhlWeeklyAllGames, slate]);
+  }, [isNhlWeekly, nhlWeeklyAllGames, isMlsWeekly, mlsWeeklyAllGames, slate]);
 
   // NHL weekly combined loading/empty — both day slates must resolve before rendering.
   const nhlWeeklyLoading = isNhlWeekly && (!scheduleData || (!!satDate && satLoading) || (!!sunDate && sunLoading));
   const nhlWeeklyEmpty = isNhlWeekly && !nhlWeeklyLoading && nhlWeeklyAllGames.length === 0;
   const nhlWeeklyPoolClosed = isNhlWeekly && (satSlate?.poolClosed ?? false);
+
+  // MLS weekly combined loading/empty.
+  const mlsWeeklyLoading = isMlsWeekly && mlsWeekLoading;
+  const mlsWeeklyEmpty = isMlsWeekly && !mlsWeeklyLoading && mlsWeeklyAllGames.length === 0;
 
   return (
     <>
@@ -2937,6 +3017,109 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          ) : mlsWeeklyLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : mlsWeeklyEmpty ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="text-lg font-medium">No games scheduled this week</p>
+              <p className="text-sm mt-1 text-muted-foreground/60">Check back when the schedule is posted.</p>
+            </div>
+          ) : isMlsWeekly ? (
+            <div className="space-y-6">
+              {/* Static week header — no day-navigation for combined view */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">
+                    This Week
+                    {mlsWeekData?.weekStart && mlsWeekData.weekEnd && (
+                      <span className="ml-2 font-sans text-sm font-normal text-muted-foreground/70 tracking-normal">
+                        {new Date(mlsWeekData.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                        {" – "}
+                        {new Date(mlsWeekData.weekEnd + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {mlsWeeklyAllGames.length} game{mlsWeeklyAllGames.length !== 1 ? "s" : ""}
+                    {" · "}
+                    {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {mlsWeeklyAllGames.some((g) => g.status === "in_progress") ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                      Live · updates every min
+                    </span>
+                  ) : !mlsWeeklyAllGames.every((g) => g.status === "final") && slateLocked ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-primary/10 text-primary/70 border-primary/20">
+                      <Wifi className="w-2.5 h-2.5" />
+                      Auto-updates every min
+                    </span>
+                  ) : null}
+                  {slateLocked && (
+                    <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
+                      Slate Locked
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Day-grouped game list */}
+              {mlsWeeklyDays.map((day) => (
+                <div key={day.date} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80 leading-none">
+                      {day.label}
+                    </h4>
+                    <div className="flex-1 h-px bg-border/30" />
+                    <span className="text-xs text-muted-foreground/50">
+                      {day.games.length} game{day.games.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {day.games.map((game) => (
+                    <WcGameCard
+                      key={game.id}
+                      game={game}
+                      pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
+                      onPick={(opt) => togglePick(game.id, opt)}
+                    />
+                  ))}
+                </div>
+              ))}
+
+              {/* Submit bar */}
+              {openGames.length > 0 && (
+                <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
+                  <p className="text-sm text-muted-foreground">
+                    {pendingPickCount > 0 ? (
+                      <span className="text-yellow-400/80">
+                        {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
+                      </span>
+                    ) : (
+                      <span className="text-green-400/80 flex items-center gap-1">
+                        <Check className="w-4 h-4" /> All open games picked
+                      </span>
+                    )}
+                  </p>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={submitPicks.isPending || localPicks.size === 0}
+                    className="font-bebas text-xl tracking-widest px-8 h-12"
+                  >
+                    {submitPicks.isPending ? (
+                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                    ) : (
+                      "Submit Picks"
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           ) : gamesLoading ? (

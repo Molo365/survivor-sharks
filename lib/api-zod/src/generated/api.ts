@@ -1080,6 +1080,71 @@ export const GetPickEmGamesResponse = zod.object({
 
 
 /**
+ * @summary Get the full Mon–Sun week's MLS games for a weekly pick-em pool, grouped by day
+ */
+export const GetPickEmWeekGamesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmWeekGamesResponse = zod.object({
+  "weekStart": zod.string().describe('Monday date YYYY-MM-DD'),
+  "weekEnd": zod.string().describe('Sunday date YYYY-MM-DD'),
+  "days": zod.array(zod.object({
+  "date": zod.string().describe('ET date YYYY-MM-DD'),
+  "label": zod.string().describe('Formatted day label e.g. \"Wednesday, July 16\"'),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "startTime": zod.string(),
+  "status": zod.enum(['scheduled', 'in_progress', 'final', 'postponed', 'suspended']),
+  "deadlinePassed": zod.boolean(),
+  "isTiebreakerGame": zod.boolean().optional().describe('True for the last game on the slate for MLB daily\/weekly pools, or the last game of the final day of the week for NHL weekly pools — the designated tiebreaker reference game; absent for WC\/intl pools'),
+  "awayTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "homeTeam": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "abbreviation": zod.string(),
+  "logoUrl": zod.string().nullish()
+}),
+  "awayScore": zod.number().nullish(),
+  "homeScore": zod.number().nullish(),
+  "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish(),
+  "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress'),
+  "liveOuts": zod.number().nullish().describe('Current number of outs (0–3) for in-progress MLB games, null otherwise'),
+  "liveBaseRunners": zod.object({
+  "onFirst": zod.boolean(),
+  "onSecond": zod.boolean(),
+  "onThird": zod.boolean()
+}).nullish().describe('Base runner state for in-progress MLB games, null otherwise'),
+  "homeRecord": zod.string().nullish().describe('Team\'s overall record e.g. \'28-22\''),
+  "awayRecord": zod.string().nullish().describe('Team\'s overall record e.g. \'28-22\''),
+  "homePitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "awayPitcher": zod.object({
+  "name": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "era": zod.string().nullish(),
+  "wins": zod.number().nullish(),
+  "losses": zod.number().nullish()
+}).nullish(),
+  "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
+  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made')
+}))
+}))
+})
+
+
+/**
  * @summary Get the full WC group stage schedule with user picks overlaid
  */
 export const GetWcScheduleParams = zod.object({

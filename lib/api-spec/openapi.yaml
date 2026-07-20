@@ -680,6 +680,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/pickem/week-games:
+    get:
+      operationId: getPickEmWeekGames
+      tags: [pickem]
+      summary: Get the full Mon–Sun week's MLS games for a weekly pick-em pool, grouped by day
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Week games grouped by day (days with no games are excluded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MlsWeekGames"
+        "400":
+          description: Not an MLS weekly pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a member of this pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/pickem/wc-schedule:
     get:
       operationId: getWcSchedule
@@ -3026,6 +3063,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmGame"
+
+    MlsWeekDay:
+      type: object
+      required: [date, label, games]
+      properties:
+        date:
+          type: string
+          description: ET date YYYY-MM-DD
+        label:
+          type: string
+          description: Formatted day label e.g. "Wednesday, July 16"
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickEmGame"
+
+    MlsWeekGames:
+      type: object
+      required: [weekStart, weekEnd, days]
+      properties:
+        weekStart:
+          type: string
+          description: Monday date YYYY-MM-DD
+        weekEnd:
+          type: string
+          description: Sunday date YYYY-MM-DD
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/MlsWeekDay"
 
     PickEmPickItem:
       type: object

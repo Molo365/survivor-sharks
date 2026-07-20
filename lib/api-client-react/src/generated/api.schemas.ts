@@ -928,6 +928,22 @@ export interface PickEmSlate {
   games: PickEmGame[];
 }
 
+export interface MlsWeekDay {
+  /** ET date YYYY-MM-DD */
+  date: string;
+  /** Formatted day label e.g. "Wednesday, July 16" */
+  label: string;
+  games: PickEmGame[];
+}
+
+export interface MlsWeekGames {
+  /** Monday date YYYY-MM-DD */
+  weekStart: string;
+  /** Sunday date YYYY-MM-DD */
+  weekEnd: string;
+  days: MlsWeekDay[];
+}
+
 export interface PickEmPickItem {
   gameId: string;
   pickedTeamId: string;
