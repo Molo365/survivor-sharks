@@ -1222,7 +1222,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: Array.from(userPicks.values()).map((p) => {
         const startTime = gameStartMap.get(p.gameId);
-        const revealed = gameStartMap.size > 0 && !!startTime && isGameLocked(startTime);
+        const revealed = pool.sandboxMode
+          ? p.result !== "pending"
+          : gameStartMap.size > 0 && !!startTime && isGameLocked(startTime);
         if (!revealed) {
           return {
             gameId: p.gameId,
