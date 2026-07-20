@@ -956,6 +956,7 @@ export default function CreatePool() {
                       )}
 
                       {/* ── Recurring — MLB Pick-Ems, Crazy 8's, NFL Confidence Weekly ── */}
+                      {/* recurring: mlb pickem, nhl pickem, crazy_8s, nfl_confidence_weekly */}
                       {((selectedSport === PoolInputSport.mlb && selectedType === "pickem") || (selectedSport === PoolInputSport.nhl && selectedType === "pickem") || selectedType === "crazy_8s" || selectedType === "nfl_confidence_weekly") && (
                         <FormField
                           control={form.control}
