@@ -14,8 +14,10 @@ import {
   getGetPickEmDailyResultsQueryKey,
   getGetPickEmPrevWeekResultsQueryKey,
   useGetPool,
+  useGetPoolSchedule,
   useUpdatePool,
   getGetPoolQueryKey,
+  getGetPoolScheduleQueryKey,
 } from "@workspace/api-client-react";
 import type { PickEmGame, PickEmSlate, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import {
@@ -2063,6 +2065,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     setShowWelcome(false);
   }
 
+  const { data: poolDetail } = useGetPool(poolId, {
+    query: { queryKey: getGetPoolQueryKey(poolId), staleTime: 5 * 60 * 1000 },
+  });
+  const isSandbox = poolDetail?.sandboxMode === true;
+
   const todayEt = getTodayEt();
   const [selectedDate, setSelectedDate] = useState<string>(() => todayEt);
   const isToday = selectedDate === todayEt;
@@ -2121,6 +2128,28 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   });
 
   const submitPicks = useSubmitPickEmPicks();
+
+  // For sandbox weekly pools: fetch the week schedule so we can land on the
+  // first day that actually has games, instead of real-world today which may
+  // map to an anchor weekday with no games (e.g. Monday → no NHL slate).
+  const { data: scheduleData } = useGetPoolSchedule(poolId, {
+    query: {
+      queryKey: getGetPoolScheduleQueryKey(poolId),
+      enabled: isSandbox && isWeekly,
+      staleTime: 10 * 60 * 1000,
+    },
+  });
+
+  // One-shot: redirect selectedDate to the first sandbox day with games.
+  const sandboxDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (sandboxDefaultApplied.current) return;
+    if (!isSandbox || !scheduleData?.days) return;
+    const firstWithGames = scheduleData.days.find((d) => d.games.length > 0);
+    if (!firstWithGames) return;
+    sandboxDefaultApplied.current = true;
+    setSelectedDate(firstWithGames.date);
+  }, [isSandbox, scheduleData]);
 
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
