@@ -2054,6 +2054,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
+  const isNhlWeekly = isNhl && isWeekly;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -2108,6 +2109,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [tbShots, setTbShots] = useState("");
   const [tbPim, setTbPim] = useState("");
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
+  const pendingDateRef = React.useRef<string | null>(null);
 
   const {
     data: slate,
@@ -2129,14 +2131,38 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   const submitPicks = useSubmitPickEmPicks();
 
-  // For sandbox weekly pools: fetch the week schedule so we can land on the
-  // first day that actually has games, instead of real-world today which may
-  // map to an anchor weekday with no games (e.g. Monday → no NHL slate).
+  // For NHL weekly: fetch the full weekend schedule (both Sat + Sun) so we can
+  // show all games on one combined page and derive day labels.
+  // For sandbox weekly pools (non-NHL): still fetch so we can land on the first
+  // day with games instead of real-world today.
   const { data: scheduleData } = useGetPoolSchedule(poolId, {
     query: {
       queryKey: getGetPoolScheduleQueryKey(poolId),
-      enabled: isSandbox && isWeekly,
+      enabled: isNhlWeekly || (isSandbox && isWeekly),
       staleTime: 10 * 60 * 1000,
+    },
+  });
+
+  // NHL weekly combined view — dates for Saturday and Sunday derived from the
+  // schedule endpoint. These are the anchor dates used to fetch per-day game
+  // slates (including user picks and per-game deadlinePassed) via GET /games.
+  const satDate = isNhlWeekly ? (scheduleData?.days?.[0]?.date ?? null) : null;
+  const sunDate = isNhlWeekly ? (scheduleData?.days?.[1]?.date ?? null) : null;
+  const satDateParams = satDate ? { date: satDate } : undefined;
+  const sunDateParams = sunDate ? { date: sunDate } : undefined;
+
+  const { data: satSlate, isLoading: satLoading } = useGetPickEmGames(poolId, satDateParams, {
+    query: {
+      queryKey: getGetPickEmGamesQueryKey(poolId, satDateParams),
+      enabled: isNhlWeekly && !!satDate,
+      refetchInterval: (query) => pickRefetchInterval(query.state.data),
+    },
+  });
+  const { data: sunSlate, isLoading: sunLoading } = useGetPickEmGames(poolId, sunDateParams, {
+    query: {
+      queryKey: getGetPickEmGamesQueryKey(poolId, sunDateParams),
+      enabled: isNhlWeekly && !!sunDate,
+      refetchInterval: (query) => pickRefetchInterval(query.state.data),
     },
   });
 
@@ -2150,6 +2176,22 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     sandboxDefaultApplied.current = true;
     setSelectedDate(firstWithGames.date);
   }, [isSandbox, scheduleData]);
+
+  // NHL weekly combined view — merge Sat + Sun slates into grouped day objects.
+  // Uses scheduleData.days for date/label structure; game content (picks, deadlinePassed)
+  // comes from the per-day GET /games slates which include userPickTeamId and per-game state.
+  const nhlWeeklyDays = isNhlWeekly
+    ? (scheduleData?.days ?? []).map((d) => ({
+        date: d.date,
+        label: d.label,
+        games: d.date === satDate
+          ? (satSlate?.games ?? [])
+          : d.date === sunDate
+            ? (sunSlate?.games ?? [])
+            : [],
+      }))
+    : [];
+  const nhlWeeklyAllGames = nhlWeeklyDays.flatMap((d) => d.games);
 
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
@@ -2174,6 +2216,29 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     });
   }, [slate, is3way]);
 
+  // NHL weekly: hydrate localPicks from Saturday and Sunday slates separately.
+  useEffect(() => {
+    if (!isNhlWeekly || !satSlate?.games) return;
+    setLocalPicks((prev) => {
+      const next = new Map(prev);
+      for (const game of satSlate.games) {
+        if (game.userPickTeamId && !next.has(game.id)) next.set(game.id, game.userPickTeamId);
+      }
+      return next;
+    });
+  }, [isNhlWeekly, satSlate]);
+
+  useEffect(() => {
+    if (!isNhlWeekly || !sunSlate?.games) return;
+    setLocalPicks((prev) => {
+      const next = new Map(prev);
+      for (const game of sunSlate.games) {
+        if (game.userPickTeamId && !next.has(game.id)) next.set(game.id, game.userPickTeamId);
+      }
+      return next;
+    });
+  }, [isNhlWeekly, sunSlate]);
+
   function togglePick(gameId: string, teamId: string) {
     setLocalPicks((prev) => {
       const next = new Map(prev);
@@ -2187,6 +2252,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   }
 
   function handleSubmit() {
+    // NHL weekly combined view: delegate to the multi-day submit path.
+    if (isNhlWeekly) {
+      void handleNhlWeeklySubmit();
+      return;
+    }
+
     if (!slate) return;
 
     const picks = Array.from(localPicks.entries())
@@ -2228,6 +2299,75 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     doFinalSubmit(picks);
   }
 
+  // NHL weekly combined submit: builds per-day pick lists and calls POST /picks
+  // once per day (Saturday then Sunday). The tiebreaker intercept fires on Sunday
+  // when needsTiebreaker is true; Saturday picks are submitted immediately before
+  // the dialog opens so they aren't lost while the user fills in guesses.
+  async function handleNhlWeeklySubmit() {
+    const satGameIds = new Set((satSlate?.games ?? []).map((g) => g.id));
+    const sunGameIds = new Set((sunSlate?.games ?? []).map((g) => g.id));
+
+    function buildDayPicks(gameIds: Set<string>) {
+      return Array.from(localPicks.entries())
+        .map(([gameId, pickValue]) => {
+          if (!gameIds.has(gameId)) return null;
+          const game = nhlWeeklyAllGames.find((g) => g.id === gameId);
+          if (!game || game.deadlinePassed) return null;
+          const team = pickValue === game.awayTeam.id ? game.awayTeam : game.homeTeam;
+          return { gameId, pickedTeamId: pickValue, pickedTeamName: team.name };
+        })
+        .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
+    }
+
+    const satPicks = buildDayPicks(satGameIds);
+    const sunPicks = buildDayPicks(sunGameIds);
+
+    if (satPicks.length === 0 && sunPicks.length === 0) {
+      toast({ title: "No open picks to submit", description: "All games may have already started." });
+      return;
+    }
+
+    // On Sunday (isLastDayOfWeek): intercept to collect tiebreaker before submitting Sunday picks.
+    if (needsTiebreaker && sunPicks.length > 0) {
+      // Submit Saturday picks immediately (no tiebreaker needed for Saturday).
+      if (satPicks.length > 0 && satDate) {
+        submitPicks.mutate({ poolId, data: { picks: satPicks, date: satDate } }, {
+          onSuccess: () => void invalidatePoolQueries(queryClient, poolId),
+          onError: () => toast({ variant: "destructive", title: "Failed to save Saturday picks", description: "Please try again." }),
+        });
+      }
+      pendingPicksRef.current = sunPicks;
+      pendingDateRef.current = sunDate;
+      setTbShots("");
+      setTbPim("");
+      setShowNhlTiebreaker(true);
+      return;
+    }
+
+    // Normal path: submit Saturday then Sunday sequentially.
+    let totalSaved = 0;
+    if (satPicks.length > 0 && satDate) {
+      try {
+        const res = await submitPicks.mutateAsync({ poolId, data: { picks: satPicks, date: satDate } });
+        totalSaved += res.saved;
+      } catch {
+        toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+        return;
+      }
+    }
+    if (sunPicks.length > 0 && sunDate) {
+      try {
+        const res = await submitPicks.mutateAsync({ poolId, data: { picks: sunPicks, date: sunDate } });
+        totalSaved += res.saved;
+      } catch {
+        toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+        return;
+      }
+    }
+    toast({ title: "Picks saved!", description: `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved.` });
+    void invalidatePoolQueries(queryClient, poolId);
+  }
+
   function doFinalSubmit(
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     tiebreakerRuns?: number,
@@ -2235,12 +2375,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     tiebreakerShotsOnGoal?: number,
     tiebreakerPenaltyMinutes?: number,
   ) {
+    // For NHL weekly: tiebreaker is for Sunday picks; pendingDateRef holds the
+    // Sunday date set by handleNhlWeeklySubmit before opening the dialog.
+    const submitDate = pendingDateRef.current ?? selectedDate;
+    pendingDateRef.current = null;
+
     submitPicks.mutate(
       {
         poolId,
         data: {
           picks,
-          date: selectedDate,
+          date: submitDate,
           ...(tiebreakerRuns !== undefined && tiebreakerStrikeouts !== undefined
             ? { tiebreakerRuns, tiebreakerStrikeouts }
             : {}),
@@ -2269,16 +2414,26 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     toast({ title: "Invite code copied to clipboard!" });
   }
 
-  const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
-  const lockedGames = slate?.games.filter((g) => g.deadlinePassed) ?? [];
+  // NHL weekly combined view overrides — use merged Sat+Sun data instead of single-day slate.
+  const openGames = isNhlWeekly
+    ? nhlWeeklyAllGames.filter((g) => !g.deadlinePassed)
+    : (slate?.games.filter((g) => !g.deadlinePassed) ?? []);
+  const lockedGames = isNhlWeekly
+    ? nhlWeeklyAllGames.filter((g) => g.deadlinePassed)
+    : (slate?.games.filter((g) => g.deadlinePassed) ?? []);
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
 
-  const slateLocked = slate?.deadlinePassed ?? false;
-  const myPickCount = slate?.games.filter(g => is3way ? !!g.userPickOption : !!g.userPickTeamId).length ?? 0;
+  const slateLocked = isNhlWeekly
+    ? (scheduleData?.deadlinePassed ?? false)
+    : (slate?.deadlinePassed ?? false);
+  const myPickCount = isNhlWeekly
+    ? nhlWeeklyAllGames.filter((g) => !!g.userPickTeamId).length
+    : (slate?.games.filter((g) => is3way ? !!g.userPickOption : !!g.userPickTeamId).length ?? 0);
 
   const lockTimeFormatted = useMemo(() => {
-    if (!slate?.games.length) return null;
-    const firstMs = Math.min(...slate.games.map((g) => new Date(g.startTime).getTime()));
+    const games = isNhlWeekly ? nhlWeeklyAllGames : (slate?.games ?? []);
+    if (!games.length) return null;
+    const firstMs = Math.min(...games.map((g) => new Date(g.startTime).getTime()));
     const lockMs = firstMs - 5 * 60 * 1000;
     return new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
@@ -2287,7 +2442,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       hour12: true,
       timeZoneName: "short",
     }).format(new Date(lockMs));
-  }, [slate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNhlWeekly, nhlWeeklyAllGames, slate]);
+
+  // NHL weekly combined loading/empty — both day slates must resolve before rendering.
+  const nhlWeeklyLoading = isNhlWeekly && (!scheduleData || (!!satDate && satLoading) || (!!sunDate && sunLoading));
+  const nhlWeeklyEmpty = isNhlWeekly && !nhlWeeklyLoading && nhlWeeklyAllGames.length === 0;
+  const nhlWeeklyPoolClosed = isNhlWeekly && (satSlate?.poolClosed ?? false);
 
   return (
     <>
@@ -2567,6 +2728,217 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
           {isWc ? (
             <WcScheduleView poolId={poolId} commissionerId={commissionerId} />
+          ) : nhlWeeklyLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : nhlWeeklyEmpty ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
+              <p className="text-sm mt-1">Check back when the schedule is posted.</p>
+            </div>
+          ) : isNhlWeekly ? (
+            <div className="space-y-6">
+              {/* Tiebreaker banner — Sunday only */}
+              {isLastDayOfWeek && !slateLocked && (
+                <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
+                  <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-yellow-200 leading-snug">
+                      Final day of the week — tiebreaker required
+                    </p>
+                    <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
+                      When you submit today you&apos;ll be asked to guess combined shots on goal + penalty minutes for the last game on Sunday&apos;s slate.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Last Week's Winner banner */}
+              {prevWeekWinner && prevWeekResults && (
+                <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+                  <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-yellow-200">Last Week&apos;s Winner:</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinner.displayName || prevWeekWinner.username}</span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinner.correct}/{prevWeekWinner.picked} correct</span>
+                    {prevWeekWinner.prizeWon != null && (
+                      <>
+                        <span className="text-yellow-500/50 text-xs">·</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinner.prizeWon}</span>
+                      </>
+                    )}
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-xs text-yellow-500/60">
+                      {new Date(prevWeekResults.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {" – "}
+                      {new Date(prevWeekResults.weekEnd + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWeekResultsOpen(true)}
+                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+                  >
+                    View Full Results →
+                  </button>
+                </div>
+              )}
+
+              {/* Static weekend header — no day-navigation for combined view */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">
+                    {scheduleData?.weekLabel ?? "This Weekend"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {nhlWeeklyAllGames.length} game{nhlWeeklyAllGames.length !== 1 ? "s" : ""}
+                    {" · "}
+                    {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {nhlWeeklyAllGames.some((g) => g.status === "in_progress") ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                      Live · updates every 30s
+                    </span>
+                  ) : !nhlWeeklyAllGames.every((g) => g.status === "final") && slateLocked ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-primary/10 text-primary/70 border-primary/20">
+                      <Wifi className="w-2.5 h-2.5" />
+                      Auto-updates every min
+                    </span>
+                  ) : null}
+                  {slateLocked && (
+                    <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
+                      Slate Locked
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Pool ended — full takeover */}
+              {nhlWeeklyPoolClosed ? (
+                <div className="space-y-5">
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+                    <Trophy className="w-16 h-16 text-yellow-500/60 mb-4" />
+                    <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
+                    <p className="text-muted-foreground">Results are final.</p>
+                  </div>
+                  {leaderboard && leaderboard.entries.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+                        <p className="text-yellow-400/80 font-bebas text-lg tracking-wider mb-2 uppercase">
+                          {leaderboard.entries.filter(e => e.correct === leaderboard!.entries[0].correct).length > 1 ? "Co-Winners" : "Winner"}
+                        </p>
+                        {leaderboard.entries
+                          .filter(e => e.correct === leaderboard!.entries[0].correct)
+                          .map(w => (
+                            <div key={w.userId} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xl">🏆</span>
+                              <span className="font-semibold text-foreground text-lg">{w.displayName || w.username}</span>
+                              {w.userId === user?.id && <span className="text-xs text-primary/60 font-medium">(you)</span>}
+                              <span className="text-muted-foreground text-sm">— {w.correct}/{w.picked} correct</span>
+                            </div>
+                          ))}
+                      </div>
+                      <div className="rounded-xl border border-border/40 overflow-hidden">
+                        {leaderboard.entries.map((entry, idx) => {
+                          const isMe = entry.userId === user?.id;
+                          return (
+                            <div
+                              key={entry.userId}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
+                                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                              )}
+                            >
+                              <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
+                                {idx + 1}
+                              </span>
+                              <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
+                                {entry.displayName || entry.username}
+                                {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                                <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Grouped game list: Saturday section then Sunday section */}
+                  {nhlWeeklyDays.map((day) => (
+                    <div key={day.date} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80 leading-none">
+                          {day.label}
+                        </h4>
+                        <div className="flex-1 h-px bg-border/30" />
+                        <span className="text-xs text-muted-foreground/50">
+                          {day.games.length} game{day.games.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      {day.games.length === 0 ? (
+                        <p className="text-sm text-muted-foreground/50 px-1 py-4 text-center">No games scheduled.</p>
+                      ) : (
+                        day.games.map((game, idx) => {
+                          const isSundaySlot = day.date === sunDate;
+                          const showTiebreakerBadge = isSundaySlot && idx === day.games.length - 1 && needsTiebreaker;
+                          return (
+                            <GameCard
+                              key={game.id}
+                              game={game}
+                              pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                              onPick={(teamId) => togglePick(game.id, teamId)}
+                              isTiebreakerGame={showTiebreakerBadge}
+                            />
+                          );
+                        })
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Submit bar */}
+                  {(isToday || isSandbox) && openGames.length > 0 && (
+                    <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
+                      <p className="text-sm text-muted-foreground">
+                        {pendingPickCount > 0 ? (
+                          <span className="text-yellow-400/80">
+                            {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
+                          </span>
+                        ) : (
+                          <span className="text-green-400/80 flex items-center gap-1">
+                            <Check className="w-4 h-4" /> All open games picked
+                          </span>
+                        )}
+                      </p>
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={submitPicks.isPending || localPicks.size === 0}
+                        className="font-bebas text-xl tracking-widest px-8 h-12"
+                      >
+                        {submitPicks.isPending ? (
+                          <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                        ) : (
+                          "Submit Picks"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           ) : gamesLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
