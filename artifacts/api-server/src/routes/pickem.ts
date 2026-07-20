@@ -341,6 +341,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // Build a map of all known games for validation
   const gameMap = new Map<string, { date: string }>();
+  // For NHL/NBA weekly sandbox pools, the anchor date of the games being submitted
+  // (e.g. "2025-10-11" for the sandbox Saturday). Set inside the matching branch below
+  // and used as gameDate when storing picks so all reads can find them by game date.
+  let anchorGameDate: string | null = null;
 
   if (isWc) {
     // For WC: use cached full schedule for validation (avoids re-fetching today only)
@@ -362,6 +366,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     const anchorBounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
     const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
+    anchorGameDate = sandboxDay;
     const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly") {
@@ -373,6 +378,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     const anchorBounds = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
     const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
+    anchorGameDate = sandboxDay;
     const anchorGames = await fetchGamesForDate("nba", sandboxDay.replace(/-/g, ""));
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nfl") {
@@ -431,8 +437,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
       : pick.pickedTeamName;
 
-    // For 3-way picks: use the game-specific date; for other sports: use today
-    const gameDate = is3way && pick.gameDate ? pick.gameDate : todayEt;
+    // For 3-way picks: use the game-specific date.
+    // For NHL/NBA weekly sandbox pools: use the anchor date captured during game-ID validation
+    // (e.g. "2025-10-11" for the sandbox Saturday) so all read paths can find picks by game date.
+    // For all other sports: fall back to today.
+    const gameDate = is3way && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
 
     await db
       .insert(pickemPicksTable)
@@ -1202,7 +1211,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: Array.from(userPicks.values()).map((p) => {
         const startTime = gameStartMap.get(p.gameId);
-        const revealed = pool.sandboxMode ? false : (gameStartMap.size > 0 && !!startTime && isGameLocked(startTime));
+        const revealed = pool.sandboxMode ? true : (gameStartMap.size > 0 && !!startTime && isGameLocked(startTime));
         if (!revealed) {
           return {
             gameId: p.gameId,
