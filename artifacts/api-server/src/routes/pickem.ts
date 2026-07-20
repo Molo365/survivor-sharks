@@ -305,12 +305,13 @@ router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
+  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes, date: submittedDate } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
     tiebreakerRuns?: number;
     tiebreakerStrikeouts?: number;
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
+    date?: string;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -351,14 +352,28 @@ router.post("/picks", requireAuth, async (req, res) => {
     const games = await fetchIntlGamesForDate(todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly") {
-    // Sandbox: validate against anchor-week games mapped to today's day-of-week slot
-    const [ry2, rm2, rd2] = todayEt.split("-").map(Number);
+    // Sandbox: validate against the same anchor-week day the client loaded games for.
+    // Use the submitted date if present; fall back to real-world today only as a
+    // last resort (keeps backwards-compat if the client omits the field).
+    const baseDate = (submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) ? submittedDate : todayEt;
+    const [ry2, rm2, rd2] = baseDate.split("-").map(Number);
     const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay();
     const mondayOffset = dow === 0 ? 6 : dow - 1;
     const anchorBounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
     const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
     const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
+    for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
+  } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly") {
+    // Same fix for NBA sandbox weekly pools.
+    const baseDate = (submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) ? submittedDate : todayEt;
+    const [ry2, rm2, rd2] = baseDate.split("-").map(Number);
+    const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay();
+    const mondayOffset = dow === 0 ? 6 : dow - 1;
+    const anchorBounds = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
+    const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+    const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
+    const anchorGames = await fetchGamesForDate("nba", sandboxDay.replace(/-/g, ""));
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nfl") {
     // For NFL sandbox/replay pools, fetch games using the stored pick game dates

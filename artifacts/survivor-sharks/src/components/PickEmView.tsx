@@ -2240,6 +2240,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         poolId,
         data: {
           picks,
+          date: selectedDate,
           ...(tiebreakerRuns !== undefined && tiebreakerStrikeouts !== undefined
             ? { tiebreakerRuns, tiebreakerStrikeouts }
             : {}),

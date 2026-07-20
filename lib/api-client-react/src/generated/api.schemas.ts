@@ -1018,6 +1018,8 @@ export interface PickEmPickInput {
   tiebreakerShotsOnGoal?: number;
   /** NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week */
   tiebreakerPenaltyMinutes?: number;
+  /** The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games */
+  date?: string;
 }
 
 export interface PickEmPicksResult {
