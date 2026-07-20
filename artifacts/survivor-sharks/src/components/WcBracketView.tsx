@@ -1242,7 +1242,9 @@ export function WcBracketView({
                   ? "Open for picks"
                   : roundStatus === "in_progress"
                     ? "In progress"
-                    : "Results in — next round coming"}
+                    : roundData?.currentRound === "final"
+                      ? "Tournament complete"
+                      : "Results in — next round coming"}
               </div>
             </div>
 
@@ -1258,7 +1260,7 @@ export function WcBracketView({
                 </div>
               </div>
             )}
-            {roundStatus === "graded_waiting" && (
+            {roundStatus === "graded_waiting" && roundData?.currentRound !== "final" && (
               <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300">
                 <Trophy className="w-4 h-4 shrink-0" />
                 <div>

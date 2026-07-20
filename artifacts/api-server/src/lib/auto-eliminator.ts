@@ -2554,7 +2554,14 @@ export async function processWcBracketResults(): Promise<{ picksGraded: number }
   let picksGraded = 0;
 
   const wcBracketPools = await db
-    .select({ id: poolsTable.id })
+    .select({
+      id: poolsTable.id,
+      prizeStructure: poolsTable.prizeStructure,
+      prizeMode: poolsTable.prizeMode,
+      entryFee: poolsTable.entryFee,
+      prizePot: poolsTable.prizePot,
+      maxEntries: poolsTable.maxEntries,
+    })
     .from(poolsTable)
     .where(and(eq(poolsTable.poolType, "wc_bracket"), eq(poolsTable.isActive, true)));
 
@@ -2622,6 +2629,76 @@ export async function processWcBracketResults(): Promise<{ picksGraded: number }
           "WC bracket: graded pick",
         );
       }
+    }
+  }
+
+  // ── WC Bracket auto-close: close pool once the Final match is graded ─────
+  const finalComplete = completedMatches.some((m) => m.round === "final");
+  if (finalComplete) {
+    for (const pool of wcBracketPools) {
+      // Idempotency: skip if winner already declared for this pool
+      const [existing] = await db
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)))
+        .limit(1);
+      if (existing) continue;
+
+      // Sum correct picks per user across all rounds
+      const totals = await db
+        .select({
+          userId: wcBracketPicksTable.userId,
+          correct: sql<string>`count(*) filter (where ${wcBracketPicksTable.isCorrect} = true)`,
+        })
+        .from(wcBracketPicksTable)
+        .where(eq(wcBracketPicksTable.poolId, pool.id))
+        .groupBy(wcBracketPicksTable.userId);
+
+      if (totals.length === 0) continue;
+
+      const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+      const totalEntries = totals.length;
+      const sorted = [...totals].sort((a, b) => Number(b.correct) - Number(a.correct));
+      const maxCorrect = Number(sorted[0].correct);
+      const winnerIds = sorted.filter((r) => Number(r.correct) === maxCorrect).map((r) => r.userId);
+
+      const firstPrize = calcPrize({ placeIndex: 0, coWinners: winnerIds.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
+      await db
+        .update(entriesTable)
+        .set({ finalWinner: true, finishPosition: 1, prizeAmount: firstPrize })
+        .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, winnerIds)));
+
+      const winnerSet = new Set(winnerIds);
+      const nonWinners = sorted.filter((r) => !winnerSet.has(r.userId));
+      if (nonWinners.length > 0) {
+        const p2Score = Number(nonWinners[0].correct);
+        const secondGroup = nonWinners.filter((r) => Number(r.correct) === p2Score);
+        const secondPrize = calcPrize({ placeIndex: winnerIds.length, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
+        await db
+          .update(entriesTable)
+          .set({ finishPosition: 2, prizeAmount: secondPrize })
+          .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+        const rest2 = nonWinners.filter((r) => Number(r.correct) !== p2Score);
+        if (rest2.length > 0) {
+          const p3Score = Number(rest2[0].correct);
+          const thirdGroup = rest2.filter((r) => Number(r.correct) === p3Score);
+          const thirdPrize = calcPrize({ placeIndex: winnerIds.length + secondGroup.length, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee, prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries });
+          await db
+            .update(entriesTable)
+            .set({ finishPosition: 3, prizeAmount: thirdPrize })
+            .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
+        }
+      }
+
+      await db
+        .update(poolsTable)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(poolsTable.id, pool.id));
+
+      logger.info(
+        { poolId: pool.id, maxCorrect, winnerCount: winnerIds.length, winnerIds },
+        "WC Bracket auto-closure: final complete — pool closed and winner(s) declared",
+      );
     }
   }
 
