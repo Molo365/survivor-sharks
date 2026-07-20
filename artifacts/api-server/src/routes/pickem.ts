@@ -10,6 +10,7 @@ import {
   fetchSuperLeagueGamesForDate,
   fetchIntlGamesForDate,
   fetchNhlGamesByWeek,
+  fetchNbaGamesByWeek,
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
@@ -1000,6 +1001,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
+    : (sport === "nba" && pool.sandboxMode && isWeekly) ? fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, pool.currentWeek)
     : (sport === "superleague" && isWeekly && weekBounds)
       ? (() => {
           const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
@@ -1220,7 +1222,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: Array.from(userPicks.values()).map((p) => {
         const startTime = gameStartMap.get(p.gameId);
-        const revealed = pool.sandboxMode ? true : (gameStartMap.size > 0 && !!startTime && isGameLocked(startTime));
+        const revealed = gameStartMap.size > 0 && !!startTime && isGameLocked(startTime);
         if (!revealed) {
           return {
             gameId: p.gameId,
