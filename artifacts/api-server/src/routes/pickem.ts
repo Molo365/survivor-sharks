@@ -17,6 +17,7 @@ import {
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
+  type EspnGame,
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
@@ -233,6 +234,127 @@ router.get("/games", requireAuth, async (req, res) => {
     phase,
     games: formattedGames,
   });
+});
+
+/**
+ * Fetch MLS games for the full Mon–Sun week starting at weekStart, grouped by ET date.
+ * Days with no games are excluded from the result. De-duplicates game IDs across days.
+ * @param weekStart  Monday date string "YYYY-MM-DD"
+ */
+async function fetchMlsWeekDays(weekStart: string): Promise<{ date: string; games: EspnGame[] }[]> {
+  const [wy, wm, wd] = weekStart.split("-").map(Number);
+  const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+  const dates = Array.from({ length: 7 }, (_, i) =>
+    new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10),
+  );
+  const results = await Promise.all(
+    dates.map((d) => fetchGamesForDate("mls", d.replace(/-/g, ""))),
+  );
+  const seen = new Set<string>();
+  return dates
+    .map((date, i) => ({
+      date,
+      games: (results[i] ?? [])
+        .filter((g) => { if (seen.has(g.id)) return false; seen.add(g.id); return true; })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    }))
+    .filter((day) => day.games.length > 0);
+}
+
+// GET /api/pools/:poolId/pickem/week-games
+// Returns the full Mon–Sun slate for an MLS weekly pick-em pool, grouped by day.
+// Only days that have at least one game are included. Game shape matches GET /pickem/games.
+router.get("/week-games", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.sport !== "mls" || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "This endpoint is only for MLS weekly pick-em pools" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const todayEt = getTodayEtDate();
+  const { weekStart, weekEnd } = getWeekBoundsEt(todayEt);
+
+  // Fetch all 7 days in parallel; empty days are already excluded.
+  const weekDays = await fetchMlsWeekDays(weekStart);
+
+  // Load the requesting user's picks for the entire week in one query.
+  const weekPicks = await db
+    .select()
+    .from(pickemPicksTable)
+    .where(and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.userId, userId),
+      gte(pickemPicksTable.gameDate, weekStart),
+      lte(pickemPicksTable.gameDate, weekEnd),
+    ));
+  const pickMap = new Map(weekPicks.map((p) => [p.gameId, p]));
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const days = weekDays.map(({ date, games }) => {
+    const [ry, rm, rd] = date.split("-").map(Number);
+    const labelDate = new Date(Date.UTC(ry!, rm! - 1, rd!, 12, 0, 0));
+    const label = fmt.format(labelDate);
+
+    return {
+      date,
+      label,
+      games: games.map((g) => {
+        const existing = pickMap.get(g.id);
+        const locked = isGameLocked(g.date);
+        return {
+          id: g.id,
+          startTime: g.date,
+          status: g.status,
+          deadlinePassed: locked,
+          isTiebreakerGame: false,
+          awayTeam: {
+            id: g.awayTeam.id,
+            name: g.awayTeam.displayName,
+            abbreviation: g.awayTeam.abbreviation,
+            logoUrl: g.awayTeam.logo ?? null,
+          },
+          homeTeam: {
+            id: g.homeTeam.id,
+            name: g.homeTeam.displayName,
+            abbreviation: g.homeTeam.abbreviation,
+            logoUrl: g.homeTeam.logo ?? null,
+          },
+          awayScore: g.awayScore ?? null,
+          homeScore: g.homeScore ?? null,
+          userPickTeamId: null as string | null,
+          userPickResult: existing?.result ?? null,
+          liveDetail: g.liveState?.shortDetail ?? null,
+          liveOuts: null as number | null,
+          liveBaseRunners: null as { onFirst: boolean; onSecond: boolean; onThird: boolean } | null,
+          homeRecord: g.homeRecord ?? null,
+          awayRecord: g.awayRecord ?? null,
+          homePitcher: null as null,
+          awayPitcher: null as null,
+          pickOptions: WC_PICK_OPTIONS.map((id) => id) as string[],
+          userPickOption: existing?.pickedTeamId ?? null,
+        };
+      }),
+    };
+  });
+
+  res.json({ weekStart, weekEnd, days });
 });
 
 // GET /api/pools/:poolId/pickem/wc-schedule
