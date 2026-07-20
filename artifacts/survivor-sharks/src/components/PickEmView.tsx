@@ -2828,7 +2828,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 </div>
               )}
 
-              {isToday && openGames.length > 0 && !slate.poolClosed && (
+              {(isToday || isSandbox) && openGames.length > 0 && !slate.poolClosed && (
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                   <p className="text-sm text-muted-foreground">
                     {pendingPickCount > 0 ? (
