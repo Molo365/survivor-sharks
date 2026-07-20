@@ -489,6 +489,22 @@ router.post("/picks", requireAuth, async (req, res) => {
   res.status(201).json({ saved, skipped: 0 });
 });
 
+/**
+ * Shared reveal gate used by the leaderboard entry loop and the daily-pick drill-down.
+ * Own picks are always shown; other players' picks are hidden until the game/pick is graded or locked.
+ */
+function isPickRevealed(opts: {
+  isOwnPick: boolean;
+  sandboxMode: boolean;
+  result: string | null;
+  startTime: string | null | undefined;
+}): boolean {
+  if (opts.isOwnPick) return true;
+  return opts.sandboxMode
+    ? opts.result !== "pending"
+    : !!opts.startTime && isGameLocked(opts.startTime);
+}
+
 // GET /api/pools/:poolId/pickem/daily-picks?date=YYYY-MM-DD&userId=N
 router.get("/daily-picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -535,36 +551,35 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
 
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
-  const details = picks
-    .filter((pick) => {
-      // Own picks always visible; other players' picks only once their specific game has kicked off.
-      if (targetUserId === requestingUserId) return true;
-      const game = gameMap.get(pick.gameId);
-      return game != null && isGameLocked(game.date);
-    })
-    .map((pick) => {
-      const game = gameMap.get(pick.gameId);
-      const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-      return {
-        gameId: pick.gameId,
-        pickedTeamId: pick.pickedTeamId,
-        pickedTeamName: pick.pickedTeamName,
-        pickedTeamLogoUrl: game
-          ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
-          : null,
-        result: pick.result,
-        homeTeam: game
-          ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
-          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
-        awayTeam: game
-          ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
-          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
-        homeScore: game?.homeScore ?? null,
-        awayScore: game?.awayScore ?? null,
-        startTime: game?.date ?? "",
-        status: game?.status ?? "unknown",
-      };
+  const details = picks.map((pick) => {
+    const game = gameMap.get(pick.gameId);
+    const revealed = isPickRevealed({
+      isOwnPick: targetUserId === requestingUserId,
+      sandboxMode: pool.sandboxMode ?? false,
+      result: pick.result,
+      startTime: game?.date,
     });
+    const pickedIsHome = revealed && game ? pick.pickedTeamId === game.homeTeam.id : false;
+    return {
+      gameId: pick.gameId,
+      pickedTeamId: revealed ? pick.pickedTeamId : null as string | null,
+      pickedTeamName: revealed ? pick.pickedTeamName : null as string | null,
+      pickedTeamLogoUrl: revealed && game
+        ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
+        : null,
+      result: pick.result,
+      homeTeam: game
+        ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      awayTeam: game
+        ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+        : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+      homeScore: game?.homeScore ?? null,
+      awayScore: game?.awayScore ?? null,
+      startTime: game?.date ?? "",
+      status: game?.status ?? "unknown",
+    };
+  });
 
   res.json(details);
 });
@@ -1222,10 +1237,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: Array.from(userPicks.values()).map((p) => {
         const startTime = gameStartMap.get(p.gameId);
-        const revealed = (row.userId === userId)
-          || (pool.sandboxMode
-            ? p.result !== "pending"
-            : gameStartMap.size > 0 && !!startTime && isGameLocked(startTime));
+        const revealed = isPickRevealed({
+          isOwnPick: row.userId === userId,
+          sandboxMode: pool.sandboxMode ?? false,
+          result: p.result,
+          startTime,
+        });
         if (!revealed) {
           return {
             gameId: p.gameId,
