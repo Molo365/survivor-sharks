@@ -3702,7 +3702,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 <PickEmSandboxPanel poolId={poolId} />
               )}
 
-              {/* Stop Recurring — MLB Daily pick-em pools only */}
+              {/* Stop Recurring — MLB Daily and MLB/NHL Weekly pick-em pools */}
               {(pickFrequency === "daily" || pickFrequency === "weekly") && (
                 isRecurring ? (
                   <Card className="border-destructive/30 bg-[linear-gradient(145deg,rgba(220,38,38,0.05)_0%,rgba(10,14,26,1)_100%)]">
@@ -3711,7 +3711,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         <OctagonX className="w-5 h-5" /> End Recurring Pool
                       </CardTitle>
                       <CardDescription className="text-muted-foreground/80">
-                        Stop this pool from auto-generating new days. The current day will complete normally, then the pool closes.
+                        {pickFrequency === "weekly"
+                          ? "Stop this pool from auto-generating new weeks. The current week will complete normally, then the pool closes."
+                          : "Stop this pool from auto-generating new days. The current day will complete normally, then the pool closes."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -3725,8 +3727,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                           <AlertDialogHeader>
                             <AlertDialogTitle>End Recurring Pool?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              This pool will finish today's results normally, then stop generating new days.
-                              This cannot be undone.
+                              {pickFrequency === "weekly"
+                                ? "This pool will finish this week's results normally, then stop generating new weeks. This cannot be undone."
+                                : "This pool will finish today's results normally, then stop generating new days. This cannot be undone."}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -3737,7 +3740,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               onClick={() => {
                                 updatePool.mutate({ poolId, data: { isRecurring: false } }, {
                                   onSuccess: () => {
-                                    toast({ title: "Pool will end after today", description: "No new days will be generated after the current cycle closes." });
+                                    toast({
+                                      title: pickFrequency === "weekly" ? "Pool will end after this week" : "Pool will end after today",
+                                      description: pickFrequency === "weekly"
+                                        ? "No new weeks will be generated after the current cycle closes."
+                                        : "No new days will be generated after the current cycle closes.",
+                                    });
                                     queryClient.invalidateQueries({ queryKey: getGetPoolQueryKey(poolId) });
                                     setConfirmRecurringOpen(false);
                                   },
@@ -3759,7 +3767,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     <CardContent className="pt-6">
                       <div className="flex items-start gap-3 text-muted-foreground">
                         <OctagonX className="w-5 h-5 text-destructive/60 shrink-0 mt-0.5" />
-                        <p className="text-sm">This pool will end after the current cycle completes. No new days will be generated.</p>
+                        <p className="text-sm">
+                          {pickFrequency === "weekly"
+                            ? "This pool will end after the current cycle completes. No new weeks will be generated."
+                            : "This pool will end after the current cycle completes. No new days will be generated."}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
