@@ -393,6 +393,17 @@ export default function CreatePool() {
 
   // ── Step tracking (derived — no useState) ────────────────────────────────────
 
+  // Whether the recurring toggle is shown — weekly-frequency pool types only.
+  // Must stay in sync with the submit payload condition below (both use this boolean).
+  const showsRecurringToggle = (
+    (selectedSport === PoolInputSport.mlb && selectedType === "pickem") ||
+    (selectedSport === PoolInputSport.nhl && selectedType === "pickem") ||
+    (selectedSport === PoolInputSport.mls && selectedType === "pickem") ||
+    (selectedSport === PoolInputSport.superleague && selectedType === "pickem") ||
+    selectedType === "crazy_8s" ||
+    selectedType === "nfl_confidence_weekly"
+  );
+
   // Whether the selected sport/type exposes any Step 3 options (double elim, recurring, sandbox)
   const hasOptions = (
     ((selectedSport === PoolInputSport.mlb || selectedSport === PoolInputSport.nfl) &&
@@ -551,7 +562,7 @@ export default function CreatePool() {
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
-          ...((values.sport === PoolInputSport.mlb && values.poolType === "pickem" || values.poolType === "nfl_confidence_weekly") && { isRecurring: values.isRecurring }),
+          ...(showsRecurringToggle && { isRecurring: values.isRecurring }),
         } as any,
       },
       {
@@ -955,9 +966,8 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Recurring — MLB Pick-Ems, Crazy 8's, NFL Confidence Weekly ── */}
-                      {/* recurring: mlb pickem, nhl pickem, crazy_8s, nfl_confidence_weekly */}
-                      {((selectedSport === PoolInputSport.mlb && selectedType === "pickem") || (selectedSport === PoolInputSport.nhl && selectedType === "pickem") || selectedType === "crazy_8s" || selectedType === "nfl_confidence_weekly") && (
+                      {/* ── Recurring — weekly-frequency pool types (MLB/NHL/MLS/Super League pickem, crazy_8s, nfl_confidence_weekly) ── */}
+                      {showsRecurringToggle && (
                         <FormField
                           control={form.control}
                           name="isRecurring"
