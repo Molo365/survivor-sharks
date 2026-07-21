@@ -373,7 +373,7 @@ export default function JoinInvite() {
                 prizeStructure={pool.prizeStructure}
                 prizePot={pool.prizePot}
                 maxEntries={pool.maxEntries}
-                actualEntries={pool.playerCount}
+                actualEntries={pool.playerCount + 1}
               />
 
               {pool.showCommissionerCut && pool.commissionerCut && pool.commissionerCut > 0 && (
