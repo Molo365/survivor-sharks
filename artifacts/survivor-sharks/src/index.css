@@ -163,15 +163,17 @@
   }
 }
 
-.shark-card {
-  background: linear-gradient(145deg, hsl(225, 40%, 12%), hsl(225, 44%, 8%));
-  border: 1px solid hsl(225, 30%, 18%);
-  transition: all 0.2s ease-in-out;
-}
+@layer components {
+  .shark-card {
+    background: linear-gradient(145deg, hsl(225, 40%, 12%), hsl(225, 44%, 8%));
+    border: 1px solid hsl(225, 30%, 18%);
+    transition: all 0.2s ease-in-out;
+  }
 
-.shark-card:hover {
-  border-color: hsl(210, 100%, 56%);
-  box-shadow: 0 0 15px rgba(30, 144, 255, 0.2);
+  .shark-card:hover {
+    border-color: hsl(210, 100%, 56%);
+    box-shadow: 0 0 15px rgba(30, 144, 255, 0.2);
+  }
 }
 
 @layer utilities {
