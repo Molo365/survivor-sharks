@@ -723,6 +723,16 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           (currentRoundEventIds?.length ?? 0) > 0 &&
           (currentRoundPickMap.get(userId) ?? 0) > 0;
 
+        let myEntryPrizeAmount: number | null = null;
+        if (!pool.isActive) {
+          const [myEntry] = await db
+            .select({ prizeAmount: entriesTable.prizeAmount })
+            .from(entriesTable)
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
+            .limit(1);
+          myEntryPrizeAmount = myEntry?.prizeAmount != null ? Number(myEntry.prizeAmount) : null;
+        }
+
         return {
           poolId: pool.id,
           isActive: pool.isActive,
@@ -738,6 +748,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             eliminatedWeek: null,
             score: myRow ? Number(myRow.score) : null,
             maxScore: null,
+            prizeWon: myEntryPrizeAmount,
           },
           poolName: pool.name,
           sport: pool.sport as string,
@@ -896,7 +907,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         const actualGameDate = latestDateRow?.gameDate ?? null;
 
-        const [currentRows, winnerRows] = await Promise.all([
+        const [currentRows, winnerRows, myEntryRows] = await Promise.all([
           actualGameDate
             ? db
                 .select({
@@ -924,10 +935,16 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             .from(entriesTable)
             .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
             .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))),
+          db
+            .select({ prizeAmount: entriesTable.prizeAmount })
+            .from(entriesTable)
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
+            .limit(1),
         ]);
 
         const myIdx = currentRows.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+        const myPrizeWon = myEntryRows[0]?.prizeAmount != null ? Number(myEntryRows[0].prizeAmount) : null;
 
         const lastWinners =
           winnerRows.length > 0
@@ -954,8 +971,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                 picked: Number(myRow.picked),
                 hasPicks: Number(myRow.picked) > 0,
                 status: null, eliminatedWeek: null, score: null, maxScore: null,
+                prizeWon: myPrizeWon,
               }
-            : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+            : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null, prizeWon: null };
 
         return {
           poolId: pool.id,
@@ -986,7 +1004,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         if (latestWeeklyRow?.gameDate) {
           const actualWeekBounds = getWeekBoundsEt(latestWeeklyRow.gameDate);
-          const [currentRows, winnerRows] = await Promise.all([
+          const [currentRows, winnerRows, myEntryRows] = await Promise.all([
             db
               .select({
                 userId: pickemPicksTable.userId,
@@ -1013,10 +1031,16 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               .from(entriesTable)
               .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
               .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))),
+            db
+              .select({ prizeAmount: entriesTable.prizeAmount })
+              .from(entriesTable)
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
+              .limit(1),
           ]);
 
           const myIdx = currentRows.findIndex((r) => r.userId === userId);
           const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+          const myPrizeWon = myEntryRows[0]?.prizeAmount != null ? Number(myEntryRows[0].prizeAmount) : null;
 
           const lastWinners =
             winnerRows.length > 0
@@ -1043,8 +1067,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                   picked: Number(myRow.picked),
                   hasPicks: Number(myRow.picked) > 0,
                   status: null, eliminatedWeek: null, score: null, maxScore: null,
+                  prizeWon: myPrizeWon,
                 }
-              : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+              : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null, prizeWon: null };
 
           return {
             poolId: pool.id,
