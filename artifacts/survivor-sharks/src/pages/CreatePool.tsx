@@ -421,7 +421,8 @@ export default function CreatePool() {
     ((selectedSport === PoolInputSport.mlb && selectedType === "pickem") ||
       selectedType === "nfl_confidence_weekly") ||
     (user?.role === "admin" && (selectedType === "nfl_confidence" ||
-      selectedType === "pickem_season" || (selectedSport === PoolInputSport.nhl && selectedType === "season")))
+      selectedType === "pickem_season" || (selectedSport === PoolInputSport.nhl && selectedType === "season"))) ||
+    showsRecurringToggle
   );
 
   // Furthest step the user has legitimately progressed to (derived from field values).
