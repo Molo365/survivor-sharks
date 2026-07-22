@@ -264,7 +264,7 @@ const formSchema = z.object({
   poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
-  isRecurring: z.boolean().default(false),
+  isRecurring: z.boolean().optional(),
   sandboxMode: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
@@ -484,7 +484,9 @@ export default function CreatePool() {
   const optionsSummary =
     [
       form.getValues("doubleElimination") && "Double Elimination",
-      form.getValues("isRecurring") && "Recurring",
+      showsRecurringToggle
+        ? (form.getValues("isRecurring") === true ? "Recurring" : form.getValues("isRecurring") === false ? "One-time" : false)
+        : false,
       form.getValues("sandboxMode") && "Sandbox Mode",
     ]
       .filter(Boolean)
@@ -571,7 +573,7 @@ export default function CreatePool() {
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
-          ...(showsRecurringToggle && { isRecurring: values.isRecurring }),
+          ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
         } as any,
       },
       {
@@ -981,27 +983,59 @@ export default function CreatePool() {
                           control={form.control}
                           name="isRecurring"
                           render={({ field }) => (
-                            <FormItem className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="flex items-start gap-3">
-                                  <Repeat className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                                  <div>
-                                    <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer">
+                            <FormItem className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4">
+                              <div className="flex items-start gap-3 mb-3">
+                                <Repeat className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <FormLabel className="font-bebas text-lg tracking-wide">
                                       Recurring Pool
                                     </FormLabel>
-                                    <FormDescription className="text-xs mt-0.5">
-                                      When on, this pool automatically repeats at the end of each period (daily or weekly). When off, it runs once then closes permanently. Season-long pools are not eligible for recurring.
-                                    </FormDescription>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary border border-primary/40 bg-primary/10 px-1.5 py-0.5 rounded leading-none">
+                                      Required
+                                    </span>
                                   </div>
+                                  <FormDescription className="text-xs mt-0.5">
+                                    Choose how this pool behaves at the end of each period. This can't be changed after the pool is created.
+                                  </FormDescription>
                                 </div>
-                                <FormControl>
-                                  <Switch
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    data-testid="toggle-recurring"
-                                  />
-                                </FormControl>
                               </div>
+                              <FormControl>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button
+                                    type="button"
+                                    data-testid="recurring-yes"
+                                    onClick={() => field.onChange(true)}
+                                    className={cn(
+                                      "flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                      field.value === true
+                                        ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30 ring-offset-1 ring-offset-background"
+                                        : "border-border/40 bg-card/50 hover:border-primary/30 hover:bg-primary/5",
+                                    )}
+                                  >
+                                    <span className="font-bebas text-base tracking-wide">Yes — Recurring</span>
+                                    <span className="text-[11px] text-muted-foreground leading-snug">
+                                      Resets and repeats automatically each period. Best for ongoing weekly leagues.
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-testid="recurring-no"
+                                    onClick={() => field.onChange(false)}
+                                    className={cn(
+                                      "flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                      field.value === false
+                                        ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30 ring-offset-1 ring-offset-background"
+                                        : "border-border/40 bg-card/50 hover:border-primary/30 hover:bg-primary/5",
+                                    )}
+                                  >
+                                    <span className="font-bebas text-base tracking-wide">No — One-time only</span>
+                                    <span className="text-[11px] text-muted-foreground leading-snug">
+                                      Runs once, then closes permanently when the period ends.
+                                    </span>
+                                  </button>
+                                </div>
+                              </FormControl>
                             </FormItem>
                           )}
                         />
@@ -1046,6 +1080,7 @@ export default function CreatePool() {
                         <Button
                           type="button"
                           onClick={() => { setStep3Confirmed(true); setEditStep(4); }}
+                          disabled={showsRecurringToggle && form.watch("isRecurring") === undefined}
                           className="font-bebas text-lg tracking-widest px-6"
                           data-testid="button-confirm-options"
                         >
