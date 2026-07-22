@@ -35,8 +35,10 @@ import {
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
   fetchNhlGamesByWeek,
+  fetchNflGamesByWeek,
   getTeamsWithWin,
 } from "./espn";
+import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
   fetchTodayWcGames,
   fetchWcGamesForDate,
@@ -1918,6 +1920,120 @@ export async function processPickEmResults(): Promise<{
       }
     } catch (err) {
       logger.error({ poolId: pool.id, err }, "NFL replay grading loop error");
+    }
+
+    // ── pickem_season auto-closure (sandbox) ─────────────────────────────────
+    // After grading, check whether this sandbox pool has reached the final week
+    // with all picks resolved. applyPickEmSeasonClosure is idempotent: it
+    // no-ops when pool.isActive is already false.
+    if (pool.poolType === "pickem_season" && pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
+      try {
+        const [{ pendingCount }] = await db
+          .select({ pendingCount: count() })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, NFL_TOTAL_WEEKS),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+        if (Number(pendingCount) === 0) {
+          logger.info({ poolId: pool.id }, "pickem_season auto-closure: sandbox Week 18 fully graded — applying season closure");
+          await applyPickEmSeasonClosure({
+            poolId: pool.id,
+            week: NFL_TOTAL_WEEKS,
+            pool: { isActive: pool.isActive },
+            actualPassingYards: null,
+            actualRushingYards: null,
+            log: logger,
+          });
+        } else {
+          logger.info({ poolId: pool.id, pendingCount: Number(pendingCount) }, "pickem_season auto-closure: sandbox Week 18 still has pending picks — deferring");
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, err }, "pickem_season auto-closure: sandbox closure check error");
+      }
+    }
+  }
+
+  // ── pickem_season live pool auto-grading and closure ─────────────────────
+  // Grade picks for live (non-sandbox) pickem_season pools against real ESPN
+  // data, then apply season closure once all Week 18 picks are resolved.
+  // The manual POST /process-results endpoint is not modified and continues
+  // to work as the commissioner's override/fallback path.
+
+  const livePickemSeasonPools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.poolType, "pickem_season"),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.sandboxMode, false),
+    ));
+
+  for (const pool of livePickemSeasonPools) {
+    try {
+      const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined);
+      const completedGames = games.filter(
+        (g) => g.status === "final" && g.homeScore != null && g.awayScore != null,
+      );
+      if (completedGames.length > 0) {
+        for (const game of completedGames) {
+          const home = game.homeScore!;
+          const away = game.awayScore!;
+          if (home === away) {
+            // Tied game: all picks are incorrect (matches process-results behaviour)
+            await db
+              .update(pickemPicksTable)
+              .set({ result: "incorrect" })
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.id),
+                eq(pickemPicksTable.result, "pending"),
+              ));
+          } else {
+            const winnerTeamId = home > away ? game.homeTeam.id : game.awayTeam.id;
+            await db
+              .update(pickemPicksTable)
+              .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.id),
+                eq(pickemPicksTable.result, "pending"),
+              ));
+          }
+        }
+      }
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "pickem_season auto-closure: live ESPN fetch/grade error");
+    }
+
+    // ── pickem_season auto-closure (live) ──────────────────────────────────
+    if (pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
+      try {
+        const [{ pendingCount }] = await db
+          .select({ pendingCount: count() })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, NFL_TOTAL_WEEKS),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+        if (Number(pendingCount) === 0) {
+          logger.info({ poolId: pool.id }, "pickem_season auto-closure: live Week 18 fully graded — applying season closure");
+          await applyPickEmSeasonClosure({
+            poolId: pool.id,
+            week: NFL_TOTAL_WEEKS,
+            pool: { isActive: pool.isActive },
+            actualPassingYards: null,
+            actualRushingYards: null,
+            log: logger,
+          });
+        } else {
+          logger.info({ poolId: pool.id, pendingCount: Number(pendingCount) }, "pickem_season auto-closure: live Week 18 still has pending picks — deferring");
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, err }, "pickem_season auto-closure: live closure check error");
+      }
     }
   }
 
