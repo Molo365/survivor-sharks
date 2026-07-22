@@ -27,7 +27,15 @@ import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
-const SPORTS = [
+type SportEntry = {
+  id: PoolInputSport | "superleague";
+  label: string;
+  sublabel: string;
+  logoImg: string;
+  hidden?: boolean;
+};
+
+const SPORTS: ReadonlyArray<SportEntry> = [
   {
     id: PoolInputSport.mlb,
     label: "MLB",
@@ -54,9 +62,10 @@ const SPORTS = [
   },
   {
     id: PoolInputSport.worldcup,
-    label: "SOC",
-    sublabel: "Soccer",
-    logoImg: '/Premier-League-Logo.png',
+    label: "WC",
+    sublabel: "World Cup",
+    logoImg: '/WorldCup2026.png',
+    hidden: true,
   },
   {
     id: PoolInputSport.mls,
@@ -70,7 +79,7 @@ const SPORTS = [
     sublabel: "Super League",
     logoImg: '/European-Super-League.jpg',
   },
-] as const;
+];
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s"],
@@ -661,7 +670,7 @@ export default function CreatePool() {
                     render={({ field }) => (
                       <FormItem>
                         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-2">
-                          {SPORTS.map((sport) => {
+                          {SPORTS.filter((s) => !s.hidden).map((sport) => {
                             const isSelected = field.value === sport.id;
                             return (
                               <button
