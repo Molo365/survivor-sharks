@@ -101,7 +101,10 @@ router.get("/games", requireAuth, async (req, res) => {
           awayRecord: null,
         };
       });
-      res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, sandboxMode: true, replayMode: true });
+      const replayTiebreakerGameId = week === NFL_TOTAL_WEEKS
+        ? ([...formattedGames].sort((a, b) => a.startTime.localeCompare(b.startTime)).at(-1)?.id ?? null)
+        : null;
+      res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, sandboxMode: true, replayMode: true, ...(replayTiebreakerGameId !== null && { tiebreakerGameId: replayTiebreakerGameId }) });
       return;
     }
 
@@ -125,7 +128,10 @@ router.get("/games", requireAuth, async (req, res) => {
         awayRecord: null,
       };
     });
-    res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames });
+    const staticTiebreakerGameId = week === NFL_TOTAL_WEEKS
+      ? ([...formattedGames].sort((a, b) => a.startTime.localeCompare(b.startTime)).at(-1)?.id ?? null)
+      : null;
+    res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, ...(staticTiebreakerGameId !== null && { tiebreakerGameId: staticTiebreakerGameId }) });
     return;
   }
 

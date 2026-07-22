@@ -1531,6 +1531,10 @@ export function PickEmSeasonView({
   const actualRushingYards = leaderboard?.actualRushingYards ?? null;
   const tbActualsKnown = actualPassingYards !== null && actualRushingYards !== null;
 
+  const tiebreakerGame = slate?.tiebreakerGameId
+    ? (slate.games.find((g) => g.id === slate.tiebreakerGameId) ?? null)
+    : null;
+
   return (
     <>
       {/* Tiebreaker modal — Week 18 intercept */}
@@ -1547,6 +1551,23 @@ export function PickEmSeasonView({
               <strong className="text-foreground">combined rushing yards</strong> for the last scheduled game of the week. Closest guess wins.
             </DialogDescription>
           </DialogHeader>
+          {tiebreakerGame && (
+            <div className="flex items-center justify-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 -mt-1">
+              <div className="flex items-center gap-2 min-w-0">
+                {tiebreakerGame.awayTeam.logoUrl && (
+                  <img src={tiebreakerGame.awayTeam.logoUrl} alt="" className="w-8 h-8 object-contain flex-shrink-0" />
+                )}
+                <span className="font-semibold text-sm leading-tight">{tiebreakerGame.awayTeam.name}</span>
+              </div>
+              <span className="text-xs font-bold text-muted-foreground flex-shrink-0">@</span>
+              <div className="flex items-center gap-2 min-w-0">
+                {tiebreakerGame.homeTeam.logoUrl && (
+                  <img src={tiebreakerGame.homeTeam.logoUrl} alt="" className="w-8 h-8 object-contain flex-shrink-0" />
+                )}
+                <span className="font-semibold text-sm leading-tight">{tiebreakerGame.homeTeam.name}</span>
+              </div>
+            </div>
+          )}
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -1555,7 +1576,7 @@ export function PickEmSeasonView({
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 4200"
+                placeholder="e.g. 450"
                 value={tbPassingYards}
                 onChange={(e) => setTbPassingYards(e.target.value)}
                 className="text-lg font-mono h-12"
@@ -1569,7 +1590,7 @@ export function PickEmSeasonView({
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 2100"
+                placeholder="e.g. 180"
                 value={tbRushingYards}
                 onChange={(e) => setTbRushingYards(e.target.value)}
                 className="text-lg font-mono h-12"
