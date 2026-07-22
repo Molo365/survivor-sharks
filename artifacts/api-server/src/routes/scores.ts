@@ -368,4 +368,133 @@ router.get("/game/:gameId", async (req, res) => {
   }
 });
 
+// ── Sport standings configuration ─────────────────────────────────────────────
+//
+// Maps the sport key (same keys used in /today) to:
+//   url        — ESPN v2 standings endpoint
+//   extraStat  — optional 3rd column stat name (otLosses for NHL, ties for MLS/NFL)
+//   extraLabel — column header label for that stat
+//   pctStat    — "winPercent" (MLB/NBA/NFL) or "points" (NHL/MLS)
+//   pctLabel   — column header label
+
+const STANDINGS_CONFIG: Record<string, {
+  url: string;
+  extraStat: string | null;
+  extraLabel: string;
+  pctStat: string;
+  pctLabel: string;
+}> = {
+  mlb: {
+    url: "https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings",
+    extraStat: null,
+    extraLabel: "",
+    pctStat: "winPercent",
+    pctLabel: "PCT",
+  },
+  nhl: {
+    url: "https://site.api.espn.com/apis/v2/sports/hockey/nhl/standings",
+    extraStat: "otLosses",
+    extraLabel: "OT",
+    pctStat: "points",
+    pctLabel: "PTS",
+  },
+  nba: {
+    url: "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings",
+    extraStat: null,
+    extraLabel: "",
+    pctStat: "winPercent",
+    pctLabel: "PCT",
+  },
+  mls: {
+    url: "https://site.api.espn.com/apis/v2/sports/soccer/usa.1/standings",
+    extraStat: "ties",
+    extraLabel: "T",
+    pctStat: "points",
+    pctLabel: "PTS",
+  },
+  nfl: {
+    url: "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3",
+    extraStat: "ties",
+    extraLabel: "T",
+    pctStat: "winPercent",
+    pctLabel: "PCT",
+  },
+};
+
+// GET /api/scores/standings/:sport — public, no auth required
+router.get("/standings/:sport", async (req, res) => {
+  const sport = String(req.params.sport);
+  const config = STANDINGS_CONFIG[sport];
+
+  if (!config) {
+    res.status(400).json({ error: "Standings not available for this sport" });
+    return;
+  }
+
+  try {
+    const espnRes = await fetch(config.url, { signal: AbortSignal.timeout(8000) });
+    if (!espnRes.ok) {
+      res.status(502).json({ error: "ESPN standings unavailable" });
+      return;
+    }
+
+    const raw = await espnRes.json() as Record<string, unknown>;
+
+    const getStat = (
+      stats: Array<{ name: string; displayValue: string; value?: number }> | undefined,
+      name: string,
+    ) => stats?.find(s => s.name === name);
+
+    const parseEntries = (entries: Array<{
+      team: { abbreviation: string; displayName: string; logos?: { href: string }[] };
+      stats?: Array<{ name: string; displayValue: string; value?: number }>;
+    }>) =>
+      entries.map(e => {
+        const st = e.stats ?? [];
+        const extraVal = config.extraStat ? (getStat(st, config.extraStat)?.value ?? 0) : null;
+        const pctRaw = getStat(st, config.pctStat);
+        const pct = pctRaw?.displayValue ?? (pctRaw?.value != null ? String(pctRaw.value) : "—");
+        const gbRaw = getStat(st, "gamesBehind");
+        const gb = gbRaw?.displayValue ?? (gbRaw?.value != null ? String(gbRaw.value) : "-");
+        return {
+          abbrev: e.team.abbreviation,
+          displayName: e.team.displayName,
+          logo: (e.team.logos?.[0]?.href) ?? null,
+          w: getStat(st, "wins")?.value ?? 0,
+          l: getStat(st, "losses")?.value ?? 0,
+          extra: extraVal !== null ? String(extraVal) : null,
+          extraLabel: config.extraLabel || null,
+          pct,
+          pctLabel: config.pctLabel,
+          gb,
+        };
+      });
+
+    type StandingsGroup = { name: string; teams: ReturnType<typeof parseEntries> };
+    const groups: StandingsGroup[] = [];
+
+    // ESPN v2 standings can be 2-level (conf → entries) or 3-level (conf → div → entries)
+    for (const child of (raw.children as Array<Record<string, unknown>>) ?? []) {
+      const subChildren = child.children as Array<Record<string, unknown>> | undefined;
+      if (subChildren?.length) {
+        for (const sub of subChildren) {
+          const entries = ((sub.standings as Record<string, unknown>)?.entries as Array<unknown>) ?? [];
+          if (entries.length > 0) {
+            groups.push({ name: sub.name as string, teams: parseEntries(entries as Parameters<typeof parseEntries>[0]) });
+          }
+        }
+      } else {
+        const entries = ((child.standings as Record<string, unknown>)?.entries as Array<unknown>) ?? [];
+        if (entries.length > 0) {
+          groups.push({ name: child.name as string, teams: parseEntries(entries as Parameters<typeof parseEntries>[0]) });
+        }
+      }
+    }
+
+    res.json({ sport, groups });
+  } catch {
+    res.status(502).json({ error: "Failed to fetch standings" });
+  }
+});
+
 export default router;

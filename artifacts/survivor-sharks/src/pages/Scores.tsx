@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -41,6 +41,31 @@ interface ScoresResponse {
   date: string;
   sports: SportSection[];
 }
+
+interface StandingsTeam {
+  abbrev: string;
+  displayName: string;
+  logo: string | null;
+  w: number;
+  l: number;
+  extra: string | null;
+  extraLabel: string | null;
+  pct: string;
+  pctLabel: string;
+  gb: string;
+}
+
+interface StandingsGroup {
+  name: string;
+  teams: StandingsTeam[];
+}
+
+interface StandingsResponse {
+  sport: string;
+  groups: StandingsGroup[];
+}
+
+const SPORTS_WITH_STANDINGS = new Set(["mlb", "nhl", "nba", "mls", "nfl"]);
 
 interface GameDetail {
   gameId: string;
@@ -267,9 +292,11 @@ function GameCard({
 function SportSectionCard({
   section,
   onSelectGame,
+  onStandingsClick,
 }: {
   section: SportSection;
   onSelectGame: (game: EspnGame, sport: string) => void;
+  onStandingsClick?: () => void;
 }) {
   const sorted = [...section.games].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
@@ -282,6 +309,14 @@ function SportSectionCard({
           {section.emoji} {section.label}
         </span>
         <div className="flex-1 h-px bg-border/20" />
+        {SPORTS_WITH_STANDINGS.has(section.sport) && onStandingsClick && (
+          <button
+            onClick={onStandingsClick}
+            className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded border border-border/30 bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          >
+            Standings
+          </button>
+        )}
       </div>
       <div className="space-y-2">
         {sorted.map((game) => (
@@ -711,6 +746,152 @@ function GameDetailSheet({
   );
 }
 
+// ── StandingsSheet ────────────────────────────────────────────────────────────
+
+function StandingsSheet({
+  sport,
+  label,
+  onClose,
+}: {
+  sport: string | null;
+  label: string;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<StandingsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sport) return;
+    setData(null);
+    setLoading(true);
+    fetch(`/api/scores/standings/${sport}`)
+      .then(r => (r.ok ? (r.json() as Promise<StandingsResponse>) : null))
+      .then(d => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [sport]);
+
+  const hasExtra = data?.groups.some(g => g.teams.some(t => t.extra !== null)) ?? false;
+  const pctLabel = data?.groups[0]?.teams[0]?.pctLabel ?? "PCT";
+  const extraLabel = data?.groups[0]?.teams[0]?.extraLabel ?? "";
+
+  return (
+    <Sheet
+      open={sport !== null}
+      onOpenChange={open => { if (!open) onClose(); }}
+    >
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-lg overflow-y-auto p-0 flex flex-col"
+      >
+        {/* Header */}
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/30 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="font-bebas text-2xl tracking-wide leading-none">
+              {label} Standings
+            </SheetTitle>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 rounded"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </SheetHeader>
+
+        {/* Body */}
+        <div className="flex-1 px-4 py-5 space-y-6 overflow-y-auto">
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+            </div>
+          )}
+
+          {!loading && !data && (
+            <p className="text-center text-sm text-muted-foreground py-12">
+              Standings unavailable
+            </p>
+          )}
+
+          {data && data.groups.map(group => (
+            <div key={group.name}>
+              <h4 className="font-bebas text-lg tracking-wide text-foreground mb-2 px-1">
+                {group.name}
+              </h4>
+              <div className="rounded-lg border border-border/20 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/10 border-b border-border/20">
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Team</th>
+                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground w-8">W</th>
+                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground w-8">L</th>
+                      {hasExtra && (
+                        <th className="text-center px-2 py-2 font-semibold text-muted-foreground w-8">
+                          {extraLabel}
+                        </th>
+                      )}
+                      <th className="text-center px-2 py-2 font-semibold text-primary w-12">
+                        {pctLabel}
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground w-10">GB</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.teams.map((team, i) => (
+                      <tr
+                        key={team.abbrev}
+                        className={cn(
+                          "border-t border-border/10",
+                          i === 0 && "bg-white/[0.02]",
+                        )}
+                      >
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            {team.logo ? (
+                              <img
+                                src={team.logo}
+                                alt={team.abbrev}
+                                className="h-5 w-5 object-contain flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="h-5 w-5 rounded-full bg-muted/20 flex-shrink-0" />
+                            )}
+                            <span className="font-semibold text-foreground">
+                              {team.abbrev}
+                            </span>
+                            <span className="text-muted-foreground/60 hidden sm:inline truncate max-w-[110px]">
+                              {team.displayName}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="text-center px-2 py-2 tabular-nums text-foreground/80">{team.w}</td>
+                        <td className="text-center px-2 py-2 tabular-nums text-foreground/80">{team.l}</td>
+                        {hasExtra && (
+                          <td className="text-center px-2 py-2 tabular-nums text-foreground/80">
+                            {team.extra ?? "—"}
+                          </td>
+                        )}
+                        <td className="text-center px-2 py-2 tabular-nums font-bold text-foreground">
+                          {team.pct}
+                        </td>
+                        <td className="text-center px-2 py-2 tabular-nums text-muted-foreground/70">
+                          {team.gb === "0" || team.gb === "-" ? "—" : team.gb}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ── Scores page ───────────────────────────────────────────────────────────────
 
 export default function Scores() {
@@ -722,24 +903,28 @@ export default function Scores() {
     game: EspnGame;
     sport: string;
   } | null>(null);
+  const [standingsSport, setStandingsSport] = useState<{
+    sport: string;
+    label: string;
+  } | null>(null);
 
-  // Push a history entry when the sheet opens so the back button closes it
-  // instead of navigating away. Clean up on sheet close or game change.
+  // Push a history entry when a sheet opens so the back button closes it
+  // instead of navigating away. Separate effects for each sheet.
   useEffect(() => {
     if (!selectedGame) return;
-
-    window.history.pushState({ sheetOpen: true }, "");
-
-    const handlePopState = () => {
-      setSelectedGame(null);
-    };
-
+    window.history.pushState({ sheetOpen: "game" }, "");
+    const handlePopState = () => setSelectedGame(null);
     window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
+    return () => window.removeEventListener("popstate", handlePopState);
   }, [selectedGame?.game.id, selectedGame?.sport]);
+
+  useEffect(() => {
+    if (!standingsSport) return;
+    window.history.pushState({ sheetOpen: "standings" }, "");
+    const handlePopState = () => setStandingsSport(null);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [standingsSport?.sport]);
 
   useEffect(() => {
     const loadScores = () => {
@@ -825,6 +1010,9 @@ export default function Scores() {
                     onSelectGame={(game, sport) =>
                       setSelectedGame({ game, sport })
                     }
+                    onStandingsClick={() =>
+                      setStandingsSport({ sport: section.sport, label: section.label })
+                    }
                   />
                 </div>
               ))}
@@ -836,10 +1024,21 @@ export default function Scores() {
       <GameDetailSheet
         selectedGame={selectedGame}
         onClose={() => {
-          if (window.history.state?.sheetOpen === true) {
+          if (window.history.state?.sheetOpen === "game") {
             window.history.back();
           }
           setSelectedGame(null);
+        }}
+      />
+
+      <StandingsSheet
+        sport={standingsSport?.sport ?? null}
+        label={standingsSport?.label ?? ""}
+        onClose={() => {
+          if (window.history.state?.sheetOpen === "standings") {
+            window.history.back();
+          }
+          setStandingsSport(null);
         }}
       />
     </div>
