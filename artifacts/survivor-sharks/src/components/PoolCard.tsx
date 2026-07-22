@@ -64,22 +64,19 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
           <div className="flex justify-between items-start gap-2">
             <CardTitle className="font-bebas text-2xl leading-none truncate">{pool.name}</CardTitle>
             <div className="flex items-center gap-1.5 shrink-0">
-              {(pool as any).hasLiveGames && (
-                <div className="flex items-center gap-1">
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                  </span>
-                  <span className="text-[11px] font-semibold text-green-400 tracking-wide">Live</span>
-                </div>
-              )}
               <Badge
-                variant={pool.isActive ? "default" : "secondary"}
-                className={pool.isActive
-                  ? "bg-accent text-accent-foreground hover:bg-accent/80 text-[10px] px-1.5 py-0"
-                  : "text-[10px] px-1.5 py-0 opacity-60"}
+                variant={pool.isActive ? "outline" : "secondary"}
+                className={
+                  (pool as any).hasLiveGames
+                    ? "bg-green-500/15 text-green-400 border-green-500/30 hover:bg-green-500/20 text-[10px] px-1.5 py-0"
+                    : pool.isActive
+                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 text-[10px] px-1.5 py-0"
+                    : "text-[10px] px-1.5 py-0 opacity-60"
+                }
               >
-                {pool.isActive ? "Active" : (pool as any).closureReason === "min_entries_not_met" ? "Cancelled" : "Ended"}
+                {pool.isActive
+                  ? (pool as any).hasLiveGames ? "Live" : "Active"
+                  : (pool as any).closureReason === "min_entries_not_met" ? "Cancelled" : "Ended"}
               </Badge>
             </div>
           </div>
