@@ -77,7 +77,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
     id: PoolInputSport.superleague,
     label: "ESL",
     sublabel: "Super League",
-    logoImg: '/European-Super-League.jpg',
+    logoImg: '/European-SuperLeague.jpg',
   },
 ];
 
