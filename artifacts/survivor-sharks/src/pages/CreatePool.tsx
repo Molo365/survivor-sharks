@@ -319,6 +319,7 @@ export default function CreatePool() {
 
   // ── Progressive-unlock wizard state ──────────────────────────────────────────
   const [step3Confirmed, setStep3Confirmed] = useState(false);
+  const [step4Confirmed, setStep4Confirmed] = useState(false);
   // When the user clicks "Edit" on a completed step we jump back to it, overriding
   // the naturally-derived active step until they finish editing.
   const [editStep, setEditStep] = useState<number | null>(1);
@@ -430,7 +431,7 @@ export default function CreatePool() {
     if (!selectedSport) return 1;
     if (!selectedType || availableTypes.length === 0) return 2;
     if (hasOptions && !step3Confirmed) return 3;
-    if (!watchedName || watchedName.trim().length < 3) return 4;
+    if (!step4Confirmed) return 4;
     if (prizeStep < 3) return 5;
     const prizeTotal = prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) + commissionerCut;
     if (Math.abs(prizeTotal - 100) > 0.5) return 5;
@@ -455,6 +456,7 @@ export default function CreatePool() {
       return;
     }
     setStep3Confirmed(false);
+    setStep4Confirmed(false);
     setEditStep(4);
     setPrizeStep(1);
   }, [selectedSport, selectedType, hasOptions]);
@@ -538,7 +540,7 @@ export default function CreatePool() {
 
   const handleStep4Continue = async () => {
     const valid = await form.trigger("name");
-    if (valid) setEditStep(5);
+    if (valid) { setStep4Confirmed(true); setEditStep(5); }
   };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
