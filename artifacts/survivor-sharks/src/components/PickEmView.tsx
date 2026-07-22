@@ -2415,9 +2415,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           const game = day.games.find((g) => g.id === gameId);
           if (!game || game.deadlinePassed) return null;
           const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
-          return { gameId, pickedTeamId: pickValue, pickedTeamName: label };
+          return { gameId, pickedTeamId: pickValue, pickedTeamName: label, gameDate: day.date };
         })
-        .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
+        .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
 
       if (dayPicks.length === 0) continue;
       try {

@@ -518,6 +518,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
     // If no gameDate supplied on picks, gameMap stays empty → picks rejected as "unknown games"
+  } else if ((isMls) && pool.pickFrequency === "weekly" && !pool.sandboxMode && submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
+    // Live MLS weekly: validate against the specific day the client submitted,
+    // not just today — a weekly slate spans Mon-Sun and submittedDate tells us which day.
+    const games = await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
+    for (const g of games) gameMap.set(g.id, { date: g.date });
   } else {
     const games = await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
