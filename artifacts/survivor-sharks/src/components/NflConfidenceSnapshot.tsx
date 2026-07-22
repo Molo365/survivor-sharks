@@ -100,9 +100,10 @@ export function NflConfidenceSnapshot({
     () =>
       players
         .map((p) => {
+          const correctPickValue = variant === "pickem_season" ? 1 : 0;
           const weekPts = Object.values(p.picks).reduce(
             (sum, pick) =>
-              sum + (pick.result === "correct" ? (pick.confidencePoints ?? 0) : 0),
+              sum + (pick.result === "correct" ? (pick.confidencePoints ?? correctPickValue) : 0),
             0,
           );
           return { ...p, weekPts };
