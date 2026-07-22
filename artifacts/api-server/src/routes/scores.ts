@@ -372,10 +372,14 @@ router.get("/game/:gameId", async (req, res) => {
 //
 // Maps the sport key (same keys used in /today) to:
 //   url        — ESPN v2 standings endpoint
+//               MLB and NFL require ?level=3 to get division-level grouping;
+//               without it ESPN returns a flat league/conference list.
 //   extraStat  — optional 3rd column stat name (otLosses for NHL, ties for MLS/NFL)
 //   extraLabel — column header label for that stat
 //   pctStat    — "winPercent" (MLB/NBA/NFL) or "points" (NHL/MLS)
 //   pctLabel   — column header label
+//   sortStat   — raw stat name to sort team entries within each group
+//   sortDir    — "asc" (playoffSeed: 1 = leader) or "desc" (points: higher = better)
 
 const STANDINGS_CONFIG: Record<string, {
   url: string;
@@ -383,13 +387,18 @@ const STANDINGS_CONFIG: Record<string, {
   extraLabel: string;
   pctStat: string;
   pctLabel: string;
+  sortStat: string;
+  sortDir: "asc" | "desc";
 }> = {
   mlb: {
-    url: "https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings",
+    // level=3 → Major League Baseball → AL/NL → East/Central/West → 5 teams each
+    url: "https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings?level=3",
     extraStat: null,
     extraLabel: "",
     pctStat: "winPercent",
     pctLabel: "PCT",
+    sortStat: "playoffSeed",
+    sortDir: "asc",
   },
   nhl: {
     url: "https://site.api.espn.com/apis/v2/sports/hockey/nhl/standings",
@@ -397,6 +406,8 @@ const STANDINGS_CONFIG: Record<string, {
     extraLabel: "OT",
     pctStat: "points",
     pctLabel: "PTS",
+    sortStat: "points",
+    sortDir: "desc",
   },
   nba: {
     url: "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings",
@@ -404,20 +415,28 @@ const STANDINGS_CONFIG: Record<string, {
     extraLabel: "",
     pctStat: "winPercent",
     pctLabel: "PCT",
+    sortStat: "playoffSeed",
+    sortDir: "asc",
   },
   mls: {
+    // ESPN returns teams in arbitrary insertion order — must sort by points desc
     url: "https://site.api.espn.com/apis/v2/sports/soccer/usa.1/standings",
     extraStat: "ties",
     extraLabel: "T",
     pctStat: "points",
     pctLabel: "PTS",
+    sortStat: "points",
+    sortDir: "desc",
   },
   nfl: {
+    // level=3 → NFL → AFC/NFC → 4 divisions each → 4 teams each
     url: "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3",
     extraStat: "ties",
     extraLabel: "T",
     pctStat: "winPercent",
     pctLabel: "PCT",
+    sortStat: "playoffSeed",
+    sortDir: "asc",
   },
 };
 
@@ -448,8 +467,14 @@ router.get("/standings/:sport", async (req, res) => {
     const parseEntries = (entries: Array<{
       team: { abbreviation: string; displayName: string; logos?: { href: string }[] };
       stats?: Array<{ name: string; displayValue: string; value?: number }>;
-    }>) =>
-      entries.map(e => {
+    }>) => {
+      // Sort entries within each group by the configured stat before mapping
+      const sorted = [...entries].sort((a, b) => {
+        const av = getStat(a.stats, config.sortStat)?.value ?? 0;
+        const bv = getStat(b.stats, config.sortStat)?.value ?? 0;
+        return config.sortDir === "asc" ? av - bv : bv - av;
+      });
+      return sorted.map(e => {
         const st = e.stats ?? [];
         const extraVal = config.extraStat ? (getStat(st, config.extraStat)?.value ?? 0) : null;
         const pctRaw = getStat(st, config.pctStat);
@@ -469,6 +494,7 @@ router.get("/standings/:sport", async (req, res) => {
           gb,
         };
       });
+    };
 
     type StandingsGroup = { name: string; teams: ReturnType<typeof parseEntries> };
     const groups: StandingsGroup[] = [];
