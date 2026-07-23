@@ -48,6 +48,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 
 function BaseDiamond({
   onFirst,
@@ -2113,6 +2114,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [tbPim, setTbPim] = useState("");
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
   const pendingDateRef = React.useRef<string | null>(null);
+  const [lineupGame, setLineupGame] = useState<{
+    gameId: string;
+    leagueSlug: string;
+    awayAbbr: string;
+    homeAbbr: string;
+  } | null>(null);
 
   const {
     data: slate,
@@ -2726,6 +2733,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <SoccerLineupSheet
+      open={lineupGame !== null}
+      onClose={() => setLineupGame(null)}
+      gameId={lineupGame?.gameId ?? ""}
+      leagueSlug={lineupGame?.leagueSlug ?? ""}
+      awayAbbr={lineupGame?.awayAbbr ?? ""}
+      homeAbbr={lineupGame?.homeAbbr ?? ""}
+    />
 
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
@@ -3364,21 +3380,43 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 <div className="space-y-3">
                   {slate.games.map((game, idx) => {
                     const showTiebreakerBadge = (game.isTiebreakerGame ?? false) && needsTiebreaker;
-                    return is3way ? (
-                      <WcGameCard
-                        key={game.id}
-                        game={game}
-                        pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                        onPick={(opt) => togglePick(game.id, opt)}
-                      />
-                    ) : (
-                      <GameCard
-                        key={game.id}
-                        game={game}
-                        pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                        onPick={(teamId) => togglePick(game.id, teamId)}
-                        isTiebreakerGame={showTiebreakerBadge}
-                      />
+                    const slug = game.leagueSlug;
+                    return (
+                      <div key={game.id}>
+                        {is3way ? (
+                          <WcGameCard
+                            game={game}
+                            pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
+                            onPick={(opt) => togglePick(game.id, opt)}
+                          />
+                        ) : (
+                          <GameCard
+                            game={game}
+                            pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                            onPick={(teamId) => togglePick(game.id, teamId)}
+                            isTiebreakerGame={showTiebreakerBadge}
+                          />
+                        )}
+                        {sport === "superleague" && slug && (
+                          <div className="flex justify-center mt-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLineupGame({
+                                  gameId: game.id,
+                                  leagueSlug: slug,
+                                  awayAbbr: game.awayTeam.abbreviation,
+                                  homeAbbr: game.homeTeam.abbreviation,
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-primary/80 transition-colors px-3 py-1 rounded-full border border-border/30 bg-muted/20 hover:bg-muted/40"
+                            >
+                              <Users className="w-3 h-3" />
+                              Lineups
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

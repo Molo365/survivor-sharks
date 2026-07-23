@@ -3036,6 +3036,9 @@ components:
         userPickOption:
           type: ["string", "null"]
           description: User's 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made
+        leagueSlug:
+          type: ["string", "null"]
+          description: "ESPN league slug for European soccer games (e.g. 'eng.1', 'esp.1'); null for other sports"
 
     PickEmSlate:
       type: object

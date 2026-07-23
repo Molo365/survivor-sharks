@@ -101,6 +101,8 @@ export interface EspnGame {
   seasonType: number;
   homeLinescores: { value: number; period: number }[];
   awayLinescores: { value: number; period: number }[];
+  /** Which ESPN league slug this game belongs to (e.g. "eng.1", "esp.1"). Only set for Super League games. */
+  leagueSlug?: string;
 }
 
 type EspnProbable = {
@@ -722,7 +724,8 @@ export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<Esp
 
   const seen = new Set<string>();
   const games: EspnGame[] = [];
-  for (const dayGames of results) {
+  for (const [i, dayGames] of results.entries()) {
+    const slug = SUPER_LEAGUE_SLUGS[i]!;
     for (const g of dayGames) {
       if (seen.has(g.id)) continue;
       seen.add(g.id);
@@ -730,6 +733,7 @@ export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<Esp
         SUPER_LEAGUE_TEAM_IDS.has(Number(g.homeTeam.id)) ||
         SUPER_LEAGUE_TEAM_IDS.has(Number(g.awayTeam.id))
       ) {
+        g.leagueSlug = slug;
         games.push(g);
       }
     }

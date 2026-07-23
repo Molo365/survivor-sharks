@@ -908,6 +908,11 @@ export interface PickEmGame {
      * @nullable
      */
   userPickOption?: string | null;
+  /**
+     * ESPN league slug for European soccer games (e.g. 'eng.1', 'esp.1'); null for other sports
+     * @nullable
+     */
+  leagueSlug?: string | null;
 }
 
 export interface PickEmSlate {

@@ -19,6 +19,11 @@ const SPORTS = [
 
 type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup";
 
+const EURO_SOCCER_SLUGS = new Set([
+  "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
+  "tur.1", "por.1", "sco.1", "ksa.1",
+]);
+
 const ESPN_SPORT_PATHS: Record<string, string> = {
   mlb:      "baseball/mlb",
   nfl:      "football/nfl",
@@ -27,6 +32,15 @@ const ESPN_SPORT_PATHS: Record<string, string> = {
   soccer:   "soccer/fifa.world",
   worldcup: "soccer/fifa.world",
   mls:      "soccer/usa.1",
+  "eng.1":  "soccer/eng.1",
+  "esp.1":  "soccer/esp.1",
+  "ita.1":  "soccer/ita.1",
+  "ger.1":  "soccer/ger.1",
+  "fra.1":  "soccer/fra.1",
+  "tur.1":  "soccer/tur.1",
+  "por.1":  "soccer/por.1",
+  "sco.1":  "soccer/sco.1",
+  "ksa.1":  "soccer/ksa.1",
 };
 
 // GET /api/scores/today — public, no auth required
@@ -172,7 +186,7 @@ router.get("/game/:gameId", async (req, res) => {
       } else {
         // Soccer, NHL, NBA, NFL — period-based columns, no R/H/E, append "T" total
         function periodLabel(value: number): string {
-          if (sport === "soccer" || sport === "worldcup" || sport === "mls") {
+          if (sport === "soccer" || sport === "worldcup" || sport === "mls" || EURO_SOCCER_SLUGS.has(sport)) {
             if (value === 1) return "1H";
             if (value === 2) return "2H";
             if (value === 3) return "AET";
@@ -299,7 +313,8 @@ router.get("/game/:gameId", async (req, res) => {
     }
 
     // ── Soccer sport guard ────────────────────────────────────────────────────
-    const isSoccer = sport === "mls" || sport === "worldcup" || sport === "soccer";
+    const isSoccer = sport === "mls" || sport === "worldcup" || sport === "soccer" || EURO_SOCCER_SLUGS.has(sport);
+    const isEuroSoccer = EURO_SOCCER_SLUGS.has(sport);
 
     // ── Scoring summary ───────────────────────────────────────────────────────
     // For soccer: goal data lives in d.keyEvents (d.plays is always empty).
@@ -362,12 +377,31 @@ router.get("/game/:gameId", async (req, res) => {
       homePlayers: string[];
     } | null;
 
+    type FormationPlayer = { jersey: string; name: string; position: string };
+    type FormationTeam = {
+      label: string;
+      color: string | null;
+      formation: string | null;
+      starters: FormationPlayer[];
+      bench: FormationPlayer[];
+    };
+    type FormationLineupsResult = {
+      homeTeam: FormationTeam | null;
+      awayTeam: FormationTeam | null;
+    } | null;
+
     let lineups: LineupsResult = null;
+    let formationLineups: FormationLineupsResult = null;
+
     if (isSoccer && Array.isArray(d.rosters) && d.rosters.length > 0) {
-      const extractPlayers = (roster: any): string[] => {
-        const athletes: any[] = roster?.athletes ?? [];
-        const starters = athletes.filter((a: any) => a.starter === true);
-        const source = starters.length > 0 ? starters : athletes;
+      // ESPN confirmed structure: d.rosters[i].roster[] (NOT .athletes)
+      const awayR: any = (d.rosters as any[]).find((r: any) => r.homeAway === "away");
+      const homeR: any = (d.rosters as any[]).find((r: any) => r.homeAway === "home");
+
+      const extractPlayers = (r: any): string[] => {
+        const inner: any[] = r?.roster ?? [];
+        const starters = inner.filter((a: any) => a.starter === true);
+        const source = starters.length > 0 ? starters : inner;
         return source
           .map((a: any) =>
             a.athlete?.shortName ??
@@ -379,25 +413,48 @@ router.get("/game/:gameId", async (req, res) => {
           .slice(0, 11);
       };
 
-      const findRoster = (comp: any) =>
-        (d.rosters as any[]).find((r: any) =>
-          comp?.team?.id != null && r.team?.id != null
-            ? String(r.team.id) === String(comp.team.id)
-            : r.team?.displayName === comp?.team?.displayName,
-        );
-
-      const awayR = findRoster(awayComp);
-      const homeR = findRoster(homeComp);
       const awayPlayers = awayR ? extractPlayers(awayR) : [];
       const homePlayers = homeR ? extractPlayers(homeR) : [];
 
       if (awayPlayers.length > 0 || homePlayers.length > 0) {
         lineups = {
-          awayLabel: awayComp?.team?.abbreviation ?? "AWY",
-          homeLabel: homeComp?.team?.abbreviation ?? "HME",
+          awayLabel: awayComp?.team?.abbreviation ?? awayR?.team?.abbreviation ?? "AWY",
+          homeLabel: homeComp?.team?.abbreviation ?? homeR?.team?.abbreviation ?? "HME",
           awayPlayers,
           homePlayers,
         };
+      }
+
+      // Rich formation lineups — Euro soccer only
+      if (isEuroSoccer) {
+        const extractTeam = (r: any): FormationTeam | null => {
+          if (!r) return null;
+          const inner: any[] = r.roster ?? [];
+          const starters = inner.filter((p: any) => p.starter === true).slice(0, 11);
+          const bench = inner.filter((p: any) => !p.starter);
+          if (starters.length === 0 && bench.length === 0) return null;
+          return {
+            label: r.team?.abbreviation ?? "???",
+            color: r.team?.color ?? null,
+            formation: r.formation ?? null,
+            starters: starters.map((p: any) => ({
+              jersey: String(p.jersey ?? ""),
+              name: p.athlete?.shortName ?? p.athlete?.displayName ?? "",
+              position: p.position?.abbreviation ?? "",
+            })),
+            bench: bench.map((p: any) => ({
+              jersey: String(p.jersey ?? ""),
+              name: p.athlete?.shortName ?? p.athlete?.displayName ?? "",
+              position: p.position?.abbreviation ?? "",
+            })),
+          };
+        };
+
+        const homeTeam = extractTeam(homeR ?? null);
+        const awayTeam = extractTeam(awayR ?? null);
+        if (homeTeam || awayTeam) {
+          formationLineups = { homeTeam: homeTeam ?? null, awayTeam: awayTeam ?? null };
+        }
       }
     }
 
@@ -414,6 +471,7 @@ router.get("/game/:gameId", async (req, res) => {
       awayPitcher,
       odds,
       lineups,
+      formationLineups,
     });
   } catch {
     res.status(502).json({ error: "Failed to fetch game detail" });

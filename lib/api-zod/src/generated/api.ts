@@ -1074,7 +1074,8 @@ export const GetPickEmGamesResponse = zod.object({
   "losses": zod.number().nullish()
 }).nullish(),
   "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
-  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made')
+  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made'),
+  "leagueSlug": zod.string().nullish().describe('ESPN league slug for European soccer games (e.g. \'eng.1\', \'esp.1\'); null for other sports')
 }))
 })
 
@@ -1138,7 +1139,8 @@ export const GetPickEmWeekGamesResponse = zod.object({
   "losses": zod.number().nullish()
 }).nullish(),
   "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
-  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made')
+  "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made'),
+  "leagueSlug": zod.string().nullish().describe('ESPN league slug for European soccer games (e.g. \'eng.1\', \'esp.1\'); null for other sports')
 }))
 }))
 })

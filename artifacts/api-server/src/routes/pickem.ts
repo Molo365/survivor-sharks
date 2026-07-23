@@ -1425,6 +1425,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
             idx === espnGames.length - 1),
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
         homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
+        leagueSlug: g.leagueSlug ?? null,
       }));
 
   const phase = isWc ? wcPhase : null;
