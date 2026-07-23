@@ -298,15 +298,19 @@ router.get("/game/:gameId", async (req, res) => {
       }
     }
 
+    // ── Soccer sport guard ────────────────────────────────────────────────────
+    const isSoccer = sport === "mls" || sport === "worldcup" || sport === "soccer";
+
     // ── Scoring summary ───────────────────────────────────────────────────────
-    // d.scoring does not exist in the ESPN summary response.
-    // Scoring plays live in d.plays filtered by scoringPlay === true.
-    const scoringSummary: { period: string; description: string }[] = (
-      d.plays ?? []
-    )
+    // For soccer: goal data lives in d.keyEvents (d.plays is always empty).
+    // For all other sports: d.plays filtered by scoringPlay === true.
+    const sourcePlays: any[] = isSoccer ? (d.keyEvents ?? []) : (d.plays ?? []);
+    const scoringSummary: { period: string; description: string }[] = sourcePlays
       .filter((p: any) => p.scoringPlay === true)
       .map((p: any) => ({
-        period: p.period?.displayValue ?? "",
+        period: isSoccer
+          ? (p.clock?.displayValue ?? p.period?.displayValue ?? "")
+          : (p.period?.displayValue ?? ""),
         description: p.text ?? "",
       }))
       .filter((s: { period: string; description: string }) => s.description);
@@ -350,6 +354,53 @@ router.get("/game/:gameId", async (req, res) => {
     const pc: any = (d.pickcenter ?? [])[0];
     const odds: string | null = pc?.details ?? null;
 
+    // ── Starting lineups (soccer only) ────────────────────────────────────────
+    type LineupsResult = {
+      awayLabel: string;
+      homeLabel: string;
+      awayPlayers: string[];
+      homePlayers: string[];
+    } | null;
+
+    let lineups: LineupsResult = null;
+    if (isSoccer && Array.isArray(d.rosters) && d.rosters.length > 0) {
+      const extractPlayers = (roster: any): string[] => {
+        const athletes: any[] = roster?.athletes ?? [];
+        const starters = athletes.filter((a: any) => a.starter === true);
+        const source = starters.length > 0 ? starters : athletes;
+        return source
+          .map((a: any) =>
+            a.athlete?.shortName ??
+            a.athlete?.displayName ??
+            a.athlete?.fullName ??
+            "",
+          )
+          .filter(Boolean)
+          .slice(0, 11);
+      };
+
+      const findRoster = (comp: any) =>
+        (d.rosters as any[]).find((r: any) =>
+          comp?.team?.id != null && r.team?.id != null
+            ? String(r.team.id) === String(comp.team.id)
+            : r.team?.displayName === comp?.team?.displayName,
+        );
+
+      const awayR = findRoster(awayComp);
+      const homeR = findRoster(homeComp);
+      const awayPlayers = awayR ? extractPlayers(awayR) : [];
+      const homePlayers = homeR ? extractPlayers(homeR) : [];
+
+      if (awayPlayers.length > 0 || homePlayers.length > 0) {
+        lineups = {
+          awayLabel: awayComp?.team?.abbreviation ?? "AWY",
+          homeLabel: homeComp?.team?.abbreviation ?? "HME",
+          awayPlayers,
+          homePlayers,
+        };
+      }
+    }
+
     res.json({
       gameId,
       headline,
@@ -362,6 +413,7 @@ router.get("/game/:gameId", async (req, res) => {
       homePitcher,
       awayPitcher,
       odds,
+      lineups,
     });
   } catch {
     res.status(502).json({ error: "Failed to fetch game detail" });

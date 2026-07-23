@@ -95,6 +95,12 @@ interface GameDetail {
   awayPitcher: { name: string; era: string; record: string } | null;
   odds: string | null;
   inning: string | null;
+  lineups: {
+    awayLabel: string;
+    homeLabel: string;
+    awayPlayers: string[];
+    homePlayers: string[];
+  } | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -701,6 +707,38 @@ function GameDetailSheet({
                               </div>
                             ),
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Starting lineups (soccer only) */}
+                  {detail.lineups && (
+                    <div>
+                      <h4 className="font-bebas text-xl tracking-wide mb-2">
+                        Starting Lineups
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { side: detail.lineups.awayLabel, players: detail.lineups.awayPlayers },
+                          { side: detail.lineups.homeLabel, players: detail.lineups.homePlayers },
+                        ].map(({ side, players }) => (
+                          <div
+                            key={side}
+                            className="rounded-lg border border-border/30 bg-card/40 p-3 space-y-1"
+                          >
+                            <div className="text-xs text-muted-foreground font-semibold mb-1.5">
+                              {side}
+                            </div>
+                            {players.map((name, i) => (
+                              <div key={i} className="flex items-baseline gap-2 text-sm">
+                                <span className="font-mono text-[10px] text-muted-foreground/40 w-4 flex-shrink-0 text-right">
+                                  {i + 1}
+                                </span>
+                                <span className="text-foreground/80">{name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
