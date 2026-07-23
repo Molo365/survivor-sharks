@@ -434,12 +434,30 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
             .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
           if (winnerRows.length > 0) {
+            // Fetch the full-season correct/picked totals for each winner so the
+            // dashboard card can show "X/Y correct" instead of a blank stat line.
+            const winnerUserIds = winnerRows.map((w) => w.userId);
+            const seasonScoreRows = await db
+              .select({
+                userId: pickemPicksTable.userId,
+                correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                picked: sql<string>`COUNT(*)`,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                inArray(pickemPicksTable.userId, winnerUserIds),
+              ))
+              .groupBy(pickemPicksTable.userId);
+            const seasonScoreMap = new Map(
+              seasonScoreRows.map((s) => [s.userId, { correct: Number(s.correct), picked: Number(s.picked) }]),
+            );
             lastWinners = winnerRows.map((w) => ({
               userId: w.userId,
               username: w.username,
               displayName: w.displayName ?? null,
-              correct: null,
-              picked: null,
+              correct: seasonScoreMap.get(w.userId)?.correct ?? null,
+              picked: seasonScoreMap.get(w.userId)?.picked ?? null,
               score: null,
               prizeWon: w.prizeAmount != null ? Number(w.prizeAmount) : null,
             }));

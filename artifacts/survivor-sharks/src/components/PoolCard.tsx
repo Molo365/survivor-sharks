@@ -121,11 +121,16 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                       {pickEmStat.lastWinners.map(w => w.displayName || w.username).join(" & ")}
                     </span>
                   </span>
-                  <span className="text-muted-foreground/40">·</span>
-                  {pickEmStat.lastWinners[0].score != null
-                    ? <span>{pickEmStat.lastWinners[0].score} pts</span>
-                    : <span>{pickEmStat.lastWinners[0].correct}/{pickEmStat.lastWinners[0].picked} correct</span>
-                  }
+                  {(pickEmStat.lastWinners[0].score != null ||
+                    (pickEmStat.lastWinners[0].correct != null && pickEmStat.lastWinners[0].picked != null)) && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      {pickEmStat.lastWinners[0].score != null
+                        ? <span>{pickEmStat.lastWinners[0].score} pts</span>
+                        : <span>{pickEmStat.lastWinners[0].correct}/{pickEmStat.lastWinners[0].picked} correct</span>
+                      }
+                    </>
+                  )}
                   {pickEmStat.lastWinners[0].prizeWon != null
                     ? <span className="text-yellow-400 font-semibold">· ${pickEmStat.lastWinners[0].prizeWon}</span>
                     : (pool.entryFee == null || pool.entryFee === 0)
