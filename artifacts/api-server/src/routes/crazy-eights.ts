@@ -585,7 +585,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  // MLB
+  // MLB (continues below)
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
   const games = await fetchGamesForDate("mlb", todayEspn);
@@ -665,6 +665,49 @@ router.post("/picks", requireAuth, async (req, res) => {
     .where(eq(entriesTable.id, entry.id));
 
   res.status(201).json({ ok: true, saved, message: "Crazy 8's picks submitted successfully" });
+});
+
+// ── PATCH /api/pools/:poolId/crazy-eights/tiebreaker ─────────────────────────
+// NHL Hit the Ice only — lets a member update their tiebreaker guesses after
+// picks are already submitted (e.g. submitted on Saturday before dialog existed).
+
+router.patch("/tiebreaker", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
+    tiebreakerShotsOnGoal?: unknown;
+    tiebreakerPenaltyMinutes?: unknown;
+  };
+
+  if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number"
+    || tiebreakerShotsOnGoal < 0 || tiebreakerPenaltyMinutes < 0) {
+    res.status(400).json({ error: "tiebreakerShotsOnGoal and tiebreakerPenaltyMinutes must be numbers ≥ 0" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool || (pool.poolType as string) !== "crazy_8s" || pool.sport !== "nhl") {
+    res.status(404).json({ error: "Pool not found or not an NHL Hit the Ice pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select({ id: entriesTable.id })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) {
+    res.status(403).json({ error: "You are not a member of this pool" });
+    return;
+  }
+
+  await db
+    .update(entriesTable)
+    .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
+    .where(eq(entriesTable.id, entry.id));
+
+  res.json({ ok: true });
 });
 
 // ── GET /api/pools/:poolId/crazy-eights/yesterday-winner ──────────────────────

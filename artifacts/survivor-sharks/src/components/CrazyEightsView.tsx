@@ -300,6 +300,7 @@ function LockedPicksView({
   tiebreakerStrikeouts,
   tiebreakerShotsOnGoal,
   tiebreakerPenaltyMinutes,
+  onUpdateNhlTiebreaker,
 }: {
   picks: SubmittedPick[];
   sport: string;
@@ -307,9 +308,15 @@ function LockedPicksView({
   tiebreakerStrikeouts: number | null;
   tiebreakerShotsOnGoal: number | null;
   tiebreakerPenaltyMinutes: number | null;
+  onUpdateNhlTiebreaker?: (shots: number, pim: number) => Promise<void>;
 }) {
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
   const isNhl = sport === "nhl";
+  const [editShots, setEditShots] = useState("");
+  const [editPim, setEditPim] = useState("");
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+  const nhlNeedsTiebreaker = isNhl && tiebreakerShotsOnGoal === null && tiebreakerPenaltyMinutes === null;
 
   return (
     <div className="space-y-6">
@@ -354,16 +361,75 @@ function LockedPicksView({
           Tiebreaker Answers
         </p>
         {isNhl ? (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total shots on goal</p>
-              <p className="font-bebas text-2xl text-purple-300">{tiebreakerShotsOnGoal ?? "—"}</p>
+          nhlNeedsTiebreaker ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground/70 leading-snug">
+                Enter your tiebreaker guesses for the last game on the weekend slate. Used to break ties in the weekly standings.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="tb-shots-locked" className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                    Shots on goal
+                  </Label>
+                  <Input
+                    id="tb-shots-locked"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 58"
+                    value={editShots}
+                    onChange={(e) => setEditShots(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="tb-pim-locked" className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                    Penalty minutes
+                  </Label>
+                  <Input
+                    id="tb-pim-locked"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 12"
+                    value={editPim}
+                    onChange={(e) => setEditPim(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={saving || !editShots || !editPim}
+                onClick={async () => {
+                  const shots = parseInt(editShots, 10);
+                  const pim = parseInt(editPim, 10);
+                  if (isNaN(shots) || isNaN(pim) || shots < 0 || pim < 0) {
+                    toast({ variant: "destructive", title: "Invalid values", description: "Enter valid numbers ≥ 0." });
+                    return;
+                  }
+                  setSaving(true);
+                  try {
+                    await onUpdateNhlTiebreaker?.(shots, pim);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-500 text-white"
+              >
+                {saving ? "Saving…" : "Save Tiebreaker Guess"}
+              </Button>
             </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total penalty minutes</p>
-              <p className="font-bebas text-2xl text-purple-300">{tiebreakerPenaltyMinutes ?? "—"}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total shots on goal</p>
+                <p className="font-bebas text-2xl text-purple-300">{tiebreakerShotsOnGoal}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total penalty minutes</p>
+                <p className="font-bebas text-2xl text-purple-300">{tiebreakerPenaltyMinutes}</p>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -770,7 +836,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
       toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
       return;
     }
-    if (!isWeekly || isLastDayOfWeek) {
+    if (!isWeekly || isLastDayOfWeek || isNhl) {
       setShowTiebreaker(true);
     } else {
       void postPicks({ picks: buildPicks() });
@@ -828,6 +894,25 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
 
   // ── Locked view — picks already submitted ─────────────────────────────────
 
+  async function handleUpdateNhlTiebreaker(shots: number, pim: number) {
+    const token = localStorage.getItem("auth_token");
+    const res = await fetch(`/api/pools/${poolId}/crazy-eights/tiebreaker`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ tiebreakerShotsOnGoal: shots, tiebreakerPenaltyMinutes: pim }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).error || "Failed to save tiebreaker");
+    }
+    toast({ title: "Tiebreaker saved!", description: "Your guesses are locked in." });
+    await queryClient.invalidateQueries({ queryKey: myPicksKey });
+  }
+
   if (hasPicks) {
     return (
       <LockedPicksView
@@ -837,6 +922,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
         tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
         tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
+        onUpdateNhlTiebreaker={handleUpdateNhlTiebreaker}
       />
     );
   }
