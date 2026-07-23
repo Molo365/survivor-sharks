@@ -774,14 +774,25 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         };
       }
 
-      // ── Crazy 8's (weekly scoring, MLB) ─────────────────────────────────────
+      // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────
       if (poolType === "crazy_8s") {
-        const weekStart = currentWeekBounds.weekStart;
-        const weekEnd = currentWeekBounds.weekEnd;
-        const prevStart = prevWeekBounds.weekStart;
-        const prevEnd = prevWeekBounds.weekEnd;
+        // Filter by pool week number rather than a gameDate calendar range.
+        //
+        // The old approach used `gameDate BETWEEN weekStart AND weekEnd` (Mon–Sun
+        // calendar week). This breaks for NHL Hit The Ice because picks store
+        // `gameDate = game.date.slice(0, 10)` — a raw UTC timestamp slice. NHL
+        // Saturday evening games (7–10 PM ET = midnight–2 AM UTC) get stored
+        // with Sunday's UTC date; late Sunday games can land on Monday UTC.  A
+        // Monday-UTC pick makes `initialCurrentRows.length > 0`, suppressing the
+        // fallback, while all other Sat/Sun picks fall outside the current-week
+        // range — yielding "1 pt" on the card vs "32 pts" on the Leaderboard.
+        //
+        // The `week` column is populated from `pool.currentWeek` at insert time
+        // (crazy-eights POST /picks) and is never affected by UTC date shifting,
+        // so it's the correct anchor for both MLB and NHL.
 
         const c8WeeklyPointsSql = sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`;
+        const prevWeekNum = pool.currentWeek - 1;
 
         const [initialCurrentRows, prevRows] = await Promise.all([
           db
@@ -789,71 +800,60 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               userId: pickemPicksTable.userId,
               weeklyPoints: c8WeeklyPointsSql,
               picked: sql<string>`COUNT(*)`,
-              correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct' AND ${pickemPicksTable.gameDate} BETWEEN ${weekStart} AND ${weekEnd})`,
+              correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
             })
             .from(pickemPicksTable)
-            .where(
-              and(
-                eq(pickemPicksTable.poolId, pool.id),
-                gte(pickemPicksTable.gameDate, weekStart),
-                lte(pickemPicksTable.gameDate, weekEnd),
-              )
-            )
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.week, pool.currentWeek),
+            ))
             .groupBy(pickemPicksTable.userId)
-            .orderBy(
-              sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`
-            ),
-          db
-            .select({
-              userId: pickemPicksTable.userId,
-              username: usersTable.username,
-              displayName: usersTable.displayName,
-              weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
-              picked: sql<string>`COUNT(*)`,
-            })
-            .from(pickemPicksTable)
-            .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-            .where(
-              and(
-                eq(pickemPicksTable.poolId, pool.id),
-                gte(pickemPicksTable.gameDate, prevStart),
-                lte(pickemPicksTable.gameDate, prevEnd),
-              )
-            )
-            .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-            .orderBy(
-              sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`
-            ),
+            .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+          prevWeekNum >= 1
+            ? db
+                .select({
+                  userId: pickemPicksTable.userId,
+                  username: usersTable.username,
+                  displayName: usersTable.displayName,
+                  weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+                  picked: sql<string>`COUNT(*)`,
+                })
+                .from(pickemPicksTable)
+                .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+                .where(and(
+                  eq(pickemPicksTable.poolId, pool.id),
+                  eq(pickemPicksTable.week, prevWeekNum),
+                ))
+                .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+                .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`)
+            : Promise.resolve([] as { userId: number; username: string; displayName: string | null; weeklyPoints: string; picked: string }[]),
         ]);
 
-        // BUG 2 fix: if no picks in the current week, fall back to the most
-        // recent week that has picks for this user (e.g. NHL off-season).
+        // Fallback: if pool.currentWeek has no picks yet (e.g. off-season or
+        // pool just created), show the most recent week that has picks.
         let currentRows = initialCurrentRows;
         if (currentRows.length === 0) {
-          const [latestPickRow] = await db
-            .select({ gameDate: pickemPicksTable.gameDate })
+          const [latestWeekRow] = await db
+            .select({ week: pickemPicksTable.week })
             .from(pickemPicksTable)
             .where(and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.userId, userId),
-              sql`${pickemPicksTable.gameDate} IS NOT NULL`,
             ))
-            .orderBy(sql`${pickemPicksTable.gameDate} DESC NULLS LAST`)
+            .orderBy(sql`${pickemPicksTable.week} DESC NULLS LAST`)
             .limit(1);
-          if (latestPickRow?.gameDate) {
-            const fallbackBounds = getWeekBoundsEt(latestPickRow.gameDate);
+          if (latestWeekRow?.week != null) {
             currentRows = await db
               .select({
                 userId: pickemPicksTable.userId,
                 weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
                 picked: sql<string>`COUNT(*)`,
-                correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct' AND ${pickemPicksTable.gameDate} BETWEEN ${fallbackBounds.weekStart} AND ${fallbackBounds.weekEnd})`,
+                correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
               })
               .from(pickemPicksTable)
               .where(and(
                 eq(pickemPicksTable.poolId, pool.id),
-                gte(pickemPicksTable.gameDate, fallbackBounds.weekStart),
-                lte(pickemPicksTable.gameDate, fallbackBounds.weekEnd),
+                eq(pickemPicksTable.week, latestWeekRow.week),
               ))
               .groupBy(pickemPicksTable.userId)
               .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
@@ -863,12 +863,12 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myIdx = currentRows.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
 
-        const prevWeekEnded = prevWeekBounds.weekEnd < todayEt;
+        // lastWinners: previous week's top scorer(s).
+        // Only show when the previous week has concluded (week number advanced).
         const topPrevPts = prevRows.length > 0 ? Number(prevRows[0].weeklyPoints) : 0;
-        const tiedPrevRows =
-          prevWeekEnded && topPrevPts > 0
-            ? prevRows.filter((r) => Number(r.weeklyPoints) === topPrevPts)
-            : [];
+        const tiedPrevRows = topPrevPts > 0
+          ? prevRows.filter((r) => Number(r.weeklyPoints) === topPrevPts)
+          : [];
         const lastWinners =
           tiedPrevRows.length > 0
             ? tiedPrevRows.map((r) => ({
