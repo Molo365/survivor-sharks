@@ -13,7 +13,7 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate } from "../lib/espn";
+import { getTodayEtDate, getNhlWeekBounds, NHL_SANDBOX_ANCHOR } from "../lib/espn";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
@@ -132,6 +132,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       prizeMode: poolsTable.prizeMode,
       entryFee: poolsTable.entryFee,
       pickFrequency: poolsTable.pickFrequency,
+      sandboxMode: poolsTable.sandboxMode,
+      createdAt: poolsTable.createdAt,
     })
     .from(poolsTable)
     .where(and(
@@ -776,22 +778,151 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────
       if (poolType === "crazy_8s") {
-        // Filter by pool week number rather than a gameDate calendar range.
-        //
-        // The old approach used `gameDate BETWEEN weekStart AND weekEnd` (Mon–Sun
-        // calendar week). This breaks for NHL Hit The Ice because picks store
-        // `gameDate = game.date.slice(0, 10)` — a raw UTC timestamp slice. NHL
-        // Saturday evening games (7–10 PM ET = midnight–2 AM UTC) get stored
-        // with Sunday's UTC date; late Sunday games can land on Monday UTC.  A
-        // Monday-UTC pick makes `initialCurrentRows.length > 0`, suppressing the
-        // fallback, while all other Sat/Sun picks fall outside the current-week
-        // range — yielding "1 pt" on the card vs "32 pts" on the Leaderboard.
-        //
-        // The `week` column is populated from `pool.currentWeek` at insert time
-        // (crazy-eights POST /picks) and is never affected by UTC date shifting,
-        // so it's the correct anchor for both MLB and NHL.
-
         const c8WeeklyPointsSql = sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`;
+
+        // ── NHL Hit The Ice: mirror the grid endpoint's exact date filter ──────
+        // Picks store `gameDate = game.date.slice(0, 10)` (raw UTC timestamp).
+        // Late Sunday games that start past midnight UTC get gameDate = Monday.
+        // The leaderboard grid uses `inArray(gameDate, [satDate, sunDate])` where
+        // satDate/sunDate come from getNhlWeekBounds — so we must use the same
+        // filter here to stay consistent. Using `week = currentWeek` would
+        // include that Monday-UTC pick, giving 1 pt too many.
+        if (pool.sport === "nhl") {
+          const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+          const { days: curDays } = getNhlWeekBounds(anchor, pool.currentWeek);
+          // curDays = [satDate, sunDate] as ET YYYY-MM-DD strings
+          const [satDate, sunDate] = curDays;
+
+          let prevSatDate: string | null = null;
+          let prevSunDate: string | null = null;
+          if (pool.currentWeek > 1) {
+            const { days: prevDays } = getNhlWeekBounds(anchor, pool.currentWeek - 1);
+            [prevSatDate, prevSunDate] = prevDays;
+          }
+
+          const nhlDateFilter = inArray(pickemPicksTable.gameDate, [satDate, sunDate]);
+          const nhlPrevDateFilter = prevSatDate && prevSunDate
+            ? inArray(pickemPicksTable.gameDate, [prevSatDate, prevSunDate])
+            : null;
+
+          const [initialCurrentRows, prevRows] = await Promise.all([
+            db
+              .select({
+                userId: pickemPicksTable.userId,
+                weeklyPoints: c8WeeklyPointsSql,
+                picked: sql<string>`COUNT(*)`,
+                correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+              })
+              .from(pickemPicksTable)
+              .where(and(eq(pickemPicksTable.poolId, pool.id), nhlDateFilter))
+              .groupBy(pickemPicksTable.userId)
+              .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+            nhlPrevDateFilter
+              ? db
+                  .select({
+                    userId: pickemPicksTable.userId,
+                    username: usersTable.username,
+                    displayName: usersTable.displayName,
+                    weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+                    picked: sql<string>`COUNT(*)`,
+                  })
+                  .from(pickemPicksTable)
+                  .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+                  .where(and(eq(pickemPicksTable.poolId, pool.id), nhlPrevDateFilter))
+                  .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+                  .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`)
+              : Promise.resolve([] as { userId: number; username: string; displayName: string | null; weeklyPoints: string; picked: string }[]),
+          ]);
+
+          // Fallback: no picks yet for current NHL weekend → show most recent
+          // weekend that has picks for this user (off-season / pool not started).
+          let currentRows = initialCurrentRows;
+          if (currentRows.length === 0) {
+            const [latestPickRow] = await db
+              .select({ gameDate: pickemPicksTable.gameDate })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+              ))
+              .orderBy(sql`${pickemPicksTable.gameDate} DESC NULLS LAST`)
+              .limit(1);
+            if (latestPickRow?.gameDate) {
+              // Find which pool week this date belongs to by searching backwards
+              // from currentWeek. Most of the time this is currentWeek - 1.
+              let fallbackWeekNum = pool.currentWeek;
+              for (let w = pool.currentWeek; w >= 1; w--) {
+                const { days } = getNhlWeekBounds(anchor, w);
+                if (days.includes(latestPickRow.gameDate)) {
+                  fallbackWeekNum = w;
+                  break;
+                }
+              }
+              const { days: fbDays } = getNhlWeekBounds(anchor, fallbackWeekNum);
+              const [fbSat, fbSun] = fbDays;
+              currentRows = await db
+                .select({
+                  userId: pickemPicksTable.userId,
+                  weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`,
+                  picked: sql<string>`COUNT(*)`,
+                  correctCount: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                })
+                .from(pickemPicksTable)
+                .where(and(
+                  eq(pickemPicksTable.poolId, pool.id),
+                  inArray(pickemPicksTable.gameDate, [fbSat, fbSun]),
+                ))
+                .groupBy(pickemPicksTable.userId)
+                .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+            }
+          }
+
+          const myIdx = currentRows.findIndex((r) => r.userId === userId);
+          const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+
+          const topPrevPts = prevRows.length > 0 ? Number(prevRows[0].weeklyPoints) : 0;
+          const tiedPrevRows = topPrevPts > 0
+            ? prevRows.filter((r) => Number(r.weeklyPoints) === topPrevPts)
+            : [];
+          const lastWinners =
+            tiedPrevRows.length > 0
+              ? tiedPrevRows.map((r) => ({
+                  userId: r.userId,
+                  username: r.username,
+                  displayName: r.displayName ?? null,
+                  score: Number(r.weeklyPoints),
+                  correct: null,
+                  picked: null,
+                  prizeWon: computeSplitPrize(pool, tiedPrevRows.length, memberCountMap.get(pool.id) ?? 0),
+                }))
+              : null;
+
+          return {
+            poolId: pool.id,
+            isActive: pool.isActive,
+            poolName: pool.name,
+            poolType,
+            sport: pool.sport as string,
+            totalPlayers: memberCountMap.get(pool.id) ?? 0,
+            lastWinners,
+            myStanding: {
+              rank: myRow ? myIdx + 1 : 0,
+              isTied: myRow ? currentRows.filter(r => Number(r.weeklyPoints) === Number(myRow!.weeklyPoints)).length > 1 : false,
+              correct: myRow ? Number(myRow.correctCount) : 0,
+              picked: myRow ? Number(myRow.picked) : 0,
+              hasPicks: myRow ? Number(myRow.picked) > 0 : false,
+              status: null,
+              eliminatedWeek: null,
+              score: myRow ? Number(myRow.weeklyPoints) : null,
+              maxScore: null,
+            },
+          };
+        }
+
+        // ── MLB High Heat: filter by week number ──────────────────────────────
+        // MLB games are afternoon/evening ET so UTC date shifting is rare; but
+        // using the stored `week` column is more robust than a calendar range
+        // and avoids the Mon–Sun boundary issues that broke the NHL path.
         const prevWeekNum = pool.currentWeek - 1;
 
         const [initialCurrentRows, prevRows] = await Promise.all([
@@ -829,8 +960,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             : Promise.resolve([] as { userId: number; username: string; displayName: string | null; weeklyPoints: string; picked: string }[]),
         ]);
 
-        // Fallback: if pool.currentWeek has no picks yet (e.g. off-season or
-        // pool just created), show the most recent week that has picks.
+        // Fallback: if pool.currentWeek has no picks yet (off-season / new pool)
+        // show the most recent week that has picks.
         let currentRows = initialCurrentRows;
         if (currentRows.length === 0) {
           const [latestWeekRow] = await db
@@ -863,8 +994,6 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         const myIdx = currentRows.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
 
-        // lastWinners: previous week's top scorer(s).
-        // Only show when the previous week has concluded (week number advanced).
         const topPrevPts = prevRows.length > 0 ? Number(prevRows[0].weeklyPoints) : 0;
         const tiedPrevRows = topPrevPts > 0
           ? prevRows.filter((r) => Number(r.weeklyPoints) === topPrevPts)
