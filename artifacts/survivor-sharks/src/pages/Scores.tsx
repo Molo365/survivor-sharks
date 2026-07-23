@@ -318,7 +318,7 @@ function SportSectionCard({
         {SPORTS_WITH_STANDINGS.has(section.sport) && onStandingsClick && (
           <button
             onClick={onStandingsClick}
-            className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded border border-border/30 bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded border border-amber-500/70 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 transition-colors flex-shrink-0"
           >
             Standings
           </button>
