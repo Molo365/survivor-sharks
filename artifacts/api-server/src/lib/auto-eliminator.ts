@@ -2514,6 +2514,23 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
+      // Multi-day guard (Sat + Sun): don't close until ALL scheduled NHL games
+      // for the weekend are final. Without this, Saturday picks finishing before
+      // Sunday games triggers premature closure when users haven't picked Sunday.
+      const nhlCloseBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const nhlWeekendGameArrays = await Promise.all(
+        nhlCloseBounds.espnDates.map((espnDate) => fetchGamesForDate("nhl", espnDate)),
+      );
+      const nhlWeekendGames = nhlWeekendGameArrays.flat();
+      const nhlHasUnfinished = nhlWeekendGames.some((g) => !g.isCompleted && !g.isPostponed);
+      if (nhlHasUnfinished) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek },
+          "NHL Pick-Ems Weekly auto-closure: skipping — unfinished games remain in weekend schedule",
+        );
+        continue;
+      }
+
       // 2. Sum correct picks per user for this week.
       const scoreRows = await db
         .select({ userId: pickemPicksTable.userId, correct: count() })
@@ -2732,6 +2749,24 @@ export async function processPickEmResults(): Promise<{
           ),
         );
       if (Number(totalPicks) === 0) continue;
+
+      // Multi-day guard: MLS weeks span Mon–Sun with games on multiple days
+      // (e.g. Wed/Thu + Sat). Don't close until ALL scheduled games across the
+      // entire week are final — not just the earliest day's games.
+      // getMlbWeekBounds gives the correct Mon–Sun date range for any weekly pool.
+      const mlsCloseBounds = getMlbWeekBounds(pool.createdAt, pool.currentWeek);
+      const mlsWeekGameArrays = await Promise.all(
+        mlsCloseBounds.espnDates.map((espnDate) => fetchGamesForDate("mls", espnDate)),
+      );
+      const mlsWeekGames = mlsWeekGameArrays.flat();
+      const mlsHasUnfinished = mlsWeekGames.some((g) => !g.isCompleted && !g.isPostponed);
+      if (mlsHasUnfinished) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek },
+          "MLS Pick-Ems Weekly auto-closure: skipping — unfinished games remain in week schedule",
+        );
+        continue;
+      }
 
       // 2. Sum correct picks per user for this week.
       const scoreRows = await db
