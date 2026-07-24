@@ -38,7 +38,7 @@ import {
   fetchNflGamesByWeek,
   getTeamsWithWin,
 } from "./espn";
-import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
+import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
   fetchTodayWcGames,
   fetchWcGamesForDate,
@@ -1137,7 +1137,6 @@ export async function settleNflConfidenceWeeklyPool(
 export async function processPickEmResults(): Promise<{
   picksGraded: number;
 }> {
-  console.log("CLOSURE_DIAG_V1: processPickEmResults invoked", new Date().toISOString());
   let picksGraded = 0;
 
   // Find all active pick-em pools
@@ -1874,6 +1873,38 @@ export async function processPickEmResults(): Promise<{
             }
           }
         }
+
+        // ── nfl_confidence season auto-closure (live) ────────────────────────
+        // Season-long confidence pools close once all Week 18 picks are
+        // resolved, ranked by total confidence points on correct picks.
+        // Mirrors the live pickem_season closure block below.
+        if (pool.poolType === "nfl_confidence" && pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
+          try {
+            const [{ pendingCount }] = await db
+              .select({ pendingCount: count() })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.week, NFL_TOTAL_WEEKS),
+                eq(pickemPicksTable.result, "pending"),
+              ));
+            if (Number(pendingCount) === 0) {
+              logger.info({ poolId: pool.id }, "nfl_confidence auto-closure: live Week 18 fully graded — applying season closure");
+              await applyNflConfidenceSeasonClosure({
+                poolId: pool.id,
+                week: NFL_TOTAL_WEEKS,
+                pool: { isActive: pool.isActive },
+                actualPassingYards: null,
+                actualRushingYards: null,
+                log: logger,
+              });
+            } else {
+              logger.info({ poolId: pool.id, pendingCount: Number(pendingCount) }, "nfl_confidence auto-closure: live Week 18 still has pending picks — deferring");
+            }
+          } catch (err) {
+            logger.error({ poolId: pool.id, err }, "nfl_confidence auto-closure: live closure check error");
+          }
+        }
       } catch (err) {
         logger.error({ poolId: pool.id, err }, "NFL Confidence live grading error");
       }
@@ -1928,7 +1959,6 @@ export async function processPickEmResults(): Promise<{
     // with all picks resolved. applyPickEmSeasonClosure is idempotent: it
     // no-ops when pool.isActive is already false.
     if (pool.poolType === "pickem_season" && pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
-      console.log("CLOSURE_DIAG_V1: pickem_season pool found", pool.id, pool.name, pool.currentWeek, pool.isActive);
       try {
         const [{ pendingCount }] = await db
           .select({ pendingCount: count() })
@@ -1953,6 +1983,37 @@ export async function processPickEmResults(): Promise<{
         }
       } catch (err) {
         logger.error({ poolId: pool.id, err }, "pickem_season auto-closure: sandbox closure check error");
+      }
+    }
+
+    // ── nfl_confidence season auto-closure (sandbox) ─────────────────────────
+    // Same pattern as pickem_season above, but ranked by total confidence
+    // points on correct picks. applyNflConfidenceSeasonClosure is idempotent.
+    if (pool.poolType === "nfl_confidence" && pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
+      try {
+        const [{ pendingCount }] = await db
+          .select({ pendingCount: count() })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, NFL_TOTAL_WEEKS),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+        if (Number(pendingCount) === 0) {
+          logger.info({ poolId: pool.id }, "nfl_confidence auto-closure: sandbox Week 18 fully graded — applying season closure");
+          await applyNflConfidenceSeasonClosure({
+            poolId: pool.id,
+            week: NFL_TOTAL_WEEKS,
+            pool: { isActive: pool.isActive },
+            actualPassingYards: null,
+            actualRushingYards: null,
+            log: logger,
+          });
+        } else {
+          logger.info({ poolId: pool.id, pendingCount: Number(pendingCount) }, "nfl_confidence auto-closure: sandbox Week 18 still has pending picks — deferring");
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, err }, "nfl_confidence auto-closure: sandbox closure check error");
       }
     }
   }

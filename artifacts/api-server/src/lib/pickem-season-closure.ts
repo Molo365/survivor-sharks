@@ -1,8 +1,8 @@
 /**
- * Shared closure logic for pickem_season pools.
+ * Shared season-end closure logic for pickem_season and nfl_confidence pools.
  *
  * Extracted here so both the manual POST /process-results route and the
- * auto-eliminator can call the same function without circular imports.
+ * auto-eliminator can call the same functions without circular imports.
  *
  * Idempotent: no-ops when pool.isActive is already false.
  */
@@ -14,19 +14,53 @@ import {
   entriesTable,
   nflConfidenceResultsTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, type SQL } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 
 export const NFL_TOTAL_WEEKS = 18;
 
-export async function applyPickEmSeasonClosure(opts: {
+interface SeasonClosureOpts {
   poolId: number;
   week: number;
   pool: { isActive: boolean };
   actualPassingYards: number | null;
   actualRushingYards: number | null;
   log: { info(obj: object, msg: string): void; warn(obj: object, msg?: string): void };
-}): Promise<{ closureApplied: boolean; winnerCount: number }> {
+}
+
+interface SeasonClosureResult {
+  closureApplied: boolean;
+  winnerCount: number;
+}
+
+/**
+ * Season-end closure for pickem_season pools: ranked by count of correct picks.
+ */
+export async function applyPickEmSeasonClosure(opts: SeasonClosureOpts): Promise<SeasonClosureResult> {
+  return applySeasonClosureCore(
+    opts,
+    sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+    "pickem-season",
+  );
+}
+
+/**
+ * Season-end closure for nfl_confidence (season-long) pools: ranked by total
+ * confidence points earned on correct picks.
+ */
+export async function applyNflConfidenceSeasonClosure(opts: SeasonClosureOpts): Promise<SeasonClosureResult> {
+  return applySeasonClosureCore(
+    opts,
+    sql<string>`COALESCE(SUM(${pickemPicksTable.confidencePoints}) FILTER (WHERE ${pickemPicksTable.result} = 'correct'), 0)`,
+    "nfl-confidence-season",
+  );
+}
+
+async function applySeasonClosureCore(
+  opts: SeasonClosureOpts,
+  scoreExpr: SQL<string>,
+  label: string,
+): Promise<SeasonClosureResult> {
   const { poolId, week, pool, log } = opts;
   let { actualPassingYards, actualRushingYards } = opts;
 
@@ -37,19 +71,19 @@ export async function applyPickEmSeasonClosure(opts: {
   const seasonTotals = await db
     .select({
       userId: pickemPicksTable.userId,
-      seasonCorrect: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+      seasonScore: scoreExpr,
     })
     .from(pickemPicksTable)
     .where(eq(pickemPicksTable.poolId, poolId))
     .groupBy(pickemPicksTable.userId);
 
   if (seasonTotals.length === 0) {
-    log.warn({ poolId }, "pickem-season Week 18 closure: no pick data — skipping");
+    log.warn({ poolId }, `${label} Week 18 closure: no pick data — skipping`);
     return { closureApplied: false, winnerCount: 0 };
   }
 
-  const maxCorrect = Math.max(...seasonTotals.map((r) => Number(r.seasonCorrect)));
-  let topGroup = seasonTotals.filter((r) => Number(r.seasonCorrect) === maxCorrect);
+  const maxScore = Math.max(...seasonTotals.map((r) => Number(r.seasonScore)));
+  let topGroup = seasonTotals.filter((r) => Number(r.seasonScore) === maxScore);
 
   if (topGroup.length > 1) {
     if (actualPassingYards === null) {
@@ -96,10 +130,10 @@ export async function applyPickEmSeasonClosure(opts: {
 
       log.info(
         { poolId, resolvedPassingYards: actualPassingYards, resolvedRushingYards: actualRushingYards, bestDelta, remainingTied: topGroup.length },
-        "pickem-season Week 18: yardage tiebreaker applied",
+        `${label} Week 18: yardage tiebreaker applied`,
       );
     } else {
-      log.info({ poolId }, "pickem-season Week 18: tiebreaker actuals unavailable — split declared");
+      log.info({ poolId }, `${label} Week 18: tiebreaker actuals unavailable — split declared`);
     }
   }
 
@@ -135,20 +169,20 @@ export async function applyPickEmSeasonClosure(opts: {
   const winnerSet = new Set(winnerUserIds);
   const nonWinners = seasonTotals
     .filter((r) => !winnerSet.has(r.userId))
-    .sort((a, b) => Number(b.seasonCorrect) - Number(a.seasonCorrect));
+    .sort((a, b) => Number(b.seasonScore) - Number(a.seasonScore));
 
   if (nonWinners.length > 0) {
-    const place2Score = Number(nonWinners[0].seasonCorrect);
-    const secondGroup = nonWinners.filter((r) => Number(r.seasonCorrect) === place2Score);
+    const place2Score = Number(nonWinners[0].seasonScore);
+    const secondGroup = nonWinners.filter((r) => Number(r.seasonScore) === place2Score);
     const secondPrize = calcPrize({ placeIndex: winnerUserIds.length, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
     await db.update(entriesTable)
       .set({ finishPosition: 2, ...(secondPrize !== null ? { prizeAmount: secondPrize } : {}) })
       .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
 
-    const rest2 = nonWinners.filter((r) => Number(r.seasonCorrect) !== place2Score);
+    const rest2 = nonWinners.filter((r) => Number(r.seasonScore) !== place2Score);
     if (rest2.length > 0) {
-      const place3Score = Number(rest2[0].seasonCorrect);
-      const thirdGroup = rest2.filter((r) => Number(r.seasonCorrect) === place3Score);
+      const place3Score = Number(rest2[0].seasonScore);
+      const thirdGroup = rest2.filter((r) => Number(r.seasonScore) === place3Score);
       const thirdPrize = calcPrize({ placeIndex: winnerUserIds.length + secondGroup.length, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
       await db.update(entriesTable)
         .set({ finishPosition: 3, ...(thirdPrize !== null ? { prizeAmount: thirdPrize } : {}) })
@@ -162,8 +196,8 @@ export async function applyPickEmSeasonClosure(opts: {
     .where(eq(poolsTable.id, poolId));
 
   log.info(
-    { poolId, maxCorrect, winnerCount: winnerUserIds.length, winnerUserIds },
-    "pickem-season Week 18: season closed",
+    { poolId, maxScore, winnerCount: winnerUserIds.length, winnerUserIds },
+    `${label} Week 18: season closed`,
   );
 
   return { closureApplied: true, winnerCount: winnerUserIds.length };
