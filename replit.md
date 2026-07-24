@@ -68,3 +68,4 @@ _Populate as you build — explicit user instructions worth remembering across s
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Railway auto-deploys on push to GitHub `main`. "Redeploy" in the Railway dashboard re-runs the same build artifact — it does NOT pull a newer commit. To force a fresh build from the latest SHA, push a new commit (even empty) to GitHub `main`.
