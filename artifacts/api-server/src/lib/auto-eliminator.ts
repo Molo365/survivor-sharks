@@ -1137,6 +1137,7 @@ export async function settleNflConfidenceWeeklyPool(
 export async function processPickEmResults(): Promise<{
   picksGraded: number;
 }> {
+  console.log("CLOSURE_DIAG_V1: processPickEmResults invoked", new Date().toISOString());
   let picksGraded = 0;
 
   // Find all active pick-em pools
@@ -1927,6 +1928,7 @@ export async function processPickEmResults(): Promise<{
     // with all picks resolved. applyPickEmSeasonClosure is idempotent: it
     // no-ops when pool.isActive is already false.
     if (pool.poolType === "pickem_season" && pool.currentWeek === NFL_TOTAL_WEEKS && pool.isActive) {
+      console.log("CLOSURE_DIAG_V1: pickem_season pool found", pool.id, pool.name, pool.currentWeek, pool.isActive);
       try {
         const [{ pendingCount }] = await db
           .select({ pendingCount: count() })
