@@ -392,7 +392,7 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
                         {divisionsScored} division{divisionsScored !== 1 ? "s" : ""} scored
                       </p>
                     )}
-                    {entry.prizeWon != null && (
+                    {entry.prizeWon != null && divisionsScored >= 1 && (
                       <p className="text-[11px] text-yellow-400 font-bold mt-0.5">
                         ${entry.prizeWon.toLocaleString()}
                       </p>
