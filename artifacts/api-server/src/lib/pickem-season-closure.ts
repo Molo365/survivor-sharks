@@ -167,27 +167,39 @@ async function applySeasonClosureCore(
     .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerUserIds)));
 
   const winnerSet = new Set(winnerUserIds);
-  const nonWinners = seasonTotals
+  // All non-winners sorted descending by score. Grouped into score bands and
+  // assigned finishPosition sequentially (2, 3, 4, ...). Prize is computed via
+  // calcPrize for every place — calcPrize returns null for non-paying places,
+  // so prizeAmount is only written where it is non-null.
+  let remaining = seasonTotals
     .filter((r) => !winnerSet.has(r.userId))
     .sort((a, b) => Number(b.seasonScore) - Number(a.seasonScore));
 
-  if (nonWinners.length > 0) {
-    const place2Score = Number(nonWinners[0].seasonScore);
-    const secondGroup = nonWinners.filter((r) => Number(r.seasonScore) === place2Score);
-    const secondPrize = calcPrize({ placeIndex: winnerUserIds.length, coWinners: secondGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
-    await db.update(entriesTable)
-      .set({ finishPosition: 2, ...(secondPrize !== null ? { prizeAmount: secondPrize } : {}) })
-      .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, secondGroup.map((r) => r.userId))));
+  let placeIndex = winnerUserIds.length; // entries ranked above the current group
+  let finishPos = 2;
 
-    const rest2 = nonWinners.filter((r) => Number(r.seasonScore) !== place2Score);
-    if (rest2.length > 0) {
-      const place3Score = Number(rest2[0].seasonScore);
-      const thirdGroup = rest2.filter((r) => Number(r.seasonScore) === place3Score);
-      const thirdPrize = calcPrize({ placeIndex: winnerUserIds.length + secondGroup.length, coWinners: thirdGroup.length, prizeStructure: ps, prizeMode: poolPrize?.prizeMode, entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot, totalEntries, maxEntries: poolPrize?.maxEntries ?? null });
-      await db.update(entriesTable)
-        .set({ finishPosition: 3, ...(thirdPrize !== null ? { prizeAmount: thirdPrize } : {}) })
-        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, thirdGroup.map((r) => r.userId))));
-    }
+  while (remaining.length > 0) {
+    const groupScore = Number(remaining[0].seasonScore);
+    const group = remaining.filter((r) => Number(r.seasonScore) === groupScore);
+    remaining = remaining.filter((r) => Number(r.seasonScore) !== groupScore);
+
+    const prize = calcPrize({
+      placeIndex,
+      coWinners: group.length,
+      prizeStructure: ps,
+      prizeMode: poolPrize?.prizeMode,
+      entryFee: poolPrize?.entryFee,
+      prizePot: poolPrize?.prizePot,
+      totalEntries,
+      maxEntries: poolPrize?.maxEntries ?? null,
+    });
+
+    await db.update(entriesTable)
+      .set({ finishPosition: finishPos, ...(prize !== null ? { prizeAmount: prize } : {}) })
+      .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, group.map((r) => r.userId))));
+
+    placeIndex += group.length;
+    finishPos += 1;
   }
 
   await db
