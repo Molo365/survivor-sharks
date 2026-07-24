@@ -2626,34 +2626,28 @@ export async function processPickEmResults(): Promise<{
         if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
       }
 
-      // 3. Fetch tiebreaker actuals (actualPassingYards + actualRushingYards).
-      //    NHL pools typically have no nfl_confidence_results row; actualCombined
-      //    will be null and tied players become co-winners.
-      const actualsRow = await db
-        .select({
-          actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
-          actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
-        })
-        .from(nflConfidenceResultsTable)
-        .where(
-          and(
-            eq(nflConfidenceResultsTable.poolId, pool.id),
-            eq(nflConfidenceResultsTable.week, pool.currentWeek),
-          ),
-        )
-        .limit(1);
+      // 3. Fetch tiebreaker actuals: combined shots on goal + penalty minutes
+      //    for the last completed game of the weekend. This mirrors the leaderboard's
+      //    isTiebreakerGame logic (last game on the weekend slate by espnDate order).
+      //    If ESPN stats are unavailable, actualCombined stays null and tied players
+      //    fall back to the co-winner split.
+      const completedWeekendGames = nhlWeekendGames.filter((g) => g.isCompleted);
+      const nhlTiebreakerGame = completedWeekendGames[completedWeekendGames.length - 1] ?? null;
+      let actualCombined: number | null = null;
+      if (nhlTiebreakerGame) {
+        const tbStats = await fetchNhlTiebreakerStats(nhlTiebreakerGame.id);
+        if (tbStats.shotsOnGoal != null && tbStats.penaltyMinutes != null) {
+          actualCombined = tbStats.shotsOnGoal + tbStats.penaltyMinutes;
+        }
+      }
 
-      const actualCombined =
-        actualsRow.length > 0
-          ? actualsRow[0].actualPassingYards + actualsRow[0].actualRushingYards
-          : null;
-
-      // Fetch each user's tiebreaker guess from their entry row.
+      // Fetch each user's tiebreaker guess (shots on goal + penalty minutes)
+      // stored on their entry row at pick-submission time.
       const entryTbRows = await db
         .select({
           userId: entriesTable.userId,
-          tbPassing: entriesTable.tiebreakerPassingYards,
-          tbRushing: entriesTable.tiebreakerRushingYards,
+          tbShots: entriesTable.tiebreakerShotsOnGoal,
+          tbPim: entriesTable.tiebreakerPenaltyMinutes,
         })
         .from(entriesTable)
         .where(eq(entriesTable.poolId, pool.id));
@@ -2661,8 +2655,8 @@ export async function processPickEmResults(): Promise<{
       const tbGuessByUser = new Map<number, number | null>();
       for (const e of entryTbRows) {
         const combined =
-          e.tbPassing != null && e.tbRushing != null
-            ? e.tbPassing + e.tbRushing
+          e.tbShots != null && e.tbPim != null
+            ? e.tbShots + e.tbPim
             : null;
         tbGuessByUser.set(e.userId, combined);
       }

@@ -1041,17 +1041,25 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
-  const entries = aggregates.map((row, i) => ({
-    rank: i + 1,
-    userId: row.userId,
-    username: row.username,
-    displayName: row.displayName ?? null,
-    correct: Number(row.correct),
-    picked: Number(row.picked),
-    picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
-    dailyBreakdown: dailyByUser.get(row.userId) ?? [],
-    prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect ? weekPrizePerWinner : null,
-  }));
+  let weekRank = 1;
+  const entries = aggregates.map((row, i) => {
+    if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
+      // same rank as previous — tie
+    } else {
+      weekRank = i + 1;
+    }
+    return {
+      rank: weekRank,
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName ?? null,
+      correct: Number(row.correct),
+      picked: Number(row.picked),
+      picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
+      dailyBreakdown: dailyByUser.get(row.userId) ?? [],
+      prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect ? weekPrizePerWinner : null,
+    };
+  });
 
   res.json({
     hasResults,
