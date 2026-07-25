@@ -81,6 +81,16 @@ function getMondayEt(): string {
   return new Date(Date.UTC(y, m - 1, d + daysToMon)).toISOString().slice(0, 10);
 }
 
+function getCurrentNbaFri(): string {
+  const today = getTodayEt();
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 5=Fri, 6=Sat
+  const daysBack = (dow - 5 + 7) % 7; // Fri→0, Sat→1, Sun→2, Mon→3 …
+  const friDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  return friDt.toISOString().slice(0, 10);
+}
+
 function getCurrentNhlSat(): string {
   const today = getTodayEt();
   const [y, m, d] = today.split("-").map(Number);
@@ -202,12 +212,15 @@ function CrazyEightsDayPanel({ poolId, userId, date }: { poolId: number; userId:
 export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = false, defaultToPreviousWeek = false }: { poolId: number; sport?: string; sandboxMode?: boolean; defaultToPreviousWeek?: boolean }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
+  const isNba = sport === "nba";
+  const isWeekend = isNhl || isNba;
 
   // ── State (all hooks before any conditional return) ────────────────────────
 
   const [nhlDate, setNhlDate] = useState(() => {
-    if (!isNhl) return "";
-    return sandboxMode ? "" : getCurrentNhlSat();
+    if (!isWeekend) return "";
+    if (sandboxMode) return "";
+    return isNba ? getCurrentNbaFri() : getCurrentNhlSat();
   });
 
   const [mlbWeekOf, setMlbWeekOf] = useState(() => {
@@ -227,7 +240,7 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
   const { data: nhlData, isLoading: nhlLoading } = useQuery<GridResponse>({
     queryKey: ["crazy-eights-grid", poolId, nhlDate],
     queryFn: () => authedFetch<GridResponse>(`/api/pools/${poolId}/crazy-eights/grid?date=${nhlDate}`),
-    enabled: !!user && isNhl,
+    enabled: !!user && isWeekend,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -235,15 +248,15 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
   const { data: mlbData, isLoading: mlbLoading } = useQuery<WeeklyLeaderboardResponse>({
     queryKey: ["crazy-eights-weekly-leaderboard", poolId, mlbWeekOf],
     queryFn: () => authedFetch<WeeklyLeaderboardResponse>(`/api/pools/${poolId}/crazy-eights/weekly-leaderboard?weekOf=${mlbWeekOf}`),
-    enabled: !!user && !isNhl,
+    enabled: !!user && !isWeekend,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
 
   // Lock in NHL anchor date on first load (sandbox NHL resolves date from server)
   useEffect(() => {
-    if (isNhl && nhlDate === "" && nhlData?.date) setNhlDate(nhlData.date);
-  }, [isNhl, nhlDate, nhlData?.date]);
+    if (isWeekend && nhlDate === "" && nhlData?.date) setNhlDate(nhlData.date);
+  }, [isWeekend, nhlDate, nhlData?.date]);
 
   const currentMonday = getMondayEt();
   const isCurrentMlbWeek = mlbWeekOf >= currentMonday;
@@ -256,8 +269,8 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
 
   // ── NHL render — unchanged date-based leaderboard ─────────────────────────
 
-  if (isNhl) {
-    const maxDate = sandboxMode ? (nhlData?.date ?? "") : getCurrentNhlSat();
+  if (isWeekend) {
+    const maxDate = sandboxMode ? (nhlData?.date ?? "") : isNba ? getCurrentNbaFri() : getCurrentNhlSat();
     const isAtMax = nhlDate === "" || nhlDate >= maxDate;
 
     const ranked = (nhlData?.players ?? [])

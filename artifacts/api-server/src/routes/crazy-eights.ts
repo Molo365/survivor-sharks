@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
+import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, getNbaWeekendBounds, NBA_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -34,6 +34,41 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   }
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return { games, satDate, sunDate };
+}
+
+// ── NBA helper ────────────────────────────────────────────────────────────────
+
+async function getNbaWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise<{
+  games: EspnGame[];
+  friDate: string;
+  satDate: string;
+  sunDate: string;
+  gameDates: Map<string, string>;
+}> {
+  // Sandbox mode: use the fixed NBA_SANDBOX_ANCHOR so Week N always maps to the
+  // 2025-26 season regardless of when the pool was actually created.
+  const isSandbox = (pool as any).sandboxMode as boolean;
+  const anchor = isSandbox ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+  const { espnDates, days } = getNbaWeekendBounds(anchor, pool.currentWeek);
+  const [friDate, satDate, sunDate] = days;
+  const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  // Map each game to the ET slate day it was fetched under. ESPN's date-scoped
+  // scoreboard buckets games by ET day, so this — NOT a UTC slice of game.date —
+  // is the day the rest of the weekend pipeline (grid/picks/grading) queries by.
+  const gameDates = new Map<string, string>();
+  results.forEach((dayGames, i) => {
+    for (const g of dayGames) {
+      if (!seen.has(g.id)) {
+        seen.add(g.id);
+        games.push(g);
+        gameDates.set(g.id, days[i]);
+      }
+    }
+  });
+  games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return { games, friDate, satDate, sunDate, gameDates };
 }
 
 function toSlateShape(g: EspnGame) {
@@ -100,6 +135,43 @@ router.get("/slate", requireAuth, async (req, res) => {
     return;
   }
 
+  if (pool.sport === "nba") {
+    const isSandbox = (pool as any).sandboxMode as boolean;
+    const { games, friDate, satDate, sunDate } = await getNbaWeekendSlate(pool);
+
+    // Load sandbox scores so graded cards display final results
+    const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
+    if (isSandbox) {
+      const rows = await db.select().from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+      for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
+    }
+
+    const [fy, fm, fd] = friDate.split("-").map(Number);
+    const [ny, nm, nd] = sunDate.split("-").map(Number);
+    const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+    const weekLabel = `${fmt.format(new Date(Date.UTC(fy, fm - 1, fd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
+    res.json({
+      sport: "nba",
+      week: pool.currentWeek,
+      weekLabel,
+      friDate,
+      satDate,
+      sunDate,
+      sandboxMode: isSandbox,
+      games: games.map(g => {
+        const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
+        return {
+          ...toSlateShape(g),
+          homeScore: isSandbox ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
+          awayScore: isSandbox ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
+          status: isSandbox ? (sbScore ? "final" : "scheduled") : g.status,
+        };
+      }),
+    });
+    return;
+  }
+
   // MLB: today's slate
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
@@ -148,6 +220,9 @@ router.get("/grid", requireAuth, async (req, res) => {
     if (pool.sport === "nhl" && (pool as any).sandboxMode) {
       const { days } = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
       date = days[0]; // index 0 = Saturday (filtered array: Sat=0, Sun=1)
+    } else if (pool.sport === "nba" && (pool as any).sandboxMode) {
+      const { days } = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
+      date = days[0]; // index 0 = Friday (filtered array: Fri=0, Sat=1, Sun=2)
     } else {
       date = getTodayEtDate();
     }
@@ -220,6 +295,90 @@ router.get("/grid", requireAuth, async (req, res) => {
 
     const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     const dateLabel = `${fmt.format(satDt)} – ${fmt.format(sunDt)}`;
+
+    res.json({
+      date,
+      dateLabel,
+      games: games.map(g => ({
+        id: g.id,
+        awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+        homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+        startTime: g.date,
+        status: g.status,
+        awayScore: g.awayScore ?? null,
+        homeScore: g.homeScore ?? null,
+      })),
+      players: Array.from(userMap.values()).map(u => ({
+        userId: u.userId,
+        username: u.username,
+        displayName: u.displayName,
+        picks: Object.fromEntries(u.picks.entries()),
+      })),
+    });
+    return;
+  }
+
+  if (pool.sport === "nba") {
+    // date = Friday anchor; derive Saturday = +1, Sunday = +2
+    const [fy, fm, fd] = date.split("-").map(Number);
+    const friDt = new Date(Date.UTC(fy, fm - 1, fd));
+    const satDt = new Date(friDt.getTime() + 24 * 60 * 60 * 1000);
+    const sunDt = new Date(friDt.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const satDate = satDt.toISOString().slice(0, 10);
+    const sunDate = sunDt.toISOString().slice(0, 10);
+    const weekendDates = [date, satDate, sunDate];
+    const espnDatesNba = weekendDates.map(d => d.replace(/-/g, ""));
+
+    const [gameArrays, allPicks] = await Promise.all([
+      Promise.all(espnDatesNba.map(d => fetchGamesForDate("nba", d))),
+      db.select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        gameId: pickemPicksTable.gameId,
+        pickedTeamId: pickemPicksTable.pickedTeamId,
+        pickedTeamName: pickemPicksTable.pickedTeamName,
+        confidencePoints: (pickemPicksTable as any).confidencePoints,
+        result: pickemPicksTable.result,
+      })
+        .from(pickemPicksTable)
+        .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          inArray(pickemPicksTable.gameDate, weekendDates),
+        )),
+    ]);
+
+    const seen = new Set<string>();
+    const games: EspnGame[] = [];
+    for (const g of gameArrays.flat()) {
+      if (!seen.has(g.id)) { seen.add(g.id); games.push(g); }
+    }
+    games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const gameMap = new Map(games.map(g => [g.id, g]));
+
+    const userMap = new Map<number, {
+      userId: number; username: string; displayName: string | null;
+      picks: Map<string, { pickedTeamId: string; pickedTeamName: string; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+    }>();
+
+    for (const pick of allPicks) {
+      if (!userMap.has(pick.userId)) {
+        userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
+      }
+      const game = gameMap.get(pick.gameId);
+      const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+      userMap.get(pick.userId)!.picks.set(pick.gameId, {
+        pickedTeamId: pick.pickedTeamId,
+        pickedTeamName: pick.pickedTeamName,
+        pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
+        confidencePoints: (pick as any).confidencePoints ?? null,
+        result: pick.result ?? null,
+      });
+    }
+
+    const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    const dateLabel = `${fmt.format(friDt)} – ${fmt.format(sunDt)}`;
 
     res.json({
       date,
@@ -392,6 +551,68 @@ router.get("/picks", requireAuth, async (req, res) => {
     return;
   }
 
+  if (pool.sport === "nba") {
+    const isSandbox = (pool as any).sandboxMode as boolean;
+    const { games, friDate, satDate, sunDate } = await getNbaWeekendSlate(pool);
+    const gameMap = new Map(games.map(g => [g.id, g]));
+    const lastGame = games.at(-1);
+
+    const picks = await db.select().from(pickemPicksTable).where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.userId, userId),
+        inArray(pickemPicksTable.gameDate, [friDate, satDate, sunDate]),
+      ),
+    );
+
+    // In sandbox mode, overlay scores from sandboxGameScoresTable so the
+    // picks view shows the same simulated results used for grading.
+    const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
+    if (isSandbox) {
+      const sbRows = await db.select().from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+      for (const r of sbRows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
+    }
+
+    const details = picks.map((pick) => {
+      const game = gameMap.get(pick.gameId);
+      const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
+      const sbScore = isSandbox ? sandboxScores.get(pick.gameId) : undefined;
+      return {
+        gameId: pick.gameId,
+        pickedTeamId: pick.pickedTeamId,
+        pickedTeamName: pick.pickedTeamName,
+        pickedTeamLogoUrl: game
+          ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
+          : null,
+        confidencePoints: (pick as any).confidencePoints ?? null,
+        result: pick.result,
+        homeTeam: game
+          ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        awayTeam: game
+          ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        homeScore: isSandbox ? (sbScore?.homeScore ?? null) : (game?.homeScore ?? null),
+        awayScore: isSandbox ? (sbScore?.awayScore ?? null) : (game?.awayScore ?? null),
+        startTime: game?.date ?? "",
+        status: isSandbox ? (sbScore ? "final" : "scheduled") : ((game?.status ?? "unknown") as string),
+      };
+    });
+
+    res.json({
+      picks: details,
+      tiebreakerPoints: (entry as any).tiebreakerPoints ?? null,
+      tiebreakerThrees: (entry as any).tiebreakerThrees ?? null,
+      tiebreakerGame: lastGame ? {
+        awayTeam: { abbreviation: lastGame.awayTeam.abbreviation, name: lastGame.awayTeam.displayName },
+        homeTeam: { abbreviation: lastGame.homeTeam.abbreviation, name: lastGame.homeTeam.displayName },
+        startTime: lastGame.date,
+      } : null,
+    });
+    return;
+  }
+
   // MLB
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
@@ -459,12 +680,14 @@ router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
+  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes, tiebreakerPoints, tiebreakerThrees } = req.body as {
     picks: Array<{ gameId: string; pickedTeam?: string; pickedTeamName?: string; confidencePoints: number }>;
     tiebreakerRuns?: number;
     tiebreakerStrikeouts?: number;
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
+    tiebreakerPoints?: number;
+    tiebreakerThrees?: number;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -585,6 +808,95 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
+  if (pool.sport === "nba") {
+    const isSandbox = (pool as any).sandboxMode as boolean;
+    const { games, gameDates, friDate } = await getNbaWeekendSlate(pool);
+    const gameMap = new Map(games.map(g => [g.id, g]));
+
+    for (const pick of picks) {
+      if (!gameMap.has(pick.gameId)) {
+        res.status(400).json({ error: `Unknown game: ${pick.gameId}` });
+        return;
+      }
+    }
+
+    const nowMs = Date.now();
+    const availableCount = Math.min(
+      isSandbox
+        ? games.length
+        : games.filter(g => {
+            const startMs = new Date(g.date).getTime();
+            return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
+          }).length,
+      8
+    );
+    if (availableCount === 0) {
+      res.status(400).json({ error: "No games available to pick — all games have started" });
+      return;
+    }
+    if (picks.length !== availableCount) {
+      res.status(400).json({ error: `Expected ${availableCount} picks, got ${picks.length}` });
+      return;
+    }
+    const cpSortedNba = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
+    if (!cpSortedNba.every((v, i) => v === i + 1)) {
+      res.status(400).json({ error: `Confidence points 1-${availableCount} must each be used exactly once` });
+      return;
+    }
+
+    const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
+    // In sandbox mode the anchor games are historical; skip the real-time lock.
+    if (!isSandbox) {
+      const earliestStartMs = Math.min(...selectedGames.map(g => new Date(g.date).getTime()));
+      if (Date.now() >= earliestStartMs) {
+        res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
+        return;
+      }
+    }
+
+    let saved = 0;
+    for (const pick of picks) {
+      const game = gameMap.get(pick.gameId)!;
+      // Bucket by the ET slate day (Fri/Sat/Sun) — a UTC slice of game.date would
+      // push Sunday-evening ET games onto Monday and exclude them from all
+      // weekend-window queries (picks/grid/grading/resolution).
+      const gameDate = gameDates.get(pick.gameId) ?? friDate;
+      const teamLabel = pick.pickedTeam ?? "";
+      await db
+        .insert(pickemPicksTable)
+        .values({
+          poolId,
+          userId,
+          gameId: pick.gameId,
+          gameDate,
+          week: pool.currentWeek,
+          pickedTeamId: teamLabel,
+          pickedTeamName: pick.pickedTeamName || teamLabel,
+          confidencePoints: pick.confidencePoints,
+          result: "pending",
+        } as any)
+        .onConflictDoUpdate({
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+          set: {
+            pickedTeamId: teamLabel,
+            pickedTeamName: pick.pickedTeamName || teamLabel,
+            confidencePoints: pick.confidencePoints,
+            result: "pending",
+            updatedAt: new Date(),
+          } as any,
+        });
+      saved++;
+    }
+
+    await db
+      .update(entriesTable)
+      .set({ tiebreakerPoints: tiebreakerPoints ?? null, tiebreakerThrees: tiebreakerThrees ?? null } as any)
+      .where(eq(entriesTable.id, entry.id));
+
+    res.status(201).json({ ok: true, saved, message: "Fast Break picks submitted successfully" });
+    return;
+  }
+
   // MLB (continues below)
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
@@ -675,21 +987,31 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } = req.body as {
+  const { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes, tiebreakerPoints, tiebreakerThrees } = req.body as {
     tiebreakerShotsOnGoal?: unknown;
     tiebreakerPenaltyMinutes?: unknown;
+    tiebreakerPoints?: unknown;
+    tiebreakerThrees?: unknown;
   };
 
-  if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number"
-    || tiebreakerShotsOnGoal < 0 || tiebreakerPenaltyMinutes < 0) {
-    res.status(400).json({ error: "tiebreakerShotsOnGoal and tiebreakerPenaltyMinutes must be numbers ≥ 0" });
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool || (pool.poolType as string) !== "crazy_8s" || (pool.sport !== "nhl" && pool.sport !== "nba")) {
+    res.status(404).json({ error: "Pool not found or not a weekend Crazy 8's pool" });
     return;
   }
 
-  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool || (pool.poolType as string) !== "crazy_8s" || pool.sport !== "nhl") {
-    res.status(404).json({ error: "Pool not found or not an NHL Hit the Ice pool" });
-    return;
+  if (pool.sport === "nhl") {
+    if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number"
+      || tiebreakerShotsOnGoal < 0 || tiebreakerPenaltyMinutes < 0) {
+      res.status(400).json({ error: "tiebreakerShotsOnGoal and tiebreakerPenaltyMinutes must be numbers ≥ 0" });
+      return;
+    }
+  } else {
+    if (typeof tiebreakerPoints !== "number" || typeof tiebreakerThrees !== "number"
+      || tiebreakerPoints < 0 || tiebreakerThrees < 0) {
+      res.status(400).json({ error: "tiebreakerPoints and tiebreakerThrees must be numbers ≥ 0" });
+      return;
+    }
   }
 
   const [entry] = await db
@@ -704,7 +1026,11 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
 
   await db
     .update(entriesTable)
-    .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
+    .set(
+      pool.sport === "nhl"
+        ? ({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
+        : ({ tiebreakerPoints, tiebreakerThrees } as any),
+    )
     .where(eq(entriesTable.id, entry.id));
 
   res.json({ ok: true });
@@ -734,12 +1060,17 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  // For NHL: date = Saturday; derive Sunday
-  const datesToQuery: string[] = pool.sport === "nhl"
+  // For NHL: date = Saturday; derive Sunday.
+  // For NBA: date = Friday; derive Saturday + Sunday.
+  const datesToQuery: string[] = pool.sport === "nhl" || pool.sport === "nba"
     ? (() => {
         const [y, m, d] = date.split("-").map(Number);
-        const sunDt = new Date(Date.UTC(y, m - 1, d + 1));
-        return [date, sunDt.toISOString().slice(0, 10)];
+        const extraDays = pool.sport === "nba" ? 2 : 1;
+        const dates = [date];
+        for (let i = 1; i <= extraDays; i++) {
+          dates.push(new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+        }
+        return dates;
       })()
     : [date];
 

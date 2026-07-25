@@ -21,6 +21,8 @@ export const entriesTable = pgTable("entries", {
   tiebreakerRushingYards: integer("tiebreaker_rushing_yards"),
   tiebreakerShotsOnGoal: integer("tiebreaker_shots_on_goal"),
   tiebreakerPenaltyMinutes: integer("tiebreaker_penalty_minutes"),
+  tiebreakerPoints: integer("tiebreaker_points"),
+  tiebreakerThrees: integer("tiebreaker_threes"),
   sovTotal: integer("sov_total"),
   finalWinner: boolean("final_winner").notNull().default(false),
   finishPosition: integer("finish_position"),

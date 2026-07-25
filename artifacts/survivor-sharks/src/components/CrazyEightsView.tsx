@@ -62,10 +62,11 @@ interface TiebreakerGame {
 }
 
 interface SlateResponse {
-  sport: "mlb" | "nhl";
+  sport: "mlb" | "nhl" | "nba";
   games: SlateGame[];
   gameDate?: string;
   weekLabel?: string;
+  friDate?: string;
   satDate?: string;
   sunDate?: string;
   tiebreakerGame?: TiebreakerGame | null;
@@ -93,6 +94,8 @@ interface SubmittedPicksResponse {
   tiebreakerStrikeouts?: number | null;
   tiebreakerShotsOnGoal?: number | null;
   tiebreakerPenaltyMinutes?: number | null;
+  tiebreakerPoints?: number | null;
+  tiebreakerThrees?: number | null;
   tiebreakerGame: TiebreakerGame | null;
 }
 
@@ -123,6 +126,16 @@ function getLastNhlSat(): string {
   const daysBack = (dow + 1) % 7; // Sat→0, Sun→1, Mon→2...
   const satDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
   return satDt.toISOString().slice(0, 10);
+}
+
+function getLastNbaFri(): string {
+  const today = getTodayEt();
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=Sun,1=Mon...,5=Fri,6=Sat
+  const daysBack = (dow - 5 + 7) % 7; // Fri→0, Sat→1, Sun→2, Mon→3...
+  const friDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  return friDt.toISOString().slice(0, 10);
 }
 
 function teamLogoSrc(team: SlateTeam, sport = "mlb") {
@@ -300,7 +313,10 @@ function LockedPicksView({
   tiebreakerStrikeouts,
   tiebreakerShotsOnGoal,
   tiebreakerPenaltyMinutes,
+  tiebreakerPoints,
+  tiebreakerThrees,
   onUpdateNhlTiebreaker,
+  onUpdateNbaTiebreaker,
 }: {
   picks: SubmittedPick[];
   sport: string;
@@ -308,15 +324,20 @@ function LockedPicksView({
   tiebreakerStrikeouts: number | null;
   tiebreakerShotsOnGoal: number | null;
   tiebreakerPenaltyMinutes: number | null;
+  tiebreakerPoints?: number | null;
+  tiebreakerThrees?: number | null;
   onUpdateNhlTiebreaker?: (shots: number, pim: number) => Promise<void>;
+  onUpdateNbaTiebreaker?: (points: number, threes: number) => Promise<void>;
 }) {
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
   const isNhl = sport === "nhl";
+  const isNba = sport === "nba";
   const [editShots, setEditShots] = useState("");
   const [editPim, setEditPim] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const nhlNeedsTiebreaker = isNhl && tiebreakerShotsOnGoal === null && tiebreakerPenaltyMinutes === null;
+  const nbaNeedsTiebreaker = isNba && (tiebreakerPoints ?? null) === null && (tiebreakerThrees ?? null) === null;
 
   return (
     <div className="space-y-6">
@@ -324,10 +345,10 @@ function LockedPicksView({
         <div>
           <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
             <Lock className="w-5 h-5 text-purple-400" />
-            {isNhl ? "Your Hit the Ice! Picks" : "Your High Heat Picks"}
+            {isNhl ? "Your Hit the Ice! Picks" : isNba ? "Your Fast Break Picks" : "Your High Heat Picks"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {isNhl ? "Weekend picks are submitted and locked." : "Today's picks are submitted and locked."}
+            {isNhl || isNba ? "Weekend picks are submitted and locked." : "Today's picks are submitted and locked."}
           </p>
         </div>
         <span className="flex items-center gap-1 text-xs text-purple-400 font-semibold bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-full">
@@ -340,7 +361,7 @@ function LockedPicksView({
         <div>
           <p className="font-semibold text-sm">Picks submitted!</p>
           <p className="text-xs text-muted-foreground">
-            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : "Your High Heat picks are locked in. Good luck!"}
+            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : isNba ? "Your Fast Break picks are locked in. Good luck this weekend!" : "Your High Heat picks are locked in. Good luck!"}
           </p>
         </div>
       </div>
@@ -430,6 +451,76 @@ function LockedPicksView({
               </div>
             </div>
           )
+        ) : isNba ? (
+          nbaNeedsTiebreaker ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground/70 leading-snug">
+                Enter your tiebreaker guesses for the last game on the weekend slate. Used to break ties in the weekly standings.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="tb-points-locked" className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                    Total points
+                  </Label>
+                  <Input
+                    id="tb-points-locked"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 224"
+                    value={editShots}
+                    onChange={(e) => setEditShots(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="tb-threes-locked" className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                    3-pointers made
+                  </Label>
+                  <Input
+                    id="tb-threes-locked"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 26"
+                    value={editPim}
+                    onChange={(e) => setEditPim(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={saving || !editShots || !editPim}
+                onClick={async () => {
+                  const points = parseInt(editShots, 10);
+                  const threes = parseInt(editPim, 10);
+                  if (isNaN(points) || isNaN(threes) || points < 0 || threes < 0) {
+                    toast({ variant: "destructive", title: "Invalid values", description: "Enter valid numbers ≥ 0." });
+                    return;
+                  }
+                  setSaving(true);
+                  try {
+                    await onUpdateNbaTiebreaker?.(points, threes);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-500 text-white"
+              >
+                {saving ? "Saving…" : "Save Tiebreaker Guess"}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total combined points</p>
+                <p className="font-bebas text-2xl text-purple-300">{tiebreakerPoints}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 mb-0.5">Total 3-pointers made</p>
+                <p className="font-bebas text-2xl text-purple-300">{tiebreakerThrees}</p>
+              </div>
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -481,8 +572,8 @@ function GameCard({
   const isDisabled = isSuspended || (isLocked && !isSelected) || (gameHasStarted && !isSelected);
   const isNhl = sport === "nhl";
 
-  const awayPitcher = isNhl ? null : pitcherLine(game.awayPitcher);
-  const homePitcher = isNhl ? null : pitcherLine(game.homePitcher);
+  const awayPitcher = sport !== "mlb" ? null : pitcherLine(game.awayPitcher);
+  const homePitcher = sport !== "mlb" ? null : pitcherLine(game.homePitcher);
 
   function teamSide(team: SlateTeam, side: "away" | "home") {
     const isHome = side === "home";
@@ -644,6 +735,8 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isNhl = sport === "nhl";
+  const isNba = sport === "nba";
+  const isWeekendSport = isNhl || isNba;
   const isWeekly = pickFrequency === "weekly";
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const weekSunday = (() => {
@@ -669,6 +762,10 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
   const [tbShots, setTbShots] = useState("");
   const [tbPim, setTbPim] = useState("");
 
+  // NBA tiebreaker
+  const [tbPoints, setTbPoints] = useState("");
+  const [tbThrees, setTbThrees] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [resultsDate, setResultsDate] = useState<string | null>(null);
 
@@ -690,11 +787,13 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     setShowHintNhl(false);
   }
 
-  // For MLB: yesterday; for NHL: Saturday of the most recent past weekend
+  // For MLB: yesterday; for NHL: Saturday of the most recent past weekend;
+  // for NBA: Friday of the most recent past weekend.
   const priorPeriodDate = useMemo(() => {
-    if (!isNhl) return offsetDate(getTodayEt(), -1);
-    return getLastNhlSat();
-  }, [isNhl]);
+    if (isNhl) return getLastNhlSat();
+    if (isNba) return getLastNbaFri();
+    return offsetDate(getTodayEt(), -1);
+  }, [isNhl, isNba]);
 
   const { data: yesterdayWinner } = useQuery<YesterdayWinnerResponse>({
     queryKey: ["crazy-eights-yesterday-winner", poolId, priorPeriodDate],
@@ -836,7 +935,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
       toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
       return;
     }
-    if (!isWeekly || isLastDayOfWeek || isNhl) {
+    if (!isWeekly || isLastDayOfWeek || isWeekendSport) {
       setShowTiebreaker(true);
     } else {
       void postPicks({ picks: buildPicks() });
@@ -849,6 +948,11 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         toast({ title: "Tiebreaker required", description: "Enter both shots on goal and penalty minutes.", variant: "destructive" });
         return;
       }
+    } else if (isNba) {
+      if (!tbPoints || !tbThrees) {
+        toast({ title: "Tiebreaker required", description: "Enter both total points and 3-pointers made.", variant: "destructive" });
+        return;
+      }
     } else {
       if (!tbRuns || !tbStrikeouts) {
         toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
@@ -858,7 +962,9 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     const picks = buildPicks();
     const body = isNhl
       ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10), tiebreakerPenaltyMinutes: parseInt(tbPim, 10) }
-      : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
+      : isNba
+        ? { picks, tiebreakerPoints: parseInt(tbPoints, 10), tiebreakerThrees: parseInt(tbThrees, 10) }
+        : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
     await postPicks(body);
   }
 
@@ -881,12 +987,14 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
       <div className="text-center py-16 text-muted-foreground">
         <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
         <p className="font-bebas text-2xl tracking-wide mb-1">
-          {isNhl ? "No Weekend Games" : "No Games Today"}
+          {isWeekendSport ? "No Weekend Games" : "No Games Today"}
         </p>
         <p className="text-sm">
           {isNhl
             ? "Check back when the weekend NHL slate is available."
-            : "Check back when today's MLB slate is available."}
+            : isNba
+              ? "Check back when the weekend NBA slate is available."
+              : "Check back when today's MLB slate is available."}
         </p>
       </div>
     );
@@ -913,6 +1021,25 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     await queryClient.invalidateQueries({ queryKey: myPicksKey });
   }
 
+  async function handleUpdateNbaTiebreaker(points: number, threes: number) {
+    const token = localStorage.getItem("auth_token");
+    const res = await fetch(`/api/pools/${poolId}/crazy-eights/tiebreaker`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ tiebreakerPoints: points, tiebreakerThrees: threes }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).error || "Failed to save tiebreaker");
+    }
+    toast({ title: "Tiebreaker saved!", description: "Your guesses are locked in." });
+    await queryClient.invalidateQueries({ queryKey: myPicksKey });
+  }
+
   if (hasPicks) {
     return (
       <LockedPicksView
@@ -922,7 +1049,10 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
         tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
         tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
+        tiebreakerPoints={myPicksData?.tiebreakerPoints ?? null}
+        tiebreakerThrees={myPicksData?.tiebreakerThrees ?? null}
         onUpdateNhlTiebreaker={handleUpdateNhlTiebreaker}
+        onUpdateNbaTiebreaker={handleUpdateNbaTiebreaker}
       />
     );
   }
@@ -966,7 +1096,9 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
             {isNhl ? <Snowflake className="w-6 h-6 text-cyan-400" /> : <Dice5 className="w-6 h-6 text-purple-400" />}
             {isNhl
               ? `Hit the Ice! — ${slateData?.weekLabel ?? "This Weekend"}`
-              : "High Heat — Today's Slate"}
+              : isNba
+                ? `Fast Break — ${slateData?.weekLabel ?? "This Weekend"}`
+                : "High Heat — Today's Slate"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
@@ -1000,7 +1132,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
           <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
           <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-yellow-200">
-              {isNhl ? "Last Weekend's" : "Yesterday's"} Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
+              {isWeekendSport ? "Last Weekend's" : "Yesterday's"} Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
             </span>
             <span className="text-sm text-yellow-300">
               {yesterdayWinner.winners.map((w) => w.displayName || w.username).join(" & ")}
@@ -1023,13 +1155,13 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
       {/* How-to hint — shown once per user per pool, dismissible */}
       {showHint && (
         <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : "⚾"}</span>
+          <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : isNba ? "🏀" : "⚾"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              {isNhl ? "How Hit the Ice works" : "How High Heat works"}
+              {isNhl ? "How Hit the Ice works" : isNba ? "How Fast Break works" : "How High Heat works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : ""}. Minimum 4 games required to play.
+              Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : isNba ? "/tip-off" : ""}. Minimum 4 games required to play.
             </p>
           </div>
           <button
@@ -1125,7 +1257,32 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
             })()}
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {isNhl ? (
+            {isNba ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tb-points">Total combined points</Label>
+                  <Input
+                    id="tb-points"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 224"
+                    value={tbPoints}
+                    onChange={(e) => setTbPoints(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tb-threes">Total combined 3-pointers made</Label>
+                  <Input
+                    id="tb-threes"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 26"
+                    value={tbThrees}
+                    onChange={(e) => setTbThrees(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : isNhl ? (
               <>
                 <div className="space-y-1.5">
                   <Label htmlFor="tb-shots">Total combined shots on goal</Label>
@@ -1183,7 +1340,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
             </Button>
             <Button
               onClick={handleFinalSubmit}
-              disabled={submitting || (isNhl ? !tbShots || !tbPim : !tbRuns || !tbStrikeouts)}
+              disabled={submitting || (isNhl ? !tbShots || !tbPim : isNba ? !tbPoints || !tbThrees : !tbRuns || !tbStrikeouts)}
               className="bg-purple-600 hover:bg-purple-500 text-white"
             >
               {submitting ? "Submitting…" : "Lock In Picks"}
@@ -1197,10 +1354,10 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-bebas text-2xl tracking-wide">
-              {isNhl ? "Last Weekend's Grid" : "Yesterday's Grid"}
+              {isWeekendSport ? "Last Weekend's Grid" : "Yesterday's Grid"}
             </DialogTitle>
             <DialogDescription>
-              {isNhl ? `Pick results for the weekend of ${resultsDate ?? ""}` : `Pick results for ${resultsDate ?? ""}`}
+              {isWeekendSport ? `Pick results for the weekend of ${resultsDate ?? ""}` : `Pick results for ${resultsDate ?? ""}`}
             </DialogDescription>
           </DialogHeader>
           {resultsDate && <CrazyEightsGrid poolId={poolId} sport={sport} initialDate={resultsDate} />}

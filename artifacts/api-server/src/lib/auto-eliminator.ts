@@ -31,6 +31,8 @@ import {
   formatDateEtDash,
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
+  getNbaWeekendBounds,
+  NBA_SANDBOX_ANCHOR,
   type EspnGame,
   getMlbWeekBounds,
   getMlbProcessingTrigger,
@@ -51,6 +53,7 @@ import {
   WIN_TYPE_MAP,
 } from "./wc";
 import { fetchNhlTiebreakerStats } from "./nhl-stats";
+import { fetchNbaTiebreakerStats } from "./nba-stats";
 import { fetchSingleGameStrikeouts } from "./mlb-stats";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
@@ -3209,6 +3212,40 @@ async function resolveNhlTiebreakerForPeriod(
 }
 
 /**
+ * NBA tiebreaker: combined total points + combined three-pointers made for the
+ * last completed game of the weekend (fetched from ESPN boxscore).
+ */
+async function resolveNbaTiebreakerForPeriod(
+  poolId: number,
+  tiedUserIds: number[],
+  lastGame: EspnGame,
+): Promise<number[]> {
+  const stats = await fetchNbaTiebreakerStats(lastGame.id);
+  // Fall back to the already-fetched scoreboard scores for total points if the
+  // summary endpoint didn't return them.
+  const actualPoints =
+    stats.totalPoints ??
+    (lastGame.homeScore != null && lastGame.awayScore != null
+      ? lastGame.homeScore + lastGame.awayScore
+      : null);
+
+  if (actualPoints === null && stats.threePointersMade === null) {
+    logger.warn({ poolId, gameId: lastGame.id }, "Crazy 8's NBA: tiebreaker stats unavailable → split pot");
+    return tiedUserIds;
+  }
+
+  const entries = await db
+    .select({ userId: entriesTable.userId, pts: entriesTable.tiebreakerPoints, threes: entriesTable.tiebreakerThrees })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, tiedUserIds)));
+
+  return resolveTiebreakerByProximity(
+    entries.map((e) => ({ userId: e.userId, primary: e.pts, secondary: e.threes })),
+    { primary: actualPoints, secondary: stats.threePointersMade },
+  );
+}
+
+/**
  * After grading completes for a period, declares winner(s) and writes
  * finalWinner = true. Safe to call every poll cycle — idempotent.
  *
@@ -3319,7 +3356,9 @@ async function resolveCrazyEightsPeriod(
   const winnerIds =
     pool.sport === "nhl"
       ? await resolveNhlTiebreakerForPeriod(pool.id, topScorers, lastGame)
-      : await resolveMlbTiebreakerForPeriod(pool.id, topScorers, lastGame, periodDates[0]);
+      : pool.sport === "nba"
+        ? await resolveNbaTiebreakerForPeriod(pool.id, topScorers, lastGame)
+        : await resolveMlbTiebreakerForPeriod(pool.id, topScorers, lastGame, periodDates[0]);
 
   await declareCrazyEightsWinners(
     pool,
@@ -3352,8 +3391,9 @@ export async function processCrazyEightsResults(): Promise<{
 
   if (crazyPools.length === 0) return { picksGraded };
 
-  const mlbPools = crazyPools.filter((p) => p.sport !== "nhl");
+  const mlbPools = crazyPools.filter((p) => p.sport !== "nhl" && p.sport !== "nba");
   const nhlPools = crazyPools.filter((p) => p.sport === "nhl");
+  const nbaPools = crazyPools.filter((p) => p.sport === "nba");
 
   // ── MLB ────────────────────────────────────────────────────────────────────
   if (mlbPools.length > 0) {
@@ -3491,6 +3531,70 @@ export async function processCrazyEightsResults(): Promise<{
 
     // Resolve the full Sat+Sun weekend as one period
     await resolveCrazyEightsPeriod(pool, periodDates, allNhlGames);
+  }
+
+  // ── NBA ────────────────────────────────────────────────────────────────────
+  // Fri+Sat+Sun weekend window (3 days vs NHL's 2). Same grade → postpone →
+  // resolve flow; resolveCrazyEightsPeriod's full-period guard ensures all
+  // three days' games are complete/postponed before the period resolves.
+  for (const pool of nbaPools) {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    const { days, espnDates } = getNbaWeekendBounds(anchor, pool.currentWeek);
+    const periodDates = days; // [friDate, satDate, sunDate]
+
+    const gameArrays = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+    const allNbaGames = gameArrays.flat();
+
+    const winnerByGameId = new Map<string, string>();
+    const postponedIds: string[] = [];
+    for (const game of allNbaGames) {
+      if (game.isPostponed) {
+        postponedIds.push(game.id);
+        continue;
+      }
+      if (game.isCompleted && game.homeScore != null && game.awayScore != null && game.homeScore !== game.awayScore) {
+        const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
+        winnerByGameId.set(game.id, winningTeamId);
+        logger.info(
+          { gameId: game.id, winner: winningTeamId, score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}` },
+          "Crazy 8's NBA: completed game found",
+        );
+      }
+    }
+
+    // Grade picks
+    for (const [gameId, winningTeamId] of winnerByGameId) {
+      const gamePicks = await db
+        .select()
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.gameId, gameId),
+          inArray(pickemPicksTable.gameDate, periodDates),
+          eq(pickemPicksTable.result, "pending"),
+        ));
+      for (const pick of gamePicks) {
+        const result: "correct" | "incorrect" = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+        await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
+        picksGraded++;
+        logger.info({ poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result }, "Crazy 8's NBA: auto-graded pick");
+      }
+    }
+    for (const gameId of postponedIds) {
+      const updated = await db
+        .update(pickemPicksTable)
+        .set({ result: "postponed", updatedAt: new Date() })
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.gameId, gameId),
+          eq(pickemPicksTable.result, "pending"),
+        ))
+        .returning({ id: pickemPicksTable.id });
+      if (updated.length > 0) logger.info({ poolId: pool.id, gameId, count: updated.length }, "Crazy 8's NBA: marked picks as postponed");
+    }
+
+    // Resolve the full Fri+Sat+Sun weekend as one period
+    await resolveCrazyEightsPeriod(pool, periodDates, allNbaGames);
   }
 
   return { picksGraded };

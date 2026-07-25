@@ -568,6 +568,22 @@ export function getNbaWeekBounds(poolCreatedAt: Date, weekNumber: number): NbaWe
 }
 
 /**
+ * Compute Fri+Sat+Sun "weekend" bounds for the Nth NBA week of a pool.
+ * Thin wrapper around getNbaWeekBounds — the full week runs Mon–Sun, so the
+ * weekend slate is indices 4 (Fri), 5 (Sat), 6 (Sun). Mirrors the NHL pattern
+ * where getNhlWeekBounds pre-filters to Sat+Sun, but NBA crazy_8s uses a
+ * 3-day Fri–Sun window instead.
+ */
+export function getNbaWeekendBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
+  const full = getNbaWeekBounds(poolCreatedAt, weekNumber);
+  return {
+    ...full,
+    days: full.days.slice(4, 7),
+    espnDates: full.espnDates.slice(4, 7),
+  };
+}
+
+/**
  * Fetch all NBA games for a full week (7 days, Mon–Sun ET).
  * Calls ESPN once per day in parallel and deduplicates by game ID.
  * Season is implicitly encoded in poolCreatedAt — never hardcoded.

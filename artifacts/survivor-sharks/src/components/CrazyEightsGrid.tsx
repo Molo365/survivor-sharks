@@ -70,6 +70,16 @@ function getCurrentNhlSat(): string {
   return satDt.toISOString().slice(0, 10);
 }
 
+function getCurrentNbaFri(): string {
+  const today = getTodayEt();
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 5=Fri, 6=Sat
+  const daysBack = (dow - 5 + 7) % 7; // Fri→0, Sat→1, Sun→2, Mon→3 …
+  const friDt = new Date(dt.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  return friDt.toISOString().slice(0, 10);
+}
+
 function formatTime(iso: string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -197,12 +207,14 @@ export function CrazyEightsGrid({
 }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
+  const isNba = sport === "nba";
+  const isWeekend = isNhl || isNba;
 
   const [date, setDate] = useState(() => {
     if (initialDate) return initialDate;
-    if (!isNhl) return getTodayEt();
-    if (sandboxMode) return ""; // backend resolves anchor Saturday
-    return getCurrentNhlSat();
+    if (!isWeekend) return getTodayEt();
+    if (sandboxMode) return ""; // backend resolves anchor date
+    return isNba ? getCurrentNbaFri() : getCurrentNhlSat();
   });
 
   const { data, isLoading } = useQuery<GridResponse>({
@@ -219,7 +231,7 @@ export function CrazyEightsGrid({
   }, [date, data?.date]);
 
   // Sandbox NHL caps at the anchor Saturday (not the real current weekend)
-  const maxDate = !isNhl ? getTodayEt() : sandboxMode ? (data?.date ?? "") : getCurrentNhlSat();
+  const maxDate = !isWeekend ? getTodayEt() : sandboxMode ? (data?.date ?? "") : isNba ? getCurrentNbaFri() : getCurrentNhlSat();
   const isAtMax = date === "" || date >= maxDate;
 
   // Only show columns for games at least one player picked
@@ -243,7 +255,7 @@ export function CrazyEightsGrid({
       {/* Date / week nav */}
       <div className="flex items-center justify-between gap-3">
         <button
-          onClick={() => setDate((d) => offsetDate(d, isNhl ? -7 : -1))}
+          onClick={() => setDate((d) => offsetDate(d, isWeekend ? -7 : -1))}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -255,13 +267,13 @@ export function CrazyEightsGrid({
           </p>
           {isAtMax && (
             <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">
-              {isNhl ? "This Weekend" : "Today"}
+              {isWeekend ? "This Weekend" : "Today"}
             </span>
           )}
         </div>
 
         <button
-          onClick={() => setDate((d) => offsetDate(d, isNhl ? 7 : 1))}
+          onClick={() => setDate((d) => offsetDate(d, isWeekend ? 7 : 1))}
           disabled={isAtMax}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >

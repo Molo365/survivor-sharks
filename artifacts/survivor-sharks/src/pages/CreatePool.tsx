@@ -84,7 +84,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
-  [PoolInputSport.nba]: ["season", "weekly"],
+  [PoolInputSport.nba]: ["season", "weekly", "crazy_8s"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
@@ -481,6 +481,7 @@ export default function CreatePool() {
     }
     if (selectedType === "pickem" && selectedSport === PoolInputSport.nhl) return "NHL Pick-Ems";
     if (selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl) return "Hit the Ice!";
+    if (selectedType === "crazy_8s" && selectedSport === PoolInputSport.nba) return "Fast Break";
     return POOL_TYPES.find((t) => t.id === selectedType)?.label ?? String(selectedType);
   })();
 
@@ -524,6 +525,8 @@ export default function CreatePool() {
       ? "MLB HIGH HEAT"
       : selectedSport === PoolInputSport.nhl && selectedType === "crazy_8s"
       ? "HIT THE ICE!"
+      : selectedSport === PoolInputSport.nba && selectedType === "crazy_8s"
+      ? "NBA FAST BREAK"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
@@ -533,6 +536,8 @@ export default function CreatePool() {
       ? "12 curated games per week. Assign confidence points 1–12."
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl
       ? "Pick up to 8 games from the weekend NHL slate. Assign confidence points by confidence level."
+      : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nba
+      ? "Pick up to 8 games from the weekend NBA slate (Fri–Sun). Assign confidence points by confidence level."
       : selectedType === "crazy_8s"
       ? "Pick up to 8 games from today's slate. Assign confidence points by confidence level."
       : selectedType === "pickem"
@@ -575,7 +580,8 @@ export default function CreatePool() {
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
-            (values.sport === PoolInputSport.nhl && values.poolType === "season")) && { sandboxMode: values.sandboxMode }),
+            (values.sport === PoolInputSport.nhl && values.poolType === "season") ||
+            (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
         } as any,
       },
@@ -871,15 +877,17 @@ export default function CreatePool() {
                                           <span className={cn("font-bebas text-xl tracking-wide", isSelected ? "text-foreground" : "text-muted-foreground")}>
                                             {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL Pick-Ems"
                                               : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Hit the Ice!"
+                                              : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "Fast Break"
                                               : type.label}
                                           </span>
-                                          {((type.id === "pickem" && selectedSport === PoolInputSport.nhl) || (type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl) || type.badge) && (
+                                          {((type.id === "pickem" && selectedSport === PoolInputSport.nhl) || (type.id === "crazy_8s" && (selectedSport === PoolInputSport.nhl || selectedSport === PoolInputSport.nba)) || type.badge) && (
                                           <span className={cn("text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5",
                                             type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
-                                              : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                              : type.id === "crazy_8s" && (selectedSport === PoolInputSport.nhl || selectedSport === PoolInputSport.nba) ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
                                               : type.badgeClass)}>
                                             {type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "NHL"
                                               : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "NHL"
+                                              : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "NBA"
                                               : type.badge}
                                           </span>
                                           )}
@@ -890,11 +898,12 @@ export default function CreatePool() {
                                             ? type.id === "season" ? "text-amber-400/80" : "text-primary/70"
                                             : "text-muted-foreground/50",
                                         )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week"
-                                          : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "8 Games. 8 Confidence Points."
+                                          : type.id === "crazy_8s" && (selectedSport === PoolInputSport.nhl || selectedSport === PoolInputSport.nba) ? "8 Games. 8 Confidence Points."
                                           : type.tagline}</p>
                                         <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
                                           : type.id === "pickem" && (selectedSport as string) === "superleague" ? "Pick the winner of every Super League match — Home Win, Draw, or Away Win. Friday, Saturday and Sunday games only. Most correct picks by Sunday wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
+                                          : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "Pick any 8 games from the weekend (Fri+Sat+Sun) NBA slate. Assign confidence points 1–8. Highest total wins."
                                           : type.id === "season"
                                             ? selectedSport === PoolInputSport.nfl
                                               ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot."
@@ -1046,7 +1055,8 @@ export default function CreatePool() {
 
                       {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season ── */}
                       {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
-                        (selectedSport === PoolInputSport.nhl && selectedType === "season")) && (
+                        (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
+                        (selectedSport === PoolInputSport.nba && selectedType === "crazy_8s")) && (
                         <FormField
                           control={form.control}
                           name="sandboxMode"
@@ -1062,7 +1072,9 @@ export default function CreatePool() {
                                     <FormDescription className="text-xs mt-0.5">
                                       {selectedSport === PoolInputSport.nhl
                                         ? "Use the real 2025-26 NHL schedule for testing — weeks load via Live Week, scores simulated."
-                                        : "Use the hardcoded 2025 NFL schedule with pre-set scores. Great for testing or running a demo season."}
+                                        : selectedSport === PoolInputSport.nba
+                                          ? "Use the real 2025-26 NBA schedule anchored to a fixed weekend for testing — scores simulated."
+                                          : "Use the hardcoded 2025 NFL schedule with pre-set scores. Great for testing or running a demo season."}
                                     </FormDescription>
                                   </div>
                                 </div>
