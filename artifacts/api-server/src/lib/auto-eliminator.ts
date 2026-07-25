@@ -3429,10 +3429,10 @@ export async function processCrazyEightsResults(): Promise<{
   for (const pool of nhlPools) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
     const { days, espnDates } = getNhlWeekBounds(anchor, pool.currentWeek);
-    const satDate = days[5];
-    const sunDate = days[6];
-    const satEspn = espnDates[5];
-    const sunEspn = espnDates[6];
+    const satDate = days[0];
+    const sunDate = days[1];
+    const satEspn = espnDates[0];
+    const sunEspn = espnDates[1];
     const periodDates = [satDate, sunDate];
 
     const [satGames, sunGames] = await Promise.all([
