@@ -1343,7 +1343,13 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  let lbRank = 1;
   const entries = aggregates.map((row, i) => {
+    if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
+      // same correct count as previous player — keep rank unchanged (tie)
+    } else {
+      lbRank = i + 1;
+    }
     const userPicks = picksByUser.get(row.userId) ?? new Map();
     const tb = tiebreakerByUser.get(row.userId);
     const runsGuess = tb?.tiebreakerRuns ?? null;
@@ -1364,7 +1370,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes)
         : null;
     return {
-      rank: i + 1,
+      rank: lbRank,
       userId: row.userId,
       username: row.username,
       displayName: row.displayName ?? null,

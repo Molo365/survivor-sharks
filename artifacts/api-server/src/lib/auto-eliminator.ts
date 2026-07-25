@@ -30,6 +30,7 @@ import {
   formatDateEt,
   formatDateEtDash,
   getNhlWeekBounds,
+  NHL_SANDBOX_ANCHOR,
   type EspnGame,
   getMlbWeekBounds,
   getMlbProcessingTrigger,
@@ -2580,7 +2581,8 @@ export async function processPickEmResults(): Promise<{
       // Multi-day guard (Sat + Sun): don't close until ALL scheduled NHL games
       // for the weekend are final. Without this, Saturday picks finishing before
       // Sunday games triggers premature closure when users haven't picked Sunday.
-      const nhlCloseBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const nhlCloseAnchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+      const nhlCloseBounds = getNhlWeekBounds(nhlCloseAnchor, pool.currentWeek);
       const nhlWeekendGameArrays = await Promise.all(
         nhlCloseBounds.espnDates.map((espnDate) => fetchGamesForDate("nhl", espnDate)),
       );
