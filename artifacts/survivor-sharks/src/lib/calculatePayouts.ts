@@ -18,7 +18,7 @@ export function calculatePayouts(
     if (!entryFee || entryFee <= 0 || !actualEntries || actualEntries <= 0) return null;
     return prizeStructure.map((p) => ({
       place: p.place,
-      amount: Math.floor((p.amount / 100) * entryFee * actualEntries / 5) * 5,
+      amount: Math.round((p.amount / 100) * entryFee * actualEntries / 5) * 5,
     }));
   }
 

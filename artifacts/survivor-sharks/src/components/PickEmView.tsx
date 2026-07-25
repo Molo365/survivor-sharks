@@ -2219,7 +2219,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
-  const isLastDayOfWeek = (isMlb || isNhl) && isWeekly && isToday && weekSunday === todayEt;
+  // Sandbox pools use an anchor week whose Sunday date never equals todayEt, so
+  // isSandbox bypasses the calendar check — mirroring the server-side guard in
+  // pickem.ts (pool.sandboxMode ? true : todayEt === weekBounds.weekEnd).
+  const isLastDayOfWeek = (isMlb || isNhl) && isWeekly && isToday && (isSandbox || weekSunday === todayEt);
   const needsTiebreaker = (isMlb || isNhl) && isToday && (!isWeekly || isLastDayOfWeek);
 
   useEffect(() => {
