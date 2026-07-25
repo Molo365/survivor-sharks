@@ -3066,17 +3066,87 @@ function resolveTiebreakerByProximity(
 }
 
 async function declareCrazyEightsWinners(
-  poolId: number,
+  pool: typeof poolsTable.$inferSelect,
   winnerIds: number[],
   reason: string,
+  scoreByUser: Map<number, number>,
 ): Promise<void> {
+  // 1. Build ranked groups: winners form 1st place; remaining entries ranked by
+  //    raw confidence-point score descending, with ties sharing the same position.
+  const winnerSet = new Set(winnerIds);
+  const nonWinnersDesc = [...scoreByUser.entries()]
+    .filter(([userId]) => !winnerSet.has(userId))
+    .sort(([, a], [, b]) => b - a);
+
+  const groups: number[][] = [winnerIds];
+  let i = 0;
+  while (i < nonWinnersDesc.length) {
+    const score = nonWinnersDesc[i][1];
+    const group: number[] = [];
+    while (i < nonWinnersDesc.length && nonWinnersDesc[i][1] === score) {
+      group.push(nonWinnersDesc[i][0]);
+      i++;
+    }
+    groups.push(group);
+  }
+
+  // 2. Total entries for calcPrize.
+  const allEntries = await db
+    .select({ userId: entriesTable.userId })
+    .from(entriesTable)
+    .where(eq(entriesTable.poolId, pool.id));
+  const totalEntries = allEntries.length;
+
+  const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+  let placeIndex = 0;
+
+  for (const group of groups) {
+    const finishPosition = placeIndex + 1;
+    const prize = calcPrize({
+      prizeStructure: ps,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex,
+      coWinners: group.length,
+    });
+
+    await db
+      .update(entriesTable)
+      .set({
+        finishPosition,
+        prizeAmount: prize,
+        ...(finishPosition === 1 ? { finalWinner: true } : {}),
+      })
+      .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, group)));
+
+    placeIndex += group.length;
+  }
+
+  // 3. Determine closureReason: winner's displayName/username, or "co_winners".
+  let closureReason = "co_winners";
+  if (winnerIds.length === 1) {
+    const [winnerUser] = await db
+      .select({ displayName: usersTable.displayName, username: usersTable.username })
+      .from(usersTable)
+      .where(eq(usersTable.id, winnerIds[0]))
+      .limit(1);
+    if (winnerUser) {
+      closureReason = winnerUser.displayName ?? winnerUser.username;
+    }
+  }
+
+  // 4. Close the pool.
   await db
-    .update(entriesTable)
-    .set({ finalWinner: true })
-    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, winnerIds)));
+    .update(poolsTable)
+    .set({ isActive: false, endedAt: new Date(), closureReason })
+    .where(eq(poolsTable.id, pool.id));
+
   logger.info(
-    { poolId, winnerIds, isTie: winnerIds.length > 1, reason },
-    "Crazy 8's: period winner(s) declared",
+    { poolId: pool.id, winnerIds, isTie: winnerIds.length > 1, reason, totalEntries, groups: groups.length },
+    "Crazy 8's: period winner(s) declared and pool closed",
   );
 }
 
@@ -3171,6 +3241,19 @@ async function resolveCrazyEightsPeriod(
     ));
   if (pending > 0) return;
 
+  // 2a. Full-period guard: all scheduled games for this period must be complete
+  //     or postponed before we resolve — even if all submitted picks are already
+  //     graded. This prevents premature closure when a live game has no picks yet.
+  //     MLB: single-day check. NHL: Sat+Sun weekend check (all games in both days).
+  const hasUnfinished = periodGames.some((g) => !g.isCompleted && !g.isPostponed);
+  if (hasUnfinished) {
+    logger.info(
+      { poolId: pool.id, sport: pool.sport, periodDates },
+      "Crazy 8's: skipping resolution — unfinished games remain in period schedule",
+    );
+    return;
+  }
+
   // 3. Idempotency: already resolved for this period?
   const alreadyResolved = await db
     .selectDistinct({ userId: pickemPicksTable.userId })
@@ -3213,7 +3296,7 @@ async function resolveCrazyEightsPeriod(
 
   // 5. Single outright winner
   if (topScorers.length === 1) {
-    await declareCrazyEightsWinners(pool.id, topScorers, "outright winner");
+    await declareCrazyEightsWinners(pool, topScorers, "outright winner", scoreByUser);
     return;
   }
 
@@ -3229,7 +3312,7 @@ async function resolveCrazyEightsPeriod(
   const lastGame = completedGames.at(-1);
 
   if (!lastGame) {
-    await declareCrazyEightsWinners(pool.id, topScorers, "split-pot: no completed tiebreaker game");
+    await declareCrazyEightsWinners(pool, topScorers, "split-pot: no completed tiebreaker game", scoreByUser);
     return;
   }
 
@@ -3239,9 +3322,10 @@ async function resolveCrazyEightsPeriod(
       : await resolveMlbTiebreakerForPeriod(pool.id, topScorers, lastGame, periodDates[0]);
 
   await declareCrazyEightsWinners(
-    pool.id,
+    pool,
     winnerIds,
     winnerIds.length > 1 ? "split-pot: tiebreaker exhausted" : "tiebreaker resolved",
+    scoreByUser,
   );
 }
 
@@ -3343,7 +3427,8 @@ export async function processCrazyEightsResults(): Promise<{
 
   // ── NHL ────────────────────────────────────────────────────────────────────
   for (const pool of nhlPools) {
-    const { days, espnDates } = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const { days, espnDates } = getNhlWeekBounds(anchor, pool.currentWeek);
     const satDate = days[5];
     const sunDate = days[6];
     const satEspn = espnDates[5];
