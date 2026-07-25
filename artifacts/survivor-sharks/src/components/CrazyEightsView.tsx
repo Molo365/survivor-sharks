@@ -234,9 +234,9 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex flex-col gap-1.5">
       <div className={cn(
-        "shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
+        "w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center font-bebas text-xl md:text-2xl border-2",
         pick.result === "correct"   ? "bg-green-500/15 border-green-500/40 text-green-300" :
         pick.result === "incorrect" ? "bg-red-500/15   border-red-500/40   text-red-300"   :
                                  "bg-purple-500/15 border-purple-500/40 text-purple-300",
@@ -245,7 +245,7 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
       </div>
 
       <div className={cn(
-        "flex-1 shark-card rounded-xl border overflow-hidden relative",
+        "w-full shark-card rounded-xl border overflow-hidden relative",
         isLive
           ? "border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.28)]"
           : "border-border/40",
