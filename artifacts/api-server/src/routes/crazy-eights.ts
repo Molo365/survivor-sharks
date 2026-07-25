@@ -13,6 +13,7 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   games: EspnGame[];
   satDate: string;
   sunDate: string;
+  gameDates: Map<string, string>;
 }> {
   // Sandbox mode: use the fixed NHL_SANDBOX_ANCHOR so Week N always maps to the
   // 2025-26 season opener regardless of when the pool was actually created.
@@ -29,11 +30,20 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   ]);
   const seen = new Set<string>();
   const games: EspnGame[] = [];
-  for (const g of [...satGames, ...sunGames]) {
-    if (!seen.has(g.id)) { seen.add(g.id); games.push(g); }
+  // Map each game to the ET slate day it was fetched under. ESPN's date-scoped
+  // scoreboard buckets games by ET day, so this — NOT a UTC slice of game.date —
+  // is the day the rest of the weekend pipeline (grid/picks/grading/resolution)
+  // queries by. Sunday-evening ET games are Monday in UTC and would silently
+  // fall out of every weekend-window query if we sliced game.date directly.
+  const gameDates = new Map<string, string>();
+  for (const g of satGames) {
+    if (!seen.has(g.id)) { seen.add(g.id); games.push(g); gameDates.set(g.id, satDate); }
+  }
+  for (const g of sunGames) {
+    if (!seen.has(g.id)) { seen.add(g.id); games.push(g); gameDates.set(g.id, sunDate); }
   }
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  return { games, satDate, sunDate };
+  return { games, satDate, sunDate, gameDates };
 }
 
 // ── NBA helper ────────────────────────────────────────────────────────────────
@@ -724,7 +734,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   if (pool.sport === "nhl") {
     const isSandbox = (pool as any).sandboxMode as boolean;
-    const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
+    const { games, satDate, sunDate, gameDates } = await getNhlWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
 
     for (const pick of picks) {
@@ -770,8 +780,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     let saved = 0;
     for (const pick of picks) {
-      const game = gameMap.get(pick.gameId)!;
-      const gameDate = game.date.slice(0, 10);
+      // Bucket by the ET slate day (Sat/Sun) — a UTC slice of game.date would
+      // push Sunday-evening ET games onto Monday and exclude them from all
+      // weekend-window queries (picks/grid/grading/resolution).
+      const gameDate = gameDates.get(pick.gameId) ?? satDate;
       const teamLabel = pick.pickedTeam ?? "";
       await db
         .insert(pickemPicksTable)
