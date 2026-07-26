@@ -581,6 +581,7 @@ export default function CreatePool() {
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season") ||
+            (values.sport === PoolInputSport.nba && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
         } as any,
@@ -1056,6 +1057,7 @@ export default function CreatePool() {
                       {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season ── */}
                       {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
                         (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
+                        (selectedSport === PoolInputSport.nba && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "crazy_8s")) && (
                         <FormField
                           control={form.control}
