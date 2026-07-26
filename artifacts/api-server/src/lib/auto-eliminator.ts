@@ -2730,16 +2730,43 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
-      // Multi-day guard (Sat + Sun): don't close until ALL scheduled NHL games
-      // for the weekend are final. Without this, Saturday picks finishing before
-      // Sunday games triggers premature closure when users haven't picked Sunday.
-      const nhlCloseAnchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-      const nhlCloseBounds = getNhlWeekBounds(nhlCloseAnchor, pool.currentWeek);
-      const nhlWeekendGameArrays = await Promise.all(
-        nhlCloseBounds.espnDates.map((espnDate) => fetchGamesForDate("nhl", espnDate)),
-      );
-      const nhlWeekendGames = nhlWeekendGameArrays.flat();
-      const nhlHasUnfinished = nhlWeekendGames.some((g) => !g.isCompleted && !g.isPostponed);
+      // Multi-day guard: wait until every game that was part of THIS pool's
+      // pick list is final. We query the pool's own pickem_picks records to
+      // get the exact game IDs users were offered, then fetch ESPN status for
+      // those specific games only. This avoids two failure modes of the old
+      // date-range sweep: (a) week-window drift when pool.createdAt is not a
+      // Monday, and (b) picking up unrelated league games / exhibitions that
+      // share the same calendar week but were never part of this pool.
+      const nhlPoolGameRows = await db
+        .selectDistinct({ gameId: pickemPicksTable.gameId, gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      // Group game IDs by date so we make one ESPN call per unique date.
+      const nhlGameIdsByDate = new Map<string, Set<string>>();
+      for (const { gameId, gameDate } of nhlPoolGameRows) {
+        const espnDate = gameDate.replace(/-/g, "");
+        if (!nhlGameIdsByDate.has(espnDate)) nhlGameIdsByDate.set(espnDate, new Set());
+        nhlGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      // Fetch ESPN results for each date, collect all pool-relevant games.
+      const nhlWeekendGames: EspnGame[] = [];
+      let nhlHasUnfinished = false;
+      for (const [espnDate, gameIds] of nhlGameIdsByDate) {
+        const gamesOnDate = await fetchGamesForDate("nhl", espnDate);
+        for (const g of gamesOnDate) {
+          if (!gameIds.has(g.id)) continue;
+          nhlWeekendGames.push(g);
+          if (!g.isCompleted && !g.isPostponed) nhlHasUnfinished = true;
+        }
+      }
+
       if (nhlHasUnfinished) {
         logger.info(
           { poolId: pool.id, week: pool.currentWeek },
@@ -2961,16 +2988,43 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
-      // Multi-day guard: MLS weeks span Mon–Sun with games on multiple days
-      // (e.g. Wed/Thu + Sat). Don't close until ALL scheduled games across the
-      // entire week are final — not just the earliest day's games.
-      // getMlbWeekBounds gives the correct Mon–Sun date range for any weekly pool.
-      const mlsCloseBounds = getMlbWeekBounds(pool.createdAt, pool.currentWeek);
-      const mlsWeekGameArrays = await Promise.all(
-        mlsCloseBounds.espnDates.map((espnDate) => fetchGamesForDate("mls", espnDate)),
-      );
-      const mlsWeekGames = mlsWeekGameArrays.flat();
-      const mlsHasUnfinished = mlsWeekGames.some((g) => !g.isCompleted && !g.isPostponed);
+      // Multi-day guard: wait until every game that was part of THIS pool's
+      // pick list is final. We query the pool's own pickem_picks records to
+      // get the exact game IDs users were offered, then fetch ESPN status for
+      // those specific games only. This avoids two failure modes of the old
+      // date-range sweep: (a) week-window drift when pool.createdAt is not a
+      // Monday, and (b) picking up unrelated league games / exhibitions that
+      // share the same calendar week but were never part of this pool.
+      const mlsPoolGameRows = await db
+        .selectDistinct({ gameId: pickemPicksTable.gameId, gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      // Group game IDs by date so we make one ESPN call per unique date.
+      const mlsGameIdsByDate = new Map<string, Set<string>>();
+      for (const { gameId, gameDate } of mlsPoolGameRows) {
+        const espnDate = gameDate.replace(/-/g, "");
+        if (!mlsGameIdsByDate.has(espnDate)) mlsGameIdsByDate.set(espnDate, new Set());
+        mlsGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      let mlsHasUnfinished = false;
+      for (const [espnDate, gameIds] of mlsGameIdsByDate) {
+        if (mlsHasUnfinished) break;
+        const gamesOnDate = await fetchGamesForDate("mls", espnDate);
+        for (const g of gamesOnDate) {
+          if (gameIds.has(g.id) && !g.isCompleted && !g.isPostponed) {
+            mlsHasUnfinished = true;
+            break;
+          }
+        }
+      }
+
       if (mlsHasUnfinished) {
         logger.info(
           { poolId: pool.id, week: pool.currentWeek },
