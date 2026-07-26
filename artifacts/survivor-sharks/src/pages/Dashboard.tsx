@@ -1,4 +1,4 @@
-import { useListPools, useListPastPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey, getListPoolsQueryKey, getListPastPoolsQueryKey } from "@workspace/api-client-react";
+import { useListPools, useListPastPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey, getListPoolsQueryKey, getListPastPoolsQueryKey, ApiError } from "@workspace/api-client-react";
 import type { PastPool } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { NavBar } from "@/components/NavBar";
@@ -104,9 +104,19 @@ export default function Dashboard() {
 
         {/* ── Active lobby ── */}
         {error ? (
-          <div className="p-6 text-center border border-destructive/20 bg-destructive/10 rounded-lg text-destructive">
-            Failed to load pools. Please try again later.
-          </div>
+          error instanceof ApiError && error.status === 401 ? (
+            <div className="p-6 text-center border border-amber-500/20 bg-amber-500/10 rounded-lg space-y-3">
+              <p className="font-semibold text-amber-400">Your session has expired</p>
+              <p className="text-sm text-muted-foreground">Please log in again to continue.</p>
+              <Link href="/login">
+                <Button size="sm">Log In</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="p-6 text-center border border-destructive/20 bg-destructive/10 rounded-lg text-destructive">
+              Failed to load pools. Please try again later.
+            </div>
+          )
         ) : isLoading ? (
           <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 md:overflow-visible md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:mx-0 md:px-0">
             {[1, 2, 3].map(i => (

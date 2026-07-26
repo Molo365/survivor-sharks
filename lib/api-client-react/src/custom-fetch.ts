@@ -363,12 +363,16 @@ export async function customFetch<T = unknown>(
   const response = await fetch(input, { ...init, method, headers });
 
   if (response.status === 401) {
-    // Session expired — redirect to login (skip if on a public page)
+    // Session expired — redirect to login (skip if already on a public/auth page).
+    // NOTE: "/" is matched with exact equality only; startsWith("/") would match
+    // every pathname and prevent the redirect from ever firing.
     if (typeof window !== "undefined") {
-      const PUBLIC_PATHS = ["/login", "/register", "/reset-password", "/join/", "/pools/join", "/"];
-      const isPublicPath = PUBLIC_PATHS.some(
-        (p) => window.location.pathname === p || window.location.pathname.startsWith(p),
-      );
+      const PUBLIC_EXACT = new Set(["/login", "/register", "/reset-password", "/pools/join", "/"]);
+      const PUBLIC_PREFIXES = ["/join/"];
+      const pathname = window.location.pathname;
+      const isPublicPath =
+        PUBLIC_EXACT.has(pathname) ||
+        PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
       if (!isPublicPath) {
         window.location.href = "/login";
       }
