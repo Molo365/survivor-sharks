@@ -38,6 +38,7 @@ import {
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
   fetchNhlGamesByWeek,
+  fetchNbaGamesByWeek,
   fetchNflGamesByWeek,
   getTeamsWithWin,
 } from "./espn";
@@ -94,8 +95,12 @@ export async function processCompletedGames(): Promise<{
     .where(and(eq(picksTable.result, "pending"), ne(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true)));
 
   if (pendingRows.length > 0) {
-    // ── Non-NHL: batch-fetch today's scoreboard once per sport ───────────────
-    const nonNhlRows = pendingRows.filter(r => r.sport !== "nhl");
+    // ── Non-NHL, non-NBA: batch-fetch today's scoreboard once per sport ──────
+    // NBA is excluded here and handled below with week-specific batching,
+    // for the same reason NHL is: the bare scoreboard only returns today's
+    // live games, so a game that finished yesterday disappears and any pending
+    // pick attached to it would never be graded.
+    const nonNhlRows = pendingRows.filter(r => r.sport !== "nhl" && r.sport !== "nba");
     const distinctSports = [...new Set(nonNhlRows.map(r => r.sport))];
     const gamesBySport = new Map<string, EspnGame[]>();
 
@@ -121,6 +126,33 @@ export async function processCompletedGames(): Promise<{
         logger.info(
           {
             sport: "nhl",
+            poolId: ref.poolId,
+            week: ref.week,
+            completedGames: completed.map(g =>
+              `${g.awayTeam.abbreviation}(${g.awayTeam.id}) ${g.awayScore}-${g.homeScore} ${g.homeTeam.abbreviation}(${g.homeTeam.id})`,
+            ),
+          },
+          "ESPN completed games for sport",
+        );
+      }));
+    }
+
+    // ── NBA: fetch full Fri-Sun weekend per pool+week combo ──────────────────
+    // Same day-boundary problem as NHL: a game finishing Friday night is gone
+    // from Saturday's bare scoreboard. fetchNbaGamesByWeek batches the full
+    // Fri+Sat+Sun window so no pick falls through the gap.
+    const nbaRows = pendingRows.filter(r => r.sport === "nba");
+    const nbaPoolWeekKeys = [...new Set(nbaRows.map(r => `${r.poolId}:${r.week}`))];
+    const nbaGamesByPoolWeek = new Map<string, EspnGame[]>();
+    if (nbaPoolWeekKeys.length > 0) {
+      await Promise.all(nbaPoolWeekKeys.map(async key => {
+        const ref = nbaRows.find(r => `${r.poolId}:${r.week}` === key)!;
+        const games = await fetchNbaGamesByWeek(ref.poolCreatedAt, ref.week);
+        nbaGamesByPoolWeek.set(key, games);
+        const completed = games.filter(g => g.isCompleted);
+        logger.info(
+          {
+            sport: "nba",
             poolId: ref.poolId,
             week: ref.week,
             completedGames: completed.map(g =>
@@ -186,6 +218,10 @@ export async function processCompletedGames(): Promise<{
         game = (nhlGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
           g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
         );
+      } else if (row.sport === "nba") {
+        game = (nbaGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+        );
       } else {
         game = completedByTeam.get(row.teamId);
       }
@@ -237,8 +273,8 @@ export async function processCompletedGames(): Promise<{
       );
 
       if (result === "loss" && row.poolType !== "weekly") {
-        // NHL Survivor Season uses 3 lives (2 warning strikes before elimination).
-        const maxStrikes = (row.sport === "nhl" && row.poolType === "season") ? 2 : 0;
+        // NHL and NBA Survivor Season use 3 lives (2 warning strikes before elimination).
+        const maxStrikes = ((row.sport === "nhl" || row.sport === "nba") && row.poolType === "season") ? 2 : 0;
 
         if (maxStrikes > 0) {
           // Point-read the entry to get current strikeCount
@@ -443,7 +479,7 @@ export async function processCompletedGames(): Promise<{
 
     for (const candidate of pass2Candidates) {
       const maxStrikes =
-        candidate.sport === "nhl" && candidate.poolType === "season" ? 2 : 0;
+        (candidate.sport === "nhl" || candidate.sport === "nba") && candidate.poolType === "season" ? 2 : 0;
       const picks =
         picksByPlayer.get(`${candidate.poolId}:${candidate.userId}`) ?? [];
 
