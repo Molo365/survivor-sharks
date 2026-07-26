@@ -3068,32 +3068,51 @@ function resolveTiebreakerByProximity(
   return players.map((p) => p.userId); // both null → split pot
 }
 
+/**
+ * Iteratively applies a tiebreaker resolver to a tied group, splitting it into
+ * ordered sub-groups until no further differentiation is possible.
+ *
+ * Example: [A, B, C] where resolver picks [B] from the full set, then [A] from
+ * the remaining [A, C] → returns [[B], [A], [C]].
+ *
+ * When the resolver cannot distinguish any players in a remaining sub-group it
+ * returns all of them (the split-pot fallback), and iteration stops there.
+ */
+async function resolveGroupIteratively(
+  group: number[],
+  resolver: (ids: number[]) => Promise<number[]>,
+): Promise<number[][]> {
+  const result: number[][] = [];
+  let remaining = [...group];
+  while (remaining.length > 0) {
+    if (remaining.length === 1) {
+      result.push(remaining);
+      break;
+    }
+    const frontrunners = await resolver(remaining);
+    result.push(frontrunners);
+    if (frontrunners.length === remaining.length) break; // tiebreaker exhausted → keep as co-group
+    const frontSet = new Set(frontrunners);
+    remaining = remaining.filter((id) => !frontSet.has(id));
+  }
+  return result;
+}
+
+/**
+ * Writes finishPosition / prizeAmount / finalWinner for every player and then
+ * closes the pool.
+ *
+ * @param groups  Pre-resolved ordered groups. groups[0] = 1st-place players
+ *                (may be co-winners). Each subsequent group holds players at
+ *                the next finishPosition, with coWinners > 1 only when the
+ *                tiebreaker could not differentiate them.
+ */
 async function declareCrazyEightsWinners(
   pool: typeof poolsTable.$inferSelect,
-  winnerIds: number[],
+  groups: number[][],
   reason: string,
-  scoreByUser: Map<number, number>,
 ): Promise<void> {
-  // 1. Build ranked groups: winners form 1st place; remaining entries ranked by
-  //    raw confidence-point score descending, with ties sharing the same position.
-  const winnerSet = new Set(winnerIds);
-  const nonWinnersDesc = [...scoreByUser.entries()]
-    .filter(([userId]) => !winnerSet.has(userId))
-    .sort(([, a], [, b]) => b - a);
-
-  const groups: number[][] = [winnerIds];
-  let i = 0;
-  while (i < nonWinnersDesc.length) {
-    const score = nonWinnersDesc[i][1];
-    const group: number[] = [];
-    while (i < nonWinnersDesc.length && nonWinnersDesc[i][1] === score) {
-      group.push(nonWinnersDesc[i][0]);
-      i++;
-    }
-    groups.push(group);
-  }
-
-  // 2. Total entries for calcPrize.
+  // 1. Total entries for calcPrize.
   const allEntries = await db
     .select({ userId: entriesTable.userId })
     .from(entriesTable)
@@ -3128,7 +3147,8 @@ async function declareCrazyEightsWinners(
     placeIndex += group.length;
   }
 
-  // 3. Determine closureReason: winner's displayName/username, or "co_winners".
+  // 2. Determine closureReason: winner's displayName/username, or "co_winners".
+  const winnerIds = groups[0];
   let closureReason = "co_winners";
   if (winnerIds.length === 1) {
     const [winnerUser] = await db
@@ -3141,7 +3161,7 @@ async function declareCrazyEightsWinners(
     }
   }
 
-  // 4. Close the pool.
+  // 3. Close the pool.
   await db
     .update(poolsTable)
     .set({ isActive: false, endedAt: new Date(), closureReason })
@@ -3326,46 +3346,62 @@ async function resolveCrazyEightsPeriod(
   }
   if (scoreByUser.size === 0) return;
 
-  const maxScore = Math.max(...scoreByUser.values());
-  const topScorers = [...scoreByUser.entries()]
-    .filter(([, score]) => score === maxScore)
-    .map(([userId]) => userId);
+  // 5. Build all score groups, sorted desc by score. Each group is players who
+  //    share the same raw confidence-point total.
+  const uniqueScores = [...new Set(scoreByUser.values())].sort((a, b) => b - a);
+  const scoreGroups: number[][] = uniqueScores.map((score) =>
+    [...scoreByUser.entries()].filter(([, s]) => s === score).map(([uid]) => uid),
+  );
 
-  // 5. Single outright winner
-  if (topScorers.length === 1) {
-    await declareCrazyEightsWinners(pool, topScorers, "outright winner", scoreByUser);
+  // 6. If no group has more than one player, no tiebreaking needed at any position.
+  const anyTied = scoreGroups.some((g) => g.length > 1);
+  if (!anyTied) {
+    await declareCrazyEightsWinners(pool, scoreGroups, "outright winner");
     return;
   }
 
-  // 6. Tie → find last completed game, fetch tiebreaker stats, resolve
-  logger.info(
-    { poolId: pool.id, tiedUserIds: topScorers, score: maxScore },
-    "Crazy 8's: tie detected — resolving tiebreaker",
-  );
-
+  // 7. At least one tied group exists. We need the reference game for tiebreaking.
   const completedGames = periodGames
     .filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const lastGame = completedGames.at(-1);
 
   if (!lastGame) {
-    await declareCrazyEightsWinners(pool, topScorers, "split-pot: no completed tiebreaker game", scoreByUser);
+    // No completed game to use as a reference — split all tied groups.
+    await declareCrazyEightsWinners(pool, scoreGroups, "split-pot: no completed tiebreaker game");
     return;
   }
 
-  const winnerIds =
-    pool.sport === "nhl"
-      ? await resolveNhlTiebreakerForPeriod(pool.id, topScorers, lastGame)
-      : pool.sport === "nba"
-        ? await resolveNbaTiebreakerForPeriod(pool.id, topScorers, lastGame)
-        : await resolveMlbTiebreakerForPeriod(pool.id, topScorers, lastGame, periodDates[0]);
+  // 8. Build a sport-specific resolver closure used for EVERY tied group.
+  const resolver = (ids: number[]): Promise<number[]> => {
+    if (pool.sport === "nhl") return resolveNhlTiebreakerForPeriod(pool.id, ids, lastGame);
+    if (pool.sport === "nba") return resolveNbaTiebreakerForPeriod(pool.id, ids, lastGame);
+    return resolveMlbTiebreakerForPeriod(pool.id, ids, lastGame, periodDates[0]);
+  };
 
-  await declareCrazyEightsWinners(
-    pool,
-    winnerIds,
-    winnerIds.length > 1 ? "split-pot: tiebreaker exhausted" : "tiebreaker resolved",
-    scoreByUser,
-  );
+  // 9. Apply the tiebreaker to every tied group at every position, not just the
+  //    top scorers. resolveGroupIteratively repeatedly calls the resolver on the
+  //    remaining players until only solo survivors or an irresolvable co-group
+  //    remain — turning one split group into ordered sub-groups where possible.
+  const resolvedGroups: number[][] = [];
+  for (const group of scoreGroups) {
+    if (group.length === 1) {
+      resolvedGroups.push(group);
+    } else {
+      logger.info(
+        { poolId: pool.id, tiedUserIds: group, score: scoreByUser.get(group[0]) },
+        "Crazy 8's: tied group detected — resolving tiebreaker",
+      );
+      const subGroups = await resolveGroupIteratively(group, resolver);
+      resolvedGroups.push(...subGroups);
+    }
+  }
+
+  // 10. Determine the overall resolution reason from the top group's outcome.
+  const topGroup = resolvedGroups[0];
+  const reason = topGroup.length > 1 ? "split-pot: tiebreaker exhausted" : "tiebreaker resolved";
+
+  await declareCrazyEightsWinners(pool, resolvedGroups, reason);
 }
 
 // ---------------------------------------------------------------------------
