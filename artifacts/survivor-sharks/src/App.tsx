@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ApiError } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -33,7 +34,12 @@ const queryClient = new QueryClient({
       staleTime: 30 * 1000,
       refetchOnWindowFocus: true,
       refetchInterval: 60 * 1000,
-      retry: 1,
+      // Never retry on 401 — a second attempt against an expired token only races
+      // the window.location.href redirect queued by customFetch, producing an
+      // AbortError that overwrites the clean ApiError(401) and shows the generic
+      // "Failed to load" message instead of "Your session has expired".
+      retry: (failureCount, error) =>
+        error instanceof ApiError && error.status === 401 ? false : failureCount < 1,
     },
   },
 });
