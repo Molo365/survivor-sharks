@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Trophy, Users, CheckCircle2, XCircle } from "lucide-react";
+import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,23 @@ interface WeeklyLeaderboardResponse {
   weekLabel: string;
   isCurrentWeek: boolean;
   players: WeeklyPlayer[];
+}
+
+interface TiebreakerPlayer {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  stat1Guess: number | null;
+  stat2Guess: number | null;
+  diff1: number | null;
+  diff2: number | null;
+}
+
+interface TiebreakerSummary {
+  hadTiebreaker: boolean;
+  actualStat1?: number | null;
+  actualStat2?: number | null;
+  tiedPlayers?: TiebreakerPlayer[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,6 +136,14 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 2) return <span className="text-slate-300 font-bebas text-base sm:text-xl leading-none">🥈</span>;
   if (rank === 3) return <span className="text-amber-600 font-bebas text-base sm:text-xl leading-none">🥉</span>;
   return <span className="font-bebas text-sm sm:text-lg text-muted-foreground/60 w-6 text-center">{rank}</span>;
+}
+
+// ── Sport-specific tiebreaker label config ────────────────────────────────────
+
+function tbLabels(sport: string): { tb1Label: string; tb2Label: string; abbrLabel1: string; abbrLabel2: string } {
+  if (sport === "nhl") return { tb1Label: "Combined shots on goal", tb2Label: "Combined penalty minutes", abbrLabel1: "SOG", abbrLabel2: "PIM" };
+  if (sport === "nba") return { tb1Label: "Combined total points", tb2Label: "Combined 3-pointers made", abbrLabel1: "PTS", abbrLabel2: "3PM" };
+  return { tb1Label: "Combined runs scored", tb2Label: "Combined strikeouts", abbrLabel1: "R", abbrLabel2: "K" };
 }
 
 // ── Day pick detail panel ─────────────────────────────────────────────────────
@@ -209,7 +235,19 @@ function CrazyEightsDayPanel({ poolId, userId, date }: { poolId: number; userId:
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = false, defaultToPreviousWeek = false }: { poolId: number; sport?: string; sandboxMode?: boolean; defaultToPreviousWeek?: boolean }) {
+export function CrazyEightsLeaderboard({
+  poolId,
+  sport = "mlb",
+  sandboxMode = false,
+  defaultToPreviousWeek = false,
+  poolIsActive = true,
+}: {
+  poolId: number;
+  sport?: string;
+  sandboxMode?: boolean;
+  defaultToPreviousWeek?: boolean;
+  poolIsActive?: boolean;
+}) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
   const isNba = sport === "nba";
@@ -253,6 +291,14 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
     refetchInterval: 60_000,
   });
 
+  // Tiebreaker summary — only fetched once the pool is closed
+  const { data: tiebreakerData } = useQuery<TiebreakerSummary>({
+    queryKey: ["crazy-eights-tiebreaker-summary", poolId],
+    queryFn: () => authedFetch<TiebreakerSummary>(`/api/pools/${poolId}/crazy-eights/tiebreaker-summary`),
+    enabled: !!user && !poolIsActive,
+    staleTime: 10 * 60 * 1000, // 10 min — closed pool stats are stable
+  });
+
   // Lock in NHL anchor date on first load (sandbox NHL resolves date from server)
   useEffect(() => {
     if (isWeekend && nhlDate === "" && nhlData?.date) setNhlDate(nhlData.date);
@@ -264,6 +310,34 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
   function toggleCell(userId: number, date: string) {
     setOpenCell((prev) =>
       prev?.userId === userId && prev.date === date ? null : { userId, date },
+    );
+  }
+
+  // ── Tiebreaker card helper ─────────────────────────────────────────────────
+
+  function TiebreakerCard() {
+    if (!tiebreakerData?.hadTiebreaker || !tiebreakerData.tiedPlayers) return null;
+    const labels = tbLabels(sport);
+    // Map crazy_8s generic field names to TiebreakerActualsCard's NFL-named props
+    const mappedPlayers = tiebreakerData.tiedPlayers.map(p => ({
+      userId: p.userId,
+      username: p.username,
+      displayName: p.displayName,
+      tiebreakerPassingYardsGuess: p.stat1Guess,
+      tiebreakerRushingYardsGuess: p.stat2Guess,
+      tiebreakerDiff1: p.diff1,
+      tiebreakerDiff2: p.diff2,
+    }));
+    return (
+      <TiebreakerActualsCard
+        actualPassingYards={tiebreakerData.actualStat1 ?? null}
+        actualRushingYards={tiebreakerData.actualStat2 ?? null}
+        tiedPlayers={mappedPlayers}
+        tb1Label={labels.tb1Label}
+        tb2Label={labels.tb2Label}
+        abbrLabel1={labels.abbrLabel1}
+        abbrLabel2={labels.abbrLabel2}
+      />
     );
   }
 
@@ -385,6 +459,9 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
             Points earned = confidence points from correct picks only
           </p>
         )}
+
+        {/* Tiebreaker actuals card — only when pool is closed and a tiebreaker was used */}
+        <TiebreakerCard />
       </div>
     );
   }
@@ -643,6 +720,9 @@ export function CrazyEightsLeaderboard({ poolId, sport = "mlb", sandboxMode = fa
       <p className="text-[11px] text-muted-foreground/40 text-center">
         Points accumulate Mon–Sun · Winner declared Sunday night
       </p>
+
+      {/* Tiebreaker actuals card — only when pool is closed and a tiebreaker was used */}
+      <TiebreakerCard />
     </div>
   );
 }

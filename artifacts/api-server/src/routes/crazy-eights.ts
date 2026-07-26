@@ -4,6 +4,9 @@ import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScor
 import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, getNbaWeekendBounds, NBA_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
+import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
+import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
+import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 
 const router = Router({ mergeParams: true });
 
@@ -1232,6 +1235,146 @@ router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
     .map((p, i) => ({ ...p, rank: i + 1 }));
 
   res.json({ weekStart, weekEnd, weekLabel, isCurrentWeek, players });
+});
+
+// ── GET /api/pools/:poolId/crazy-eights/tiebreaker-summary ───────────────────
+// Returns tiebreaker actuals + per-player guesses/deltas for closed crazy_8s pools.
+// hadTiebreaker = false when no tied score groups existed (no tiebreaker was needed).
+router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "crazy_8s") { res.status(400).json({ error: "Not a crazy_8s pool" }); return; }
+
+  const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId))).limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  // Pool still active → no tiebreaker summary yet
+  if (pool.isActive) { res.json({ hadTiebreaker: false }); return; }
+
+  // 1. Get all entries with tiebreaker guesses and user info
+  const [allEntries, allPicks] = await Promise.all([
+    db.select({
+      userId: entriesTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      tiebreakerRuns: entriesTable.tiebreakerRuns,
+      tiebreakerStrikeouts: entriesTable.tiebreakerStrikeouts,
+      tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal,
+      tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes,
+      tiebreakerPoints: entriesTable.tiebreakerPoints,
+      tiebreakerThrees: entriesTable.tiebreakerThrees,
+    }).from(entriesTable)
+      .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+      .where(eq(entriesTable.poolId, poolId)),
+    db.select({
+      userId: pickemPicksTable.userId,
+      confidencePoints: pickemPicksTable.confidencePoints,
+      result: pickemPicksTable.result,
+      gameDate: pickemPicksTable.gameDate,
+    }).from(pickemPicksTable).where(eq(pickemPicksTable.poolId, poolId)),
+  ]);
+
+  if (allPicks.length === 0) { res.json({ hadTiebreaker: false }); return; }
+
+  // 2. Compute per-user confidence-point totals and collect period dates
+  const scoreByUser = new Map<number, number>();
+  const periodDates = new Set<string>();
+  for (const pick of allPicks) {
+    periodDates.add(pick.gameDate);
+    if (!scoreByUser.has(pick.userId)) scoreByUser.set(pick.userId, 0);
+    if (pick.result === "correct" && pick.confidencePoints != null) {
+      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + Number(pick.confidencePoints));
+    }
+  }
+
+  // 3. Detect tied groups (players sharing the same score total)
+  const scoreGroups = new Map<number, number[]>();
+  for (const [uid, score] of scoreByUser.entries()) {
+    if (!scoreGroups.has(score)) scoreGroups.set(score, []);
+    scoreGroups.get(score)!.push(uid);
+  }
+  const tiedUserIds: number[] = [];
+  for (const group of scoreGroups.values()) {
+    if (group.length > 1) tiedUserIds.push(...group);
+  }
+  if (tiedUserIds.length === 0) { res.json({ hadTiebreaker: false }); return; }
+
+  // 4. Re-fetch period games to identify the last completed tiebreaker game
+  //    (same "last completed game" logic as resolveCrazyEightsPeriod)
+  const sport = pool.sport as string;
+  const sortedDates = [...periodDates].sort();
+  const espnSport = sport === "nhl" ? "nhl" : sport === "nba" ? "nba" : "mlb";
+  const dayGameArrays = await Promise.all(
+    sortedDates.map(d => fetchGamesForDate(espnSport, d.replace(/-/g, "")))
+  );
+  const allGames = dayGameArrays.flat();
+  const completedGames = allGames
+    .filter(g => g.isCompleted && g.homeScore != null && g.awayScore != null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const lastGame = completedGames.at(-1) ?? null;
+
+  // 5. Fetch actual tiebreaker stats from ESPN / MLB Stats API
+  let actualStat1: number | null = null;
+  let actualStat2: number | null = null;
+
+  if (lastGame) {
+    if (sport === "nhl") {
+      const stats = await fetchNhlTiebreakerStats(lastGame.id);
+      actualStat1 = stats.shotsOnGoal;
+      actualStat2 = stats.penaltyMinutes;
+    } else if (sport === "nba") {
+      const stats = await fetchNbaTiebreakerStats(lastGame.id);
+      actualStat1 = stats.totalPoints ??
+        (lastGame.homeScore != null && lastGame.awayScore != null
+          ? lastGame.homeScore + lastGame.awayScore
+          : null);
+      actualStat2 = stats.threePointersMade;
+    } else {
+      // MLB: runs = combined score; strikeouts from MLB Stats API
+      actualStat1 = lastGame.homeScore != null && lastGame.awayScore != null
+        ? lastGame.homeScore + lastGame.awayScore
+        : null;
+      actualStat2 = await fetchSingleGameStrikeouts(lastGame, sortedDates[0]!);
+    }
+  }
+
+  // 6. Build per-player guesses and deltas for all tied players
+  const entryMap = new Map(allEntries.map(e => [e.userId, e]));
+  const tiedPlayers = tiedUserIds
+    .map(uid => {
+      const e = entryMap.get(uid);
+      if (!e) return null;
+      let stat1Guess: number | null = null;
+      let stat2Guess: number | null = null;
+      if (sport === "nhl") {
+        stat1Guess = e.tiebreakerShotsOnGoal ?? null;
+        stat2Guess = e.tiebreakerPenaltyMinutes ?? null;
+      } else if (sport === "nba") {
+        stat1Guess = e.tiebreakerPoints ?? null;
+        stat2Guess = e.tiebreakerThrees ?? null;
+      } else {
+        stat1Guess = e.tiebreakerRuns ?? null;
+        stat2Guess = e.tiebreakerStrikeouts ?? null;
+      }
+      const diff1 = stat1Guess != null && actualStat1 != null ? Math.abs(stat1Guess - actualStat1) : null;
+      const diff2 = stat2Guess != null && actualStat2 != null ? Math.abs(stat2Guess - actualStat2) : null;
+      return {
+        userId: e.userId,
+        username: e.username,
+        displayName: e.displayName ?? null,
+        stat1Guess,
+        stat2Guess,
+        diff1,
+        diff2,
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
+  res.json({ hadTiebreaker: true, actualStat1, actualStat2, tiedPlayers });
 });
 
 export default router;
