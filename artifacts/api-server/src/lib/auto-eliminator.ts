@@ -19,7 +19,7 @@
 
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, sql } from "drizzle-orm";
+import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import {
   fetchGames,
@@ -1179,6 +1179,155 @@ export async function processPickEmResults(): Promise<{
 
   // Both dates checked so West Coast games finishing after midnight ET are graded
   const datesToCheck = [todayEt, yesterdayEt];
+
+  // ── Catch-up grading pass ─────────────────────────────────────────────────
+  // Grade any pending picks whose gameDate is older than yesterday (i.e., outside
+  // the normal 48-hour rolling window). These are picks that fell through the
+  // grading sweep — e.g. the server restarted after games finished, or an
+  // exception in an earlier block aborted the run on the day the game completed.
+  // We query for all distinct (sport, gameDate) pairs that still have pending
+  // picks, fetch ESPN results for those dates, and grade them before the
+  // per-sport closure checks run so pendingCount can reach 0.
+  // This is a no-op on every normal run (no picks older than yesterday exist).
+  if (pickemPools.length > 0) {
+    const stuckRows = await db
+      .selectDistinct({ sport: poolsTable.sport, gameDate: pickemPicksTable.gameDate })
+      .from(pickemPicksTable)
+      .innerJoin(poolsTable, eq(pickemPicksTable.poolId, poolsTable.id))
+      .where(
+        and(
+          eq(pickemPicksTable.result, "pending"),
+          eq(poolsTable.isActive, true),
+          eq(poolsTable.poolType, "pickem"),
+          lt(pickemPicksTable.gameDate, yesterdayEt),
+        ),
+      );
+
+    for (const { sport, gameDate } of stuckRows) {
+      try {
+        const espnDate = gameDate.replace(/-/g, ""); // YYYYMMDD for most ESPN calls
+        // WC uses a separate WcGame type and has its own dedicated grading block
+        // with datesToCheck — skip it here to avoid type complexity.
+        if (sport === "worldcup") continue;
+
+        let games: EspnGame[];
+        if (sport === "intl") {
+          games = await fetchIntlGamesForDate(espnDate);
+        } else if (sport === "superleague") {
+          games = await fetchSuperLeagueGamesForDate(espnDate);
+        } else {
+          // mlb, mls, nhl, nba — all routed through fetchGamesForDate
+          games = await fetchGamesForDate(sport, espnDate);
+        }
+
+        // worldcup is skipped above, so only the remaining 3-way sports need this check
+        const is3way =
+          sport === "mls" ||
+          sport === "intl" ||
+          sport === "superleague";
+
+        const completedGames = games.filter(
+          (g) => g.isCompleted && g.homeScore != null && g.awayScore != null,
+        );
+        if (completedGames.length === 0) continue;
+
+        // Find every active pickem pool for this sport that has stuck pending picks.
+        const affectedPools = await db
+          .selectDistinct({ poolId: pickemPicksTable.poolId })
+          .from(pickemPicksTable)
+          .innerJoin(poolsTable, eq(pickemPicksTable.poolId, poolsTable.id))
+          .where(
+            and(
+              eq(pickemPicksTable.result, "pending"),
+              eq(pickemPicksTable.gameDate, gameDate),
+              eq(poolsTable.isActive, true),
+              eq(poolsTable.poolType, "pickem"),
+              eq(poolsTable.sport, sport as "nfl"), // cast to satisfy enum type; runtime value is correct
+            ),
+          );
+
+        if (is3way) {
+          type Outcome3 = "home_win" | "draw" | "away_win";
+          const outcomeMap = new Map<string, Outcome3>();
+          for (const g of completedGames) {
+            const h = g.homeScore!, a = g.awayScore!;
+            outcomeMap.set(g.id, h > a ? "home_win" : a > h ? "away_win" : "draw");
+          }
+          for (const { poolId } of affectedPools) {
+            for (const [gameId, outcome] of outcomeMap) {
+              const picks = await db
+                .select()
+                .from(pickemPicksTable)
+                .where(
+                  and(
+                    eq(pickemPicksTable.poolId, poolId),
+                    eq(pickemPicksTable.gameId, gameId),
+                    eq(pickemPicksTable.gameDate, gameDate),
+                    eq(pickemPicksTable.result, "pending"),
+                  ),
+                );
+              for (const pick of picks) {
+                const result: "correct" | "incorrect" =
+                  pick.pickedTeamId === outcome ? "correct" : "incorrect";
+                await db
+                  .update(pickemPicksTable)
+                  .set({ result, updatedAt: new Date() })
+                  .where(eq(pickemPicksTable.id, pick.id));
+                picksGraded++;
+                logger.info(
+                  { poolId, gameId, gameDate, sport, result },
+                  "Pick-Em catch-up: graded stuck pending pick",
+                );
+              }
+            }
+          }
+        } else {
+          // 2-way: mlb, nhl, nba
+          const winnerMap = new Map<string, string>();
+          for (const g of completedGames) {
+            // Ties in NHL (shouldn't happen after OT) and NBA are skipped —
+            // they're handled by the sport's own grading logic or postponed.
+            if (g.homeScore === g.awayScore) continue;
+            winnerMap.set(
+              g.id,
+              g.homeScore! > g.awayScore! ? g.homeTeam.id : g.awayTeam.id,
+            );
+          }
+          if (winnerMap.size === 0) continue;
+          for (const { poolId } of affectedPools) {
+            for (const [gameId, winnerTeamId] of winnerMap) {
+              const picks = await db
+                .select()
+                .from(pickemPicksTable)
+                .where(
+                  and(
+                    eq(pickemPicksTable.poolId, poolId),
+                    eq(pickemPicksTable.gameId, gameId),
+                    eq(pickemPicksTable.gameDate, gameDate),
+                    eq(pickemPicksTable.result, "pending"),
+                  ),
+                );
+              for (const pick of picks) {
+                const result: "correct" | "incorrect" =
+                  pick.pickedTeamId === winnerTeamId ? "correct" : "incorrect";
+                await db
+                  .update(pickemPicksTable)
+                  .set({ result, updatedAt: new Date() })
+                  .where(eq(pickemPicksTable.id, pick.id));
+                picksGraded++;
+                logger.info(
+                  { poolId, gameId, gameDate, sport, result },
+                  "Pick-Em catch-up: graded stuck pending pick",
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ sport, gameDate, err }, "Pick-Em catch-up grading error");
+      }
+    }
+  }
 
   // Separate pools by sport
   const mlbPools = pickemPools.filter((p) => p.sport === "mlb");
