@@ -13,7 +13,9 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate, getNhlWeekBounds, NHL_SANDBOX_ANCHOR } from "../lib/espn";
+import { getTodayEtDate, getNhlWeekBounds, NHL_SANDBOX_ANCHOR, fetchGamesForDate } from "../lib/espn";
+import { fetchDailyStrikeouts } from "../lib/mlb-stats";
+import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
@@ -1290,7 +1292,82 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       const allGradedPrev = prevRows.length > 0 && prevRows.every((r) => Number(r.graded) === Number(r.picked));
       const topCorrect = prevRows.length > 0 ? Number(prevRows[0].correct) : 0;
-      const tiedPrevRows = allGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
+      let tiedPrevRows = allGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
+
+      // Resolve tied top scorers via tiebreaker proximity (mirrors auto-eliminator + prev-week-results logic).
+      // Only runs for MLB/NHL when there are 2+ tied leaders and all picks are graded.
+      if (tiedPrevRows.length > 1) {
+        const tbSport = pool.sport as string;
+        const isMlbDash = tbSport === "mlb";
+        const isNhlDash = tbSport === "nhl";
+        if (isMlbDash || isNhlDash) {
+          const prevWeekEndDate = prevWeekBounds.weekEnd; // YYYY-MM-DD
+          const tiedUserIds = tiedPrevRows.map(r => r.userId);
+          try {
+            const sundayGames = await fetchGamesForDate(tbSport, prevWeekEndDate.replace(/-/g, ""));
+            if (sundayGames && sundayGames.length > 0) {
+              const sortedGames = [...sundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              const lastGame = sortedGames[sortedGames.length - 1]!;
+              if (lastGame.isCompleted) {
+                // Fetch tiebreaker guesses for tied users
+                const tbRows = await db
+                  .select(isMlbDash
+                    ? { userId: entriesTable.userId, tiebreakerRuns: entriesTable.tiebreakerRuns, tiebreakerStrikeouts: entriesTable.tiebreakerStrikeouts }
+                    : { userId: entriesTable.userId, tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes })
+                  .from(entriesTable)
+                  .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, tiedUserIds)));
+
+                let resolvedIds: Set<number> | null = null;
+                if (isMlbDash) {
+                  const actualRuns = (lastGame.homeScore ?? 0) + (lastGame.awayScore ?? 0);
+                  const actualSO = await fetchDailyStrikeouts([lastGame], prevWeekEndDate);
+                  if (actualRuns != null && actualSO != null) {
+                    const diffs = tbRows.map((e) => {
+                      const runsG = (e as any).tiebreakerRuns ?? null;
+                      const soG = (e as any).tiebreakerStrikeouts ?? null;
+                      if (runsG == null || soG == null) return { userId: e.userId, diff: Infinity };
+                      return { userId: e.userId, diff: Math.abs(runsG - actualRuns) + Math.abs(soG - actualSO) };
+                    });
+                    const minDiff = Math.min(...diffs.map(d => d.diff));
+                    if (isFinite(minDiff)) {
+                      const winners = diffs.filter(d => d.diff === minDiff);
+                      if (winners.length < tiedPrevRows.length) {
+                        resolvedIds = new Set<number>(winners.map(d => d.userId as number));
+                      }
+                    }
+                  }
+                } else {
+                  // NHL — skip sandbox pools (game IDs don't match real schedule)
+                  if (!pool.sandboxMode) {
+                    const stats = await fetchNhlTiebreakerStats(lastGame.id);
+                    if (stats.shotsOnGoal != null && stats.penaltyMinutes != null) {
+                      const diffs = tbRows.map((e) => {
+                        const soG = (e as any).tiebreakerShotsOnGoal ?? null;
+                        const pimG = (e as any).tiebreakerPenaltyMinutes ?? null;
+                        if (soG == null || pimG == null) return { userId: e.userId, diff: Infinity };
+                        return { userId: e.userId, diff: Math.abs(soG - stats.shotsOnGoal!) + Math.abs(pimG - stats.penaltyMinutes!) };
+                      });
+                      const minDiff = Math.min(...diffs.map(d => d.diff));
+                      if (isFinite(minDiff)) {
+                        const winners = diffs.filter(d => d.diff === minDiff);
+                        if (winners.length < tiedPrevRows.length) {
+                          resolvedIds = new Set<number>(winners.map(d => d.userId as number));
+                        }
+                      }
+                    }
+                  }
+                }
+                if (resolvedIds) {
+                  tiedPrevRows = tiedPrevRows.filter(r => resolvedIds!.has(r.userId));
+                }
+              }
+            }
+          } catch {
+            // Tiebreaker resolution failed (e.g. ESPN or stats API unavailable) — fall back to even split
+          }
+        }
+      }
+
       const lastWinners =
         tiedPrevRows.length > 0
           ? tiedPrevRows.map(r => ({

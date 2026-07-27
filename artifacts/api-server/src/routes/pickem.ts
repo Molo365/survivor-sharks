@@ -1044,24 +1044,13 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     });
   }
 
-  // Compute prize for the week winner(s) — only once all picks are fully graded
+  // Compute prize for the week winner(s) — only once all picks are fully graded.
+  // winnerCount and prize are deferred until after tiebreaker actuals are resolved below.
   const allGraded = hasResults && aggregates.every((r) => Number(r.graded) === Number(r.picked));
   let weekPrizePerWinner: number | null = null;
   let weekTopCorrect = -1;
   if (allGraded && aggregates.length > 0) {
     weekTopCorrect = Number(aggregates[0].correct);
-    const winnerCount = aggregates.filter((r) => Number(r.correct) === weekTopCorrect).length;
-    const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
-    weekPrizePerWinner = calcPrize({
-      prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
-      prizeMode: pool.prizeMode,
-      entryFee: pool.entryFee,
-      prizePot: pool.prizePot,
-      totalEntries,
-      maxEntries: pool.maxEntries,
-      placeIndex: 0,
-      coWinners: winnerCount,
-    });
   }
 
   // Build tiebreaker guess maps
@@ -1101,6 +1090,71 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
+  // Resolve tied top scorers via tiebreaker proximity, mirroring auto-eliminator weekly closure.
+  // Combined diff = |primary − actual| + |secondary − actual| (MLB: runs+SO; NHL: shots+PIM).
+  // Falls back to even split when actuals are unavailable or all tied diffs are equal.
+  let tiebreakWinnerIds: Set<number> | null = null;
+  if (allGraded && weekTopCorrect >= 0) {
+    const tiedAggregates = aggregates.filter((r) => Number(r.correct) === weekTopCorrect);
+    if (tiedAggregates.length > 1) {
+      if (isMlb && tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null) {
+        const diffs = tiedAggregates.map((r) => {
+          const tb = tbMlbEntries?.find((e) => e.userId === r.userId);
+          const runsG = tb?.tiebreakerRuns ?? null;
+          const soG = tb?.tiebreakerStrikeouts ?? null;
+          if (runsG == null || soG == null) return { userId: r.userId, diff: Infinity };
+          return {
+            userId: r.userId,
+            diff: Math.abs(runsG - tiebreakerActualRuns!) + Math.abs(soG - tiebreakerActualStrikeouts!),
+          };
+        });
+        const minDiff = Math.min(...diffs.map((d) => d.diff));
+        if (isFinite(minDiff)) {
+          const winners = diffs.filter((d) => d.diff === minDiff);
+          if (winners.length < tiedAggregates.length) {
+            tiebreakWinnerIds = new Set(winners.map((d) => d.userId));
+          }
+        }
+      } else if (isNhl && tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null) {
+        const diffs = tiedAggregates.map((r) => {
+          const tb = tbNhlEntries?.find((e) => e.userId === r.userId);
+          const soG = tb?.tiebreakerShotsOnGoal ?? null;
+          const pimG = tb?.tiebreakerPenaltyMinutes ?? null;
+          if (soG == null || pimG == null) return { userId: r.userId, diff: Infinity };
+          return {
+            userId: r.userId,
+            diff: Math.abs(soG - tiebreakerActualShotsOnGoal!) + Math.abs(pimG - tiebreakerActualPenaltyMinutes!),
+          };
+        });
+        const minDiff = Math.min(...diffs.map((d) => d.diff));
+        if (isFinite(minDiff)) {
+          const winners = diffs.filter((d) => d.diff === minDiff);
+          if (winners.length < tiedAggregates.length) {
+            tiebreakWinnerIds = new Set(winners.map((d) => d.userId));
+          }
+        }
+      }
+    }
+  }
+
+  // Now that winnerCount is known, compute the prize.
+  if (allGraded && weekTopCorrect >= 0) {
+    const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
+    const winnerCount = tiebreakWinnerIds
+      ? tiebreakWinnerIds.size
+      : aggregates.filter((r) => Number(r.correct) === weekTopCorrect).length;
+    weekPrizePerWinner = calcPrize({
+      prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex: 0,
+      coWinners: winnerCount,
+    });
+  }
+
   let weekRank = 1;
   const entries = aggregates.map((row, i) => {
     if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
@@ -1127,7 +1181,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
-      prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect ? weekPrizePerWinner : null,
+      prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect &&
+        (tiebreakWinnerIds == null || tiebreakWinnerIds.has(row.userId)) ? weekPrizePerWinner : null,
       tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
