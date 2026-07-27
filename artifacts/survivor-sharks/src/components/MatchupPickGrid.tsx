@@ -111,6 +111,7 @@ function TeamSide({
   variant,
   sport,
   pickResult,
+  isWinner,
 }: {
   team: Team;
   record: string | null;
@@ -128,6 +129,8 @@ function TeamSide({
   variant: GameVariant;
   sport: Sport;
   pickResult?: string | null;
+  /** When variant==="final" and scores are known: true = this team won, false = lost, undefined = unknown/not final */
+  isWinner?: boolean;
 }) {
   const unpickable = isUsed || isLocked;
   const isFavorite = moneyline != null && moneyline < 0;
@@ -157,6 +160,9 @@ function TeamSide({
           : isLocked
             ? "cursor-not-allowed"
             : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+        // Per-team win/loss tint (final games with known scores)
+        variant === "final" && isWinner === true && "bg-green-500/8",
+        variant === "final" && isWinner === false && "bg-red-500/8",
         isSelected && variant === "upcoming"
           ? "ring-2 ring-inset ring-primary/70"
           : isCurrentPick && variant === "upcoming"
@@ -215,8 +221,8 @@ function TeamSide({
       {score != null && variant === "final" && (
         <p className={cn(
           "font-bebas tracking-wide mt-1 text-xl sm:text-3xl",
-          isCurrentPick && pickResult === "win" ? "text-green-400" :
-          isCurrentPick && pickResult === "loss" ? "text-destructive/70" :
+          isWinner === true ? "text-green-400" :
+          isWinner === false ? "text-destructive/70" :
           "text-foreground/55"
         )}>
           {score}
@@ -339,6 +345,12 @@ function MatchupCard({
   const isCorrect = currentPickInThisGame && variant === "final" && currentPickResult === "win";
   const isWrong = currentPickInThisGame && variant === "final" && currentPickResult === "loss";
 
+  // Per-panel win/loss: color each team's side independently based on the game result,
+  // not the user's pick outcome. undefined = scores unknown / game not final.
+  const scoresKnown = variant === "final" && game.homeScore != null && game.awayScore != null;
+  const homeTeamWon = scoresKnown ? (game.homeScore! > game.awayScore!) : undefined;
+  const awayTeamWon = scoresKnown ? (game.awayScore! > game.homeScore!) : undefined;
+
   // For MLB: lock state is deadline-based. For others: game-start-based.
   const isGameLocked = deadlineLock ? deadlineLock : game.hasStarted;
   const isHomeUsed = pickedTeamIds.includes(game.homeTeam.id) && currentPickTeamId !== game.homeTeam.id;
@@ -359,12 +371,9 @@ function MatchupCard({
       "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
     ],
     variant === "final" && [
-      "border-2 opacity-80",
-      isCorrect
-        ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
-        : isWrong
-          ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
-          : "border-border/40 bg-muted/8",
+      // Whole-card border stays neutral — win/loss color is applied per team panel (TeamSide).
+      // isCorrect/isWrong kept for any sport that still wants a card-level tint (none currently).
+      "border-2 opacity-80 border-border/40 bg-muted/8",
     ],
     variant === "upcoming" && [
       selectedInGame
@@ -397,12 +406,7 @@ function MatchupCard({
       "shadow-[0_0_28px_rgba(239,68,68,0.22),-4px_0_20px_rgba(239,68,68,0.35)]",
     ],
     variant === "final" && [
-      "border-2 opacity-80",
-      isCorrect
-        ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
-        : isWrong
-          ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
-          : "border-border/40 bg-muted/8",
+      "border-2 opacity-80 border-border/40 bg-muted/8",
     ],
     variant === "upcoming" && (
       selectedInGame
@@ -425,6 +429,9 @@ function MatchupCard({
               isAwayUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isAwayUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
+              // Per-team win/loss tint on mobile
+              awayTeamWon === true && "bg-green-500/8",
+              awayTeamWon === false && "bg-red-500/8",
               selectedId === game.awayTeam.id && variant === "upcoming"
                 ? "ring-2 ring-inset ring-primary/70 rounded-lg"
                 : currentPickTeamId === game.awayTeam.id && variant === "upcoming"
@@ -488,6 +495,9 @@ function MatchupCard({
               isHomeUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isHomeUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
+              // Per-team win/loss tint on mobile
+              homeTeamWon === true && "bg-green-500/8",
+              homeTeamWon === false && "bg-red-500/8",
               selectedId === game.homeTeam.id && variant === "upcoming"
                 ? "ring-2 ring-inset ring-primary/70 rounded-lg"
                 : currentPickTeamId === game.homeTeam.id && variant === "upcoming"
@@ -559,6 +569,7 @@ function MatchupCard({
             variant={variant}
             sport={sport}
             pickResult={currentPickTeamId === game.awayTeam.id ? currentPickResult : null}
+            isWinner={awayTeamWon}
           />
 
           {/* Centre divider */}
@@ -661,6 +672,7 @@ function MatchupCard({
             variant={variant}
             sport={sport}
             pickResult={currentPickTeamId === game.homeTeam.id ? currentPickResult : null}
+            isWinner={homeTeamWon}
           />
         </div>
       </div>
