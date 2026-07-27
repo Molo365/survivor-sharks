@@ -457,14 +457,12 @@ router.get("/", requireAuth, async (req, res) => {
       const games = (gamesByDate.get(dateStr) ?? []).map(g => {
         const scored = storedScores.get(g.id);
         const base = formatGame(g, "nba", week, pool.season);
-        // If simulate-grading has been run, use the stored simulated scores.
-        // Otherwise fall back to real ESPN data — anchor-week games (Nov 2025) are
-        // already STATUS_FINAL with real scores, so base is correct as-is.
-        // Returning base directly means isFinal=true on the frontend and the
-        // green/red result fill + score display work without running simulate-grading.
+        // Source finality purely from sandboxGameScoresTable — never leak real ESPN
+        // status/scores. Before simulate-grading runs, reset to safe sandbox defaults
+        // so games appear as upcoming/pickable (mirrors the NHL sandbox pattern exactly).
         return scored
-          ? { ...base, status: "final", hasStarted: true, homeScore: scored.homeScore, awayScore: scored.awayScore }
-          : base;
+          ? { ...base, status: "final",     hasStarted: true,  homeScore: scored.homeScore, awayScore: scored.awayScore }
+          : { ...base, status: "scheduled", hasStarted: false, homeScore: null,             awayScore: null };
       });
       return { date: dateStr, label, games };
     });

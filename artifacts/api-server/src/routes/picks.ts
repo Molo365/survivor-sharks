@@ -13,6 +13,8 @@ import {
   fetchGamesForDate,
   fetchNhlGamesByWeek,
   NHL_SANDBOX_ANCHOR,
+  fetchNbaGamesByWeek,
+  NBA_SANDBOX_ANCHOR,
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
@@ -271,20 +273,23 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   if (pool.commissionerId !== userId && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
   }
-  if (pool.sport !== "nfl" && pool.sport !== "nhl") {
-    res.status(400).json({ error: "Simulate grading is only available for NFL and NHL pools" }); return;
+  if (pool.sport !== "nfl" && pool.sport !== "nhl" && pool.sport !== "nba") {
+    res.status(400).json({ error: "Simulate grading is only available for NFL, NHL, and NBA pools" }); return;
   }
 
   const week = pool.currentWeek;
 
   // Normalise game list to { id, homeTeamId, awayTeamId } regardless of sport.
-  // NFL uses the static schedule; NHL fetches real historical ESPN data anchored
-  // to the 2025-26 season opener via NHL_SANDBOX_ANCHOR.
+  // NFL uses the static schedule; NHL/NBA fetch real historical ESPN data anchored
+  // to their respective sandbox anchors.
   type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
   let gameList: SandboxGame[];
   if (pool.sport === "nhl") {
     const nhlGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
     gameList = nhlGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
+  } else if (pool.sport === "nba") {
+    const nbaGames = await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
+    gameList = nbaGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
   } else {
     const nflGames = getSandboxGamesForWeek(week);
     gameList = nflGames.map(g => ({ id: g.id, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId }));
@@ -310,6 +315,10 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
       homeScore = Math.floor(Math.random() * 8); // 0-7 goals
       awayScore = Math.floor(Math.random() * 8);
       if (homeScore === awayScore) homeScore = Math.min(homeScore + 1, 7); // no ties
+    } else if (pool.sport === "nba") {
+      homeScore = 85 + Math.floor(Math.random() * 46); // 85-130 points
+      awayScore = 85 + Math.floor(Math.random() * 46);
+      if (homeScore === awayScore) homeScore += 2; // no ties (OT)
     } else {
       homeScore = 10 + Math.floor(Math.random() * 36);
       awayScore = 10 + Math.floor(Math.random() * 36);
@@ -391,7 +400,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   // maxStrikes is hoisted here (also used in Phase 5) so the void check can
   // exclude players who have already exhausted their strikes — those players
   // should be eliminated, not counted as genuine survivors that trigger a void.
-  const maxStrikes = (pool.sport === "nhl" && pool.poolType === "season") ? 2 : 0;
+  const maxStrikes = ((pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season") ? 2 : 0;
   const genuineSurvivors = aliveAtStart.filter(e =>
     maxStrikes === 0 || e.strikeCount < maxStrikes
   );
