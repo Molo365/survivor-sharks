@@ -977,13 +977,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
   const prevWeekBounds = getWeekBoundsEt(prevWeekSunday);
 
+  const isMlb = sport === "mlb";
+  const isNhl = sport === "nhl";
+
   const picksWhere = and(
     eq(pickemPicksTable.poolId, poolId),
     gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
     lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
   );
 
-  const [aggregates, dailyAggregates] = await Promise.all([
+  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -1012,6 +1015,19 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       .where(picksWhere)
       .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
       .orderBy(pickemPicksTable.gameDate),
+    // MLB tiebreaker guesses stored on entries
+    isMlb
+      ? db.select({ userId: entriesTable.userId, tiebreakerRuns: entriesTable.tiebreakerRuns, tiebreakerStrikeouts: entriesTable.tiebreakerStrikeouts }).from(entriesTable).where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve(null as null),
+    // NHL tiebreaker guesses stored on entries
+    isNhl
+      ? db.select({ userId: entriesTable.userId, tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes }).from(entriesTable).where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve(null as null),
+    // Previous week's Sunday ESPN games — tiebreaker reference is the last game by start time.
+    // Sandbox NHL excluded (its game IDs come from the NHL anchor, not the real schedule).
+    (isMlb || (isNhl && !pool.sandboxMode))
+      ? fetchGamesForDate(sport, prevWeekBounds.weekEnd)
+      : Promise.resolve(null as null),
   ]);
 
   const hasResults = aggregates.some((r) => Number(r.graded) > 0);
@@ -1041,6 +1057,43 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
+  // Build tiebreaker guess maps
+  const tiebreakerByUser = new Map<number, { tiebreakerRuns: number | null; tiebreakerStrikeouts: number | null }>();
+  if (tbMlbEntries) {
+    for (const e of tbMlbEntries) {
+      tiebreakerByUser.set(e.userId, { tiebreakerRuns: e.tiebreakerRuns ?? null, tiebreakerStrikeouts: e.tiebreakerStrikeouts ?? null });
+    }
+  }
+  const nhlTiebreakerByUser = new Map<number, { tiebreakerShotsOnGoal: number | null; tiebreakerPenaltyMinutes: number | null }>();
+  if (tbNhlEntries) {
+    for (const e of tbNhlEntries) {
+      nhlTiebreakerByUser.set(e.userId, { tiebreakerShotsOnGoal: e.tiebreakerShotsOnGoal ?? null, tiebreakerPenaltyMinutes: e.tiebreakerPenaltyMinutes ?? null });
+    }
+  }
+
+  // Compute tiebreaker actuals from the previous week's last game on Sunday
+  let tiebreakerActualRuns: number | null = null;
+  let tiebreakerActualStrikeouts: number | null = null;
+  if (isMlb && prevSundayGames && prevSundayGames.length > 0) {
+    const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const tiebreakerGame = sorted[sorted.length - 1]!;
+    if (tiebreakerGame.isCompleted) {
+      tiebreakerActualRuns = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
+      tiebreakerActualStrikeouts = await fetchDailyStrikeouts([tiebreakerGame], prevWeekBounds.weekEnd);
+    }
+  }
+  let tiebreakerActualShotsOnGoal: number | null = null;
+  let tiebreakerActualPenaltyMinutes: number | null = null;
+  if (isNhl && !pool.sandboxMode && prevSundayGames && prevSundayGames.length > 0) {
+    const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const tiebreakerGame = sorted[sorted.length - 1]!;
+    if (tiebreakerGame.isCompleted) {
+      const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
+      tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
+      tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
+    }
+  }
+
   let weekRank = 1;
   const entries = aggregates.map((row, i) => {
     if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
@@ -1048,6 +1101,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     } else {
       weekRank = i + 1;
     }
+    const tb = tiebreakerByUser.get(row.userId);
+    const runsGuess = tb?.tiebreakerRuns ?? null;
+    const strikesGuess = tb?.tiebreakerStrikeouts ?? null;
+    const runsDiff = isMlb && tiebreakerActualRuns != null && runsGuess != null
+      ? Math.abs(runsGuess - tiebreakerActualRuns) : null;
+    const nhlTb = nhlTiebreakerByUser.get(row.userId);
+    const shotsGuess = nhlTb?.tiebreakerShotsOnGoal ?? null;
+    const pimGuess = nhlTb?.tiebreakerPenaltyMinutes ?? null;
+    const nhlDiff = isNhl && tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null && shotsGuess != null && pimGuess != null
+      ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes) : null;
     return {
       rank: weekRank,
       userId: row.userId,
@@ -1058,6 +1121,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
       prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect ? weekPrizePerWinner : null,
+      tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
+      tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? shotsGuess : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? pimGuess : undefined,
+      tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
     };
   });
 
@@ -1066,6 +1135,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     weekStart: prevWeekBounds.weekStart,
     weekEnd: prevWeekBounds.weekEnd,
     entries,
+    tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
+    tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
+    tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
+    tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
   });
 });
 

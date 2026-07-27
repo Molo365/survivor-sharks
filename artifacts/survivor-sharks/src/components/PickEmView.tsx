@@ -1704,6 +1704,10 @@ function PrevWeekResultsModal({
   weekEnd,
   entries,
   currentUserId,
+  tiebreakerActualRuns,
+  tiebreakerActualStrikeouts,
+  tiebreakerActualShotsOnGoal,
+  tiebreakerActualPenaltyMinutes,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1712,6 +1716,10 @@ function PrevWeekResultsModal({
   weekEnd: string;
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
+  tiebreakerActualRuns?: number | null;
+  tiebreakerActualStrikeouts?: number | null;
+  tiebreakerActualShotsOnGoal?: number | null;
+  tiebreakerActualPenaltyMinutes?: number | null;
 }) {
   const days = generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
@@ -1747,6 +1755,7 @@ function PrevWeekResultsModal({
               <p className="text-sm text-muted-foreground">No picks recorded for this week.</p>
             </div>
           ) : (
+            <div className="space-y-4">
             <div className="rounded-xl border border-border/40 overflow-hidden">
               <div className="overflow-x-auto">
                 <table
@@ -1871,6 +1880,43 @@ function PrevWeekResultsModal({
                   </tbody>
                 </table>
               </div>
+            </div>
+            {/* MLB tiebreaker actuals — mirrors live leaderboard */}
+            {entries.some(e => e.tiebreakerRunsGuess != null) && (
+              <PickEmTiebreakerCard
+                sport="mlb"
+                actualRuns={tiebreakerActualRuns}
+                actualStrikeouts={tiebreakerActualStrikeouts}
+                tiedPlayers={entries
+                  .filter(e => e.tiebreakerRunsGuess != null || e.tiebreakerStrikeoutsGuess != null)
+                  .map(e => ({
+                    userId: e.userId,
+                    username: e.username,
+                    displayName: e.displayName ?? null,
+                    tiebreakerRunsGuess: e.tiebreakerRunsGuess ?? null,
+                    tiebreakerStrikeoutsGuess: e.tiebreakerStrikeoutsGuess ?? null,
+                    tiebreakerRunsDiff: e.tiebreakerRunsDiff ?? null,
+                  }))}
+              />
+            )}
+            {/* NHL tiebreaker actuals — mirrors live leaderboard */}
+            {entries.some(e => e.tiebreakerShotsOnGoalGuess != null) && (
+              <PickEmTiebreakerCard
+                sport="nhl"
+                actualShotsOnGoal={tiebreakerActualShotsOnGoal}
+                actualPenaltyMinutes={tiebreakerActualPenaltyMinutes}
+                tiedPlayers={entries
+                  .filter(e => e.tiebreakerShotsOnGoalGuess != null || e.tiebreakerPenaltyMinutesGuess != null)
+                  .map(e => ({
+                    userId: e.userId,
+                    username: e.username,
+                    displayName: e.displayName ?? null,
+                    tiebreakerShotsOnGoalGuess: e.tiebreakerShotsOnGoalGuess ?? null,
+                    tiebreakerPenaltyMinutesGuess: e.tiebreakerPenaltyMinutesGuess ?? null,
+                    tiebreakerNhlDiff: e.tiebreakerNhlDiff ?? null,
+                  }))}
+              />
+            )}
             </div>
           )}
         </div>
@@ -2562,6 +2608,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         weekEnd={prevWeekResults.weekEnd}
         entries={prevWeekResults.entries}
         currentUserId={user?.id ?? null}
+        tiebreakerActualRuns={(prevWeekResults as any).tiebreakerActualRuns ?? null}
+        tiebreakerActualStrikeouts={(prevWeekResults as any).tiebreakerActualStrikeouts ?? null}
+        tiebreakerActualShotsOnGoal={(prevWeekResults as any).tiebreakerActualShotsOnGoal ?? null}
+        tiebreakerActualPenaltyMinutes={(prevWeekResults as any).tiebreakerActualPenaltyMinutes ?? null}
       />
     )}
     {/* MLB Tiebreaker Dialog */}
