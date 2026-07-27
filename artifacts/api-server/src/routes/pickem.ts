@@ -986,7 +986,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
   );
 
-  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames] = await Promise.all([
+  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -1028,6 +1028,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     (isMlb || (isNhl && !pool.sandboxMode))
       ? fetchGamesForDate(sport, prevWeekBounds.weekEnd.replace(/-/g, ""))
       : Promise.resolve(null as null),
+    // Total pool members — needed for correct prize scaling in calcPrize
+    db.select({ value: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
   ]);
 
   const hasResults = aggregates.some((r) => Number(r.graded) > 0);
@@ -1049,12 +1051,17 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   if (allGraded && aggregates.length > 0) {
     weekTopCorrect = Number(aggregates[0].correct);
     const winnerCount = aggregates.filter((r) => Number(r.correct) === weekTopCorrect).length;
-    if (pool.prizeStructure && pool.prizeStructure.length > 0) {
-      const total = pool.prizeStructure.reduce((sum, p) => sum + p.amount, 0);
-      weekPrizePerWinner = winnerCount === 1 ? pool.prizeStructure[0].amount : Math.floor(total / winnerCount);
-    } else if (pool.prizePot && pool.prizePot > 0) {
-      weekPrizePerWinner = Math.floor(pool.prizePot / winnerCount);
-    }
+    const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
+    weekPrizePerWinner = calcPrize({
+      prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex: 0,
+      coWinners: winnerCount,
+    });
   }
 
   // Build tiebreaker guess maps

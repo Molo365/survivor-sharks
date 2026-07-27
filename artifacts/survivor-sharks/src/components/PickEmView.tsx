@@ -2144,8 +2144,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       staleTime: 10 * 60 * 1000,
     },
   });
-  const prevWeekWinner = prevWeekResults?.hasResults && prevWeekResults.entries.length > 0
-    ? prevWeekResults.entries[0]
+  const prevWeekWinners = prevWeekResults?.hasResults && prevWeekResults.entries.length > 0
+    ? (() => {
+        const topCorrect = prevWeekResults.entries[0].correct;
+        return prevWeekResults.entries.filter(e => e.correct === topCorrect);
+      })()
     : null;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
@@ -2909,18 +2912,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* Last Week's Winner banner */}
-              {prevWeekWinner && prevWeekResults && (
+              {prevWeekWinners && prevWeekWinners.length > 0 && prevWeekResults && (
                 <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
                   <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
                   <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-yellow-200">Last Week&apos;s Winner:</span>
-                    <span className="text-sm text-yellow-300">{prevWeekWinner.displayName || prevWeekWinner.username}</span>
+                    <span className="text-sm font-semibold text-yellow-200">{prevWeekWinners.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:"}</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinners.map(w => w.displayName || w.username).join(" & ")}</span>
                     <span className="text-yellow-500/50 text-xs">·</span>
-                    <span className="text-sm text-yellow-400/70">{prevWeekWinner.correct}/{prevWeekWinner.picked} correct</span>
-                    {prevWeekWinner.prizeWon != null && (
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinners[0].correct}/{prevWeekWinners[0].picked} correct</span>
+                    {prevWeekWinners[0].prizeWon != null && (
                       <>
                         <span className="text-yellow-500/50 text-xs">·</span>
-                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinner.prizeWon}</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinners[0].prizeWon}</span>
                       </>
                     )}
                     <span className="text-yellow-500/50 text-xs">·</span>
@@ -3233,18 +3236,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* Last Week's Winner banner (weekly pools only) */}
-              {isWeekly && prevWeekWinner && prevWeekResults && (
+              {isWeekly && prevWeekWinners && prevWeekWinners.length > 0 && prevWeekResults && (
                 <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
                   <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
                   <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-yellow-200">Last Week&apos;s Winner:</span>
-                    <span className="text-sm text-yellow-300">{prevWeekWinner.displayName || prevWeekWinner.username}</span>
+                    <span className="text-sm font-semibold text-yellow-200">{prevWeekWinners.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:"}</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinners.map(w => w.displayName || w.username).join(" & ")}</span>
                     <span className="text-yellow-500/50 text-xs">·</span>
-                    <span className="text-sm text-yellow-400/70">{prevWeekWinner.correct}/{prevWeekWinner.picked} correct</span>
-                    {prevWeekWinner.prizeWon != null && (
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinners[0].correct}/{prevWeekWinners[0].picked} correct</span>
+                    {prevWeekWinners[0].prizeWon != null && (
                       <>
                         <span className="text-yellow-500/50 text-xs">·</span>
-                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinner.prizeWon}</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinners[0].prizeWon}</span>
                       </>
                     )}
                     <span className="text-yellow-500/50 text-xs">·</span>
