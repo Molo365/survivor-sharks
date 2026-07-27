@@ -160,9 +160,9 @@ function TeamSide({
           : isLocked
             ? "cursor-not-allowed"
             : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-        // Per-team win/loss border (final games with known scores) — same green-500/red-500 family as CrazyEightsGrid
-        variant === "final" && isWinner === true && "border-2 border-green-500/60",
-        variant === "final" && isWinner === false && "border-2 border-red-500/60",
+        // Picked team's cell only gets a colored border — opposing team stays plain
+        isCurrentPick && variant === "final" && pickResult === "win" && "border-2 border-green-500/60",
+        isCurrentPick && variant === "final" && pickResult === "loss" && "border-2 border-red-500/60",
         isSelected && variant === "upcoming"
           ? "ring-2 ring-inset ring-primary/70"
           : isCurrentPick && variant === "upcoming"
@@ -429,9 +429,9 @@ function MatchupCard({
               isAwayUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isAwayUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
-              // Per-team win/loss border on mobile — same green-500/red-500 family as CrazyEightsGrid
-              awayTeamWon === true && "border-2 border-green-500/60",
-              awayTeamWon === false && "border-2 border-red-500/60",
+              // Picked team's mobile button only gets a colored border — opposing stays plain
+              currentPickTeamId === game.awayTeam.id && isCorrect && "border-2 border-green-500/60",
+              currentPickTeamId === game.awayTeam.id && isWrong && "border-2 border-red-500/60",
               selectedId === game.awayTeam.id && variant === "upcoming"
                 ? "ring-2 ring-inset ring-primary/70 rounded-lg"
                 : currentPickTeamId === game.awayTeam.id && variant === "upcoming"
@@ -495,9 +495,9 @@ function MatchupCard({
               isHomeUsed ? "opacity-35 cursor-not-allowed" :
               (isGameLocked && !isHomeUsed) ? "cursor-not-allowed" :
               "cursor-pointer active:scale-95",
-              // Per-team win/loss border on mobile — same green-500/red-500 family as CrazyEightsGrid
-              homeTeamWon === true && "border-2 border-green-500/60",
-              homeTeamWon === false && "border-2 border-red-500/60",
+              // Picked team's mobile button only gets a colored border — opposing stays plain
+              currentPickTeamId === game.homeTeam.id && isCorrect && "border-2 border-green-500/60",
+              currentPickTeamId === game.homeTeam.id && isWrong && "border-2 border-red-500/60",
               selectedId === game.homeTeam.id && variant === "upcoming"
                 ? "ring-2 ring-inset ring-primary/70 rounded-lg"
                 : currentPickTeamId === game.homeTeam.id && variant === "upcoming"
