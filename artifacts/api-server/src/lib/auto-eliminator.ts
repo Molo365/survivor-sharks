@@ -648,6 +648,200 @@ export async function processCompletedGames(): Promise<{
     );
   }
 
+  // ── NHL Survivor auto-close: declare winner when exactly 1 alive entry remains ──
+  const nhlSurvivorPools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.sport, "nhl"),
+      eq(poolsTable.poolType, "season"),
+      eq(poolsTable.isActive, true),
+    ));
+
+  for (const pool of nhlSurvivorPools) {
+    const aliveEntries = await db
+      .select({ id: entriesTable.id, userId: entriesTable.userId })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+
+    // 0 = void edge case (leave for commissioner); >1 = still playing
+    if (aliveEntries.length !== 1) continue;
+
+    const winner = aliveEntries[0];
+
+    const allEntries = await db
+      .select({
+        id: entriesTable.id,
+        userId: entriesTable.userId,
+        status: entriesTable.status,
+        eliminatedWeek: entriesTable.eliminatedWeek,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, pool.id));
+
+    const totalEntries = allEntries.length;
+    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+
+    const winnerPrize = calcPrize({
+      prizeStructure: ps,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex: 0,
+      coWinners: 1,
+    });
+
+    await db
+      .update(entriesTable)
+      .set({ finishPosition: 1, prizeAmount: winnerPrize, finalWinner: true })
+      .where(eq(entriesTable.id, winner.id));
+
+    const eliminated = allEntries
+      .filter(e => e.status === "eliminated" && e.eliminatedWeek != null)
+      .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
+
+    let positionOffset = 1;
+    let ei = 0;
+    while (ei < eliminated.length) {
+      let ej = ei + 1;
+      while (ej < eliminated.length && eliminated[ej].eliminatedWeek === eliminated[ei].eliminatedWeek) ej++;
+      const group = eliminated.slice(ei, ej);
+      const finishPosition = positionOffset + 1;
+      const prize = calcPrize({
+        prizeStructure: ps,
+        prizeMode: pool.prizeMode,
+        entryFee: pool.entryFee,
+        prizePot: pool.prizePot,
+        totalEntries,
+        maxEntries: pool.maxEntries,
+        placeIndex: positionOffset,
+        coWinners: group.length,
+      });
+      await db
+        .update(entriesTable)
+        .set({ finishPosition, prizeAmount: prize })
+        .where(inArray(entriesTable.id, group.map(e => e.id)));
+      positionOffset += group.length;
+      ei = ej;
+    }
+
+    const [winnerUser] = await db
+      .select({ username: usersTable.username, displayName: usersTable.displayName })
+      .from(usersTable)
+      .where(eq(usersTable.id, winner.userId))
+      .limit(1);
+    const winnerUsername = winnerUser ? (winnerUser.displayName ?? winnerUser.username) : null;
+
+    await db
+      .update(poolsTable)
+      .set({ isActive: false, endedAt: new Date(), closureReason: winnerUsername })
+      .where(eq(poolsTable.id, pool.id));
+
+    logger.info(
+      { poolId: pool.id, winnerUserId: winner.userId, winnerUsername, totalEntries },
+      "NHL Survivor auto-close: 1 survivor remains — pool closed, standings written",
+    );
+  }
+
+  // ── NBA Survivor auto-close: declare winner when exactly 1 alive entry remains ──
+  const nbaSurvivorPools = await db
+    .select()
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.sport, "nba"),
+      eq(poolsTable.poolType, "season"),
+      eq(poolsTable.isActive, true),
+    ));
+
+  for (const pool of nbaSurvivorPools) {
+    const aliveEntries = await db
+      .select({ id: entriesTable.id, userId: entriesTable.userId })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+
+    // 0 = void edge case (leave for commissioner); >1 = still playing
+    if (aliveEntries.length !== 1) continue;
+
+    const winner = aliveEntries[0];
+
+    const allEntries = await db
+      .select({
+        id: entriesTable.id,
+        userId: entriesTable.userId,
+        status: entriesTable.status,
+        eliminatedWeek: entriesTable.eliminatedWeek,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, pool.id));
+
+    const totalEntries = allEntries.length;
+    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+
+    const winnerPrize = calcPrize({
+      prizeStructure: ps,
+      prizeMode: pool.prizeMode,
+      entryFee: pool.entryFee,
+      prizePot: pool.prizePot,
+      totalEntries,
+      maxEntries: pool.maxEntries,
+      placeIndex: 0,
+      coWinners: 1,
+    });
+
+    await db
+      .update(entriesTable)
+      .set({ finishPosition: 1, prizeAmount: winnerPrize, finalWinner: true })
+      .where(eq(entriesTable.id, winner.id));
+
+    const eliminated = allEntries
+      .filter(e => e.status === "eliminated" && e.eliminatedWeek != null)
+      .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
+
+    let positionOffset = 1;
+    let ei = 0;
+    while (ei < eliminated.length) {
+      let ej = ei + 1;
+      while (ej < eliminated.length && eliminated[ej].eliminatedWeek === eliminated[ei].eliminatedWeek) ej++;
+      const group = eliminated.slice(ei, ej);
+      const finishPosition = positionOffset + 1;
+      const prize = calcPrize({
+        prizeStructure: ps,
+        prizeMode: pool.prizeMode,
+        entryFee: pool.entryFee,
+        prizePot: pool.prizePot,
+        totalEntries,
+        maxEntries: pool.maxEntries,
+        placeIndex: positionOffset,
+        coWinners: group.length,
+      });
+      await db
+        .update(entriesTable)
+        .set({ finishPosition, prizeAmount: prize })
+        .where(inArray(entriesTable.id, group.map(e => e.id)));
+      positionOffset += group.length;
+      ei = ej;
+    }
+
+    const [winnerUser] = await db
+      .select({ username: usersTable.username, displayName: usersTable.displayName })
+      .from(usersTable)
+      .where(eq(usersTable.id, winner.userId))
+      .limit(1);
+    const winnerUsername = winnerUser ? (winnerUser.displayName ?? winnerUser.username) : null;
+
+    await db
+      .update(poolsTable)
+      .set({ isActive: false, endedAt: new Date(), closureReason: winnerUsername })
+      .where(eq(poolsTable.id, pool.id));
+
+    logger.info(
+      { poolId: pool.id, winnerUserId: winner.userId, winnerUsername, totalEntries },
+      "NBA Survivor auto-close: 1 survivor remains — pool closed, standings written",
+    );
+  }
+
   return { picksGraded, playersEliminated, weeksFinalized };
 }
 
