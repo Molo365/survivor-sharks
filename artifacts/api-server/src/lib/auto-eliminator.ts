@@ -120,7 +120,8 @@ export async function processCompletedGames(): Promise<{
     if (nhlPoolWeekKeys.length > 0) {
       await Promise.all(nhlPoolWeekKeys.map(async key => {
         const ref = nhlRows.find(r => `${r.poolId}:${r.week}` === key)!;
-        const games = await fetchNhlGamesByWeek(ref.poolCreatedAt, ref.week);
+        const anchor = ref.sandboxMode ? NHL_SANDBOX_ANCHOR : ref.poolCreatedAt;
+        const games = await fetchNhlGamesByWeek(anchor, ref.week);
         nhlGamesByPoolWeek.set(key, games);
         const completed = games.filter(g => g.isCompleted);
         logger.info(
@@ -147,7 +148,8 @@ export async function processCompletedGames(): Promise<{
     if (nbaPoolWeekKeys.length > 0) {
       await Promise.all(nbaPoolWeekKeys.map(async key => {
         const ref = nbaRows.find(r => `${r.poolId}:${r.week}` === key)!;
-        const games = await fetchNbaGamesByWeek(ref.poolCreatedAt, ref.week);
+        const anchor = ref.sandboxMode ? NBA_SANDBOX_ANCHOR : ref.poolCreatedAt;
+        const games = await fetchNbaGamesByWeek(anchor, ref.week);
         nbaGamesByPoolWeek.set(key, games);
         const completed = games.filter(g => g.isCompleted);
         logger.info(
