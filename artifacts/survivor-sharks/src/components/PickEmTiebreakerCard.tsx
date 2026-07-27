@@ -32,7 +32,12 @@ export function PickEmTiebreakerCard({
 
   return (
     <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Tiebreaker</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-1">Tiebreaker</p>
+      <p className="text-[10px] text-muted-foreground/50 mb-2">
+        {isNhl
+          ? "Closest to actual shots on goal wins; penalty minutes break a tie."
+          : "Closest to actual runs wins; strikeouts break a runs tie."}
+      </p>
 
       {isNhl ? (
         <div className="flex gap-6">

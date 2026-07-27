@@ -55,7 +55,8 @@ import {
 } from "./wc";
 import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchNbaTiebreakerStats } from "./nba-stats";
-import { fetchSingleGameStrikeouts } from "./mlb-stats";
+import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
+import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
@@ -2375,10 +2376,10 @@ export async function processPickEmResults(): Promise<{
         )
         .limit(1);
 
-      const actualCombined =
-        actualsRow.length > 0
-          ? actualsRow[0].actualPassingYards + actualsRow[0].actualRushingYards
-          : null;
+      const actualPrimary =
+        actualsRow.length > 0 ? actualsRow[0].actualPassingYards : null;
+      const actualSecondary =
+        actualsRow.length > 0 ? actualsRow[0].actualRushingYards : null;
 
       // Fetch each user's tiebreaker guess from their entry row.
       const entryTbRows = await db
@@ -2390,51 +2391,45 @@ export async function processPickEmResults(): Promise<{
         .from(entriesTable)
         .where(eq(entriesTable.poolId, pool.id));
 
-      const tbGuessByUser = new Map<number, number | null>();
+      const primaryGuessByUser = new Map<number, number | null>();
+      const secondaryGuessByUser = new Map<number, number | null>();
       for (const e of entryTbRows) {
-        const combined =
-          e.tbPassing != null && e.tbRushing != null
-            ? e.tbPassing + e.tbRushing
-            : null;
-        tbGuessByUser.set(e.userId, combined);
+        primaryGuessByUser.set(e.userId, e.tbPassing ?? null);
+        secondaryGuessByUser.set(e.userId, e.tbRushing ?? null);
       }
 
-      // 4. Build sorted player list: correct desc, tiebreaker diff asc.
-      const players = [...scoreByUser.entries()].map(([userId, correct]) => {
-        const guess = tbGuessByUser.get(userId) ?? null;
-        const tbDiff =
-          actualCombined != null && guess != null
-            ? Math.abs(guess - actualCombined)
-            : Infinity;
-        return { userId, correct, tbDiff };
-      });
+      // 4. Group players by correct count.
+      const byScore = new Map<number, number[]>();
+      for (const [userId, correct] of scoreByUser) {
+        if (!byScore.has(correct)) byScore.set(correct, []);
+        byScore.get(correct)!.push(userId);
+      }
+      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      players.sort((a, b) => {
-        if (b.correct !== a.correct) return b.correct - a.correct;
-        return a.tbDiff - b.tbDiff;
-      });
-
-      // 5. Group into tie groups.
-      // When tiebreaker data exists: group by identical (correct, tbDiff).
-      // When no tiebreaker data (all Infinity): group by score alone → co-winners.
-      const groups: (typeof players)[] = [];
-      let i = 0;
-      while (i < players.length) {
-        const { correct, tbDiff } = players[i];
-        let j = i + 1;
-        while (
-          j < players.length &&
-          players[j].correct === correct &&
-          (actualCombined == null || players[j].tbDiff === tbDiff)
-        ) {
-          j++;
+      // 5. Build finish-position groups using sequential tiebreaker resolution.
+      //    Primary stat (passing yards) decides alone; secondary (rushing yards)
+      //    breaks a primary-stat tie. Tied on both → co-winner even split.
+      const groups: number[][] = [];
+      for (const score of sortedScores) {
+        const tiedIds = byScore.get(score)!;
+        if (tiedIds.length <= 1) {
+          groups.push(tiedIds);
+        } else {
+          const resolved = resolveSequentialTiebreaker(
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+          );
+          if (resolved) {
+            groups.push([...resolved]);
+            const losers = tiedIds.filter((uid) => !resolved.has(uid));
+            if (losers.length > 0) groups.push(losers);
+          } else {
+            groups.push(tiedIds);
+          }
         }
-        groups.push(players.slice(i, j));
-        i = j;
       }
 
       // 6. Write finishPosition and prizeAmount to entries.
-      const totalEntries = players.length;
+      const totalEntries = scoreByUser.size;
       const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
       let placeIndex = 0;
 
@@ -2461,10 +2456,7 @@ export async function processPickEmResults(): Promise<{
           .where(
             and(
               eq(entriesTable.poolId, pool.id),
-              inArray(
-                entriesTable.userId,
-                group.map((p) => p.userId),
-              ),
+              inArray(entriesTable.userId, group),
             ),
           );
 
@@ -2479,7 +2471,7 @@ export async function processPickEmResults(): Promise<{
         const [winnerUser] = await db
           .select({ displayName: usersTable.displayName, username: usersTable.username })
           .from(usersTable)
-          .where(eq(usersTable.id, firstGroup[0].userId))
+          .where(eq(usersTable.id, firstGroup[0]))
           .limit(1);
         if (winnerUser) {
           closureReason = winnerUser.displayName ?? winnerUser.username;
@@ -2499,7 +2491,8 @@ export async function processPickEmResults(): Promise<{
           closureReason,
           winnerCount: firstGroup.length,
           totalEntries,
-          actualCombined,
+          actualPrimary,
+          actualSecondary,
         },
         "NFL Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
       );
@@ -2580,81 +2573,85 @@ export async function processPickEmResults(): Promise<{
         if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
       }
 
-      // 3. Fetch tiebreaker actuals (actualPassingYards + actualRushingYards).
-      //    MLB pools typically have no nfl_confidence_results row; actualCombined
-      //    will be null and tied players become co-winners.
-      const actualsRow = await db
-        .select({
-          actualPassingYards: nflConfidenceResultsTable.actualPassingYards,
-          actualRushingYards: nflConfidenceResultsTable.actualRushingYards,
-        })
-        .from(nflConfidenceResultsTable)
+      // 3. Fetch tiebreaker actuals: runs scored (primary) + strikeouts (secondary)
+      //    for the last completed game of the week. Mirrors the prev-week-results
+      //    endpoint. Falls back to null (even split) if ESPN / MLB Stats unavailable.
+      const mlbPickGameRows = await db
+        .selectDistinct({ gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
         .where(
           and(
-            eq(nflConfidenceResultsTable.poolId, pool.id),
-            eq(nflConfidenceResultsTable.week, pool.currentWeek),
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
           ),
-        )
-        .limit(1);
+        );
+      const mlbSundayDate = mlbPickGameRows.map((r) => r.gameDate).sort().pop() ?? null;
 
-      const actualCombined =
-        actualsRow.length > 0
-          ? actualsRow[0].actualPassingYards + actualsRow[0].actualRushingYards
-          : null;
+      let actualPrimary: number | null = null;
+      let actualSecondary: number | null = null;
+      if (mlbSundayDate) {
+        try {
+          const sundayGames = await fetchGamesForDate("mlb", mlbSundayDate.replace(/-/g, ""));
+          const completedGames = sundayGames.filter((g) => g.isCompleted);
+          const tiebreakerGame = completedGames[completedGames.length - 1] ?? null;
+          if (tiebreakerGame) {
+            actualPrimary = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
+            actualSecondary = await fetchDailyStrikeouts([tiebreakerGame], mlbSundayDate);
+          }
+        } catch {
+          // ESPN / MLB Stats unavailable — fall back to even split
+        }
+      }
 
       // Fetch each user's tiebreaker guess from their entry row.
       const entryTbRows = await db
         .select({
           userId: entriesTable.userId,
-          tbPassing: entriesTable.tiebreakerPassingYards,
-          tbRushing: entriesTable.tiebreakerRushingYards,
+          tbRuns: entriesTable.tiebreakerRuns,
+          tbSO: entriesTable.tiebreakerStrikeouts,
         })
         .from(entriesTable)
         .where(eq(entriesTable.poolId, pool.id));
 
-      const tbGuessByUser = new Map<number, number | null>();
+      const primaryGuessByUser = new Map<number, number | null>();
+      const secondaryGuessByUser = new Map<number, number | null>();
       for (const e of entryTbRows) {
-        const combined =
-          e.tbPassing != null && e.tbRushing != null
-            ? e.tbPassing + e.tbRushing
-            : null;
-        tbGuessByUser.set(e.userId, combined);
+        primaryGuessByUser.set(e.userId, e.tbRuns ?? null);
+        secondaryGuessByUser.set(e.userId, e.tbSO ?? null);
       }
 
-      // 4. Build sorted player list: correct desc, tiebreaker diff asc.
-      const players = [...scoreByUser.entries()].map(([userId, correct]) => {
-        const guess = tbGuessByUser.get(userId) ?? null;
-        const tbDiff =
-          actualCombined != null && guess != null
-            ? Math.abs(guess - actualCombined)
-            : Infinity;
-        return { userId, correct, tbDiff };
-      });
+      // 4. Group players by correct count.
+      const byScore = new Map<number, number[]>();
+      for (const [userId, correct] of scoreByUser) {
+        if (!byScore.has(correct)) byScore.set(correct, []);
+        byScore.get(correct)!.push(userId);
+      }
+      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      players.sort((a, b) => {
-        if (b.correct !== a.correct) return b.correct - a.correct;
-        return a.tbDiff - b.tbDiff;
-      });
-
-      // 5. Group into tie groups.
-      const groups: (typeof players)[] = [];
-      let i = 0;
-      while (i < players.length) {
-        const { correct, tbDiff } = players[i];
-        let j = i + 1;
-        while (
-          j < players.length &&
-          players[j].correct === correct &&
-          (actualCombined == null || players[j].tbDiff === tbDiff)
-        ) {
-          j++;
+      // 5. Build finish-position groups using sequential tiebreaker resolution.
+      //    Primary stat (runs) decides alone; secondary (strikeouts) breaks a
+      //    primary-stat tie. Tied on both → co-winner even split.
+      const groups: number[][] = [];
+      for (const score of sortedScores) {
+        const tiedIds = byScore.get(score)!;
+        if (tiedIds.length <= 1) {
+          groups.push(tiedIds);
+        } else {
+          const resolved = resolveSequentialTiebreaker(
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+          );
+          if (resolved) {
+            groups.push([...resolved]);
+            const losers = tiedIds.filter((uid) => !resolved.has(uid));
+            if (losers.length > 0) groups.push(losers);
+          } else {
+            groups.push(tiedIds);
+          }
         }
-        groups.push(players.slice(i, j));
-        i = j;
       }
 
       // 6. Write finishPosition and prizeAmount to entries.
-      const totalEntries = players.length;
+      const totalEntries = scoreByUser.size;
       const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
       let placeIndex = 0;
 
@@ -2681,10 +2678,7 @@ export async function processPickEmResults(): Promise<{
           .where(
             and(
               eq(entriesTable.poolId, pool.id),
-              inArray(
-                entriesTable.userId,
-                group.map((p) => p.userId),
-              ),
+              inArray(entriesTable.userId, group),
             ),
           );
 
@@ -2699,7 +2693,7 @@ export async function processPickEmResults(): Promise<{
         const [winnerUser] = await db
           .select({ displayName: usersTable.displayName, username: usersTable.username })
           .from(usersTable)
-          .where(eq(usersTable.id, firstGroup[0].userId))
+          .where(eq(usersTable.id, firstGroup[0]))
           .limit(1);
         if (winnerUser) {
           closureReason = winnerUser.displayName ?? winnerUser.username;
@@ -2719,7 +2713,8 @@ export async function processPickEmResults(): Promise<{
           closureReason,
           winnerCount: firstGroup.length,
           totalEntries,
-          actualCombined,
+          actualPrimary,
+          actualSecondary,
         },
         "MLB Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
       );
@@ -2845,19 +2840,18 @@ export async function processPickEmResults(): Promise<{
         if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
       }
 
-      // 3. Fetch tiebreaker actuals: combined shots on goal + penalty minutes
-      //    for the last completed game of the weekend. This mirrors the leaderboard's
-      //    isTiebreakerGame logic (last game on the weekend slate by espnDate order).
-      //    If ESPN stats are unavailable, actualCombined stays null and tied players
-      //    fall back to the co-winner split.
+      // 3. Fetch tiebreaker actuals: shots on goal (primary) + penalty minutes
+      //    (secondary) for the last completed game of the weekend. Sequential
+      //    resolution: shots alone decides; PIM breaks a shots-tied tie only.
+      //    Falls back to even split if ESPN stats are unavailable.
       const completedWeekendGames = nhlWeekendGames.filter((g) => g.isCompleted);
       const nhlTiebreakerGame = completedWeekendGames[completedWeekendGames.length - 1] ?? null;
-      let actualCombined: number | null = null;
+      let actualPrimary: number | null = null;
+      let actualSecondary: number | null = null;
       if (nhlTiebreakerGame) {
         const tbStats = await fetchNhlTiebreakerStats(nhlTiebreakerGame.id);
-        if (tbStats.shotsOnGoal != null && tbStats.penaltyMinutes != null) {
-          actualCombined = tbStats.shotsOnGoal + tbStats.penaltyMinutes;
-        }
+        actualPrimary = tbStats.shotsOnGoal ?? null;
+        actualSecondary = tbStats.penaltyMinutes ?? null;
       }
 
       // Fetch each user's tiebreaker guess (shots on goal + penalty minutes)
@@ -2871,49 +2865,45 @@ export async function processPickEmResults(): Promise<{
         .from(entriesTable)
         .where(eq(entriesTable.poolId, pool.id));
 
-      const tbGuessByUser = new Map<number, number | null>();
+      const primaryGuessByUser = new Map<number, number | null>();
+      const secondaryGuessByUser = new Map<number, number | null>();
       for (const e of entryTbRows) {
-        const combined =
-          e.tbShots != null && e.tbPim != null
-            ? e.tbShots + e.tbPim
-            : null;
-        tbGuessByUser.set(e.userId, combined);
+        primaryGuessByUser.set(e.userId, e.tbShots ?? null);
+        secondaryGuessByUser.set(e.userId, e.tbPim ?? null);
       }
 
-      // 4. Build sorted player list: correct desc, tiebreaker diff asc.
-      const players = [...scoreByUser.entries()].map(([userId, correct]) => {
-        const guess = tbGuessByUser.get(userId) ?? null;
-        const tbDiff =
-          actualCombined != null && guess != null
-            ? Math.abs(guess - actualCombined)
-            : Infinity;
-        return { userId, correct, tbDiff };
-      });
+      // 4. Group players by correct count.
+      const byScore = new Map<number, number[]>();
+      for (const [userId, correct] of scoreByUser) {
+        if (!byScore.has(correct)) byScore.set(correct, []);
+        byScore.get(correct)!.push(userId);
+      }
+      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      players.sort((a, b) => {
-        if (b.correct !== a.correct) return b.correct - a.correct;
-        return a.tbDiff - b.tbDiff;
-      });
-
-      // 5. Group into tie groups.
-      const groups: (typeof players)[] = [];
-      let i = 0;
-      while (i < players.length) {
-        const { correct, tbDiff } = players[i];
-        let j = i + 1;
-        while (
-          j < players.length &&
-          players[j].correct === correct &&
-          (actualCombined == null || players[j].tbDiff === tbDiff)
-        ) {
-          j++;
+      // 5. Build finish-position groups using sequential tiebreaker resolution.
+      //    Primary stat (shots on goal) decides alone; secondary (penalty minutes)
+      //    breaks a primary-stat tie. Tied on both → co-winner even split.
+      const groups: number[][] = [];
+      for (const score of sortedScores) {
+        const tiedIds = byScore.get(score)!;
+        if (tiedIds.length <= 1) {
+          groups.push(tiedIds);
+        } else {
+          const resolved = resolveSequentialTiebreaker(
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+          );
+          if (resolved) {
+            groups.push([...resolved]);
+            const losers = tiedIds.filter((uid) => !resolved.has(uid));
+            if (losers.length > 0) groups.push(losers);
+          } else {
+            groups.push(tiedIds);
+          }
         }
-        groups.push(players.slice(i, j));
-        i = j;
       }
 
       // 6. Write finishPosition and prizeAmount to entries.
-      const totalEntries = players.length;
+      const totalEntries = scoreByUser.size;
       const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
       let placeIndex = 0;
 
@@ -2940,10 +2930,7 @@ export async function processPickEmResults(): Promise<{
           .where(
             and(
               eq(entriesTable.poolId, pool.id),
-              inArray(
-                entriesTable.userId,
-                group.map((p) => p.userId),
-              ),
+              inArray(entriesTable.userId, group),
             ),
           );
 
@@ -2958,7 +2945,7 @@ export async function processPickEmResults(): Promise<{
         const [winnerUser] = await db
           .select({ displayName: usersTable.displayName, username: usersTable.username })
           .from(usersTable)
-          .where(eq(usersTable.id, firstGroup[0].userId))
+          .where(eq(usersTable.id, firstGroup[0]))
           .limit(1);
         if (winnerUser) {
           closureReason = winnerUser.displayName ?? winnerUser.username;
@@ -2978,7 +2965,8 @@ export async function processPickEmResults(): Promise<{
           closureReason,
           winnerCount: firstGroup.length,
           totalEntries,
-          actualCombined,
+          actualPrimary,
+          actualSecondary,
         },
         "NHL Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
       );
@@ -3120,10 +3108,10 @@ export async function processPickEmResults(): Promise<{
         )
         .limit(1);
 
-      const actualCombined =
-        actualsRow.length > 0
-          ? actualsRow[0].actualPassingYards + actualsRow[0].actualRushingYards
-          : null;
+      const actualPrimary =
+        actualsRow.length > 0 ? actualsRow[0].actualPassingYards : null;
+      const actualSecondary =
+        actualsRow.length > 0 ? actualsRow[0].actualRushingYards : null;
 
       // Fetch each user's tiebreaker guess from their entry row.
       const entryTbRows = await db
@@ -3135,49 +3123,44 @@ export async function processPickEmResults(): Promise<{
         .from(entriesTable)
         .where(eq(entriesTable.poolId, pool.id));
 
-      const tbGuessByUser = new Map<number, number | null>();
+      const primaryGuessByUser = new Map<number, number | null>();
+      const secondaryGuessByUser = new Map<number, number | null>();
       for (const e of entryTbRows) {
-        const combined =
-          e.tbPassing != null && e.tbRushing != null
-            ? e.tbPassing + e.tbRushing
-            : null;
-        tbGuessByUser.set(e.userId, combined);
+        primaryGuessByUser.set(e.userId, e.tbPassing ?? null);
+        secondaryGuessByUser.set(e.userId, e.tbRushing ?? null);
       }
 
-      // 4. Build sorted player list: correct desc, tiebreaker diff asc.
-      const players = [...scoreByUser.entries()].map(([userId, correct]) => {
-        const guess = tbGuessByUser.get(userId) ?? null;
-        const tbDiff =
-          actualCombined != null && guess != null
-            ? Math.abs(guess - actualCombined)
-            : Infinity;
-        return { userId, correct, tbDiff };
-      });
+      // 4. Group players by correct count.
+      const byScore = new Map<number, number[]>();
+      for (const [userId, correct] of scoreByUser) {
+        if (!byScore.has(correct)) byScore.set(correct, []);
+        byScore.get(correct)!.push(userId);
+      }
+      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      players.sort((a, b) => {
-        if (b.correct !== a.correct) return b.correct - a.correct;
-        return a.tbDiff - b.tbDiff;
-      });
-
-      // 5. Group into tie groups.
-      const groups: (typeof players)[] = [];
-      let i = 0;
-      while (i < players.length) {
-        const { correct, tbDiff } = players[i];
-        let j = i + 1;
-        while (
-          j < players.length &&
-          players[j].correct === correct &&
-          (actualCombined == null || players[j].tbDiff === tbDiff)
-        ) {
-          j++;
+      // 5. Build finish-position groups using sequential tiebreaker resolution.
+      //    MLS pools have no tiebreaker stats; actuals are always null → even split.
+      const groups: number[][] = [];
+      for (const score of sortedScores) {
+        const tiedIds = byScore.get(score)!;
+        if (tiedIds.length <= 1) {
+          groups.push(tiedIds);
+        } else {
+          const resolved = resolveSequentialTiebreaker(
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+          );
+          if (resolved) {
+            groups.push([...resolved]);
+            const losers = tiedIds.filter((uid) => !resolved.has(uid));
+            if (losers.length > 0) groups.push(losers);
+          } else {
+            groups.push(tiedIds);
+          }
         }
-        groups.push(players.slice(i, j));
-        i = j;
       }
 
       // 6. Write finishPosition and prizeAmount to entries.
-      const totalEntries = players.length;
+      const totalEntries = scoreByUser.size;
       const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
       let placeIndex = 0;
 
@@ -3204,10 +3187,7 @@ export async function processPickEmResults(): Promise<{
           .where(
             and(
               eq(entriesTable.poolId, pool.id),
-              inArray(
-                entriesTable.userId,
-                group.map((p) => p.userId),
-              ),
+              inArray(entriesTable.userId, group),
             ),
           );
 
@@ -3222,7 +3202,7 @@ export async function processPickEmResults(): Promise<{
         const [winnerUser] = await db
           .select({ displayName: usersTable.displayName, username: usersTable.username })
           .from(usersTable)
-          .where(eq(usersTable.id, firstGroup[0].userId))
+          .where(eq(usersTable.id, firstGroup[0]))
           .limit(1);
         if (winnerUser) {
           closureReason = winnerUser.displayName ?? winnerUser.username;
@@ -3242,7 +3222,8 @@ export async function processPickEmResults(): Promise<{
           closureReason,
           winnerCount: firstGroup.length,
           totalEntries,
-          actualCombined,
+          actualPrimary,
+          actualSecondary,
         },
         "MLS Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
       );

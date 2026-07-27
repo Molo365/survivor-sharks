@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, count } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
+import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAuth } from "../middlewares/auth";
 import {
@@ -1097,42 +1098,46 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   if (allGraded && weekTopCorrect >= 0) {
     const tiedAggregates = aggregates.filter((r) => Number(r.correct) === weekTopCorrect);
     if (tiedAggregates.length > 1) {
-      if (isMlb && tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null) {
-        const diffs = tiedAggregates.map((r) => {
-          const tb = tbMlbEntries?.find((e) => e.userId === r.userId);
-          const runsG = tb?.tiebreakerRuns ?? null;
-          const soG = tb?.tiebreakerStrikeouts ?? null;
-          if (runsG == null || soG == null) return { userId: r.userId, diff: Infinity };
-          return {
-            userId: r.userId,
-            diff: Math.abs(runsG - tiebreakerActualRuns!) + Math.abs(soG - tiebreakerActualStrikeouts!),
-          };
-        });
-        const minDiff = Math.min(...diffs.map((d) => d.diff));
-        if (isFinite(minDiff)) {
-          const winners = diffs.filter((d) => d.diff === minDiff);
-          if (winners.length < tiedAggregates.length) {
-            tiebreakWinnerIds = new Set(winners.map((d) => d.userId));
-          }
-        }
-      } else if (isNhl && tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null) {
-        const diffs = tiedAggregates.map((r) => {
-          const tb = tbNhlEntries?.find((e) => e.userId === r.userId);
-          const soG = tb?.tiebreakerShotsOnGoal ?? null;
-          const pimG = tb?.tiebreakerPenaltyMinutes ?? null;
-          if (soG == null || pimG == null) return { userId: r.userId, diff: Infinity };
-          return {
-            userId: r.userId,
-            diff: Math.abs(soG - tiebreakerActualShotsOnGoal!) + Math.abs(pimG - tiebreakerActualPenaltyMinutes!),
-          };
-        });
-        const minDiff = Math.min(...diffs.map((d) => d.diff));
-        if (isFinite(minDiff)) {
-          const winners = diffs.filter((d) => d.diff === minDiff);
-          if (winners.length < tiedAggregates.length) {
-            tiebreakWinnerIds = new Set(winners.map((d) => d.userId));
-          }
-        }
+      if (isMlb) {
+        const primaryGuesses = new Map<number, number | null>(
+          tiedAggregates.map((r) => {
+            const tb = tbMlbEntries?.find((e) => e.userId === r.userId);
+            return [r.userId, tb?.tiebreakerRuns ?? null];
+          }),
+        );
+        const secondaryGuesses = new Map<number, number | null>(
+          tiedAggregates.map((r) => {
+            const tb = tbMlbEntries?.find((e) => e.userId === r.userId);
+            return [r.userId, tb?.tiebreakerStrikeouts ?? null];
+          }),
+        );
+        tiebreakWinnerIds = resolveSequentialTiebreaker(
+          tiedAggregates.map((r) => r.userId),
+          primaryGuesses,
+          secondaryGuesses,
+          tiebreakerActualRuns,
+          tiebreakerActualStrikeouts,
+        );
+      } else if (isNhl) {
+        const primaryGuesses = new Map<number, number | null>(
+          tiedAggregates.map((r) => {
+            const tb = tbNhlEntries?.find((e) => e.userId === r.userId);
+            return [r.userId, tb?.tiebreakerShotsOnGoal ?? null];
+          }),
+        );
+        const secondaryGuesses = new Map<number, number | null>(
+          tiedAggregates.map((r) => {
+            const tb = tbNhlEntries?.find((e) => e.userId === r.userId);
+            return [r.userId, tb?.tiebreakerPenaltyMinutes ?? null];
+          }),
+        );
+        tiebreakWinnerIds = resolveSequentialTiebreaker(
+          tiedAggregates.map((r) => r.userId),
+          primaryGuesses,
+          secondaryGuesses,
+          tiebreakerActualShotsOnGoal,
+          tiebreakerActualPenaltyMinutes,
+        );
       }
     }
   }

@@ -19,6 +19,7 @@ import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
+import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 
 const router = Router();
 
@@ -1321,40 +1322,29 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                 if (isMlbDash) {
                   const actualRuns = (lastGame.homeScore ?? 0) + (lastGame.awayScore ?? 0);
                   const actualSO = await fetchDailyStrikeouts([lastGame], prevWeekEndDate);
-                  if (actualRuns != null && actualSO != null) {
-                    const diffs = tbRows.map((e) => {
-                      const runsG = (e as any).tiebreakerRuns ?? null;
-                      const soG = (e as any).tiebreakerStrikeouts ?? null;
-                      if (runsG == null || soG == null) return { userId: e.userId, diff: Infinity };
-                      return { userId: e.userId, diff: Math.abs(runsG - actualRuns) + Math.abs(soG - actualSO) };
-                    });
-                    const minDiff = Math.min(...diffs.map(d => d.diff));
-                    if (isFinite(minDiff)) {
-                      const winners = diffs.filter(d => d.diff === minDiff);
-                      if (winners.length < tiedPrevRows.length) {
-                        resolvedIds = new Set<number>(winners.map(d => d.userId as number));
-                      }
-                    }
-                  }
+                  const primaryGuesses = new Map<number, number | null>(
+                    tbRows.map((e) => [e.userId as number, (e as any).tiebreakerRuns ?? null]),
+                  );
+                  const secondaryGuesses = new Map<number, number | null>(
+                    tbRows.map((e) => [e.userId as number, (e as any).tiebreakerStrikeouts ?? null]),
+                  );
+                  resolvedIds = resolveSequentialTiebreaker(
+                    tiedUserIds, primaryGuesses, secondaryGuesses, actualRuns, actualSO,
+                  );
                 } else {
                   // NHL — skip sandbox pools (game IDs don't match real schedule)
                   if (!pool.sandboxMode) {
                     const stats = await fetchNhlTiebreakerStats(lastGame.id);
-                    if (stats.shotsOnGoal != null && stats.penaltyMinutes != null) {
-                      const diffs = tbRows.map((e) => {
-                        const soG = (e as any).tiebreakerShotsOnGoal ?? null;
-                        const pimG = (e as any).tiebreakerPenaltyMinutes ?? null;
-                        if (soG == null || pimG == null) return { userId: e.userId, diff: Infinity };
-                        return { userId: e.userId, diff: Math.abs(soG - stats.shotsOnGoal!) + Math.abs(pimG - stats.penaltyMinutes!) };
-                      });
-                      const minDiff = Math.min(...diffs.map(d => d.diff));
-                      if (isFinite(minDiff)) {
-                        const winners = diffs.filter(d => d.diff === minDiff);
-                        if (winners.length < tiedPrevRows.length) {
-                          resolvedIds = new Set<number>(winners.map(d => d.userId as number));
-                        }
-                      }
-                    }
+                    const primaryGuesses = new Map<number, number | null>(
+                      tbRows.map((e) => [e.userId as number, (e as any).tiebreakerShotsOnGoal ?? null]),
+                    );
+                    const secondaryGuesses = new Map<number, number | null>(
+                      tbRows.map((e) => [e.userId as number, (e as any).tiebreakerPenaltyMinutes ?? null]),
+                    );
+                    resolvedIds = resolveSequentialTiebreaker(
+                      tiedUserIds, primaryGuesses, secondaryGuesses,
+                      stats.shotsOnGoal ?? null, stats.penaltyMinutes ?? null,
+                    );
                   }
                 }
                 if (resolvedIds) {
