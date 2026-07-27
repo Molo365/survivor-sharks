@@ -779,7 +779,7 @@ export function MatchupPickGrid({
 
   // ── Loading states ─────────────────────────────────────────────────────────
 
-  if (((sport === "mlb" || sport === "nfl" || sport === "nhl") ? loadingSchedule : loadingGames) || loadingPicks) {
+  if (((sport === "mlb" || sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season")) ? loadingSchedule : loadingGames) || loadingPicks) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
@@ -954,7 +954,9 @@ export function MatchupPickGrid({
   }
 
   // ── Non-MLB: flat game list ────────────────────────────────────────────────
-  // NFL + NHL use the pool-scoped schedule; NBA/FIFA still use the live feed.
+  // NFL, NHL, and NBA Survivor (poolType==="season") use the pool-scoped schedule
+  // (date-bounded, sandbox-aware). Other NBA pool types (if any reach this component)
+  // and FIFA still use the live feed via useListSportGames.
   // NHL Survivor Season additionally filters down to Saturday games only.
 
   const scheduleDays = schedule?.days ?? [];
@@ -962,7 +964,7 @@ export function MatchupPickGrid({
     ? scheduleDays.filter(d => new Date(d.date + "T12:00:00Z").getUTCDay() === 6)
     : scheduleDays;
 
-  const gameList = (sport === "nfl" || sport === "nhl")
+  const gameList = (sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season"))
     ? visibleDays.flatMap(d => d.games)
     : (games ?? []);
 
