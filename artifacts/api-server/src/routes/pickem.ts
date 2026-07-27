@@ -1026,7 +1026,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     // Previous week's Sunday ESPN games — tiebreaker reference is the last game by start time.
     // Sandbox NHL excluded (its game IDs come from the NHL anchor, not the real schedule).
     (isMlb || (isNhl && !pool.sandboxMode))
-      ? fetchGamesForDate(sport, prevWeekBounds.weekEnd)
+      ? fetchGamesForDate(sport, prevWeekBounds.weekEnd.replace(/-/g, ""))
       : Promise.resolve(null as null),
   ]);
 
