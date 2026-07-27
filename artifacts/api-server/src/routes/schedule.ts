@@ -659,8 +659,9 @@ router.patch("/sandbox-week", requireAuth, async (req, res) => {
   }
 
   // Clamp week to a sport-appropriate maximum:
-  // NFL has 18 regular-season weeks; NHL regular season spans ~26 weeks.
-  const maxWeek = pool.sport === "nhl" ? 26 : 18;
+  // NFL has 18 regular-season weeks; NHL regular season spans ~26 weeks;
+  // NBA sandbox uses a Nov 2025 anchor — weeks 1-12 covers through late Jan 2026.
+  const maxWeek = pool.sport === "nhl" ? 26 : pool.sport === "nba" ? 12 : 18;
   const week = Math.max(1, Math.min(maxWeek, parseInt(String(req.body.week)) || 1));
   // Write both so currentWeek is always the authoritative source of truth.
   // sandboxWeek stays in sync as a mirror; all consumers read currentWeek directly.

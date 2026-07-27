@@ -392,8 +392,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
         )
       )}
 
-      {/* Sandbox Mode — NFL/NHL survivor + NHL weekly Pick'em + NHL Crazy 8s, super admin only */}
-      {(pool.sport === "nfl" || pool.sport === "nhl") && (
+      {/* Sandbox Mode — NFL/NHL/NBA survivor + NHL weekly Pick'em + NHL Crazy 8s, super admin only */}
+      {(pool.sport === "nfl" || pool.sport === "nhl" || pool.sport === "nba") && (
         ["season", "weekly", "mid_season"].includes(pool.poolType) ||
         (pool.poolType === "pickem" && (pool as any).pickFrequency === "weekly") ||
         ((pool.poolType as string) === "crazy_8s" && pool.sport === "nhl")
@@ -406,7 +406,9 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
             <CardDescription className="text-muted-foreground/80">
               {sport === "nhl"
                 ? "Use the 2025-26 NHL regular-season schedule for testing — picks are always unlocked in sandbox."
-                : "Use the 2025 NFL schedule for testing — picks are always unlocked in sandbox."}
+                : sport === "nba"
+                  ? "Use the 2025-26 NBA regular-season schedule (Nov 2025 anchor) for testing — picks are always unlocked in sandbox."
+                  : "Use the 2025 NFL schedule for testing — picks are always unlocked in sandbox."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -414,7 +416,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
               <div>
                 <p className="font-semibold text-sm text-foreground">Enable Sandbox</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {sport === "nhl" ? "Serve 2025-26 NHL games instead of live schedule" : "Serve 2025 NFL games instead of live schedule"}
+                  {sport === "nhl" ? "Serve 2025-26 NHL games instead of live schedule" : sport === "nba" ? "Serve 2025-26 NBA games (Nov 2025 anchor) instead of live schedule" : "Serve 2025 NFL games instead of live schedule"}
                 </p>
               </div>
               <Switch checked={localSandboxMode} disabled={togglingMode} onCheckedChange={handleToggleSandbox} />
@@ -424,15 +426,15 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
                 <div className="flex items-end gap-3">
                   <div className="grid gap-2 flex-1 max-w-[160px]">
                     <Label className="font-bebas text-lg tracking-wide text-yellow-300/80">
-                      {sport === "nhl" ? "Week (1–26)" : "Week (1–18)"}
+                      {sport === "nhl" ? "Week (1–26)" : sport === "nba" ? "Week (1–12)" : "Week (1–18)"}
                     </Label>
                     <Input
                       type="number"
                       min={1}
-                      max={sport === "nhl" ? 26 : 18}
+                      max={sport === "nhl" ? 26 : sport === "nba" ? 12 : 18}
                       value={sandboxWeek}
                       onChange={e => {
-                        const max = sport === "nhl" ? 26 : 18;
+                        const max = sport === "nhl" ? 26 : sport === "nba" ? 12 : 18;
                         setSandboxWeek(Math.min(max, Math.max(1, parseInt(e.target.value) || 1)));
                       }}
                       className="bg-background/50 border-yellow-500/20 w-full"
