@@ -687,14 +687,14 @@ export function MatchupPickGrid({
   isEliminated?: boolean;
   eliminatedWeek?: number | null;
 }) {
-  // MLB, NFL, NHL: pool-scoped schedule (correctly date-bounded per week)
+  // MLB, NFL, NHL, NBA Survivor: pool-scoped schedule (correctly date-bounded per week, sandbox-aware)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
-    query: { enabled: sport === "mlb" || sport === "nfl" || sport === "nhl", queryKey: ["pool-schedule", poolId] },
+    query: { enabled: sport === "mlb" || sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season"), queryKey: ["pool-schedule", poolId] },
   });
 
-  // Non-MLB, non-NFL, non-NHL: flat game list from ESPN schedule (NBA/FIFA)
+  // Non-MLB, non-NFL, non-NHL, non-NBA-Survivor: flat game list from ESPN schedule (NBA crazy_8s/FIFA)
   const { data: games, isLoading: loadingGames } = useListSportGames(sport, currentWeek, {
-    query: { enabled: !!sport && !!currentWeek && sport !== "mlb" && sport !== "nfl" && sport !== "nhl", queryKey: ["schedule", sport, currentWeek] },
+    query: { enabled: !!sport && !!currentWeek && sport !== "mlb" && sport !== "nfl" && sport !== "nhl" && !(sport === "nba" && poolType === "season"), queryKey: ["schedule", sport, currentWeek] },
   });
 
   const { data: picks, isLoading: loadingPicks } = useGetMyPicks(poolId, {
