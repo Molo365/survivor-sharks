@@ -313,7 +313,7 @@ function BaseDiamond({
   );
 }
 
-type SelectedTeam = { id: string; name: string; logoUrl: string | null };
+type SelectedTeam = { id: string; gameId: string; name: string; logoUrl: string | null };
 
 function MatchupCard({
   game,
@@ -355,8 +355,9 @@ function MatchupCard({
   const isGameLocked = deadlineLock ? deadlineLock : game.hasStarted;
   const isHomeUsed = pickedTeamIds.includes(game.homeTeam.id) && currentPickTeamId !== game.homeTeam.id;
   const isAwayUsed = pickedTeamIds.includes(game.awayTeam.id) && currentPickTeamId !== game.awayTeam.id;
-  const selectedId = selectedTeam?.id;
-  const selectedInGame = game.homeTeam.id === selectedId || game.awayTeam.id === selectedId;
+  // Gate selectedId on this specific game so the same team in a different matchup doesn't get highlighted.
+  const selectedId = selectedTeam?.gameId === game.id ? selectedTeam.id : undefined;
+  const selectedInGame = selectedId != null && (game.homeTeam.id === selectedId || game.awayTeam.id === selectedId);
 
   const overUnder = game.odds?.overUnder;
   const isOutdoor = sport === "nfl" || sport === "mlb";
@@ -423,7 +424,7 @@ function MatchupCard({
           {/* Away */}
           <button
             type="button"
-            onClick={(isAwayUsed || (isGameLocked && !isAwayUsed)) ? undefined : () => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
+            onClick={(isAwayUsed || (isGameLocked && !isAwayUsed)) ? undefined : () => onSelect({ id: game.awayTeam.id, gameId: game.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
             className={cn(
               "flex-1 flex flex-col items-center py-2.5 px-2 gap-0.5 transition-all",
               isAwayUsed ? "opacity-35 cursor-not-allowed" :
@@ -489,7 +490,7 @@ function MatchupCard({
           {/* Home */}
           <button
             type="button"
-            onClick={(isHomeUsed || (isGameLocked && !isHomeUsed)) ? undefined : () => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
+            onClick={(isHomeUsed || (isGameLocked && !isHomeUsed)) ? undefined : () => onSelect({ id: game.homeTeam.id, gameId: game.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
             className={cn(
               "flex-1 flex flex-col items-center py-2.5 px-2 gap-0.5 transition-all",
               isHomeUsed ? "opacity-35 cursor-not-allowed" :
@@ -564,7 +565,7 @@ function MatchupCard({
             isUsed={isAwayUsed}
             isLocked={isGameLocked && !isAwayUsed}
             isCurrentPick={currentPickTeamId === game.awayTeam.id}
-            onClick={() => onSelect({ id: game.awayTeam.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
+            onClick={() => onSelect({ id: game.awayTeam.id, gameId: game.id, name: game.awayTeam.name, logoUrl: game.awayTeam.logoUrl ?? null })}
             side="away"
             variant={variant}
             sport={sport}
@@ -667,7 +668,7 @@ function MatchupCard({
             isUsed={isHomeUsed}
             isLocked={isGameLocked && !isHomeUsed}
             isCurrentPick={currentPickTeamId === game.homeTeam.id}
-            onClick={() => onSelect({ id: game.homeTeam.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
+            onClick={() => onSelect({ id: game.homeTeam.id, gameId: game.id, name: game.homeTeam.name, logoUrl: game.homeTeam.logoUrl ?? null })}
             side="home"
             variant={variant}
             sport={sport}
@@ -929,7 +930,7 @@ export function MatchupPickGrid({
                       selectedTeam={mlbPickIsLocked ? null : selectedTeam}
                       onSelect={(team) => {
                         if (!mlbPickIsLocked) {
-                          setSelectedTeam(prev => prev?.id === team.id ? null : team);
+                          setSelectedTeam(prev => prev?.gameId === team.gameId && prev?.id === team.id ? null : team);
                         }
                       }}
                       deadlineLock={mlbPickIsLocked}
@@ -1090,7 +1091,7 @@ export function MatchupPickGrid({
               currentPickResult={currentPick?.result ?? null}
               selectedTeam={pickIsLocked ? null : selectedTeam}
               onSelect={(team) => {
-                if (!pickIsLocked) setSelectedTeam(prev => prev?.id === team.id ? null : team);
+                if (!pickIsLocked) setSelectedTeam(prev => prev?.gameId === team.gameId && prev?.id === team.id ? null : team);
               }}
             />
           ))}
