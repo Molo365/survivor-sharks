@@ -1162,7 +1162,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   let weekRank = 1;
   const entries = aggregates.map((row, i) => {
-    if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
+    if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
+      // tiebreaker resolved: confirmed winners keep rank 1; tied-on-picks losers drop to rank (winners + 1)
+      weekRank = tiebreakWinnerIds.has(row.userId) ? 1 : tiebreakWinnerIds.size + 1;
+    } else if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
       // same rank as previous — tie
     } else {
       weekRank = i + 1;

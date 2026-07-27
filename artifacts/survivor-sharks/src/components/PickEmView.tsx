@@ -2146,6 +2146,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   });
   const prevWeekWinners = prevWeekResults?.hasResults && prevWeekResults.entries.length > 0
     ? (() => {
+        // Prefer prize-gated winners (already tiebreak-resolved on the backend)
+        const byPrize = prevWeekResults.entries.filter(e => (e as any).prizeWon != null);
+        if (byPrize.length > 0) return byPrize;
+        // Fallback: top correct count (prize unavailable / sandbox pool)
         const topCorrect = prevWeekResults.entries[0].correct;
         return prevWeekResults.entries.filter(e => e.correct === topCorrect);
       })()
