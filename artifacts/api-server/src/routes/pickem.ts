@@ -355,7 +355,8 @@ router.get("/week-games", requireAuth, async (req, res) => {
     };
   });
 
-  res.json({ weekStart, weekEnd, days });
+  const poolClosed = !pool.isActive && !pool.isRecurring;
+  res.json({ weekStart, weekEnd, days, poolClosed });
 });
 
 // GET /api/pools/:poolId/pickem/wc-schedule
