@@ -1245,13 +1245,31 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // For NHL/NBA weekly sandbox pools picks are stored against anchor dates
   // (e.g. "2025-10-04"), not the real-world current week. Use the same anchor
   // week bounds here so the picksWhereClause actually matches those rows.
-  const weekBounds = isWeekly
-    ? (sport === "nhl" && pool.sandboxMode)
-      ? (() => { const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek); return { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! }; })()
-      : (sport === "nba" && pool.sandboxMode)
-      ? (() => { const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek); return { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! }; })()
-      : getWeekBoundsEt(todayEt)
-    : null;
+  // For ended non-sandbox weekly pools, derive bounds from the most recent
+  // pick's gameDate so we query the week the pool actually played, not today.
+  let weekBounds: { weekStart: string; weekEnd: string } | null = null;
+  if (isWeekly) {
+    if (sport === "nhl" && pool.sandboxMode) {
+      const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
+      weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
+    } else if (sport === "nba" && pool.sandboxMode) {
+      const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
+      weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
+    } else if (!pool.isActive) {
+      // Ended weekly pool — look up the last graded pick's date and use that
+      // week's bounds so the leaderboard returns historical data, not an empty
+      // current-week result set. (Mirrors the daily pool fallback below.)
+      const [latestWeekRow] = await db
+        .select({ gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(eq(pickemPicksTable.poolId, poolId))
+        .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
+        .limit(1);
+      weekBounds = getWeekBoundsEt(latestWeekRow ? latestWeekRow.gameDate : todayEt);
+    } else {
+      weekBounds = getWeekBoundsEt(todayEt);
+    }
+  }
 
   // For ended daily pools use the actual last game date so the leaderboard
   // returns the final standings rather than an empty today-date result set.
