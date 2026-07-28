@@ -1276,7 +1276,8 @@ export async function settleNflConfidenceWeeklyPool(
     .where(and(eq(nflConfidenceResultsTable.poolId, pool.id), eq(nflConfidenceResultsTable.week, week)))
     .limit(1);
 
-  const actualCombined = (resultsRow?.actualPassingYards ?? 0) + (resultsRow?.actualRushingYards ?? 0);
+  const actualPassingYards = resultsRow?.actualPassingYards ?? null;
+  const actualRushingYards = resultsRow?.actualRushingYards ?? null;
 
   const scoreRows = await db
     .select({
@@ -1308,13 +1309,15 @@ export async function settleNflConfidenceWeeklyPool(
   const usernameMap = new Map(userRows.map((u) => [u.id, u.displayName ?? u.username]));
 
   const scoreMap = new Map(scoreRows.map((r) => [r.userId, Number(r.points)]));
+  // Sort by confidence points only — tiebreaker resolves ties within each group.
   const players = entryRows.map((e) => ({
     userId: e.userId,
     entryId: e.id,
     points: scoreMap.get(e.userId) ?? 0,
-    tbDiff: Math.abs(((e.tiebreakerPassingYards ?? 0) + (e.tiebreakerRushingYards ?? 0)) - actualCombined),
+    passingGuess: e.tiebreakerPassingYards ?? null,
+    rushingGuess: e.tiebreakerRushingYards ?? null,
   }));
-  players.sort((a, b) => b.points - a.points || a.tbDiff - b.tbDiff);
+  players.sort((a, b) => b.points - a.points);
 
   const totalEntries = players.length;
   const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
@@ -1322,33 +1325,78 @@ export async function settleNflConfidenceWeeklyPool(
   let i = 0;
 
   while (i < players.length) {
+    // Find end of this points-tied group.
     let j = i + 1;
-    while (
-      j < players.length &&
-      players[j].points === players[i].points &&
-      players[j].tbDiff === players[i].tbDiff
-    ) j++;
-
+    while (j < players.length && players[j].points === players[i].points) j++;
     const group = players.slice(i, j);
-    const finishPosition = positionOffset + 1;
-    const coWinners = group.length;
-    const prize = calcPrize({
-      prizeStructure: ps,
-      prizeMode: pool.prizeMode,
-      entryFee: pool.entryFee,
-      prizePot: pool.prizePot,
-      totalEntries,
-      maxEntries: pool.maxEntries,
-      placeIndex: positionOffset,
-      coWinners,
-    });
 
-    await db
-      .update(entriesTable)
-      .set({ finishPosition, prizeAmount: prize, finalWinner: finishPosition === 1 })
-      .where(inArray(entriesTable.id, group.map((p) => p.entryId)));
+    if (group.length === 1) {
+      // No tie — assign directly.
+      const finishPosition = positionOffset + 1;
+      const prize = calcPrize({
+        prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee,
+        prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries,
+        placeIndex: positionOffset, coWinners: 1,
+      });
+      await db.update(entriesTable)
+        .set({ finishPosition, prizeAmount: prize, finalWinner: finishPosition === 1 })
+        .where(inArray(entriesTable.id, group.map((p) => p.entryId)));
+      positionOffset += 1;
+    } else {
+      // Tied on points — apply sequential tiebreaker (passing primary, rushing secondary).
+      const primaryGuesses = new Map(group.map((p) => [p.userId, p.passingGuess]));
+      const secondaryGuesses = new Map(group.map((p) => [p.userId, p.rushingGuess]));
+      const winnerIds = resolveSequentialTiebreaker(
+        group.map((p) => p.userId),
+        primaryGuesses,
+        secondaryGuesses,
+        actualPassingYards,
+        actualRushingYards,
+      );
 
-    positionOffset += coWinners;
+      if (winnerIds !== null) {
+        // Tiebreaker resolved: write winners, then the rest at the next rank.
+        const winners = group.filter((p) => winnerIds.has(p.userId));
+        const losers  = group.filter((p) => !winnerIds.has(p.userId));
+
+        const winnerPos = positionOffset + 1;
+        const winnerPrize = calcPrize({
+          prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee,
+          prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries,
+          placeIndex: positionOffset, coWinners: winners.length,
+        });
+        await db.update(entriesTable)
+          .set({ finishPosition: winnerPos, prizeAmount: winnerPrize, finalWinner: winnerPos === 1 })
+          .where(inArray(entriesTable.id, winners.map((p) => p.entryId)));
+        positionOffset += winners.length;
+
+        if (losers.length > 0) {
+          const loserPos = positionOffset + 1;
+          const loserPrize = calcPrize({
+            prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee,
+            prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries,
+            placeIndex: positionOffset, coWinners: losers.length,
+          });
+          await db.update(entriesTable)
+            .set({ finishPosition: loserPos, prizeAmount: loserPrize, finalWinner: false })
+            .where(inArray(entriesTable.id, losers.map((p) => p.entryId)));
+          positionOffset += losers.length;
+        }
+      } else {
+        // No resolution — even prize split, all share the same rank.
+        const finishPosition = positionOffset + 1;
+        const prize = calcPrize({
+          prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee,
+          prizePot: pool.prizePot, totalEntries, maxEntries: pool.maxEntries,
+          placeIndex: positionOffset, coWinners: group.length,
+        });
+        await db.update(entriesTable)
+          .set({ finishPosition, prizeAmount: prize, finalWinner: finishPosition === 1 })
+          .where(inArray(entriesTable.id, group.map((p) => p.entryId)));
+        positionOffset += group.length;
+      }
+    }
+
     i = j;
   }
 
@@ -2400,6 +2448,55 @@ export async function processPickEmResults(): Promise<{
         }
       } catch (err) {
         logger.error({ poolId: pool.id, err }, "nfl_confidence auto-closure: sandbox closure check error");
+      }
+    }
+
+    // ── nfl_confidence_weekly auto-closure (sandbox/replay) ──────────────────
+    // Mirrors the live closure block. Picks are graded from sandboxGameScoresTable
+    // above; the pending check queries the same pickemPicksTable used by the live
+    // path — no adaptation needed for sandbox data sources.
+    if (pool.poolType === "nfl_confidence_weekly" && pool.isActive) {
+      try {
+        const [stillPending] = await db
+          .select({ id: pickemPicksTable.id })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "pending"),
+          ))
+          .limit(1);
+
+        if (!stillPending) {
+          const [{ totalPicks }] = await db
+            .select({ totalPicks: count() })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.week, pool.currentWeek),
+            ));
+
+          if (Number(totalPicks) > 0) {
+            if (!pool.isRecurring) {
+              await settleNflConfidenceWeeklyPool(pool, pool.currentWeek);
+              logger.info(
+                { poolId: pool.id, week: pool.currentWeek },
+                "NFL Confidence Weekly sandbox: week fully graded — pool settled and closed",
+              );
+            } else {
+              await db
+                .update(poolsTable)
+                .set({ currentWeek: pool.currentWeek + 1 })
+                .where(eq(poolsTable.id, pool.id));
+              logger.info(
+                { poolId: pool.id, nextWeek: pool.currentWeek + 1 },
+                "NFL Confidence Weekly sandbox: week fully graded — advanced to next week",
+              );
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, err }, "nfl_confidence_weekly sandbox auto-closure: error");
       }
     }
   }
