@@ -1776,10 +1776,13 @@ function PrevWeekResultsModal({
                       <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
                         Total
                       </th>
+                      <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
+                        Prize
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((entry, idx) => {
+                    {[...entries].sort((a, b) => a.rank - b.rank).map((entry, idx) => {
                       const isMe = entry.userId === currentUserId;
                       const isWinner = entry.rank === 1;
                       const breakdownMap = new Map((entry.dailyBreakdown ?? []).map((db: PickEmDailyBreakdown) => [db.date, db]));
@@ -1865,11 +1868,18 @@ function PrevWeekResultsModal({
                               <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
                               {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
                             </td>
+                            <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                              {(entry as any).prizeWon != null ? (
+                                <span className="font-bebas text-lg text-yellow-300">${(entry as any).prizeWon}</span>
+                              ) : (
+                                <span className="text-muted-foreground/25 text-xs">—</span>
+                              )}
+                            </td>
                           </tr>
 
                           {isPanelOpen && openCell && (
                             <tr className="border-b border-border/10">
-                              <td colSpan={days.length + 2} className="p-0">
+                              <td colSpan={days.length + 3} className="p-0">
                                 <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
                               </td>
                             </tr>
