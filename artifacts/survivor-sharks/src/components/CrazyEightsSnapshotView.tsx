@@ -52,6 +52,7 @@ export interface CrazyEightsSnapshotViewProps {
   currentUserId: number | null;
   poolName: string;
   sport: string;
+  sandboxMode?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -89,14 +90,16 @@ export function CrazyEightsSnapshotView({
   currentUserId,
   poolName,
   sport,
+  sandboxMode = false,
 }: CrazyEightsSnapshotViewProps) {
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const dateParam = sandboxMode ? "" : todayEt;
 
   const { data, isLoading, isError, error } = useQuery<GridResponse>({
-    queryKey: ["crazy-eights-snapshot", poolId, todayEt],
+    queryKey: ["crazy-eights-snapshot", poolId, sandboxMode ? "sandbox" : todayEt],
     queryFn: () =>
       authedFetch<GridResponse>(
-        `/api/pools/${poolId}/crazy-eights/grid?date=${todayEt}`,
+        `/api/pools/${poolId}/crazy-eights/grid?date=${dateParam}`,
       ),
     staleTime: 30_000,
     refetchInterval: 60_000,

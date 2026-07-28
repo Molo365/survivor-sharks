@@ -387,6 +387,7 @@ export default function PoolHome() {
                       currentUserId={user?.id ?? null}
                       poolName={pool.name}
                       sport={pool.sport}
+                      sandboxMode={(pool as any).sandboxMode ?? false}
                     />
                   </TabsContent>
                   {isCommissioner && (
