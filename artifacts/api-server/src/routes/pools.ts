@@ -249,7 +249,15 @@ router.post("/", requireAuth, async (req, res) => {
     startWeek: startWeek ?? null,
     description: description ?? null,
     inviteCode,
-    currentWeek: currentWeek ?? (resolvedPoolType === "mid_season" ? (startWeek ?? 1) : 1),
+    currentWeek: currentWeek ?? (
+      // mid_season and the four live NFL season types all honour an explicit startWeek.
+      // Everything else always starts at week 1.
+      (resolvedPoolType === "mid_season" ||
+        (sport === "nfl" && (resolvedPoolType === "season" || resolvedPoolType === "nfl_confidence" ||
+          resolvedPoolType === "nfl_confidence_weekly" || resolvedPoolType === "pickem_season")))
+        ? (startWeek ?? 1)
+        : 1
+    ),
     season: resolvedSeason,
     isActive: true,
     commissionerId: req.user!.id,

@@ -225,7 +225,7 @@ router.post("/", requireAuth, async (req, res) => {
 
   // Team re-use rules depend on pool type
   if (pool.poolType !== "weekly") {
-    const relevantPicks = pool.poolType === "mid_season" && pool.startWeek
+    const relevantPicks = pool.startWeek && (pool.poolType === "mid_season" || (pool.sport === "nfl" && pool.poolType === "season"))
       ? previousPicks.filter(p => p.week >= pool.startWeek!)
       : previousPicks;
 

@@ -270,6 +270,7 @@ const formSchema = z.object({
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
+  startWeek: z.coerce.number().int().min(1).max(18).optional(),
 });
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -331,6 +332,42 @@ export default function CreatePool() {
   const step6Ref = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
   const isMounted = useRef(false);
+
+  // NFL starting-week types — four live season types that honour a startWeek (sandbox excluded)
+  const NFL_START_WEEK_TYPES = new Set(["season", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
+  const isNflStartWeekPool = selectedSport === PoolInputSport.nfl &&
+    NFL_START_WEEK_TYPES.has(selectedType ?? "") &&
+    !form.watch("sandboxMode");
+
+  // Fetch real current NFL week from ESPN when the user picks a relevant NFL pool type
+  const { data: nflWeekData } = useQuery({
+    queryKey: ["nfl-current-week"],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/nfl/current-week", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { week: 1 } as { week: number };
+      return res.json() as Promise<{ week: number }>;
+    },
+    enabled: isNflStartWeekPool,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Pre-fill startWeek when the ESPN result arrives and the field is still unset
+  useEffect(() => {
+    if (isNflStartWeekPool && nflWeekData?.week && !form.getValues("startWeek")) {
+      form.setValue("startWeek", nflWeekData.week);
+    }
+  }, [isNflStartWeekPool, nflWeekData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset startWeek whenever the pool type or sport changes to a non-NFL type
+  useEffect(() => {
+    if (!isNflStartWeekPool) {
+      form.setValue("startWeek", undefined);
+    }
+  }, [isNflStartWeekPool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // MLB Crazy 8's availability check — fetches today's game count before showing Create button
   const isMlbCrazyEights = selectedType === "crazy_8s" && selectedSport === PoolInputSport.mlb;
@@ -493,6 +530,7 @@ export default function CreatePool() {
         ? (form.getValues("isRecurring") === true ? "Recurring" : form.getValues("isRecurring") === false ? "One-time" : false)
         : false,
       form.getValues("sandboxMode") && "Sandbox Mode",
+      (() => { const sw = form.getValues("startWeek"); return isNflStartWeekPool && sw && sw > 1 ? `Starting Week ${sw}` : false; })(),
     ]
       .filter(Boolean)
       .join(" · ") || "No extra options";
@@ -585,6 +623,7 @@ export default function CreatePool() {
             (values.sport === PoolInputSport.nba && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
+          ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
         } as any,
       },
       {
@@ -986,6 +1025,49 @@ export default function CreatePool() {
                                   />
                                 </FormControl>
                               </div>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* ── Starting Week — live NFL season types only (not sandbox) ── */}
+                      {isNflStartWeekPool && (
+                        <FormField
+                          control={form.control}
+                          name="startWeek"
+                          render={({ field }) => (
+                            <FormItem className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                              <div className="flex items-start gap-3">
+                                <Calendar className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                  <FormLabel className="font-bebas text-lg tracking-wide">
+                                    Starting Week
+                                  </FormLabel>
+                                  <FormDescription className="text-xs mt-0.5">
+                                    The first NFL week players will pick. Defaults to the current real week — change this if you're creating the pool ahead of schedule.
+                                  </FormDescription>
+                                  <div className="flex items-center gap-3 mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => field.onChange(Math.max(1, (field.value ?? 1) - 1))}
+                                      className="w-8 h-8 rounded-md border border-border/40 bg-card/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors text-base font-bold"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="font-bebas text-2xl text-foreground w-16 text-center tabular-nums">
+                                      Week {field.value ?? "—"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => field.onChange(Math.min(18, (field.value ?? 1) + 1))}
+                                      className="w-8 h-8 rounded-md border border-border/40 bg-card/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors text-base font-bold"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <FormMessage />
                             </FormItem>
                           )}
                         />

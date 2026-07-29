@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../middlewares/auth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import poolsRouter from "./pools";
@@ -33,6 +34,25 @@ const router: IRouter = Router();
 // GET /api/config — public feature flags (no auth required)
 router.get("/config", (_req, res) => {
   res.json({ poolCreationOpen: process.env.POOL_CREATION_OPEN === "true" });
+});
+
+// GET /api/nfl/current-week — returns the current real NFL week from ESPN
+router.get("/nfl/current-week", requireAuth, async (_req, res) => {
+  try {
+    const espnRes = await fetch(
+      "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!espnRes.ok) {
+      res.status(502).json({ error: "ESPN unavailable" });
+      return;
+    }
+    const data = await espnRes.json() as { week?: { number?: number } };
+    const week = data?.week?.number ?? 1;
+    res.json({ week });
+  } catch {
+    res.status(502).json({ error: "Failed to fetch current NFL week" });
+  }
 });
 
 router.use(healthRouter);
