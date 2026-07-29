@@ -5,7 +5,7 @@ import { usersTable } from "./users";
 import { poolsTable } from "./pools";
 import { entriesTable } from "./entries";
 
-export const pickResultEnum = pgEnum("pick_result", ["win", "loss", "pending"]);
+export const pickResultEnum = pgEnum("pick_result", ["win", "loss", "pending", "push"]);
 
 export const picksTable = pgTable("picks", {
   id: serial("id").primaryKey(),

@@ -248,8 +248,8 @@ export async function processCompletedGames(): Promise<{
       if (game.homeScore == null || game.awayScore == null) continue;
       if (game.homeScore === game.awayScore) {
         if (row.sport !== "superleague") continue; // tie — leave for commissioner
-        // Soccer draw: push — pick is safe, no strike issued
-        await db.update(picksTable).set({ result: "win" }).where(eq(picksTable.id, row.pickId));
+        // Soccer draw: push — safe, no strike, not counted as a win
+        await db.update(picksTable).set({ result: "push" }).where(eq(picksTable.id, row.pickId));
         picksGraded++;
         affectedPoolWeeks.add(`${row.poolId}:${row.week}`);
         logger.info(
@@ -261,7 +261,7 @@ export async function processCompletedGames(): Promise<{
             week: row.week,
             score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}`,
           },
-          "Auto-graded pick (soccer draw = push, result: win)",
+          "Auto-graded pick (soccer draw = push)",
         );
         continue;
       }
@@ -500,7 +500,7 @@ export async function processCompletedGames(): Promise<{
 
     for (const candidate of pass2Candidates) {
       const maxStrikes =
-        (candidate.sport === "nhl" || candidate.sport === "nba") && candidate.poolType === "season" ? 2 : 0;
+        (candidate.sport === "nhl" || candidate.sport === "nba" || candidate.sport === "superleague") && candidate.poolType === "season" ? 2 : 0;
       const picks =
         picksByPlayer.get(`${candidate.poolId}:${candidate.userId}`) ?? [];
 

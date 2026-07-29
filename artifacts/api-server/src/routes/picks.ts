@@ -343,17 +343,18 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
       .onConflictDoNothing();
   }
 
-  // Build winner/margin maps from the now-stable score map.
+  // Build winner/margin/push maps from the now-stable score map.
   const winnerByTeamId = new Map<string, string>();
   const marginByTeamId = new Map<string, number>();
+  const pushedTeamIds = new Set<string>(); // ESL draws — safe, no strike, not a win
   for (const game of gameList) {
     const scores = gameScores.get(game.id);
     if (!scores) continue;
     const { homeScore, awayScore } = scores;
     if (homeScore === awayScore && pool.sport === "superleague") {
-      // Soccer draw: both teams count as winners (push — no strike)
-      winnerByTeamId.set(game.homeTeamId, game.homeTeamId);
-      winnerByTeamId.set(game.awayTeamId, game.awayTeamId);
+      // Soccer draw: push — safe, no strike, not counted as a win
+      pushedTeamIds.add(game.homeTeamId);
+      pushedTeamIds.add(game.awayTeamId);
       marginByTeamId.set(game.homeTeamId, 0);
       marginByTeamId.set(game.awayTeamId, 0);
       continue;
@@ -384,14 +385,21 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   // Phase 2: grade picks (no entry status changes yet)
   let graded = 0;
   const pickedUserIds = new Set(allPicksThisWeek.map(p => p.userId));
-  const resultByPickId = new Map<number, "win" | "loss">();
+  const resultByPickId = new Map<number, "win" | "loss" | "push">();
   const lostEntryIds = new Set<number>();
 
   for (const pick of pendingPicks) {
+    const marginOfVictory = marginByTeamId.get(pick.teamId) ?? null;
+    if (pushedTeamIds.has(pick.teamId)) {
+      // Soccer draw: push — safe, no strike, not a win
+      await db.update(picksTable).set({ result: "push", marginOfVictory }).where(eq(picksTable.id, pick.id));
+      resultByPickId.set(pick.id, "push");
+      graded++;
+      continue;
+    }
     const winner = winnerByTeamId.get(pick.teamId);
     if (winner === undefined) continue;
     const result: "win" | "loss" = pick.teamId === winner ? "win" : "loss";
-    const marginOfVictory = marginByTeamId.get(pick.teamId) ?? null;
     await db.update(picksTable).set({ result, marginOfVictory }).where(eq(picksTable.id, pick.id));
     resultByPickId.set(pick.id, result);
     if (result === "loss") lostEntryIds.add(pick.entryId);
