@@ -88,7 +88,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
-  superleague: ["pickem"],
+  superleague: ["season", "pickem"],
 };
 
 const POOL_TYPES = [
@@ -952,7 +952,9 @@ export default function CreatePool() {
                                                 ? "Pick one NHL team from the weekend slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                                                 : selectedSport === PoolInputSport.nba
                                                   ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
-                                                  : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."
+                                                  : (selectedSport as string) === "superleague"
+                                                    ? "Pick one Super League club each matchweek. A loss costs you a life — a draw is safe. You get 3 lives before you're eliminated — last survivor standing wins the pot."
+                                                    : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."
                                           : type.description}</p>
                                       </div>
                                       <div className={cn(

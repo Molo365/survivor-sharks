@@ -15,6 +15,7 @@ import {
   NHL_SANDBOX_ANCHOR,
   fetchNbaGamesByWeek,
   NBA_SANDBOX_ANCHOR,
+  SUPER_LEAGUE_TEAM_IDS,
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
@@ -273,8 +274,8 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   if (pool.commissionerId !== userId && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
   }
-  if (pool.sport !== "nfl" && pool.sport !== "nhl" && pool.sport !== "nba") {
-    res.status(400).json({ error: "Simulate grading is only available for NFL, NHL, and NBA pools" }); return;
+  if (pool.sport !== "nfl" && pool.sport !== "nhl" && pool.sport !== "nba" && pool.sport !== "superleague") {
+    res.status(400).json({ error: "Simulate grading is only available for NFL, NHL, NBA, and ESL pools" }); return;
   }
 
   const week = pool.currentWeek;
@@ -290,6 +291,13 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   } else if (pool.sport === "nba") {
     const nbaGames = await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
     gameList = nbaGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
+  } else if (pool.sport === "superleague") {
+    // Generate 15 synthetic matchups from the 30 Super League clubs for sandbox play
+    const eslTeamIds = [...SUPER_LEAGUE_TEAM_IDS].map(String);
+    gameList = [];
+    for (let i = 0; i < eslTeamIds.length - 1; i += 2) {
+      gameList.push({ id: `esl-sandbox-${eslTeamIds[i]!}-${eslTeamIds[i + 1]!}`, homeTeamId: eslTeamIds[i]!, awayTeamId: eslTeamIds[i + 1]! });
+    }
   } else {
     const nflGames = getSandboxGamesForWeek(week);
     gameList = nflGames.map(g => ({ id: g.id, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId }));
@@ -319,6 +327,10 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
       homeScore = 85 + Math.floor(Math.random() * 46); // 85-130 points
       awayScore = 85 + Math.floor(Math.random() * 46);
       if (homeScore === awayScore) homeScore += 2; // no ties (OT)
+    } else if (pool.sport === "superleague") {
+      homeScore = Math.floor(Math.random() * 4); // 0-3 goals
+      awayScore = Math.floor(Math.random() * 4);
+      // draws are allowed for soccer — they count as pushes (safe, no strike)
     } else {
       homeScore = 10 + Math.floor(Math.random() * 36);
       awayScore = 10 + Math.floor(Math.random() * 36);
@@ -338,6 +350,14 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     const scores = gameScores.get(game.id);
     if (!scores) continue;
     const { homeScore, awayScore } = scores;
+    if (homeScore === awayScore && pool.sport === "superleague") {
+      // Soccer draw: both teams count as winners (push — no strike)
+      winnerByTeamId.set(game.homeTeamId, game.homeTeamId);
+      winnerByTeamId.set(game.awayTeamId, game.awayTeamId);
+      marginByTeamId.set(game.homeTeamId, 0);
+      marginByTeamId.set(game.awayTeamId, 0);
+      continue;
+    }
     const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
     winnerByTeamId.set(game.homeTeamId, winner);
     winnerByTeamId.set(game.awayTeamId, winner);
@@ -400,7 +420,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   // maxStrikes is hoisted here (also used in Phase 5) so the void check can
   // exclude players who have already exhausted their strikes — those players
   // should be eliminated, not counted as genuine survivors that trigger a void.
-  const maxStrikes = ((pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season") ? 2 : 0;
+  const maxStrikes = ((pool.sport === "nhl" || pool.sport === "nba" || pool.sport === "superleague") && pool.poolType === "season") ? 2 : 0;
   const genuineSurvivors = aliveAtStart.filter(e =>
     maxStrikes === 0 || e.strikeCount < maxStrikes
   );
@@ -412,7 +432,8 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   let coWinnerPrize: number | null = null;
 
   if (pool.poolType === "season" && allAliveAtStartLost) {
-    if (week < 18) {
+    const finalWeek = pool.sport === "superleague" ? 38 : 18;
+    if (week < finalWeek) {
       voidFired = true;
     } else {
       coWinnersTriggered = true;

@@ -1,4 +1,4 @@
-export type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
+export type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "superleague";
 
 export interface TeamRecord {
   id: string;
@@ -175,6 +175,48 @@ export const ESPN_TEAMS: Record<Sport, TeamRecord[]> = {
     { id: "cm",    name: "Cameroon",       abbreviation: "CMR", location: "Africa" },
     { id: "ir",    name: "Iran",           abbreviation: "IRN", location: "Asia" },
     { id: "sa",    name: "Saudi Arabia",   abbreviation: "KSA", location: "Asia" },
+  ],
+  superleague: [
+    // England (6)
+    { id: "359",   name: "Arsenal",            abbreviation: "ARS", location: "London" },
+    { id: "363",   name: "Chelsea",             abbreviation: "CHE", location: "London" },
+    { id: "364",   name: "Liverpool",           abbreviation: "LIV", location: "Liverpool" },
+    { id: "382",   name: "Manchester City",     abbreviation: "MCI", location: "Manchester" },
+    { id: "360",   name: "Manchester United",   abbreviation: "MUN", location: "Manchester" },
+    { id: "367",   name: "Tottenham",           abbreviation: "TOT", location: "London" },
+    // Spain (4)
+    { id: "83",    name: "Barcelona",           abbreviation: "BAR", location: "Barcelona" },
+    { id: "86",    name: "Real Madrid",         abbreviation: "RMA", location: "Madrid" },
+    { id: "1068",  name: "Atletico Madrid",     abbreviation: "ATM", location: "Madrid" },
+    { id: "243",   name: "Sevilla",             abbreviation: "SEV", location: "Sevilla" },
+    // Italy (5)
+    { id: "103",   name: "AC Milan",            abbreviation: "ACM", location: "Milan" },
+    { id: "110",   name: "Inter Milan",         abbreviation: "INT", location: "Milan" },
+    { id: "111",   name: "Juventus",            abbreviation: "JUV", location: "Turin" },
+    { id: "114",   name: "Napoli",              abbreviation: "NAP", location: "Naples" },
+    { id: "104",   name: "Roma",                abbreviation: "ROM", location: "Rome" },
+    // Germany (4)
+    { id: "132",   name: "Bayern Munich",       abbreviation: "BAY", location: "Munich" },
+    { id: "124",   name: "Borussia Dortmund",   abbreviation: "DOR", location: "Dortmund" },
+    { id: "131",   name: "Leverkusen",          abbreviation: "LEV", location: "Leverkusen" },
+    { id: "11420", name: "RB Leipzig",          abbreviation: "RBL", location: "Leipzig" },
+    // France (3)
+    { id: "160",   name: "PSG",                 abbreviation: "PSG", location: "Paris" },
+    { id: "176",   name: "Marseille",           abbreviation: "MAR", location: "Marseille" },
+    { id: "167",   name: "Lyon",                abbreviation: "LYO", location: "Lyon" },
+    // Turkey (2)
+    { id: "432",   name: "Galatasaray",         abbreviation: "GAL", location: "Istanbul" },
+    { id: "436",   name: "Fenerbahce",          abbreviation: "FEN", location: "Istanbul" },
+    // Portugal (3)
+    { id: "1929",  name: "Benfica",             abbreviation: "BEN", location: "Lisbon" },
+    { id: "437",   name: "Porto",               abbreviation: "POR", location: "Porto" },
+    { id: "2250",  name: "Sporting CP",         abbreviation: "SPO", location: "Lisbon" },
+    // Scotland (2)
+    { id: "256",   name: "Celtic",              abbreviation: "CEL", location: "Glasgow" },
+    { id: "257",   name: "Rangers",             abbreviation: "RAN", location: "Glasgow" },
+    // Saudi Arabia (2)
+    { id: "817",   name: "Al Nassr",            abbreviation: "NAS", location: "Riyadh" },
+    { id: "929",   name: "Al Hilal",            abbreviation: "HIL", location: "Riyadh" },
   ],
 };
 
