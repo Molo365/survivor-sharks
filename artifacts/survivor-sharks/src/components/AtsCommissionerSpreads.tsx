@@ -34,7 +34,11 @@ export function AtsCommissionerSpreads({ poolId, games }: AtsCommissionerSpreads
   useEffect(() => {
     if (games.length === 0) return;
     setLoadingFetch(true);
-    fetch(`/api/pools/${poolId}/pickem/ats-spreads`, { credentials: "include" })
+    const token = localStorage.getItem("auth_token");
+    fetch(`/api/pools/${poolId}/pickem/ats-spreads`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((r) => r.json())
       .then((data: { week: number; spreads: Array<{ gameId: string; spread: number; favoriteTeamId: string }> }) => {
         const next: Record<string, SpreadEntry> = {};
@@ -79,10 +83,14 @@ export function AtsCommissionerSpreads({ poolId, games }: AtsCommissionerSpreads
     }
     setLoadingSave(true);
     try {
+      const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/pools/${poolId}/pickem/ats-spreads`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ spreads }),
       });
       if (!res.ok) {
