@@ -19,7 +19,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 const router = Router();
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const PICKEM_TYPES = new Set(["pickem", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
+const PICKEM_TYPES = new Set(["pickem", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "nba_ats"]);
 
 type PickStatus = "submitted" | "pending" | "not_required";
 const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, submitted: 1, not_required: 2 };
