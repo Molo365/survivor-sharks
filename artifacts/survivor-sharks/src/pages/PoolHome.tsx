@@ -63,6 +63,7 @@ export default function PoolHome() {
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
   const isWcBracket = (pool?.poolType as string) === "wc_bracket";
+  const isNbaAts = (pool?.poolType as string) === "nba_ats";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -110,7 +111,7 @@ export default function PoolHome() {
   })();
 
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
-  if (pool && (pool.poolType as string) === "pickem" && !location.endsWith("/pickem")) {
+  if (pool && ((pool.poolType as string) === "pickem" || isNbaAts) && !location.endsWith("/pickem")) {
     return <Redirect to={`/pools/${poolId}/pickem`} />;
   }
 
@@ -199,9 +200,9 @@ export default function PoolHome() {
                       <Zap className="w-3 h-3" /> Mid Season {pool.startWeek ? `(Wk ${pool.startWeek}+)` : ""}
                     </span>
                   )}
-                  {((pool.poolType as string) === "pickem" || (pool.poolType as string) === "pickem_season") && (
+                  {((pool.poolType as string) === "pickem" || (pool.poolType as string) === "pickem_season" || isNbaAts) && (
                     <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
-                      <Crosshair className="w-3 h-3" /> Pick-Ems{(pool.poolType as string) === "pickem_season" ? " · Season" : (pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
+                      <Crosshair className="w-3 h-3" /> {isNbaAts ? "ATS · Weekly" : `Pick-Ems${(pool.poolType as string) === "pickem_season" ? " · Season" : (pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}`}
                     </span>
                   )}
                   {(pool.poolType as string) === "group_stage_predictor" && (
@@ -338,7 +339,7 @@ export default function PoolHome() {
                 isSuperAdmin={user?.role === "admin"}
                 isActive={pool.isActive}
               />
-            ) : (pool.poolType as string) === "pickem" ? (
+            ) : ((pool.poolType as string) === "pickem" || isNbaAts) ? (
               <PickEmView poolId={pool.id} poolName={pool.name} poolDescription={pool.description ?? ""} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} isRecurring={pool.isRecurring} entryFee={pool.entryFee} />
             ) : isGsp ? (
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />

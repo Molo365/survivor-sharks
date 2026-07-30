@@ -500,7 +500,7 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
   }
 
   // Determine the correct picks table for this pool type and count non-commissioner picks
-  const PICKEM_TYPES = new Set(["pickem", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"]);
+  const PICKEM_TYPES = new Set(["pickem", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "nba_ats"]);
   const pt = pool.poolType as string;
   let hasOtherPicks = false;
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable, pickemGameSpreadsTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, count } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
@@ -15,6 +15,7 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
+  getNbaWeekendBounds,
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
@@ -57,7 +58,7 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "crazy_8s") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "crazy_8s" && (pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
@@ -71,6 +72,7 @@ router.get("/games", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
+  const isAts = (pool.poolType as string) === "nba_ats";
   const todayEt = getTodayEtDate();
 
   // Accept an optional ?date=YYYY-MM-DD param; fall back to today
@@ -115,18 +117,62 @@ router.get("/games", requireAuth, async (req, res) => {
     sandboxScoreMap = new Map(sbRows.map(r => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
   }
 
+  // ATS: replace allGames with the full Fri/Sat/Sun weekend slate (ignore date param)
+  const atsGameDates = new Map<string, string>(); // gameId → ET calendar date, e.g. "2026-01-03"
+  if (isAts) {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    const { espnDates, days } = getNbaWeekendBounds(anchor, pool.currentWeek);
+    const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+    const seen = new Set<string>();
+    allGames = [];
+    results.forEach((dayGames, i) => {
+      for (const g of dayGames) {
+        if (!seen.has(g.id)) {
+          seen.add(g.id);
+          allGames.push(g);
+          atsGameDates.set(g.id, days[i]!);
+        }
+      }
+    });
+    allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  // ATS: load commissioner-entered spread lines for the current week
+  const atsSpreadByGameId = new Map<string, { spread: number; favoriteTeamId: string }>();
+  if (isAts) {
+    const spreadRows = await db
+      .select()
+      .from(pickemGameSpreadsTable)
+      .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, pool.currentWeek)));
+    for (const row of spreadRows) {
+      atsSpreadByGameId.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
+    }
+  }
+
   const games = allGames.filter((g) => g.status !== "suspended");
 
-  const existingPicks = await db
-    .select()
-    .from(pickemPicksTable)
-    .where(
-      and(
-        eq(pickemPicksTable.poolId, poolId),
-        eq(pickemPicksTable.userId, userId),
-        eq(pickemPicksTable.gameDate, requestedDate),
-      ),
-    );
+  // ATS: query picks by week (the slate spans Fri/Sat/Sun — not a single date)
+  const existingPicks = isAts
+    ? await db
+        .select()
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.userId, userId),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        )
+    : await db
+        .select()
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.userId, userId),
+            eq(pickemPicksTable.gameDate, requestedDate),
+          ),
+        );
 
   const pickMap = new Map(existingPicks.map((p) => [p.gameId, p]));
 
@@ -173,6 +219,10 @@ router.get("/games", requireAuth, async (req, res) => {
       awayPitcher: null as null,
       pickOptions: is3way ? WC_PICK_OPTIONS.map(id => id) : null,
       userPickOption: is3way ? (existing?.pickedTeamId ?? null) : null,
+      // ATS-specific fields (null for non-ATS pools)
+      etDate: isAts ? (atsGameDates.get(g.id) ?? null) : null,
+      spread: isAts ? (atsSpreadByGameId.get(g.id)?.spread ?? null) : null,
+      favoriteTeamId: isAts ? (atsSpreadByGameId.get(g.id)?.favoriteTeamId ?? null) : null,
     };
 
     if (!is3way) {
@@ -205,6 +255,9 @@ router.get("/games", requireAuth, async (req, res) => {
   const isPastDate = requestedDate < todayEt;
   const slateDeadlinePassed = isSandboxWeekly
     ? games.every(g => sandboxScoreMap.has(g.id))
+    : isAts
+    // ATS: slate is only fully locked once EVERY game has started (not just one)
+    ? games.length > 0 && games.every((g) => isGameLocked(g.date))
     : isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
 
   // Format the label from the requested date (not always "today")
@@ -446,7 +499,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
   if (!pool.isActive) { res.status(400).json({ error: "This pool has ended — picks are no longer accepted." }); return; }
 
   const [entry] = await db
@@ -461,6 +514,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
+  const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -525,6 +579,16 @@ router.post("/picks", requireAuth, async (req, res) => {
     // not just today — a weekly slate spans Mon-Sun and submittedDate tells us which day.
     const games = await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
     for (const g of games) gameMap.set(g.id, { date: g.date });
+  } else if (isAts) {
+    // NBA ATS: validate against the full Fri/Sat/Sun weekend slate for this week
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    const { espnDates } = getNbaWeekendBounds(anchor, pool.currentWeek);
+    const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+    for (const dayGames of results) {
+      for (const g of dayGames) {
+        if (!gameMap.has(g.id)) gameMap.set(g.id, { date: g.date });
+      }
+    }
   } else {
     const games = await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
@@ -571,7 +635,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     // For NHL/NBA weekly sandbox pools: use the anchor date captured during game-ID validation
     // (e.g. "2025-10-11" for the sandbox Saturday) so all read paths can find picks by game date.
     // For all other sports: fall back to today.
-    const gameDate = is3way && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
+    const gameDate = (is3way || isAts) && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
 
     await db
       .insert(pickemPicksTable)
@@ -747,7 +811,7 @@ router.get("/daily-results", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "Not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
@@ -1220,7 +1284,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
 
   const [entry] = await db
     .select()
@@ -1639,7 +1703,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
+  if (pool.poolType !== "pickem" && (pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "This pool is not a Pick-Em pool" }); return; }
   if (pool.commissionerId !== userId && req.user!.role !== "admin") {
     res.status(403).json({ error: "Commissioner only" });
     return;
@@ -1650,7 +1714,20 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
   const is3way = isWc || isIntl || isMls;
+  const isAts = (pool.poolType as string) === "nba_ats";
   const todayEt = getTodayEtDate();
+
+  // ATS: load commissioner-entered spreads for grading
+  const atsSpreadByGameId = new Map<string, { spread: number; favoriteTeamId: string }>();
+  if (isAts) {
+    const spreadRows = await db
+      .select()
+      .from(pickemGameSpreadsTable)
+      .where(eq(pickemGameSpreadsTable.poolId, poolId));
+    for (const row of spreadRows) {
+      atsSpreadByGameId.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
+    }
+  }
 
   // Find every distinct gameDate that has pending picks in this pool.
   // This replaces the old "today + yesterday" hard window: any game that
@@ -1704,6 +1781,31 @@ router.post("/process-results", requireAuth, async (req, res) => {
           eq(pickemPicksTable.result, "pending"),
         ),
       );
+
+    // ATS grading: favourite must cover by more than the spread
+    if (isAts) {
+      const spreadRow = atsSpreadByGameId.get(game.id);
+      if (!spreadRow) continue; // no spread entered yet — skip until commissioner sets it
+      const { spread, favoriteTeamId } = spreadRow;
+      const favoriteIsHome = favoriteTeamId === game.homeTeam.id;
+      const homeMargin = (game.homeScore ?? 0) - (game.awayScore ?? 0); // positive = home won
+      const favoriteMargin = favoriteIsHome ? homeMargin : -homeMargin;
+      for (const pick of gamePicks) {
+        const pickedFavorite = pick.pickedTeamId === favoriteTeamId;
+        // Favourite covers if they win by strictly MORE than the spread.
+        // Underdog covers if the favourite wins by LESS than the spread (or loses).
+        // An exact push on the spread (rare with half-point lines) grades as incorrect.
+        const result: "correct" | "incorrect" = pickedFavorite
+          ? favoriteMargin > spread ? "correct" : "incorrect"
+          : favoriteMargin < spread ? "correct" : "incorrect";
+        await db
+          .update(pickemPicksTable)
+          .set({ result, updatedAt: new Date() })
+          .where(eq(pickemPicksTable.id, pick.id));
+        processed++;
+      }
+      continue; // skip standard grading below
+    }
 
     for (const pick of gamePicks) {
       let result: "correct" | "incorrect";
@@ -1958,6 +2060,68 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   }
 
   res.json({ graded, week });
+});
+
+// GET /api/pools/:poolId/pickem/ats-spreads — commissioner reads this week's spread lines
+router.get("/ats-spreads", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "Not an ATS pool" }); return; }
+  if (pool.commissionerId !== userId && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Commissioner only" }); return;
+  }
+
+  const rows = await db
+    .select()
+    .from(pickemGameSpreadsTable)
+    .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, pool.currentWeek)));
+
+  res.json({ week: pool.currentWeek, spreads: rows });
+});
+
+// POST /api/pools/:poolId/pickem/ats-spreads — commissioner saves spread lines
+router.post("/ats-spreads", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nba_ats") { res.status(400).json({ error: "Not an ATS pool" }); return; }
+  if (pool.commissionerId !== userId && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Commissioner only" }); return;
+  }
+
+  const { spreads } = req.body as {
+    spreads: Array<{ gameId: string; spread: number; favoriteTeamId: string }>;
+  };
+
+  if (!Array.isArray(spreads) || spreads.length === 0) {
+    res.status(400).json({ error: "spreads must be a non-empty array" }); return;
+  }
+
+  let saved = 0;
+  for (const s of spreads) {
+    if (!s.gameId || typeof s.spread !== "number" || s.spread <= 0 || !s.favoriteTeamId) continue;
+    await db
+      .insert(pickemGameSpreadsTable)
+      .values({
+        poolId,
+        gameId: s.gameId,
+        week: pool.currentWeek,
+        spread: s.spread,
+        favoriteTeamId: s.favoriteTeamId,
+      })
+      .onConflictDoUpdate({
+        target: [pickemGameSpreadsTable.poolId, pickemGameSpreadsTable.gameId, pickemGameSpreadsTable.week],
+        set: { spread: s.spread, favoriteTeamId: s.favoriteTeamId },
+      });
+    saved++;
+  }
+
+  res.json({ saved });
 });
 
 export default router;

@@ -84,7 +84,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
-  [PoolInputSport.nba]: ["season", "weekly", "crazy_8s"],
+  [PoolInputSport.nba]: ["season", "nba_ats", "crazy_8s"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
@@ -113,6 +113,17 @@ const POOL_TYPES = [
     badge: "Casual",
     badgeClass: "bg-accent/20 text-accent border-accent/30",
     cardClass: "border-accent/60 bg-[linear-gradient(145deg,rgba(0,200,150,0.05)_0%,transparent_100%)]",
+  },
+  {
+    id: "nba_ats" as const,
+    label: "Weekend Pick-Ems",
+    icon: Zap,
+    tagline: "Every Game. Against The Spread.",
+    description:
+      "Pick every game on the Friday–Sunday NBA slate to cover the commissioner-set spread. Most covers wins the week.",
+    badge: "ATS",
+    badgeClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    cardClass: "border-orange-500/60 bg-[linear-gradient(145deg,rgba(234,88,12,0.08)_0%,transparent_100%)]",
   },
   {
     id: "pickem" as const,
@@ -261,7 +272,7 @@ function StepHeader({
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "nba_ats"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   isRecurring: z.boolean().optional(),

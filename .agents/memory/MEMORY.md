@@ -9,3 +9,4 @@
 - [Aliased condition narrowing (TS2367)](aliased-condition-narrowing.md) — a const boolean gate narrows a referenced union inside its block, removing exclusion-only members; drop the now-redundant `!==` check.
 - [Crazy 8s sport addition](crazy8s-sport-addition.md) — full touch-point checklist; pick gameDate must be the ET slate day, never UTC slice (Sunday-evening games leak to Monday).
 - [Season pool closure pattern](season-pool-closure-pattern.md) — grading ≠ closure; each season-long pool type needs its own sandbox + live closure blocks with the correct ranking metric.
+- [NBA ATS pool type](nba-ats-pool-type.md) — 7 touch-point checklist for nba_ats; weekend slate via getNbaWeekendBounds; pickem_game_spreads table needs prod migration before going live.

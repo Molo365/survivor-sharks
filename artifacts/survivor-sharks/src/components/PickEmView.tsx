@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
+import { AtsGameCard } from "@/components/AtsGameCard";
+import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 
 function BaseDiamond({
   onFirst,
@@ -2130,6 +2132,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     query: { queryKey: getGetPoolQueryKey(poolId), staleTime: 5 * 60 * 1000 },
   });
   const isSandbox = poolDetail?.sandboxMode === true;
+  const isNbaAts = (poolDetail?.poolType as string) === "nba_ats";
 
   const todayEt = getTodayEt();
   const [selectedDate, setSelectedDate] = useState<string>(() => todayEt);
@@ -2368,6 +2371,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       void handleMlsWeeklySubmit();
       return;
     }
+    // NBA ATS weekend view: delegate to the ATS submit path.
+    if (isNbaAts) {
+      void handleAtsSubmit();
+      return;
+    }
 
     if (!slate) return;
 
@@ -2509,6 +2517,37 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     }
     toast({ title: "Picks saved!", description: `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved.` });
     void invalidatePoolQueries(queryClient, poolId);
+  }
+
+  // NBA ATS weekend submit: each game carries its own ET calendar date (etDate from server).
+  async function handleAtsSubmit() {
+    if (!slate) return;
+    const picks = Array.from(localPicks.entries())
+      .map(([gameId, teamId]) => {
+        const game = slate.games.find((g) => g.id === gameId);
+        if (!game || game.deadlinePassed) return null;
+        const team = teamId === game.awayTeam.id ? game.awayTeam : game.homeTeam;
+        const etDate = (game as any).etDate as string | undefined;
+        return {
+          gameId,
+          pickedTeamId: teamId,
+          pickedTeamName: team.name,
+          ...(etDate ? { gameDate: etDate } : {}),
+        };
+      })
+      .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
+
+    if (picks.length === 0) {
+      toast({ title: "No open picks to submit", description: "All games may have already started." });
+      return;
+    }
+    try {
+      const res = await submitPicks.mutateAsync({ poolId, data: { picks } });
+      toast({ title: "Picks saved!", description: `${res.saved} pick${res.saved !== 1 ? "s" : ""} saved.` });
+      void invalidatePoolQueries(queryClient, poolId);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+    }
   }
 
   function doFinalSubmit(
@@ -3267,6 +3306,93 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 </div>
               )}
             </div>
+          ) : isNbaAts ? (
+            /* NBA Weekend ATS — shows full Fri/Sat/Sun slate with spread lines */
+            <div className="space-y-6">
+              {/* Weekend header */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">This Weekend</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {gamesLoading ? "Loading…" : `${slate?.games.length ?? 0} game${(slate?.games.length ?? 0) !== 1 ? "s" : ""}`}
+                    {" · "}{localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(slate?.games ?? []).some((g) => g.status === "in_progress") && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                      Live · updates every min
+                    </span>
+                  )}
+                  {slateLocked && (
+                    <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
+                      Slate Locked
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {gamesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+                </div>
+              ) : !slate?.games.length ? (
+                <div className="text-center py-16 text-muted-foreground">
+                  <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
+                  <p className="text-sm mt-1">Check back when the NBA weekend schedule is posted.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Spread-pending notice: shown when at least one game has no line set yet */}
+                  {(slate?.games ?? []).some((g) => !(g as any).spread) && !slateLocked && (
+                    <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8">
+                      <span className="text-yellow-400 text-sm mt-0.5">⚡</span>
+                      <p className="text-sm text-yellow-200/80">
+                        Spread lines haven&apos;t been set yet — check back before the first tip-off.
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {(slate?.games ?? []).map((game) => (
+                      <AtsGameCard
+                        key={game.id}
+                        game={game}
+                        pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                        onPick={(teamId) => togglePick(game.id, teamId)}
+                      />
+                    ))}
+                  </div>
+                  {openGames.length > 0 && (
+                    <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
+                      <p className="text-sm text-muted-foreground">
+                        {pendingPickCount > 0 ? (
+                          <span className="text-yellow-400/80">
+                            {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
+                          </span>
+                        ) : (
+                          <span className="text-green-400/80 flex items-center gap-1">
+                            <Check className="w-4 h-4" /> All open games picked
+                          </span>
+                        )}
+                      </p>
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={submitPicks.isPending || localPicks.size === 0}
+                        className="font-bebas text-xl tracking-widest px-8 h-12"
+                      >
+                        {submitPicks.isPending ? (
+                          <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                        ) : (
+                          "Submit Picks"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           ) : gamesLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -3867,6 +3993,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
               {isNhl && user?.role === "admin" && (
                 <PickEmSandboxPanel poolId={poolId} />
+              )}
+
+              {/* ATS: commissioner spread-line entry */}
+              {isNbaAts && (
+                <AtsCommissionerSpreads poolId={poolId} games={slate?.games ?? []} />
               )}
 
               {/* Stop Recurring — MLB Daily and MLB/NHL Weekly pick-em pools */}
