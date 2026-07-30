@@ -469,7 +469,8 @@ export default function CreatePool() {
     ((selectedSport === PoolInputSport.mlb && selectedType === "pickem") ||
       selectedType === "nfl_confidence_weekly") ||
     (user?.role === "admin" && (selectedType === "nfl_confidence" ||
-      selectedType === "pickem_season" || (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
+      selectedType === "pickem_season" || selectedType === "nba_ats" ||
+      (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
       (selectedSport === PoolInputSport.nba && selectedType === "season"))) ||
     showsRecurringToggle
   );
@@ -629,7 +630,7 @@ export default function CreatePool() {
           showCommissionerCut,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
-          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" ||
+          ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" || values.poolType === "nba_ats" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
@@ -896,7 +897,8 @@ export default function CreatePool() {
                                         (selectedSport === PoolInputSport.nfl && type.id !== "weekly" && type.id !== "pickem") ||
                                         type.id === "nfl_confidence_weekly" ||
                                         (user?.role === "admin" && (type.id === "nfl_confidence" ||
-                                          type.id === "pickem_season" || (selectedSport === PoolInputSport.nhl && type.id === "season")))
+                                          type.id === "pickem_season" || type.id === "nba_ats" ||
+                                          (selectedSport === PoolInputSport.nhl && type.id === "season")))
                                       );
                                       setEditStep(nextHasOptions ? 3 : 4);
                                     }}
@@ -1150,8 +1152,8 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season ── */}
-                      {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season") ||
+                      {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season + NBA ATS ── */}
+                      {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season" || selectedType === "nba_ats") ||
                         (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "crazy_8s")) && (

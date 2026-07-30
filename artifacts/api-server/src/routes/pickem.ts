@@ -103,7 +103,9 @@ router.get("/games", requireAuth, async (req, res) => {
   }
 
   // Sandbox mode for NBA weekly Pick'em: same day-of-week mapping onto the anchor week.
-  if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly") {
+  // nba_ats pools skip this block — their sandboxScoreMap is populated in the isAts block below
+  // after allGames is built from the full weekend slate, so game IDs match correctly.
+  if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
     const [ry2, rm2, rd2] = requestedDate.split("-").map(Number);
     const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay(); // 0=Sun…6=Sat
     const mondayOffset = dow === 0 ? 6 : dow - 1; // Mon=0…Sun=6
@@ -135,6 +137,17 @@ router.get("/games", requireAuth, async (req, res) => {
       }
     });
     allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // ATS sandbox: build the score map from sandboxGameScoresTable now that allGames (and
+    // its game IDs) reflect the real weekend slate. Must run after allGames is populated
+    // so sandboxScoreMap keys match the games the client will see.
+    if (pool.sandboxMode) {
+      const sbRows = await db
+        .select()
+        .from(sandboxGameScoresTable)
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+      sandboxScoreMap = new Map(sbRows.map((r) => [r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 }]));
+    }
   }
 
   // ATS: load commissioner-entered spread lines for the current week
