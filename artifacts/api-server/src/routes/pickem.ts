@@ -1312,6 +1312,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl;
+  const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
 
@@ -1331,11 +1332,40 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     if (sport === "nhl" && pool.sandboxMode) {
       const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
-    } else if (sport === "nba" && pool.sandboxMode) {
+    } else if (sport === "nba" && pool.sandboxMode && !isAts) {
+      // Non-ATS NBA sandbox (e.g. crazy_8s): full Mon–Sun week
       const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
+    } else if (isAts) {
+      // nba_ats picks only happen Fri/Sat/Sun — always use Fri–Sun bounds so the
+      // picks WHERE clause and game list are both constrained to the 3-day window.
+      if (pool.sandboxMode) {
+        // Sandbox: anchor week's Fri/Sat/Sun dates
+        const b = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
+        weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
+      } else {
+        // Live: find the reference date (last pick for ended pools, today for active)
+        let refDate = todayEt;
+        if (!pool.isActive) {
+          const [latestWeekRow] = await db
+            .select({ gameDate: pickemPicksTable.gameDate })
+            .from(pickemPicksTable)
+            .where(eq(pickemPicksTable.poolId, poolId))
+            .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
+            .limit(1);
+          if (latestWeekRow) refDate = latestWeekRow.gameDate;
+        }
+        // getWeekBoundsEt always returns Monday as weekStart; Fri = +4 days, Sun = +6 days
+        const full = getWeekBoundsEt(refDate);
+        const [wy, wm, wd] = full.weekStart.split("-").map(Number);
+        const monday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+        weekBounds = {
+          weekStart: new Date(monday.getTime() + 4 * 86_400_000).toISOString().slice(0, 10),
+          weekEnd:   new Date(monday.getTime() + 6 * 86_400_000).toISOString().slice(0, 10),
+        };
+      }
     } else if (!pool.isActive) {
-      // Ended weekly pool — look up the last graded pick's date and use that
+      // Ended non-ATS weekly pool — look up the last graded pick's date and use that
       // week's bounds so the leaderboard returns historical data, not an empty
       // current-week result set. (Mirrors the daily pool fallback below.)
       const [latestWeekRow] = await db
@@ -1392,6 +1422,24 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
+    : (isAts && isWeekly && weekBounds)
+      ? (() => {
+          // nba_ats: fetch only the 3 Fri/Sat/Sun dates already set in weekBounds.
+          // weekBounds.weekStart is Friday (sandbox anchor or real), so +0/+1/+2 = Fri/Sat/Sun.
+          const [wy, wm, wd] = weekBounds!.weekStart.split("-").map(Number);
+          const fri = new Date(Date.UTC(wy!, wm! - 1, wd!));
+          const atsEspnDates = [0, 1, 2].map((i) =>
+            new Date(fri.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          );
+          return Promise.all(atsEspnDates.map((d) => fetchGamesForDate("nba", d))).then((results) => {
+            const seen = new Set<string>();
+            return results.flat().filter((g) => {
+              if (seen.has(g.id)) return false;
+              seen.add(g.id);
+              return true;
+            });
+          });
+        })()
     : (sport === "nba" && pool.sandboxMode && isWeekly) ? fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, pool.currentWeek)
     : (sport === "superleague" && isWeekly && weekBounds)
       ? (() => {
