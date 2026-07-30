@@ -1232,6 +1232,11 @@ function generateWeekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
 }
 
+/** NBA ATS: only Fri/Sat/Sun from the Mon-start week */
+function generateAtsDays(weekStart: string): string[] {
+  return [offsetDate(weekStart, 4), offsetDate(weekStart, 5), offsetDate(weekStart, 6)];
+}
+
 // ── Daily pick detail panel ───────────────────────────────────────────────────
 
 function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: number; date: string }) {
@@ -1332,11 +1337,12 @@ interface WeeklyLeaderboardProps {
   currentUserId: number | null;
   weekStart: string;
   weekEnd: string;
+  isNbaAts?: boolean;
 }
 
-function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd }: WeeklyLeaderboardProps) {
+function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd, isNbaAts }: WeeklyLeaderboardProps) {
   const todayEt = getTodayEt();
-  const days = generateWeekDays(weekStart);
+  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
 
   function toggleCell(userId: number, date: string) {
@@ -1710,6 +1716,7 @@ function PrevWeekResultsModal({
   tiebreakerActualStrikeouts,
   tiebreakerActualShotsOnGoal,
   tiebreakerActualPenaltyMinutes,
+  isNbaAts,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1722,8 +1729,9 @@ function PrevWeekResultsModal({
   tiebreakerActualStrikeouts?: number | null;
   tiebreakerActualShotsOnGoal?: number | null;
   tiebreakerActualPenaltyMinutes?: number | null;
+  isNbaAts?: boolean;
 }) {
-  const days = generateWeekDays(weekStart);
+  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
 
   function toggleCell(userId: number, date: string) {
@@ -2659,6 +2667,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     {weekResultsOpen && prevWeekResults && (
       <PrevWeekResultsModal
         open={weekResultsOpen}
+        isNbaAts={isNbaAts}
         onClose={() => setWeekResultsOpen(false)}
         poolId={poolId}
         weekStart={prevWeekResults.weekStart}
@@ -3811,6 +3820,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 currentUserId={user?.id ?? null}
                 weekStart={leaderboard.weekStart}
                 weekEnd={leaderboard.weekEnd}
+                isNbaAts={isNbaAts}
               />
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard

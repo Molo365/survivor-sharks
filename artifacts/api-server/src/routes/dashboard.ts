@@ -86,7 +86,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "crazy_8s"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "crazy_8s", "nba_ats"];
 
 function computeRank<T extends { score: number }>(rows: T[], userId: number): number {
   if (rows.length === 0) return 0;
@@ -1031,6 +1031,127 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             status: null,
             eliminatedWeek: null,
             score: myRow ? Number(myRow.weeklyPoints) : null,
+            maxScore: null,
+          },
+        };
+      }
+
+      // ── NBA ATS (weekly, scored by correct ATS covers) ─────────────────────────
+      if (poolType === "nba_ats") {
+        const week = pool.currentWeek;
+        const prevWeek = week - 1;
+
+        const [currentRows, prevRows] = await Promise.all([
+          db
+            .select({
+              userId: pickemPicksTable.userId,
+              correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+              picked: sql<string>`COUNT(*)`,
+            })
+            .from(pickemPicksTable)
+            .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, week)))
+            .groupBy(pickemPicksTable.userId)
+            .orderBy(
+              sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+              sql`COUNT(*) DESC`,
+            ),
+          prevWeek >= 1
+            ? db
+                .select({
+                  userId: pickemPicksTable.userId,
+                  username: usersTable.username,
+                  displayName: usersTable.displayName,
+                  correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                  picked: sql<string>`COUNT(*)`,
+                  graded: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} IN ('correct', 'incorrect'))`,
+                })
+                .from(pickemPicksTable)
+                .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+                .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, prevWeek)))
+                .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+                .orderBy(
+                  sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+                  sql`COUNT(*) DESC`,
+                )
+            : Promise.resolve([] as { userId: number; username: string; displayName: string | null; correct: string; picked: string; graded: string }[]),
+        ]);
+
+        const scoredCurrent = currentRows.map((r) => ({ ...r, score: Number(r.correct) }));
+        const myRow = scoredCurrent.find((r) => r.userId === userId) ?? null;
+
+        // lastWinners: finalWinner flag when pool ended; previous-week top scorer(s) while active
+        let lastWinners = null;
+        if (!pool.isActive) {
+          const winnerRows = await db
+            .select({
+              userId: entriesTable.userId,
+              username: usersTable.username,
+              displayName: usersTable.displayName,
+              prizeAmount: entriesTable.prizeAmount,
+            })
+            .from(entriesTable)
+            .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+            .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true)));
+          if (winnerRows.length > 0) {
+            const winnerUserIds = winnerRows.map((w) => w.userId);
+            const finalScoreRows = await db
+              .select({
+                userId: pickemPicksTable.userId,
+                correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+                picked: sql<string>`COUNT(*)`,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.week, week),
+                inArray(pickemPicksTable.userId, winnerUserIds),
+              ))
+              .groupBy(pickemPicksTable.userId);
+            const finalScoreMap = new Map(finalScoreRows.map((s) => [s.userId, { correct: Number(s.correct), picked: Number(s.picked) }]));
+            lastWinners = winnerRows.map((w) => ({
+              userId: w.userId,
+              username: w.username,
+              displayName: w.displayName ?? null,
+              correct: finalScoreMap.get(w.userId)?.correct ?? null,
+              picked: finalScoreMap.get(w.userId)?.picked ?? null,
+              score: null,
+              prizeWon: w.prizeAmount != null ? Number(w.prizeAmount) : null,
+            }));
+          }
+        } else if (prevWeek >= 1) {
+          const hasGraded = prevRows.some((r) => Number(r.graded) > 0);
+          if (hasGraded && prevRows.length > 0) {
+            const topCorrect = Number(prevRows[0].correct);
+            const tiedRows = prevRows.filter((r) => Number(r.correct) === topCorrect);
+            lastWinners = tiedRows.map((r) => ({
+              userId: r.userId,
+              username: r.username,
+              displayName: r.displayName ?? null,
+              correct: Number(r.correct),
+              picked: Number(r.picked),
+              score: null,
+              prizeWon: computeSplitPrize(pool, tiedRows.length, memberCountMap.get(pool.id) ?? 0),
+            }));
+          }
+        }
+
+        return {
+          poolId: pool.id,
+          isActive: pool.isActive,
+          poolName: pool.name,
+          poolType,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
+          lastWinners,
+          myStanding: {
+            rank: computeRank(scoredCurrent, userId),
+            isTied: computeIsTied(scoredCurrent, userId),
+            correct: myRow ? Number(myRow.correct) : 0,
+            picked: myRow ? Number(myRow.picked) : 0,
+            hasPicks: !!myRow && Number(myRow.picked) > 0,
+            status: null,
+            eliminatedWeek: null,
+            score: null,
             maxScore: null,
           },
         };
