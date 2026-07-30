@@ -3325,6 +3325,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       Live · updates every min
                     </span>
                   )}
+                  {/* Waiting-for-results badge: slate locked but not all games finished yet */}
+                  {slateLocked && !(slate?.games ?? []).every((g) => g.status === "final") && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-primary/10 text-primary/70 border-primary/20">
+                      <Wifi className="w-2.5 h-2.5" />
+                      Auto-updates every min
+                    </span>
+                  )}
                   {slateLocked && (
                     <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
                       Slate Locked
@@ -3333,7 +3340,75 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 </div>
               </div>
 
-              {gamesLoading ? (
+              {/* Pool ended — full takeover with leaderboard + graded game cards */}
+              {(slate?.poolClosed ?? false) ? (
+                <div className="space-y-5">
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+                    <Trophy className="w-16 h-16 text-yellow-500/60 mb-4" />
+                    <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
+                    <p className="text-muted-foreground">Results are final.</p>
+                  </div>
+                  {leaderboard && leaderboard.entries.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+                        <p className="text-yellow-400/80 font-bebas text-lg tracking-wider mb-2 uppercase">
+                          {leaderboard.entries.filter(e => e.correct === leaderboard!.entries[0].correct).length > 1 ? "Co-Winners" : "Winner"}
+                        </p>
+                        {leaderboard.entries
+                          .filter(e => e.correct === leaderboard!.entries[0].correct)
+                          .map(w => (
+                            <div key={w.userId} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xl">🏆</span>
+                              <span className="font-semibold text-foreground text-lg">{w.displayName || w.username}</span>
+                              {w.userId === user?.id && <span className="text-xs text-primary/60 font-medium">(you)</span>}
+                              <span className="text-muted-foreground text-sm">— {w.correct}/{w.picked} correct</span>
+                            </div>
+                          ))}
+                      </div>
+                      <div className="rounded-xl border border-border/40 overflow-hidden">
+                        {leaderboard.entries.map((entry, idx) => {
+                          const isMe = entry.userId === user?.id;
+                          return (
+                            <div
+                              key={entry.userId}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
+                                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                              )}
+                            >
+                              <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
+                                {idx + 1}
+                              </span>
+                              <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
+                                {entry.displayName || entry.username}
+                                {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                                <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Graded game cards — each shows final margin vs spread */}
+                  {(slate?.games ?? []).length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80">Game Results</h4>
+                      {(slate?.games ?? []).map((game) => (
+                        <AtsGameCard
+                          key={game.id}
+                          game={game}
+                          pickedTeamId={game.userPickTeamId ?? null}
+                          onPick={() => {}}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : gamesLoading ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
                 </div>

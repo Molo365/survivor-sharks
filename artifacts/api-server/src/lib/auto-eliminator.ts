@@ -3720,6 +3720,198 @@ export async function processPickEmResults(): Promise<{
     }
   }
 
+  // ── NBA ATS Weekly: auto-closure for non-recurring pools ──────────────────
+  // Mirrors the MLS weekly close block. No tiebreaker for v1 — tied players
+  // become co-winners with an even prize split.
+  // Recurring nba_ats pools are intentionally left open.
+  // NOTE: nba_ats pools are NOT in the main pickemPools list (which only fetches
+  // poolType = 'pickem'). We query them separately here.
+
+  const nbaAtsWeeklyPools = await db
+    .select()
+    .from(poolsTable)
+    .where(
+      and(
+        eq(poolsTable.poolType, "nba_ats"),
+        eq(poolsTable.isActive, true),
+        eq(poolsTable.isRecurring, false),
+      ),
+    );
+
+  for (const pool of nbaAtsWeeklyPools) {
+    try {
+      logger.info({ poolId: pool.id, week: pool.currentWeek }, "NBA ATS Weekly auto-closure: checking pool");
+
+      // 1. Skip if any picks for this week are still pending.
+      const [{ pendingCount }] = await db
+        .select({ pendingCount: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        );
+      if (Number(pendingCount) > 0) continue;
+
+      // Guard: must have at least one pick this week (pool may not yet be live).
+      const [{ totalPicks }] = await db
+        .select({ totalPicks: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+      if (Number(totalPicks) === 0) continue;
+
+      // Multi-day guard: every game that was offered this week must be final.
+      // Queries the pool's own pick records for game IDs (Fri/Sat/Sun slate).
+      const nbaPoolGameRows = await db
+        .selectDistinct({ gameId: pickemPicksTable.gameId, gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      const nbaGameIdsByDate = new Map<string, Set<string>>();
+      for (const { gameId, gameDate } of nbaPoolGameRows) {
+        const espnDate = gameDate.replace(/-/g, "");
+        if (!nbaGameIdsByDate.has(espnDate)) nbaGameIdsByDate.set(espnDate, new Set());
+        nbaGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      let nbaHasUnfinished = false;
+      for (const [espnDate, gameIds] of nbaGameIdsByDate) {
+        if (nbaHasUnfinished) break;
+        const gamesOnDate = await fetchGamesForDate("nba", espnDate);
+        for (const g of gamesOnDate) {
+          if (gameIds.has(g.id) && !g.isCompleted && !g.isPostponed) {
+            nbaHasUnfinished = true;
+            break;
+          }
+        }
+      }
+
+      if (nbaHasUnfinished) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek },
+          "NBA ATS Weekly auto-closure: skipping — unfinished games remain in weekend schedule",
+        );
+        continue;
+      }
+
+      // 2. Sum correct picks per user for this week.
+      const scoreRows = await db
+        .select({ userId: pickemPicksTable.userId, correct: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "correct"),
+          ),
+        )
+        .groupBy(pickemPicksTable.userId);
+
+      const allPickUsers = await db
+        .selectDistinct({ userId: pickemPicksTable.userId })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      const scoreByUser = new Map<number, number>();
+      for (const row of scoreRows) scoreByUser.set(row.userId, Number(row.correct));
+      for (const { userId } of allPickUsers) {
+        if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
+      }
+
+      // 3. Group players by correct count. No tiebreaker — ties become co-winners.
+      const byScore = new Map<number, number[]>();
+      for (const [userId, correct] of scoreByUser) {
+        if (!byScore.has(correct)) byScore.set(correct, []);
+        byScore.get(correct)!.push(userId);
+      }
+      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
+      const groups: number[][] = sortedScores.map((score) => byScore.get(score)!);
+
+      // 4. Write finishPosition and prizeAmount to entries.
+      const totalEntries = scoreByUser.size;
+      const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+      let placeIndex = 0;
+
+      for (const group of groups) {
+        const finishPosition = placeIndex + 1;
+        const prize = calcPrize({
+          prizeStructure: ps,
+          prizeMode: pool.prizeMode,
+          entryFee: pool.entryFee,
+          prizePot: pool.prizePot,
+          totalEntries,
+          maxEntries: pool.maxEntries,
+          placeIndex,
+          coWinners: group.length,
+        });
+
+        await db
+          .update(entriesTable)
+          .set({
+            finishPosition,
+            prizeAmount: prize,
+            ...(finishPosition === 1 ? { finalWinner: true } : {}),
+          })
+          .where(
+            and(
+              eq(entriesTable.poolId, pool.id),
+              inArray(entriesTable.userId, group),
+            ),
+          );
+
+        placeIndex += group.length;
+      }
+
+      // 5. Determine closureReason: winner's displayName (or "co_winners").
+      const firstGroup = groups[0] ?? [];
+      let closureReason = "co_winners";
+      if (firstGroup.length === 1) {
+        const [winnerUser] = await db
+          .select({ displayName: usersTable.displayName, username: usersTable.username })
+          .from(usersTable)
+          .where(eq(usersTable.id, firstGroup[0]))
+          .limit(1);
+        if (winnerUser) closureReason = winnerUser.displayName ?? winnerUser.username;
+      }
+
+      // 6. Close the pool.
+      await db
+        .update(poolsTable)
+        .set({ isActive: false, endedAt: new Date(), closureReason })
+        .where(eq(poolsTable.id, pool.id));
+
+      logger.info(
+        {
+          poolId: pool.id,
+          week: pool.currentWeek,
+          closureReason,
+          winnerCount: firstGroup.length,
+          totalEntries,
+        },
+        "NBA ATS Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
+      );
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "NBA ATS Weekly auto-closure error");
+    }
+  }
+
   return { picksGraded };
 }
 
