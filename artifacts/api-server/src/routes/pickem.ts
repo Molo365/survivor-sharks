@@ -561,8 +561,10 @@ router.post("/picks", requireAuth, async (req, res) => {
     anchorGameDate = sandboxDay;
     const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
-  } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly") {
-    // Same fix for NBA sandbox weekly pools.
+  } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
+    // NBA sandbox weekly (non-ATS): map today's day-of-week onto the anchor week.
+    // nba_ats sandbox pools skip this branch — they need the full weekend slate, not a
+    // single day, and the isAts branch below already handles their sandbox anchor correctly.
     const baseDate = (submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) ? submittedDate : todayEt;
     const [ry2, rm2, rd2] = baseDate.split("-").map(Number);
     const dow = new Date(Date.UTC(ry2, rm2 - 1, rd2)).getUTCDay();
