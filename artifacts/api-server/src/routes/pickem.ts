@@ -2015,8 +2015,9 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   }
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
   const isPickemNhlWeekly = pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
-  if (!isCrazyEightsNhl && !isPickemNhlWeekly) {
-    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly) and NHL Hit the Ice pools in sandbox mode" }); return;
+  const isNbaAts = (pool.poolType as string) === "nba_ats";
+  if (!isCrazyEightsNhl && !isPickemNhlWeekly && !isNbaAts) {
+    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly), NHL Hit the Ice, and NBA ATS pools in sandbox mode" }); return;
   }
   if (!pool.sandboxMode) {
     res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
@@ -2024,6 +2025,85 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
 
   const week = pool.currentWeek;
 
+  // ── NBA ATS sandbox simulate-grading ────────────────────────────────────────
+  if (isNbaAts) {
+    // 1. Fetch the full Fri/Sat/Sun weekend slate for this anchor week
+    const { espnDates } = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, week);
+    const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
+    type AtsSandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
+    const gameList: AtsSandboxGame[] = weekendGames.map((g) => ({
+      id: g.id,
+      homeTeamId: g.homeTeam.id,
+      awayTeamId: g.awayTeam.id,
+    }));
+
+    // 2. Load existing scores so outcomes stay stable across repeated calls
+    const existingRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
+      existingRows.map((r) => [r.gameId, { homeScore: r.homeScore ?? 90, awayScore: r.awayScore ?? 90 }]),
+    );
+
+    // 3. Generate NBA-range scores (90–130 pts, never a tie) for unscored games
+    for (const game of gameList) {
+      if (gameScores.has(game.id)) continue;
+      let homeScore = 90 + Math.floor(Math.random() * 41); // 90–130
+      let awayScore = 90 + Math.floor(Math.random() * 41);
+      if (homeScore === awayScore) awayScore = awayScore >= 130 ? 129 : awayScore + 1;
+      gameScores.set(game.id, { homeScore, awayScore });
+      await db
+        .insert(sandboxGameScoresTable)
+        .values({ poolId, week, gameId: game.id, homeScore, awayScore })
+        .onConflictDoNothing();
+    }
+
+    // 4. Load commissioner-entered spread lines for this pool+week
+    const spreadRows = await db
+      .select()
+      .from(pickemGameSpreadsTable)
+      .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, week)));
+    const spreadByGameId = new Map(
+      spreadRows.map((r) => [r.gameId, { spread: r.spread, favoriteTeamId: r.favoriteTeamId }]),
+    );
+
+    // 5. Grade all pending picks using ATS logic
+    //    Favourite covers when their margin of victory > spread.
+    //    Underdog covers when they win outright or lose by less than the spread.
+    const pendingPicks = await db
+      .select()
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week), eq(pickemPicksTable.result, "pending")));
+
+    let graded = 0;
+    for (const pick of pendingPicks) {
+      const scores = gameScores.get(pick.gameId);
+      const spreadEntry = spreadByGameId.get(pick.gameId);
+      const game = gameList.find((g) => g.id === pick.gameId);
+      if (!scores || !spreadEntry || !game) continue;
+
+      const favoriteIsHome = spreadEntry.favoriteTeamId === game.homeTeamId;
+      const favScore = favoriteIsHome ? scores.homeScore : scores.awayScore;
+      const underdogScore = favoriteIsHome ? scores.awayScore : scores.homeScore;
+      const favMargin = favScore - underdogScore;
+
+      const pickedFav = pick.pickedTeamId === spreadEntry.favoriteTeamId;
+      const favCovered = favMargin > spreadEntry.spread;
+      const result: "correct" | "incorrect" = pickedFav === favCovered ? "correct" : "incorrect";
+
+      await db
+        .update(pickemPicksTable)
+        .set({ result, updatedAt: new Date() })
+        .where(eq(pickemPicksTable.id, pick.id));
+      graded++;
+    }
+
+    res.json({ graded, week });
+    return;
+  }
+
+  // ── NHL sandbox simulate-grading (unchanged) ─────────────────────────────────
   // Fetch all games for the anchor week
   const weekGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
   type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };

@@ -4068,7 +4068,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 </Button>
               </div>
 
-              {isNhl && user?.role === "admin" && (
+              {(isNhl || isNbaAts) && user?.role === "admin" && (
                 <PickEmSandboxPanel poolId={poolId} />
               )}
 
