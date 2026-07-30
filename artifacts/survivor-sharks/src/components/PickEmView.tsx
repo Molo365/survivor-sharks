@@ -2917,7 +2917,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                         : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                       : pickFrequency === "weekly"
-                      ? (isNhl
+                      ? (isNbaAts
+                          ? "Pick every game on the Friday–Sunday NBA slate against the spread. The commissioner sets the spread line for each game — pick the favourite to cover or the underdog to beat the number. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                          : isNhl
                           ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
                           : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
                       : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
