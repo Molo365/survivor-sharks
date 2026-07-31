@@ -1081,7 +1081,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
   );
 
-  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow, closedEntries] = await Promise.all([
+  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -1125,12 +1125,6 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       : Promise.resolve(null as null),
     // Total pool members — needed for correct prize scaling in calcPrize
     db.select({ value: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
-    // Stored prize amounts written by closure logic — used directly for prizeWon in the response.
-    // auto-eliminator.ts already computes the correct amount for every paid position (2nd, 3rd, etc.),
-    // so reading the stored value is more correct than recomputing only placeIndex:0 here.
-    db.select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
-      .from(entriesTable)
-      .where(eq(entriesTable.poolId, poolId)),
   ]);
 
   const hasResults = aggregates.some((r) => Number(r.graded) > 0);
@@ -1145,18 +1139,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     });
   }
 
-  // Build a map of stored prize amounts from the entries table.
-  // auto-eliminator.ts writes the correct prizeAmount for every paid finishing position
-  // (1st, 2nd, 3rd, …) when the week closes, so we read those values directly rather
-  // than recomputing only the 1st-place amount here.
-  const prizeAmountByUser = new Map<number, number>();
-  for (const e of closedEntries) {
-    if (e.prizeAmount != null && e.prizeAmount > 0) {
-      prizeAmountByUser.set(e.userId, e.prizeAmount);
-    }
-  }
-
-  // allGraded / weekTopCorrect are still needed for tiebreaker rank resolution below.
+  // allGraded / weekTopCorrect needed for tiebreaker rank resolution and prize computation below.
   const allGraded = hasResults && aggregates.every((r) => Number(r.graded) === Number(r.picked));
   let weekTopCorrect = -1;
   if (allGraded && aggregates.length > 0) {
@@ -1251,6 +1234,52 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
+  // Compute prize for every rank group dynamically from this week's pick data.
+  // This mirrors auto-eliminator's closure logic so all paid positions (1st, 2nd, 3rd…)
+  // are returned correctly — including for pools that are still active and haven't been
+  // written to entries.prize_amount yet.
+  const prizeWonByUser = new Map<number, number>();
+  if (allGraded && aggregates.length > 0) {
+    const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
+    const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
+
+    // Build ordered rank groups. When a tiebreaker resolved the top group, split
+    // confirmed winners (slot 0) from tiebreaker-losers (slot 1) into separate groups.
+    // All other equal-correct-count runs stay together as one co-winner group.
+    const rankGroups: number[][] = [];
+    let prevCorrect = -1;
+    for (const row of aggregates) {
+      const c = Number(row.correct);
+      if (tiebreakWinnerIds != null && c === weekTopCorrect) {
+        const slot = tiebreakWinnerIds.has(row.userId) ? 0 : 1;
+        while (rankGroups.length <= slot) rankGroups.push([]);
+        rankGroups[slot].push(row.userId);
+      } else {
+        if (c !== prevCorrect) rankGroups.push([]);
+        rankGroups[rankGroups.length - 1].push(row.userId);
+        prevCorrect = c;
+      }
+    }
+
+    let placeIndex = 0;
+    for (const group of rankGroups) {
+      const prize = calcPrize({
+        prizeStructure: ps,
+        prizeMode: pool.prizeMode,
+        entryFee: pool.entryFee,
+        prizePot: pool.prizePot,
+        totalEntries,
+        maxEntries: pool.maxEntries,
+        placeIndex,
+        coWinners: group.length,
+      });
+      if (prize != null && prize > 0) {
+        for (const uid of group) prizeWonByUser.set(uid, prize);
+      }
+      placeIndex += group.length;
+    }
+  }
+
   let weekRank = 1;
   const entries = aggregates.map((row, i) => {
     if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
@@ -1280,7 +1309,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
-      prizeWon: prizeAmountByUser.get(row.userId) ?? null,
+      prizeWon: prizeWonByUser.get(row.userId) ?? null,
       tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
