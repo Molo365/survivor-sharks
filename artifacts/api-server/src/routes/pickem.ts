@@ -1081,7 +1081,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
   );
 
-  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow] = await Promise.all([
+  const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow, closedEntries] = await Promise.all([
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -1125,6 +1125,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       : Promise.resolve(null as null),
     // Total pool members — needed for correct prize scaling in calcPrize
     db.select({ value: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
+    // Stored prize amounts written by closure logic — used directly for prizeWon in the response.
+    // auto-eliminator.ts already computes the correct amount for every paid position (2nd, 3rd, etc.),
+    // so reading the stored value is more correct than recomputing only placeIndex:0 here.
+    db.select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId)),
   ]);
 
   const hasResults = aggregates.some((r) => Number(r.graded) > 0);
@@ -1139,10 +1145,19 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     });
   }
 
-  // Compute prize for the week winner(s) — only once all picks are fully graded.
-  // winnerCount and prize are deferred until after tiebreaker actuals are resolved below.
+  // Build a map of stored prize amounts from the entries table.
+  // auto-eliminator.ts writes the correct prizeAmount for every paid finishing position
+  // (1st, 2nd, 3rd, …) when the week closes, so we read those values directly rather
+  // than recomputing only the 1st-place amount here.
+  const prizeAmountByUser = new Map<number, number>();
+  for (const e of closedEntries) {
+    if (e.prizeAmount != null && e.prizeAmount > 0) {
+      prizeAmountByUser.set(e.userId, e.prizeAmount);
+    }
+  }
+
+  // allGraded / weekTopCorrect are still needed for tiebreaker rank resolution below.
   const allGraded = hasResults && aggregates.every((r) => Number(r.graded) === Number(r.picked));
-  let weekPrizePerWinner: number | null = null;
   let weekTopCorrect = -1;
   if (allGraded && aggregates.length > 0) {
     weekTopCorrect = Number(aggregates[0].correct);
@@ -1236,24 +1251,6 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
-  // Now that winnerCount is known, compute the prize.
-  if (allGraded && weekTopCorrect >= 0) {
-    const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
-    const winnerCount = tiebreakWinnerIds
-      ? tiebreakWinnerIds.size
-      : aggregates.filter((r) => Number(r.correct) === weekTopCorrect).length;
-    weekPrizePerWinner = calcPrize({
-      prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
-      prizeMode: pool.prizeMode,
-      entryFee: pool.entryFee,
-      prizePot: pool.prizePot,
-      totalEntries,
-      maxEntries: pool.maxEntries,
-      placeIndex: 0,
-      coWinners: winnerCount,
-    });
-  }
-
   let weekRank = 1;
   const entries = aggregates.map((row, i) => {
     if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
@@ -1283,8 +1280,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picked: Number(row.picked),
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
-      prizeWon: weekPrizePerWinner != null && Number(row.correct) === weekTopCorrect &&
-        (tiebreakWinnerIds == null || tiebreakWinnerIds.has(row.userId)) ? weekPrizePerWinner : null,
+      prizeWon: prizeAmountByUser.get(row.userId) ?? null,
       tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
