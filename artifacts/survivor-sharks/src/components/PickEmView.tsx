@@ -2157,6 +2157,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [resultsModalDate, setResultsModalDate] = useState<string | null>(null);
   const [weekResultsOpen, setWeekResultsOpen] = useState(false);
 
+  // Auto-open the Final Results modal when the page is loaded with ?results=true
+  // (e.g. by clicking the "Last winner" line on the dashboard PoolCard).
+  // Clean the param from the URL immediately so a refresh doesn't re-open it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("results") === "true") {
+      setWeekResultsOpen(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   const yesterdayParams = { date: yesterdayDate };
   const { data: yesterdayWinner } = useGetPickEmYesterdayWinner(
     poolId,

@@ -111,11 +111,15 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
 
           {pickEmStat && (
             <div className="mt-2 space-y-1 border-t border-border/20 pt-2">
-              {/* Last winner(s) — all tied top scorers from the previous period */}
+              {/* Last winner(s) — clickable: navigates to pool page and auto-opens Final Results modal */}
               {pickEmStat.lastWinners && pickEmStat.lastWinners.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Link
+                  href={`/pools/${pool.id}?results=true`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground/70 transition-colors cursor-pointer group/winner"
+                >
                   <span aria-hidden>🏆</span>
-                  <span>
+                  <span className="group-hover/winner:underline underline-offset-2">
                     Last winner{pickEmStat.lastWinners.length > 1 ? "s" : ""}:{" "}
                     <span className="text-foreground/70 font-medium">
                       {pickEmStat.lastWinners.map(w => w.displayName || w.username).join(" & ")}
@@ -137,7 +141,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     ? <span className="text-muted-foreground/60">· Free pool</span>
                     : null
                   }
-                </div>
+                </Link>
               )}
 
               {/* My standing — pool-type-specific */}
