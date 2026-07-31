@@ -3320,6 +3320,38 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ) : isNbaAts ? (
             /* NBA Weekend ATS — shows full Fri/Sat/Sun slate with spread lines */
             <div className="space-y-6">
+              {/* Last Week's Winner banner */}
+              {prevWeekWinners && prevWeekWinners.length > 0 && prevWeekResults && (
+                <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+                  <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-yellow-200">{prevWeekWinners.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:"}</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinners.map(w => w.displayName || w.username).join(" & ")}</span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinners[0].correct}/{prevWeekWinners[0].picked} correct</span>
+                    {prevWeekWinners[0].prizeWon != null && (
+                      <>
+                        <span className="text-yellow-500/50 text-xs">·</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinners[0].prizeWon}</span>
+                      </>
+                    )}
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-xs text-yellow-500/60">
+                      {new Date(prevWeekResults.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {" – "}
+                      {new Date(prevWeekResults.weekEnd + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWeekResultsOpen(true)}
+                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+                  >
+                    View Full Results →
+                  </button>
+                </div>
+              )}
+
               {/* Weekend header */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
