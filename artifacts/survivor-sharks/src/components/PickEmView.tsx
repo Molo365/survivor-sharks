@@ -3359,15 +3359,30 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     <h3 className="font-bebas text-3xl tracking-widest mb-2 text-muted-foreground/70">POOL ENDED</h3>
                     <p className="text-muted-foreground">Results are final.</p>
                   </div>
-                  {leaderboard && leaderboard.entries.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
-                        <p className="text-yellow-400/80 font-bebas text-lg tracking-wider mb-2 uppercase">
-                          {leaderboard.entries.filter(e => e.correct === leaderboard!.entries[0].correct).length > 1 ? "Co-Winners" : "Winner"}
-                        </p>
-                        {leaderboard.entries
-                          .filter(e => e.correct === leaderboard!.entries[0].correct)
-                          .map(w => (
+                  {leaderboard && leaderboard.entries.length > 0 && (() => {
+                    // Determine actual winner(s) using margin-of-victory as tiebreaker.
+                    // Entries are sorted correct DESC by the API; topPlayers share the max.
+                    const maxCorrect = leaderboard.entries[0]?.correct ?? 0;
+                    const topPlayers = leaderboard.entries.filter(e => e.correct === maxCorrect);
+                    const hasMarginData = topPlayers.some(e => (e as any).atsTiebreakerMargin != null);
+
+                    let actualWinners = topPlayers;
+                    let tiebreakerWasUsed = false;
+
+                    if (hasMarginData && topPlayers.length > 1) {
+                      const maxMargin = Math.max(...topPlayers.map(e => (e as any).atsTiebreakerMargin ?? 0));
+                      const marginWinners = topPlayers.filter(e => ((e as any).atsTiebreakerMargin ?? 0) === maxMargin);
+                      tiebreakerWasUsed = marginWinners.length < topPlayers.length;
+                      if (tiebreakerWasUsed) actualWinners = marginWinners;
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+                          <p className="text-yellow-400/80 font-bebas text-lg tracking-wider mb-2 uppercase">
+                            {actualWinners.length > 1 ? "Co-Winners" : "Winner"}
+                          </p>
+                          {actualWinners.map(w => (
                             <div key={w.userId} className="flex items-center gap-2 flex-wrap">
                               <span className="text-xl">🏆</span>
                               <span className="font-semibold text-foreground text-lg">{w.displayName || w.username}</span>
@@ -3375,35 +3390,63 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               <span className="text-muted-foreground text-sm">— {w.correct}/{w.picked} correct</span>
                             </div>
                           ))}
-                      </div>
-                      <div className="rounded-xl border border-border/40 overflow-hidden">
-                        {leaderboard.entries.map((entry, idx) => {
-                          const isMe = entry.userId === user?.id;
-                          return (
-                            <div
-                              key={entry.userId}
-                              className={cn(
-                                "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
-                                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
-                              )}
-                            >
-                              <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
-                                {idx + 1}
-                              </span>
-                              <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
-                                {entry.displayName || entry.username}
-                                {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
-                              </span>
-                              <span className="shrink-0 text-right">
-                                <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
-                                <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
-                              </span>
+                        </div>
+
+                        {/* Tiebreaker breakdown — shown only when margin resolved a tied correct count */}
+                        {tiebreakerWasUsed && (
+                          <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-5 py-4">
+                            <p className="text-sky-400/80 font-bebas text-sm tracking-wider mb-3 uppercase">Tiebreaker — Margin of Victory</p>
+                            <div className="space-y-1">
+                              {topPlayers
+                                .slice()
+                                .sort((a, b) => ((b as any).atsTiebreakerMargin ?? 0) - ((a as any).atsTiebreakerMargin ?? 0))
+                                .map((e) => {
+                                  const margin: number = (e as any).atsTiebreakerMargin ?? 0;
+                                  const isWinner = actualWinners.some(w => w.userId === e.userId);
+                                  return (
+                                    <div key={e.userId} className={cn("flex items-center justify-between text-sm", isWinner ? "text-foreground font-medium" : "text-muted-foreground")}>
+                                      <span>{e.displayName || e.username}{e.userId === user?.id ? " (you)" : ""}</span>
+                                      <span className="font-mono tabular-nums">{margin} pts total margin</span>
+                                    </div>
+                                  );
+                                })}
                             </div>
-                          );
-                        })}
+                          </div>
+                        )}
+
+                        <div className="rounded-xl border border-border/40 overflow-hidden">
+                          {leaderboard.entries.map((entry, idx) => {
+                            const isMe = entry.userId === user?.id;
+                            const margin: number | undefined = (entry as any).atsTiebreakerMargin;
+                            return (
+                              <div
+                                key={entry.userId}
+                                className={cn(
+                                  "flex items-center gap-3 px-4 py-3 border-b border-border/20 last:border-0",
+                                  isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+                                )}
+                              >
+                                <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
+                                  {idx + 1}
+                                </span>
+                                <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
+                                  {entry.displayName || entry.username}
+                                  {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
+                                </span>
+                                <span className="shrink-0 text-right">
+                                  {tiebreakerWasUsed && margin != null && entry.correct === maxCorrect && (
+                                    <span className="font-mono text-xs text-sky-400/70 mr-2 tabular-nums">{margin}pts</span>
+                                  )}
+                                  <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                                  <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   {/* Graded game cards — each shows final margin vs spread */}
                   {(slate?.games ?? []).length > 0 && (
                     <div className="space-y-3">

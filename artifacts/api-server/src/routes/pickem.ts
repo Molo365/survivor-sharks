@@ -1617,6 +1617,29 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     picksByUser.get(pick.userId)!.set(pick.gameId, pick);
   }
 
+  // For ended nba_ats pools: compute per-user total margin of victory across
+  // correct picks, using final scores already returned by espnGames. This is the
+  // same margin used by the closure block's tiebreaker; returning it here lets
+  // the "POOL ENDED" view display why the tiebreak resolved the way it did.
+  const atsTiebreakerMarginByUser = new Map<number, number>(); // userId → total |home−away|
+  if (isAts && !pool.isActive) {
+    const marginByGame = new Map<string, number>();
+    for (const g of espnGames) {
+      if (g.isCompleted && g.homeScore != null && g.awayScore != null) {
+        marginByGame.set(g.id, Math.abs(g.homeScore - g.awayScore));
+      }
+    }
+    for (const pick of allPicks) {
+      if (pick.result !== "correct") continue;
+      const margin = marginByGame.get(pick.gameId);
+      if (margin == null) continue;
+      atsTiebreakerMarginByUser.set(
+        pick.userId,
+        (atsTiebreakerMarginByUser.get(pick.userId) ?? 0) + margin,
+      );
+    }
+  }
+
   // Build gameId → ISO start-time map for pick redaction.
   // WC picks span the full phase so we pull from wcSchedule; all other sports use espnGames.
   const gameStartMap = new Map<string, string>();
@@ -1697,6 +1720,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       tiebreakerShotsOnGoalGuess: isNhl ? shotsGuess : undefined,
       tiebreakerPenaltyMinutesGuess: isNhl ? pimGuess : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
+      atsTiebreakerMargin: isAts && !pool.isActive ? (atsTiebreakerMarginByUser.get(row.userId) ?? 0) : undefined,
     };
   });
 
