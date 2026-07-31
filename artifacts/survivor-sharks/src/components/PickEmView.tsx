@@ -1239,7 +1239,7 @@ function generateAtsDays(weekStart: string): string[] {
 
 // ── Daily pick detail panel ───────────────────────────────────────────────────
 
-function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: number; date: string }) {
+function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; userId: number; date: string; isNbaAts?: boolean }) {
   const { data: picks, isLoading } = useGetPickEmDailyPicks(poolId, { date, userId });
 
   if (isLoading) {
@@ -1267,6 +1267,12 @@ function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: numb
         const pickedScore = pickedIsHome ? pick.homeScore : pick.awayScore;
         const opponentScore = pickedIsHome ? pick.awayScore : pick.homeScore;
 
+        // NBA ATS: show the line from the picked team's perspective.
+        // favourite covers at -spread; underdog covers at +spread.
+        const spreadLabel = isNbaAts && pick.spread != null && pick.favoriteTeamId != null
+          ? (pick.pickedTeamId === pick.favoriteTeamId ? `-${pick.spread}` : `+${pick.spread}`)
+          : null;
+
         return (
           <div
             key={pick.gameId}
@@ -1290,7 +1296,7 @@ function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: numb
               )}
             </div>
 
-            {/* Picked team */}
+            {/* Picked team + spread (ATS only) */}
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               {pick.pickedTeamLogoUrl && (
                 <img src={pick.pickedTeamLogoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
@@ -1303,6 +1309,9 @@ function DailyPickPanel({ poolId, userId, date }: { poolId: number; userId: numb
               )}>
                 {pick.pickedTeamName}
               </span>
+              {spreadLabel && (
+                <span className="text-xs font-mono text-muted-foreground/60 shrink-0">{spreadLabel}</span>
+              )}
             </div>
 
             {/* Opponent */}
@@ -1482,7 +1491,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                     {isPanelOpen && openCell && (
                       <tr className="border-b border-border/10">
                         <td colSpan={days.length + 2} className="p-0">
-                          <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
+                          <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} isNbaAts={isNbaAts} />
                         </td>
                       </tr>
                     )}
@@ -1896,7 +1905,7 @@ function PrevWeekResultsModal({
                           {isPanelOpen && openCell && (
                             <tr className="border-b border-border/10">
                               <td colSpan={days.length + 3} className="p-0">
-                                <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} />
+                                <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} isNbaAts={isNbaAts} />
                               </td>
                             </tr>
                           )}

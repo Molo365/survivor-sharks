@@ -1120,6 +1120,10 @@ export interface PickEmDailyPickDetail {
   awayScore?: number | null;
   startTime: string;
   status: string;
+  /** NBA ATS only — commissioner-entered spread line (e.g. 6.5). Null for all other pool types. @nullable */
+  spread?: number | null;
+  /** NBA ATS only — ESPN team ID of the favourite. Null for all other pool types. @nullable */
+  favoriteTeamId?: string | null;
 }
 
 export interface PickEmDailyBreakdown {

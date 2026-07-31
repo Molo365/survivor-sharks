@@ -741,6 +741,7 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isIntl = sport === "intl";
+  const isAts = (pool.poolType as string) === "nba_ats";
   const espnDate = date.replace(/-/g, "");
 
   const [picks, games] = await Promise.all([
@@ -757,6 +758,21 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate),
   ]);
 
+  // For NBA ATS pools: load spread lines for the games in this set of picks.
+  // Query by poolId + gameId (ESPN IDs are globally unique per pool) so we don't
+  // need to know the week number from just a date.
+  const spreadMap = new Map<string, { spread: number; favoriteTeamId: string }>();
+  if (isAts && picks.length > 0) {
+    const gameIds = picks.map((p) => p.gameId);
+    const spreadRows = await db
+      .select()
+      .from(pickemGameSpreadsTable)
+      .where(and(eq(pickemGameSpreadsTable.poolId, poolId), inArray(pickemGameSpreadsTable.gameId, gameIds)));
+    for (const row of spreadRows) {
+      spreadMap.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
+    }
+  }
+
   const gameMap = new Map(games.map((g) => [g.id, g]));
 
   const details = picks.map((pick) => {
@@ -768,6 +784,7 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
       startTime: game?.date,
     });
     const pickedIsHome = revealed && game ? pick.pickedTeamId === game.homeTeam.id : false;
+    const spreadEntry = isAts ? (spreadMap.get(pick.gameId) ?? null) : null;
     return {
       gameId: pick.gameId,
       pickedTeamId: revealed ? pick.pickedTeamId : null as string | null,
@@ -786,6 +803,10 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
       awayScore: game?.awayScore ?? null,
       startTime: game?.date ?? "",
       status: game?.status ?? "unknown",
+      // NBA ATS only — the commissioner-entered spread and which team is the favourite.
+      // Null for all other pool types.
+      spread: spreadEntry?.spread ?? null,
+      favoriteTeamId: spreadEntry?.favoriteTeamId ?? null,
     };
   });
 
