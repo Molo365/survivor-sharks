@@ -1035,7 +1035,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a pick-em pool" }); return; }
+
+  const isNbaAts = (pool.poolType as string) === "nba_ats";
+  if (pool.poolType !== "pickem" && !isNbaAts) { res.status(400).json({ error: "Not a pick-em pool" }); return; }
 
   const sport = pool.sport as string;
   const isWeekly = pool.pickFrequency === "weekly" && sport !== "worldcup" && sport !== "intl";
@@ -1052,11 +1054,23 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const currentWeekBounds = getWeekBoundsEt(todayEt);
 
-  // Previous week: the day before current week's Monday is last Sunday
-  const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
-  const prevWeekBounds = getWeekBoundsEt(prevWeekSunday);
+  // NBA ATS pools use Fri/Sat/Sun weekend bounds derived from the pool's week
+  // counter, not the generic Mon–Sun calendar week. The currentWeek counter has
+  // already been incremented past the most-recently closed weekend, so week − 1
+  // is the weekend whose results we want to show.
+  let prevWeekBounds: { weekStart: string; weekEnd: string };
+  if (isNbaAts) {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    const prevWeekNum = Math.max(1, pool.currentWeek - 1);
+    const { days } = getNbaWeekendBounds(anchor, prevWeekNum);
+    prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
+  } else {
+    const currentWeekBounds = getWeekBoundsEt(todayEt);
+    // Previous week: the day before current week's Monday is last Sunday
+    const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
+    prevWeekBounds = getWeekBoundsEt(prevWeekSunday);
+  }
 
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
