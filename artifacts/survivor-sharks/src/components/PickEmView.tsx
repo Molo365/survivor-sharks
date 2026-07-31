@@ -1731,7 +1731,13 @@ function PrevWeekResultsModal({
   tiebreakerActualPenaltyMinutes?: number | null;
   isNbaAts?: boolean;
 }) {
-  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
+  // For nba_ats the modal receives weekStart = Friday (from getNbaWeekendBounds),
+  // so generate the three weekend days as +0/+1/+2 from that Friday.
+  // generateAtsDays adds +4/+5/+6 and is only correct when weekStart is a Monday
+  // (as in the live WeeklyLeaderboard), so it must NOT be used here.
+  const days = isNbaAts
+    ? [weekStart, offsetDate(weekStart, 1), offsetDate(weekStart, 2)]
+    : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
 
   function toggleCell(userId: number, date: string) {
