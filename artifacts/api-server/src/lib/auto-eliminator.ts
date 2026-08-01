@@ -40,6 +40,7 @@ import {
   fetchNhlGamesByWeek,
   fetchNbaGamesByWeek,
   fetchNflGamesByWeek,
+  fetchNflWeek18TiebreakerStats,
   getTeamsWithWin,
 } from "./espn";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
@@ -2763,12 +2764,55 @@ export async function processPickEmResults(): Promise<{
           ));
         if (Number(pendingCount) === 0) {
           logger.info({ poolId: pool.id }, "pickem_season auto-closure: live Week 18 fully graded — applying season closure");
+
+          // Fetch tiebreaker actuals from ESPN and persist them so the leaderboard
+          // Tiebreaker Actuals card has data to display. Mirrors process-results:
+          // sort Week 18 games by start time, use the last game's box-score stats.
+          let actualPassingYards: number | null = null;
+          let actualRushingYards: number | null = null;
+          try {
+            const week18Games = await fetchNflGamesByWeek(NFL_TOTAL_WEEKS, pool.season ?? undefined);
+            const sortedGames = [...week18Games].sort(
+              (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+            );
+            const lastGame = sortedGames.at(-1);
+            if (lastGame) {
+              const stats = await fetchNflWeek18TiebreakerStats([lastGame.id]);
+              if (stats) {
+                actualPassingYards = stats.actualPassingYards;
+                actualRushingYards = stats.actualRushingYards;
+                await db
+                  .insert(nflConfidenceResultsTable)
+                  .values({ poolId: pool.id, week: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards })
+                  .onConflictDoUpdate({
+                    target: [nflConfidenceResultsTable.poolId, nflConfidenceResultsTable.week],
+                    set: { actualPassingYards, actualRushingYards, recordedAt: new Date() },
+                  });
+                logger.info(
+                  { poolId: pool.id, lastGameId: lastGame.id, actualPassingYards, actualRushingYards },
+                  "pickem_season auto-closure: Week 18 tiebreaker actuals persisted",
+                );
+              } else {
+                logger.warn(
+                  { poolId: pool.id, lastGameId: lastGame.id },
+                  "pickem_season auto-closure: ESPN stats unavailable — tiebreaker actuals not persisted",
+                );
+              }
+            }
+          } catch (err) {
+            // Non-fatal: closure proceeds with null actuals (even-split fallback)
+            logger.warn(
+              { poolId: pool.id, err },
+              "pickem_season auto-closure: failed to fetch/persist Week 18 tiebreaker actuals — continuing without them",
+            );
+          }
+
           await applyPickEmSeasonClosure({
             poolId: pool.id,
             week: NFL_TOTAL_WEEKS,
             pool: { isActive: pool.isActive },
-            actualPassingYards: null,
-            actualRushingYards: null,
+            actualPassingYards,
+            actualRushingYards,
             log: logger,
           });
         } else {

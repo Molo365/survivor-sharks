@@ -336,9 +336,15 @@ export function PickEmSeasonLeaderboard({
     );
   }
 
-  // All rank-1 players — include those without tiebreaker guesses so every
-  // tied player is visible; the card handles the null-guess display.
-  const tbCandidates = entries.filter((e) => e.rank === 1);
+  // Find the first rank group (lowest rank number) where potSplit is true —
+  // that is the tied group that actually needed tiebreaker resolution.
+  // Hardcoding rank === 1 is wrong when the tie falls at a lower rank (e.g.
+  // 2nd place), as the true 1st-place finisher would appear instead of the
+  // tied pair. Fall back to an empty array so the card is hidden when no
+  // split occurred.
+  const firstSplitRank = entries.find((e) => e.potSplit)?.rank ?? null;
+  const tbCandidates =
+    firstSplitRank !== null ? entries.filter((e) => e.rank === firstSplitRank) : [];
   const footer = tbCandidates.length > 0 ? (
     <TiebreakerActualsCard
       actualPassingYards={actualPassingYards}
