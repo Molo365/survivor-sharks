@@ -326,6 +326,8 @@ export default function CreatePool() {
   const watchedEntryFee = form.watch("entryFee");
   const watchedMaxEntries = form.watch("maxEntries");
   const watchedFreq = form.watch("pickFrequency");
+  const watchedStartWeek = form.watch("startWeek");
+  const watchedSeason = form.watch("season");
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
 
@@ -395,6 +397,50 @@ export default function CreatePool() {
     },
     enabled: isMlbCrazyEights,
     staleTime: 2 * 60 * 1000,
+  });
+
+  // Weekly slate game-count check for non-MLB pool types that pick from a weekly/weekend slate.
+  // MLB crazy_8s is handled separately via mlbCheck above.
+  const isWeeklySlatePool = !isMlbCrazyEights && (() => {
+    if (!selectedSport || !selectedType) return false;
+    if (selectedSport === PoolInputSport.nfl && (
+      selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season"
+    )) return true;
+    if (selectedSport === PoolInputSport.nhl && (selectedType === "pickem" || selectedType === "crazy_8s")) return true;
+    if (selectedSport === PoolInputSport.nba && (selectedType === "nba_ats" || selectedType === "crazy_8s")) return true;
+    if (selectedSport === PoolInputSport.mls && selectedType === "pickem") return true;
+    if (selectedSport === PoolInputSport.superleague && selectedType === "pickem") return true;
+    return false;
+  })();
+
+  const slateCountQueryParams = (() => {
+    if (!isWeeklySlatePool) return null;
+    if (selectedSport === PoolInputSport.nfl) {
+      // Use the explicit startWeek if set, otherwise fall back to the current NFL week
+      const week = watchedStartWeek ?? nflWeekData?.week ?? 1;
+      const season = watchedSeason ?? new Date().getFullYear();
+      return `sport=nfl&week=${week}&season=${season}`;
+    }
+    if (selectedSport === PoolInputSport.nhl) return "sport=nhl";
+    if (selectedSport === PoolInputSport.nba) return "sport=nba";
+    if (selectedSport === PoolInputSport.mls) return "sport=mls";
+    if (selectedSport === PoolInputSport.superleague) return "sport=superleague";
+    return null;
+  })();
+
+  const { data: slateCountData, isLoading: slateCountLoading } = useQuery({
+    queryKey: ["weekly-slate-count", slateCountQueryParams],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/pools/weekly-slate-count?${slateCountQueryParams}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { count: -1 } as { count: number };
+      return res.json() as Promise<{ count: number }>;
+    },
+    enabled: isWeeklySlatePool && slateCountQueryParams !== null,
+    staleTime: 5 * 60 * 1000,
   });
 
   // When sport changes: enforce valid pool type and set sensible defaults
@@ -1890,6 +1936,23 @@ export default function CreatePool() {
                       </div>
                     </div>
                   </div>
+                  {/* Soft warning when the starting slate has ≤ 5 games */}
+                  {(
+                    // MLB crazy_8s: sufficient (≥4) but still ≤ 5 games today
+                    (isMlbCrazyEights && !mlbCheckLoading && mlbCheck?.sufficient && (mlbCheck.count ?? 99) <= 5) ||
+                    // All other weekly slate pools with a thin schedule
+                    (!isMlbCrazyEights && isWeeklySlatePool && !slateCountLoading && slateCountData !== undefined && slateCountData.count >= 0 && slateCountData.count <= 5)
+                  ) && (
+                    <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 flex items-start gap-3">
+                      <span className="text-yellow-400 shrink-0 mt-0.5">⚠️</span>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Only <span className="font-semibold text-foreground">
+                          {isMlbCrazyEights ? mlbCheck?.count : slateCountData?.count}
+                        </span> game{(isMlbCrazyEights ? (mlbCheck?.count ?? 0) : (slateCountData?.count ?? 0)) !== 1 ? "s" : ""} scheduled this week — picks will be limited. You can still create the pool.
+                      </p>
+                    </div>
+                  )}
+
                   {isMlbCrazyEights && !mlbCheckLoading && mlbCheck && !mlbCheck.sufficient ? (
                     <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 px-5 py-6 text-center space-y-2">
                       <div className="text-4xl">🎱</div>

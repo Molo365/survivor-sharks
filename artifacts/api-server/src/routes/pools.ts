@@ -4,7 +4,14 @@ import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcB
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
-import { fetchGamesForDate, getTodayEtDate } from "../lib/espn";
+import {
+  fetchGamesForDate,
+  getTodayEtDate,
+  fetchNflGamesByWeek,
+  fetchNhlGamesByWeek,
+  fetchNbaGamesByWeek,
+  fetchSuperLeagueGamesForDate,
+} from "../lib/espn";
 
 const router = Router();
 
@@ -376,6 +383,70 @@ router.get("/crazy-eights-mlb-check", requireAuth, async (_req, res) => {
   const games = await fetchGamesForDate("mlb", todayEspn);
   const count = games.length;
   res.json({ count, sufficient: count >= 8 });
+});
+
+// GET /api/pools/weekly-slate-count?sport=nfl&week=3&season=2025
+// Returns the number of games on the upcoming slate for a given weekly-pool sport.
+// Used by CreatePool wizard to show a soft low-game-count warning.
+// Must be registered before /:poolId so the literal path is not swallowed as a poolId.
+router.get("/weekly-slate-count", requireAuth, async (req, res) => {
+  const sport = String(req.query.sport ?? "");
+  const now = new Date();
+
+  try {
+    if (sport === "nfl") {
+      const week = Math.max(1, parseInt(String(req.query.week ?? "1"), 10));
+      const season = parseInt(String(req.query.season ?? new Date().getFullYear()), 10);
+      const games = await fetchNflGamesByWeek(week, isNaN(season) ? undefined : season);
+      res.json({ count: games.length });
+      return;
+    }
+
+    if (sport === "nhl") {
+      const games = await fetchNhlGamesByWeek(now, 1);
+      res.json({ count: games.length });
+      return;
+    }
+
+    if (sport === "nba") {
+      const games = await fetchNbaGamesByWeek(now, 1);
+      res.json({ count: games.length });
+      return;
+    }
+
+    if (sport === "mls" || sport === "superleague") {
+      // Build the Mon–Sun date window for the current ET week
+      const todayEt = getTodayEtDate(); // YYYY-MM-DD
+      const [y, m, d] = todayEt.split("-").map(Number);
+      const dt = new Date(Date.UTC(y!, m! - 1, d!));
+      const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+      const daysToMon = dow === 0 ? -6 : 1 - dow;
+      const weekDates: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(Date.UTC(y!, m! - 1, d! + daysToMon + i));
+        const ds = day.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+        weekDates.push(ds);
+      }
+
+      let count = 0;
+      if (sport === "mls") {
+        const dayResults = await Promise.all(weekDates.map(ds => fetchGamesForDate("mls", ds)));
+        count = dayResults.flat().length;
+      } else {
+        // superleague — fetchSuperLeagueGamesForDate already filters Fri/Sat/Sun + teams
+        const dayResults = await Promise.all(weekDates.map(ds => fetchSuperLeagueGamesForDate(ds)));
+        count = dayResults.flat().length;
+      }
+      res.json({ count });
+      return;
+    }
+
+    // Unknown sport
+    res.json({ count: -1 });
+  } catch {
+    // ESPN unreachable — return -1 so the UI suppresses the warning rather than showing a wrong count
+    res.json({ count: -1 });
+  }
 });
 
 // GET /api/pools/:poolId
