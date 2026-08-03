@@ -7,6 +7,7 @@ import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWee
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
+import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 
 const router = Router({ mergeParams: true });
 
@@ -1217,22 +1218,155 @@ router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
     }
   }
 
-  const players = Array.from(byUser.values())
-    .map((u) => {
-      const days = Array.from(u.days.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, data]) => ({
-          date,
-          dateLabel: fmtDayLabel(date),
-          pointsEarned: data.pointsEarned,
-          pointsPossible: data.pointsPossible,
-          pending: data.pending,
-        }));
-      const weeklyPoints = days.reduce((s, day) => s + day.pointsEarned, 0);
-      return { userId: u.userId, username: u.username, displayName: u.displayName, weeklyPoints, days };
-    })
-    .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
-    .map((p, i) => ({ ...p, rank: i + 1 }));
+  type BaseEntry = {
+    userId: number; username: string; displayName: string | null;
+    weeklyPoints: number;
+    days: Array<{ date: string; dateLabel: string; pointsEarned: number; pointsPossible: number; pending: number }>;
+  };
+
+  const baseEntries: BaseEntry[] = Array.from(byUser.values()).map((u) => {
+    const days = Array.from(u.days.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        dateLabel: fmtDayLabel(date),
+        pointsEarned: data.pointsEarned,
+        pointsPossible: data.pointsPossible,
+        pending: data.pending,
+      }));
+    const weeklyPoints = days.reduce((s, day) => s + day.pointsEarned, 0);
+    return { userId: u.userId, username: u.username, displayName: u.displayName, weeklyPoints, days };
+  });
+  baseEntries.sort((a, b) => b.weeklyPoints - a.weeklyPoints);
+
+  // Group by score to detect ties
+  const scoreGroupMap = new Map<number, BaseEntry[]>();
+  for (const p of baseEntries) {
+    if (!scoreGroupMap.has(p.weeklyPoints)) scoreGroupMap.set(p.weeklyPoints, []);
+    scoreGroupMap.get(p.weeklyPoints)!.push(p);
+  }
+  const anyTied = [...scoreGroupMap.values()].some((g) => g.length > 1);
+
+  // Tiebreaker state — only populated when ties exist
+  let actualPrimary: number | null = null;
+  let actualSecondary: number | null = null;
+  const primaryGuessMap = new Map<number, number | null>();
+  const secondaryGuessMap = new Map<number, number | null>();
+
+  if (anyTied) {
+    // Derive period dates from already-fetched picks (avoids fetching empty days)
+    const periodDates = [...new Set(picks.map((p) => p.gameDate))].sort();
+    if (periodDates.length > 0) {
+      try {
+        const sport = pool.sport as string;
+        const espnSport = sport === "nhl" ? "nhl" : sport === "nba" ? "nba" : "mlb";
+        const dayGameArrays = await Promise.all(
+          periodDates.map((d) => fetchGamesForDate(espnSport, d.replace(/-/g, ""))),
+        );
+        const lastGame = dayGameArrays
+          .flat()
+          .filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .at(-1) ?? null;
+
+        if (lastGame) {
+          if (sport === "nhl") {
+            const stats = await fetchNhlTiebreakerStats(lastGame.id);
+            actualPrimary = stats.shotsOnGoal;
+            actualSecondary = stats.penaltyMinutes;
+          } else if (sport === "nba") {
+            const stats = await fetchNbaTiebreakerStats(lastGame.id);
+            actualPrimary =
+              stats.totalPoints ??
+              (lastGame.homeScore != null && lastGame.awayScore != null
+                ? lastGame.homeScore + lastGame.awayScore
+                : null);
+            actualSecondary = stats.threePointersMade;
+          } else {
+            // MLB: runs = combined score; strikeouts from MLB Stats API
+            actualPrimary =
+              lastGame.homeScore != null && lastGame.awayScore != null
+                ? lastGame.homeScore + lastGame.awayScore
+                : null;
+            actualSecondary = await fetchSingleGameStrikeouts(lastGame, periodDates[0]!);
+          }
+        }
+      } catch {
+        // Actuals unavailable — tied players will share ranks
+      }
+    }
+
+    // Fetch tiebreaker guesses for tied players only
+    const tiedUserIds = [...scoreGroupMap.values()]
+      .filter((g) => g.length > 1)
+      .flatMap((g) => g.map((p) => p.userId));
+    if (tiedUserIds.length > 0) {
+      const sport = pool.sport as string;
+      const tieEntries = await db
+        .select({
+          userId: entriesTable.userId,
+          tiebreakerRuns: entriesTable.tiebreakerRuns,
+          tiebreakerStrikeouts: entriesTable.tiebreakerStrikeouts,
+          tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal,
+          tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes,
+          tiebreakerPoints: entriesTable.tiebreakerPoints,
+          tiebreakerThrees: entriesTable.tiebreakerThrees,
+        })
+        .from(entriesTable)
+        .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, tiedUserIds)));
+
+      for (const e of tieEntries) {
+        if (sport === "nhl") {
+          primaryGuessMap.set(e.userId, e.tiebreakerShotsOnGoal ?? null);
+          secondaryGuessMap.set(e.userId, e.tiebreakerPenaltyMinutes ?? null);
+        } else if (sport === "nba") {
+          primaryGuessMap.set(e.userId, e.tiebreakerPoints ?? null);
+          secondaryGuessMap.set(e.userId, e.tiebreakerThrees ?? null);
+        } else {
+          primaryGuessMap.set(e.userId, e.tiebreakerRuns ?? null);
+          secondaryGuessMap.set(e.userId, e.tiebreakerStrikeouts ?? null);
+        }
+      }
+    }
+  }
+
+  // Iteratively split a tied group using resolveSequentialTiebreaker so we get
+  // a fully ordered list of sub-groups (not just the top winner set).
+  function splitGroupSequentially(tiedIds: number[]): number[][] {
+    const result: number[][] = [];
+    let remaining = [...tiedIds];
+    while (remaining.length > 0) {
+      if (remaining.length === 1) { result.push(remaining); break; }
+      const winnerSet = resolveSequentialTiebreaker(
+        remaining, primaryGuessMap, secondaryGuessMap, actualPrimary, actualSecondary,
+      );
+      if (winnerSet === null) { result.push(remaining); break; } // irresolvable co-group
+      result.push([...winnerSet]);
+      remaining = remaining.filter((id) => !winnerSet.has(id));
+    }
+    return result;
+  }
+
+  // Build final ranked players — sequential tiebreaker applied within each score group
+  const players: Array<BaseEntry & { rank: number; potSplit: boolean }> = [];
+  let currentRank = 1;
+  const sortedGroups = [...scoreGroupMap.entries()].sort(([a], [b]) => b - a);
+  for (const [, group] of sortedGroups) {
+    if (group.length === 1) {
+      players.push({ ...group[0], rank: currentRank, potSplit: false });
+      currentRank++;
+      continue;
+    }
+    // Apply sequential tiebreaker: returns ordered sub-groups
+    const subGroups = splitGroupSequentially(group.map((p) => p.userId));
+    for (const subGroup of subGroups) {
+      const subPlayers = subGroup.map((uid) => group.find((p) => p.userId === uid)!);
+      for (const p of subPlayers) {
+        players.push({ ...p, rank: currentRank, potSplit: subGroup.length > 1 });
+      }
+      currentRank += subGroup.length;
+    }
+  }
 
   res.json({ weekStart, weekEnd, weekLabel, isCurrentWeek, players });
 });

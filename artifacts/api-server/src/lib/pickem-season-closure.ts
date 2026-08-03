@@ -16,6 +16,7 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, inArray, type SQL } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
+import { resolveSequentialTiebreaker } from "./tiebreaker";
 
 export const NFL_TOTAL_WEEKS = 18;
 
@@ -115,22 +116,28 @@ async function applySeasonClosureCore(
         .from(entriesTable)
         .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, topUserIds)));
 
-      const tbMap = new Map(tbGuesses.map((g) => [g.userId, g]));
-      const rpy = actualPassingYards;
-      const rry = actualRushingYards;
-      const tbDelta = (uid: number): number => {
-        const g = tbMap.get(uid);
-        if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return Infinity;
-        return Math.abs(g.tiebreakerPassingYards - rpy) + Math.abs(g.tiebreakerRushingYards - rry);
-      };
+      // Sequential rule: passing yards alone decides; rushing yards consulted
+      // only when passing yards diffs are exactly equal. Combined-delta is wrong.
+      const primaryGuesses = new Map<number, number | null>(
+        tbGuesses.map((g) => [g.userId, g.tiebreakerPassingYards ?? null]),
+      );
+      const secondaryGuesses = new Map<number, number | null>(
+        tbGuesses.map((g) => [g.userId, g.tiebreakerRushingYards ?? null]),
+      );
+      const winnerIds = resolveSequentialTiebreaker(
+        topUserIds,
+        primaryGuesses,
+        secondaryGuesses,
+        actualPassingYards,
+        actualRushingYards,
+      );
 
-      topGroup.sort((a, b) => tbDelta(a.userId) - tbDelta(b.userId));
-      const bestDelta = tbDelta(topGroup[0].userId);
-      topGroup = topGroup.filter((r) => tbDelta(r.userId) === bestDelta);
-
+      if (winnerIds !== null) {
+        topGroup = topGroup.filter((r) => winnerIds.has(r.userId));
+      }
       log.info(
-        { poolId, resolvedPassingYards: actualPassingYards, resolvedRushingYards: actualRushingYards, bestDelta, remainingTied: topGroup.length },
-        `${label} Week 18: yardage tiebreaker applied`,
+        { poolId, resolvedPassingYards: actualPassingYards, resolvedRushingYards: actualRushingYards, remainingTied: topGroup.length, tiebrokenToSingle: winnerIds !== null && topGroup.length === 1 },
+        `${label} Week 18: sequential tiebreaker applied`,
       );
     } else {
       log.info({ poolId }, `${label} Week 18: tiebreaker actuals unavailable — split declared`);
