@@ -2133,13 +2133,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [settingsName, setSettingsName] = useState(poolName);
   const [settingsDesc, setSettingsDesc] = useState(poolDescription ?? "");
   const isWc = sport === "worldcup";
-  const is3way = sport === "worldcup" || sport === "intl" || sport === "mls";
+  const is3way = sport === "worldcup" || sport === "intl" || sport === "mls" || sport === "superleague";
   const isWeekly = pickFrequency === "weekly" && !is3way;
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
   const isNhlWeekly = isNhl && isWeekly;
-  const isMlsWeekly = sport === "mls" && pickFrequency === "weekly";
+  const isMlsWeekly = (sport === "mls" || sport === "superleague") && pickFrequency === "weekly";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {

@@ -330,6 +330,28 @@ async function fetchMlsWeekDays(weekStart: string): Promise<{ date: string; game
     .filter((day) => day.games.length > 0);
 }
 
+// Same structure as fetchMlsWeekDays but uses fetchSuperLeagueGamesForDate, which
+// applies the Super League team-ID allow-list and the Fri/Sat/Sun day guard internally.
+async function fetchSlWeekDays(weekStart: string): Promise<{ date: string; games: EspnGame[] }[]> {
+  const [wy, wm, wd] = weekStart.split("-").map(Number);
+  const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+  const dates = Array.from({ length: 7 }, (_, i) =>
+    new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10),
+  );
+  const results = await Promise.all(
+    dates.map((d) => fetchSuperLeagueGamesForDate(d.replace(/-/g, ""))),
+  );
+  const seen = new Set<string>();
+  return dates
+    .map((date, i) => ({
+      date,
+      games: (results[i] ?? [])
+        .filter((g) => { if (seen.has(g.id)) return false; seen.add(g.id); return true; })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    }))
+    .filter((day) => day.games.length > 0);
+}
+
 // GET /api/pools/:poolId/pickem/week-games
 // Returns the full Mon–Sun slate for an MLS weekly pick-em pool, grouped by day.
 // Only days that have at least one game are included. Game shape matches GET /pickem/games.
@@ -339,8 +361,8 @@ router.get("/week-games", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.sport !== "mls" || pool.pickFrequency !== "weekly") {
-    res.status(400).json({ error: "This endpoint is only for MLS weekly pick-em pools" });
+  if ((pool.sport !== "mls" && pool.sport !== "superleague") || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "This endpoint is only for MLS or Super League weekly pick-em pools" });
     return;
   }
 
@@ -355,7 +377,10 @@ router.get("/week-games", requireAuth, async (req, res) => {
   const { weekStart, weekEnd } = getWeekBoundsEt(todayEt);
 
   // Fetch all 7 days in parallel; empty days are already excluded.
-  const weekDays = await fetchMlsWeekDays(weekStart);
+  // Super League uses its own fetcher which applies the team allow-list and Fri/Sat/Sun guard.
+  const weekDays = pool.sport === "superleague"
+    ? await fetchSlWeekDays(weekStart)
+    : await fetchMlsWeekDays(weekStart);
 
   // Load the requesting user's picks for the entire week in one query.
   const weekPicks = await db
