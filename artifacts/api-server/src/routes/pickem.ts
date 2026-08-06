@@ -82,7 +82,9 @@ router.get("/games", requireAuth, async (req, res) => {
 
   let allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
-    : await fetchGamesForDate(sport, espnDate);
+    : sport === "superleague"
+      ? await fetchSuperLeagueGamesForDate(espnDate)
+      : await fetchGamesForDate(sport, espnDate);
   allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Sandbox mode for NHL weekly Pick'em: map the requested day-of-week onto the anchor week
