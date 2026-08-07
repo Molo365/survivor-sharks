@@ -617,9 +617,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
     // If no gameDate supplied on picks, gameMap stays empty → picks rejected as "unknown games"
   } else if ((isMls) && pool.pickFrequency === "weekly" && !pool.sandboxMode && submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
-    // Live MLS weekly: validate against the specific day the client submitted,
+    // Live MLS/Super League weekly: validate against the specific day the client submitted,
     // not just today — a weekly slate spans Mon-Sun and submittedDate tells us which day.
-    const games = await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
+    // Super League has no ESPN_ENDPOINTS key so must use its dedicated fetcher (YYYY-MM-DD).
+    const games = sport === "superleague"
+      ? await fetchSuperLeagueGamesForDate(submittedDate)
+      : await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
     for (const g of games) gameMap.set(g.id, { date: g.date });
   } else if (isAts) {
     // NBA ATS: validate against the full Fri/Sat/Sun weekend slate for this week
@@ -632,7 +635,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
   } else {
-    const games = await fetchGamesForDate(sport, todayEspn);
+    // Fallback for daily (non-weekly) picks and any unmatched branch.
+    // Super League has no ESPN_ENDPOINTS key — use its dedicated fetcher.
+    const games = sport === "superleague"
+      ? await fetchSuperLeagueGamesForDate(todayEt)
+      : await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
   }
 
@@ -782,7 +789,9 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
           eq(pickemPicksTable.gameDate, date),
         ),
       ),
-    isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate),
+    isIntl ? fetchIntlGamesForDate(espnDate)
+      : sport === "superleague" ? fetchSuperLeagueGamesForDate(date)
+      : fetchGamesForDate(sport, espnDate),
   ]);
 
   // For NBA ATS pools: load spread lines for the games in this set of picks.
@@ -896,7 +905,9 @@ router.get("/daily-results", requireAuth, async (req, res) => {
   const espnDate = date.replace(/-/g, "");
 
   const [espnGames, allPicks] = await Promise.all([
-    isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate),
+    isIntl ? fetchIntlGamesForDate(espnDate)
+      : sport === "superleague" ? fetchSuperLeagueGamesForDate(date)
+      : fetchGamesForDate(sport, espnDate),
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -1926,6 +1937,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
       const espnDate = dateStr.replace(/-/g, "");
       return isIntl
         ? fetchIntlGamesForDate(espnDate)
+        : sport === "superleague" ? fetchSuperLeagueGamesForDate(dateStr)
         : fetchGamesForDate(sport, espnDate);
     }),
   );
