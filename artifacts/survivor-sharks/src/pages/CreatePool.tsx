@@ -277,6 +277,7 @@ const formSchema = z.object({
   doubleElimination: z.boolean().default(false),
   isRecurring: z.boolean().optional(),
   sandboxMode: z.boolean().default(false),
+  isPreseason: z.boolean().default(false),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
@@ -588,6 +589,7 @@ export default function CreatePool() {
         ? (form.getValues("isRecurring") === true ? "Recurring" : form.getValues("isRecurring") === false ? "One-time" : false)
         : false,
       form.getValues("sandboxMode") && "Sandbox Mode",
+      (form.getValues("isPreseason") && form.getValues("sport") === PoolInputSport.nfl && form.getValues("poolType") === "season") && "Preseason",
       (() => { const sw = form.getValues("startWeek"); return isNflStartWeekPool && sw && sw > 1 ? `Starting Week ${sw}` : false; })(),
     ]
       .filter(Boolean)
@@ -682,6 +684,7 @@ export default function CreatePool() {
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
           ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
+          ...(values.sport === PoolInputSport.nfl && values.poolType === "season" && { isPreseason: values.isPreseason }),
         } as any,
       },
       {
@@ -1193,6 +1196,38 @@ export default function CreatePool() {
                                   </button>
                                 </div>
                               </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* ── Preseason Mode — NFL Survivor only ── */}
+                      {isAdmin && selectedSport === PoolInputSport.nfl && selectedType === "season" && (
+                        <FormField
+                          control={form.control}
+                          name="isPreseason"
+                          render={({ field }) => (
+                            <FormItem className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-start gap-3">
+                                  <Zap className="w-5 h-5 text-orange-400 mt-0.5 shrink-0" />
+                                  <div>
+                                    <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer text-orange-300">
+                                      Preseason Mode
+                                    </FormLabel>
+                                    <FormDescription className="text-xs mt-0.5">
+                                      Fetches NFL preseason games (Hall of Fame Week + Weeks 1–3) instead of regular season. Close manually after Week 3. Week stepper still shows 1–18.
+                                    </FormDescription>
+                                  </div>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    data-testid="toggle-preseason-mode"
+                                  />
+                                </FormControl>
+                              </div>
                             </FormItem>
                           )}
                         />

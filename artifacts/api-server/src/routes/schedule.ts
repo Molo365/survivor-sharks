@@ -255,7 +255,8 @@ router.get("/", requireAuth, async (req, res) => {
   // ── NFL live path (non-sandbox) ───────────────────────────────────────────
   if (pool.sport === "nfl") {
     const week = pool.currentWeek;
-    const nflGames = await fetchNflGamesByWeek(week, pool.season);
+    const nflSeasonType = pool.isPreseason ? 1 : 2;
+    const nflGames = await fetchNflGamesByWeek(week, pool.season, nflSeasonType);
 
     const byDate = new Map<string, EspnGame[]>();
     for (const g of nflGames) {

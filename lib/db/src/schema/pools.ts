@@ -32,6 +32,7 @@ export const poolsTable = pgTable("pools", {
   isRecurring: boolean("is_recurring").notNull().default(true),
   sandboxMode: boolean("sandbox_mode").notNull().default(false),
   sandboxWeek: integer("sandbox_week").notNull().default(1),
+  isPreseason: boolean("is_preseason").notNull().default(false),
   ndpTb1GameId: text("ndp_tb1_game_id"),
   ndpTb2GameId: text("ndp_tb2_game_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -51,6 +51,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     endedAt: pool.endedAt?.toISOString() ?? null,
     sandboxMode: pool.sandboxMode ?? false,
     sandboxWeek: pool.sandboxWeek ?? 1,
+    isPreseason: pool.isPreseason ?? false,
   };
 }
 
@@ -190,7 +191,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
+  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode, isPreseason } = req.body;
   const prizeMode = "pct" as const;
 
   if (!name || !sport) {
@@ -283,6 +284,9 @@ router.post("/", requireAuth, async (req, res) => {
     // Crazy 8's pools are always recurring — the daily/weekly competition never ends.
     isRecurring: resolvedPoolType === "crazy_8s" ? true : (typeof isRecurring === 'boolean' ? isRecurring : true),
     sandboxMode: sandboxMode === true,
+    // isPreseason is only meaningful for NFL survivor pools (sport=nfl, poolType=season).
+    // Accepted from the request body but stored regardless so the value travels intact.
+    isPreseason: (sport === "nfl" && resolvedPoolType === "season") ? isPreseason === true : false,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
@@ -397,7 +401,8 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
     if (sport === "nfl") {
       const week = Math.max(1, parseInt(String(req.query.week ?? "1"), 10));
       const season = parseInt(String(req.query.season ?? new Date().getFullYear()), 10);
-      const games = await fetchNflGamesByWeek(week, isNaN(season) ? undefined : season);
+      const preseason = req.query.preseason === "true";
+      const games = await fetchNflGamesByWeek(week, isNaN(season) ? undefined : season, preseason ? 1 : 2);
       res.json({ count: games.length });
       return;
     }
