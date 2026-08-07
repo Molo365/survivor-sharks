@@ -621,7 +621,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     // not just today — a weekly slate spans Mon-Sun and submittedDate tells us which day.
     // Super League has no ESPN_ENDPOINTS key so must use its dedicated fetcher (YYYY-MM-DD).
     const games = sport === "superleague"
-      ? await fetchSuperLeagueGamesForDate(submittedDate)
+      ? await fetchSuperLeagueGamesForDate(submittedDate.replace(/-/g, ""))
       : await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
     for (const g of games) gameMap.set(g.id, { date: g.date });
   } else if (isAts) {
@@ -638,7 +638,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     // Fallback for daily (non-weekly) picks and any unmatched branch.
     // Super League has no ESPN_ENDPOINTS key — use its dedicated fetcher.
     const games = sport === "superleague"
-      ? await fetchSuperLeagueGamesForDate(todayEt)
+      ? await fetchSuperLeagueGamesForDate(todayEspn)
       : await fetchGamesForDate(sport, todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
   }
@@ -790,7 +790,7 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
         ),
       ),
     isIntl ? fetchIntlGamesForDate(espnDate)
-      : sport === "superleague" ? fetchSuperLeagueGamesForDate(date)
+      : sport === "superleague" ? fetchSuperLeagueGamesForDate(espnDate)
       : fetchGamesForDate(sport, espnDate),
   ]);
 
@@ -906,7 +906,7 @@ router.get("/daily-results", requireAuth, async (req, res) => {
 
   const [espnGames, allPicks] = await Promise.all([
     isIntl ? fetchIntlGamesForDate(espnDate)
-      : sport === "superleague" ? fetchSuperLeagueGamesForDate(date)
+      : sport === "superleague" ? fetchSuperLeagueGamesForDate(espnDate)
       : fetchGamesForDate(sport, espnDate),
     db
       .select({
@@ -1937,7 +1937,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
       const espnDate = dateStr.replace(/-/g, "");
       return isIntl
         ? fetchIntlGamesForDate(espnDate)
-        : sport === "superleague" ? fetchSuperLeagueGamesForDate(dateStr)
+        : sport === "superleague" ? fetchSuperLeagueGamesForDate(espnDate)
         : fetchGamesForDate(sport, espnDate);
     }),
   );
