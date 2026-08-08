@@ -589,7 +589,7 @@ export default function CreatePool() {
         ? (form.getValues("isRecurring") === true ? "Recurring" : form.getValues("isRecurring") === false ? "One-time" : false)
         : false,
       form.getValues("sandboxMode") && "Sandbox Mode",
-      (form.getValues("isPreseason") && form.getValues("sport") === PoolInputSport.nfl && form.getValues("poolType") === "season") && "Preseason",
+      (form.getValues("isPreseason") && form.getValues("sport") === PoolInputSport.nfl && ["season", "nfl_confidence", "pickem_season"].includes(form.getValues("poolType"))) && "Preseason",
       (() => { const sw = form.getValues("startWeek"); return isNflStartWeekPool && sw && sw > 1 ? `Starting Week ${sw}` : false; })(),
     ]
       .filter(Boolean)
@@ -684,7 +684,7 @@ export default function CreatePool() {
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
           ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
-          ...(values.sport === PoolInputSport.nfl && values.poolType === "season" && { isPreseason: values.isPreseason }),
+          ...(values.sport === PoolInputSport.nfl && (values.poolType === "season" || values.poolType === "nfl_confidence" || values.poolType === "pickem_season") && { isPreseason: values.isPreseason }),
         } as any,
       },
       {
@@ -1201,8 +1201,8 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Preseason Mode — NFL Survivor only ── */}
-                      {isAdmin && selectedSport === PoolInputSport.nfl && selectedType === "season" && (
+                      {/* ── Preseason Mode — NFL Survivor, NFL Confidence, Pick-Em Season ── */}
+                      {isAdmin && selectedSport === PoolInputSport.nfl && (selectedType === "season" || selectedType === "nfl_confidence" || selectedType === "pickem_season") && (
                         <FormField
                           control={form.control}
                           name="isPreseason"
@@ -1216,7 +1216,9 @@ export default function CreatePool() {
                                       Preseason Mode
                                     </FormLabel>
                                     <FormDescription className="text-xs mt-0.5">
-                                      Fetches NFL preseason games (Hall of Fame Week + Weeks 1–3) instead of regular season. Close manually after Week 3. Week stepper still shows 1–18.
+                                      {selectedType === "season"
+                                        ? "Fetches NFL preseason games (Hall of Fame Week + Weeks 1–3) instead of regular season. Close manually after Week 3. Week stepper still shows 1–18."
+                                        : "Fetches NFL preseason games instead of regular season. Pool must be closed manually via admin tools after preseason ends — the normal end-of-season closure flow will not fire."}
                                     </FormDescription>
                                   </div>
                                 </div>

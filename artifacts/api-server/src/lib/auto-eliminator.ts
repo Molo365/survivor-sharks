@@ -2716,7 +2716,7 @@ export async function processPickEmResults(): Promise<{
 
   for (const pool of livePickemSeasonPools) {
     try {
-      const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined);
+      const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined, pool.isPreseason ? 1 : 2);
       const completedGames = games.filter(
         (g) => g.status === "final" && g.homeScore != null && g.awayScore != null,
       );

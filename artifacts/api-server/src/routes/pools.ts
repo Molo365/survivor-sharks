@@ -284,9 +284,9 @@ router.post("/", requireAuth, async (req, res) => {
     // Crazy 8's pools are always recurring — the daily/weekly competition never ends.
     isRecurring: resolvedPoolType === "crazy_8s" ? true : (typeof isRecurring === 'boolean' ? isRecurring : true),
     sandboxMode: sandboxMode === true,
-    // isPreseason is only meaningful for NFL survivor pools (sport=nfl, poolType=season).
-    // Accepted from the request body but stored regardless so the value travels intact.
-    isPreseason: (sport === "nfl" && resolvedPoolType === "season") ? isPreseason === true : false,
+    // isPreseason is meaningful for NFL survivor, nfl_confidence, and pickem_season pools.
+    // When set, fetchNflGamesByWeek will use seasontype=1 (preseason) instead of 2.
+    isPreseason: (sport === "nfl" && (resolvedPoolType === "season" || resolvedPoolType === "nfl_confidence" || resolvedPoolType === "pickem_season")) ? isPreseason === true : false,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
