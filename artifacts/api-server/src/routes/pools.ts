@@ -103,7 +103,9 @@ router.get("/", requireAuth, async (req, res) => {
   const uniqueSports = [...new Set(activeLivePools.map((p) => p.sport))];
   const sportsWithLive = new Set<string>();
   await Promise.all(uniqueSports.map(async (sport) => {
-    const games = await fetchGamesForDate(sport, todayDateStr);
+    const games = sport === "superleague"
+      ? await fetchSuperLeagueGamesForDate(todayDateStr)
+      : await fetchGamesForDate(sport, todayDateStr);
     if (games.some((g) => g.status === "in_progress")) sportsWithLive.add(sport);
   }));
 
