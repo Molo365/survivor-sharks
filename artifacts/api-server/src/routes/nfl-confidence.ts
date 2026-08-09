@@ -4,6 +4,7 @@ import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceRe
 import { eq, and, sql, isNotNull } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import { fetchNflGamesByWeek } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -48,8 +49,30 @@ router.get("/games", requireAuth, async (req, res) => {
     return;
   }
 
-  // Live mode: return empty slate (ESPN NFL live data can be added here)
-  res.json({ week, games: [], sandboxMode: false, message: "Enable sandbox mode to use the 2025 schedule" });
+  // Live mode: fetch from ESPN
+  const nflSeasonType = pool.isPreseason ? 1 : 2;
+  const espnGames = await fetchNflGamesByWeek(week, pool.season, nflSeasonType);
+  const games = espnGames.map((g) => ({
+    id: g.id,
+    startTime: g.date,
+    status: g.status,
+    liveDetail: g.liveState ?? null,
+    awayTeam: {
+      id: g.awayTeam.id,
+      abbreviation: g.awayTeam.abbreviation,
+      name: g.awayTeam.displayName,
+      logoUrl: g.awayTeam.logo ?? null,
+    },
+    homeTeam: {
+      id: g.homeTeam.id,
+      abbreviation: g.homeTeam.abbreviation,
+      name: g.homeTeam.displayName,
+      logoUrl: g.homeTeam.logo ?? null,
+    },
+    awayScore: g.awayScore ?? null,
+    homeScore: g.homeScore ?? null,
+  }));
+  res.json({ week, games, sandboxMode: false });
 });
 
 // GET /api/pools/:poolId/nfl-confidence/picks
