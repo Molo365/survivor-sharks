@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { fetchNflGamesByWeek } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -35,6 +36,26 @@ router.get("/", requireAuth, async (req, res) => {
     ? [...weekSet].sort((a, b) => a - b)
     : Array.from({ length: pool.currentWeek }, (_, i) => i + 1);
 
+  // For NFL pools: build teamId -> kickoff Date map by fetching each unique week's
+  // games once (batched). Picks reveal at kickoff, not when grading completes.
+  const teamKickoffMap = new Map<string, Date>();
+  if (pool.sport === "nfl" && weekSet.size > 0) {
+    const seasonType = pool.isPreseason ? 1 : 2;
+    const uniqueWeeks = [...weekSet];
+    const weekGamesList = await Promise.all(
+      uniqueWeeks.map(w => fetchNflGamesByWeek(w, pool.season ?? undefined, seasonType)),
+    );
+    for (const games of weekGamesList) {
+      for (const game of games) {
+        const kickoff = new Date(game.date);
+        teamKickoffMap.set(game.homeTeam.id, kickoff);
+        teamKickoffMap.set(game.awayTeam.id, kickoff);
+      }
+    }
+  }
+
+  const now = new Date();
+
   const picksWithUsername = await db.select({
     pick: picksTable,
     username: usersTable.username,
@@ -47,15 +68,22 @@ router.get("/", requireAuth, async (req, res) => {
     weeks,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
     picks: picksWithUsername.map(({ pick, username }) => {
-      // Always show the requesting user's own pick.
-      // For other players, hide the team selection until the game has a result
-      // (win or loss) — i.e. the game has completed and been graded. This
-      // prevents counter-picking based on others' choices before kickoff.
-      // In-progress games remain hidden (result still "pending") which is
-      // acceptable since picks are already locked at that point.
+      // Own picks are always visible.
+      // Other players' picks reveal at kickoff (picks are locked by then, so
+      // revealing during an in-progress game is fine). isGraded is kept as a
+      // safe fallback in case the team/kickoff lookup ever misses.
+      // For non-NFL sports the kickoffPassed branch stays false, so
+      // isGraded remains the sole reveal condition (unchanged behaviour).
       const isOwnPick = pick.userId === userId;
-      const isGraded = pick.result !== "pending";
-      const showTeam = isOwnPick || isGraded;
+      const isGraded  = pick.result !== "pending";
+
+      let kickoffPassed = false;
+      if (pool.sport === "nfl" && pick.teamId) {
+        const kickoff = teamKickoffMap.get(pick.teamId);
+        kickoffPassed = kickoff !== undefined && now >= kickoff;
+      }
+
+      const showTeam = isOwnPick || kickoffPassed || isGraded;
 
       return {
         id: pick.id,
@@ -63,9 +91,9 @@ router.get("/", requireAuth, async (req, res) => {
         poolId: pick.poolId,
         userId: pick.userId,
         username,
-        teamId: showTeam ? pick.teamId : null,
-        teamName: showTeam ? pick.teamName : null,
-        teamLogoUrl: showTeam ? pick.teamLogoUrl : null,
+        teamId:      showTeam ? pick.teamId      : null,
+        teamName:    showTeam ? pick.teamName     : null,
+        teamLogoUrl: showTeam ? pick.teamLogoUrl  : null,
         week: pick.week,
         result: pick.result,
         submittedAt: pick.submittedAt.toISOString(),

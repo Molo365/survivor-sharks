@@ -3,13 +3,14 @@ import { db } from "@workspace/db";
 import { entriesTable, poolsTable, picksTable, usersTable, weekResultsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getMlbWeekBounds } from "../lib/espn";
+import { getMlbWeekBounds, fetchNflGamesByWeek } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
 // GET /api/pools/:poolId/leaderboard
 router.get("/", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
@@ -53,6 +54,21 @@ router.get("/", requireAuth, async (req, res) => {
   const prizeStructure = (pool.prizeStructure as Array<{ place: number; amount: number }> | null) ?? null;
   const memberCount = members.length;
 
+  // For NFL pools: build teamId -> kickoff Date map for the current week so
+  // lastPickTeam reveals at kickoff (same logic as grid.ts). Only pending picks
+  // need this; past-week picks are already graded so isGraded covers them.
+  const teamKickoffMap = new Map<string, Date>();
+  if (pool.sport === "nfl") {
+    const seasonType = pool.isPreseason ? 1 : 2;
+    const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined, seasonType);
+    for (const game of games) {
+      const kickoff = new Date(game.date);
+      teamKickoffMap.set(game.homeTeam.id, kickoff);
+      teamKickoffMap.set(game.awayTeam.id, kickoff);
+    }
+  }
+  const now = new Date();
+
   const entries = await Promise.all(members.map(async (member) => {
     const userPicks = await db.select().from(picksTable)
       .where(and(eq(picksTable.poolId, poolId), eq(picksTable.userId, member.userId)));
@@ -72,7 +88,8 @@ router.get("/", requireAuth, async (req, res) => {
     const currentWeekPick = userPicks.find(p => p.week === pool.currentWeek);
     const hasWonThisWeek = currentWeekPick?.result === "win";
 
-    // SOV breakdown: week-by-week margin for display when SOV resolved a tie
+    // SOV breakdown: week-by-week margin for display when SOV resolved a tie.
+    // These picks always have a graded result, so no redaction needed.
     const sovBreakdown = userPicks
       .filter(p => p.marginOfVictory != null)
       .sort((a, b) => a.week - b.week)
@@ -82,6 +99,18 @@ router.get("/", requireAuth, async (req, res) => {
         marginOfVictory: p.marginOfVictory!,
       }));
 
+    // Reveal lastPickTeam at kickoff (same rule as grid.ts).
+    // Own entry always visible; other players reveal when kickoff has passed
+    // or when the pick is graded (isGraded is a safe fallback).
+    const isOwnEntry  = member.userId === userId;
+    const isGraded    = lastPick !== undefined && lastPick.result !== "pending";
+    let kickoffPassed = false;
+    if (pool.sport === "nfl" && lastPick?.teamId) {
+      const kickoff = teamKickoffMap.get(lastPick.teamId);
+      kickoffPassed = kickoff !== undefined && now >= kickoff;
+    }
+    const showLastPickTeam = isOwnEntry || kickoffPassed || isGraded;
+
     return {
       userId: member.userId,
       username: member.username,
@@ -89,7 +118,7 @@ router.get("/", requireAuth, async (req, res) => {
       status: isAliveInDisplay ? "active" : "eliminated",
       weeksAlive,
       eliminatedWeek: member.eliminatedWeek,
-      lastPickTeam: lastPick?.teamName ?? null,
+      lastPickTeam: showLastPickTeam ? (lastPick?.teamName ?? null) : null,
       lastPickResult: lastPick?.result ?? null,
       streak: member.streak,
       strikeCount: member.strikeCount,
