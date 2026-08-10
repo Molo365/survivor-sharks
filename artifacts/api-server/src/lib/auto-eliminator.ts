@@ -566,6 +566,10 @@ export async function processCompletedGames(): Promise<{
   }
 
   // ── NFL Survivor auto-close: declare winner when exactly 1 alive entry remains ──
+  // Preseason pools are excluded: they span multiple weeks and must be closed
+  // manually by a commissioner. Auto-close on alive count alone is unsafe for
+  // preseason because the pool may have just started and picks haven't been
+  // submitted yet, making the condition trivially true for small test pools.
   const nflSurvivorPools = await db
     .select()
     .from(poolsTable)
@@ -573,6 +577,7 @@ export async function processCompletedGames(): Promise<{
       eq(poolsTable.sport, "nfl"),
       eq(poolsTable.poolType, "season"),
       eq(poolsTable.isActive, true),
+      eq(poolsTable.isPreseason, false),
     ));
 
   for (const pool of nflSurvivorPools) {
