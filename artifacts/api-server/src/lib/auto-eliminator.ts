@@ -91,6 +91,8 @@ export async function processCompletedGames(): Promise<{
       poolType: poolsTable.poolType,
       poolCreatedAt: poolsTable.createdAt,
       sandboxMode: poolsTable.sandboxMode,
+      season: poolsTable.season,
+      isPreseason: poolsTable.isPreseason,
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
@@ -168,7 +170,39 @@ export async function processCompletedGames(): Promise<{
       }));
     }
 
-    // Build teamId → completed game lookup for non-NHL sports
+    // ── NFL (non-sandbox): fetch week-specific games per pool+week combo ────────
+    // The bare scoreboard is week-agnostic. During the preseason, a completed
+    // game from week 1 (e.g. the Hall of Fame Game) stays on the live board
+    // while week 2's games haven't been played yet — causing picks for week 2
+    // teams to be wrongly graded against week 1 results. Using
+    // fetchNflGamesByWeek pins grading to the exact week the pick belongs to,
+    // matching the week-aware approach already used for NHL and NBA.
+    const nflLiveRows = pendingRows.filter(r => r.sport === "nfl" && !r.sandboxMode);
+    const nflPoolWeekKeys = [...new Set(nflLiveRows.map(r => `${r.poolId}:${r.week}`))];
+    const nflGamesByPoolWeek = new Map<string, EspnGame[]>();
+    if (nflPoolWeekKeys.length > 0) {
+      await Promise.all(nflPoolWeekKeys.map(async key => {
+        const ref = nflLiveRows.find(r => `${r.poolId}:${r.week}` === key)!;
+        const seasonType = ref.isPreseason ? 1 : 2;
+        const games = await fetchNflGamesByWeek(ref.week, ref.season ?? undefined, seasonType);
+        nflGamesByPoolWeek.set(key, games);
+        const completed = games.filter(g => g.isCompleted);
+        logger.info(
+          {
+            sport: "nfl",
+            poolId: ref.poolId,
+            week: ref.week,
+            seasonType,
+            completedGames: completed.map(g =>
+              `${g.awayTeam.abbreviation}(${g.awayTeam.id}) ${g.awayScore}-${g.homeScore} ${g.homeTeam.abbreviation}(${g.homeTeam.id})`,
+            ),
+          },
+          "ESPN completed games for sport",
+        );
+      }));
+    }
+
+    // Build teamId → completed game lookup for non-NHL, non-NFL sports
     const completedByTeam = new Map<string, EspnGame>();
     for (const [sport, games] of gamesBySport) {
       const completed = games.filter(g => g.isCompleted);
@@ -224,6 +258,12 @@ export async function processCompletedGames(): Promise<{
         );
       } else if (row.sport === "nba") {
         game = (nbaGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+        );
+      } else if (row.sport === "nfl") {
+        // Non-sandbox NFL: use week-specific fetch so a prior week's completed
+        // result cannot bleed into grading for a later week's pending pick.
+        game = (nflGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
           g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
         );
       } else {

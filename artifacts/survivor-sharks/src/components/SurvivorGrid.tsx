@@ -26,8 +26,8 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
         // Derive abbreviation from ESPN logo URL (e.g. .../phi.png → PHI),
         // falling back to the first 3 characters of the stored team name.
         const abbr = pick.teamLogoUrl
-          ? (pick.teamLogoUrl.split("/").pop()?.replace(".png", "").toUpperCase() ?? pick.teamName.substring(0, 3))
-          : pick.teamName.substring(0, 3);
+          ? (pick.teamLogoUrl.split("/").pop()?.replace(".png", "").toUpperCase() ?? pick.teamName?.substring(0, 3) ?? "?")
+          : pick.teamName?.substring(0, 3) ?? "?";
         return `${abbr}${suffix}`;
       });
       return {
@@ -84,12 +84,14 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
                         <div className="flex justify-center">
                           <div className={`w-10 h-10 p-1.5 rounded-full border-2 bg-background flex items-center justify-center overflow-hidden
                             ${pick.result === 'win' ? 'border-accent shadow-[0_0_10px_rgba(57,255,20,0.2)]' : pick.result === 'loss' ? 'border-destructive opacity-50' : 'border-primary/50'}`}
-                            title={`${pick.teamName} (${pick.result})`}
+                            title={pick.teamName ? `${pick.teamName} (${pick.result})` : `Pick hidden (${pick.result})`}
                           >
                             {pick.teamLogoUrl ? (
-                              <img src={pick.teamLogoUrl} alt={pick.teamName} className="w-full h-full object-contain" />
-                            ) : (
+                              <img src={pick.teamLogoUrl} alt={pick.teamName ?? ""} className="w-full h-full object-contain" />
+                            ) : pick.teamName ? (
                               <span className="text-[10px] font-bold uppercase tracking-tighter">{pick.teamName.substring(0,3)}</span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">?</span>
                             )}
                           </div>
                         </div>
