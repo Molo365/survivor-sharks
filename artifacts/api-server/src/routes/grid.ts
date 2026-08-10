@@ -42,25 +42,35 @@ router.get("/", requireAuth, async (req, res) => {
     .innerJoin(usersTable, eq(picksTable.userId, usersTable.id))
     .where(eq(picksTable.poolId, poolId));
 
-  const visiblePicks = picksWithUsername;
-
   res.json({
     poolId,
     weeks,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
-    picks: visiblePicks.map(({ pick, username }) => ({
-      id: pick.id,
-      entryId: pick.entryId,
-      poolId: pick.poolId,
-      userId: pick.userId,
-      username,
-      teamId: pick.teamId,
-      teamName: pick.teamName,
-      teamLogoUrl: pick.teamLogoUrl,
-      week: pick.week,
-      result: pick.result,
-      submittedAt: pick.submittedAt.toISOString(),
-    })),
+    picks: picksWithUsername.map(({ pick, username }) => {
+      // Always show the requesting user's own pick.
+      // For other players, hide the team selection until the game has a result
+      // (win or loss) — i.e. the game has completed and been graded. This
+      // prevents counter-picking based on others' choices before kickoff.
+      // In-progress games remain hidden (result still "pending") which is
+      // acceptable since picks are already locked at that point.
+      const isOwnPick = pick.userId === userId;
+      const isGraded = pick.result !== "pending";
+      const showTeam = isOwnPick || isGraded;
+
+      return {
+        id: pick.id,
+        entryId: pick.entryId,
+        poolId: pick.poolId,
+        userId: pick.userId,
+        username,
+        teamId: showTeam ? pick.teamId : null,
+        teamName: showTeam ? pick.teamName : null,
+        teamLogoUrl: showTeam ? pick.teamLogoUrl : null,
+        week: pick.week,
+        result: pick.result,
+        submittedAt: pick.submittedAt.toISOString(),
+      };
+    }),
   });
 });
 
