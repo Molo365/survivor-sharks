@@ -456,9 +456,10 @@ router.get("/grid", requireAuth, async (req, res) => {
       });
     }
     const game = typedGameMap.get(pick.gameId);
+    const isOwnPick = pick.userId === userId;
     const isGameLocked = game ? new Date(game.startTime).getTime() - 5 * 60 * 1000 <= Date.now() : false;
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    userMap.get(pick.userId)!.picks.set(pick.gameId, isGameLocked ? {
+    userMap.get(pick.userId)!.picks.set(pick.gameId, (isOwnPick || isGameLocked) ? {
       pickedTeamId: pick.pickedTeamId,
       pickedTeamName: pick.pickedTeamName,
       pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logoUrl : game.awayTeam.logoUrl) ?? null : null,

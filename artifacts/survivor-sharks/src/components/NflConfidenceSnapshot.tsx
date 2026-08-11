@@ -91,6 +91,15 @@ export function NflConfidenceSnapshot({
     (g) => g.status === "in_progress" || g.status === "final",
   );
 
+  // Always show the snapshot table to the viewing user if they have submitted picks,
+  // even before kickoff — opponents' picks stay hidden server-side until kickoff.
+  const hasOwnPicks = useMemo(() => {
+    if (!user?.id) return false;
+    const ownRow = players.find((p) => p.userId === user.id);
+    if (!ownRow) return false;
+    return Object.values(ownRow.picks).some((pick) => pick.pickedTeamId !== null);
+  }, [players, user?.id]);
+
   const sortedGames = useMemo(
     () => [...games].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
     [games],
@@ -215,8 +224,8 @@ export function NflConfidenceSnapshot({
         </div>
       </div>
 
-      {/* Lock guard */}
-      {!anyGameStarted ? (
+      {/* Lock guard: hide from everyone until kickoff, UNLESS the viewer has their own picks */}
+      {!anyGameStarted && !hasOwnPicks ? (
         <div className="rounded-xl border border-border/30 bg-muted/[0.03] py-16 flex flex-col items-center gap-3 text-center">
           <Camera className="w-8 h-8 text-muted-foreground/25" />
           <div>

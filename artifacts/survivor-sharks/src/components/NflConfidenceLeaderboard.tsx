@@ -65,8 +65,8 @@ interface GridGame {
 }
 
 interface GridPick {
-  pickedTeamId: string;
-  pickedTeamName: string;
+  pickedTeamId: string | null;
+  pickedTeamName: string | null;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
   result: string | null;
@@ -128,7 +128,7 @@ function PickCard({ game, pick }: { game: GridGame; pick: GridPick }) {
         <div className="shrink-0 w-7 h-7 rounded-full bg-white/90 p-0.5 flex items-center justify-center">
           <img
             src={pick.pickedTeamLogoUrl}
-            alt={pick.pickedTeamName}
+            alt={pick.pickedTeamName ?? ""}
             className="w-full h-full object-contain"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -138,7 +138,7 @@ function PickCard({ game, pick }: { game: GridGame; pick: GridPick }) {
       ) : (
         <div className="shrink-0 w-7 h-7 rounded-full bg-muted/30 flex items-center justify-center">
           <span className="text-[9px] font-bold uppercase">
-            {pick.pickedTeamName.slice(0, 3)}
+            {pick.pickedTeamName?.slice(0, 3) ?? "?"}
           </span>
         </div>
       )}
@@ -146,7 +146,7 @@ function PickCard({ game, pick }: { game: GridGame; pick: GridPick }) {
       {/* Team + matchup */}
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-foreground truncate leading-tight">
-          {pick.pickedTeamName}
+          {pick.pickedTeamName ?? "—"}
         </p>
         <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">
           {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
