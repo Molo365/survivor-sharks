@@ -3887,6 +3887,68 @@ export async function processPickEmResults(): Promise<{
     }
   }
 
+  // ── Super League Pick-Ems Weekly: currentWeek advancement for recurring pools ──
+  // Non-recurring SL pools are closed by the MLS weekly closure block above.
+  // Recurring pools stay open forever; we advance currentWeek once the Mon–Sun
+  // calendar week for the current batch of picks has ended so that new
+  // submissions land in the correct week bucket and the dashboard card reflects
+  // the right week. No ESPN calls needed — the decision is purely calendar-based.
+
+  const slRecurringWeeklyPools = pickemPools.filter(
+    (p) => p.sport === "superleague" && p.pickFrequency === "weekly" && p.isRecurring,
+  );
+
+  for (const pool of slRecurringWeeklyPools) {
+    try {
+      // Find the latest gameDate stored under the current week number.
+      const [latestRow] = await db
+        .select({ maxDate: max(pickemPicksTable.gameDate) })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+
+      const latestPickDate = latestRow?.maxDate ?? null;
+      if (!latestPickDate) {
+        // No picks recorded for the current week number yet — nothing to advance from.
+        continue;
+      }
+
+      const { weekEnd: slWeekEnd } = getWeekBoundsEt(latestPickDate);
+      if (todayEt <= slWeekEnd) {
+        // The calendar week that contains the most recent pick hasn't ended yet.
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, slWeekEnd, todayEt },
+          "Super League recurring weekly: calendar week not yet ended, skipping advancement",
+        );
+        continue;
+      }
+
+      // The Mon–Sun week for the current batch of picks has fully passed —
+      // advance currentWeek so the next round of submissions gets a fresh bucket.
+      await db
+        .update(poolsTable)
+        .set({ currentWeek: pool.currentWeek + 1 })
+        .where(eq(poolsTable.id, pool.id));
+
+      logger.info(
+        {
+          poolId: pool.id,
+          previousWeek: pool.currentWeek,
+          nextWeek: pool.currentWeek + 1,
+          latestPickDate,
+          slWeekEnd,
+        },
+        "Super League recurring weekly: advanced currentWeek to next calendar week",
+      );
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "Super League recurring weekly advancement error");
+    }
+  }
+
   // ── NBA ATS Weekly: auto-closure for non-recurring pools ──────────────────
   // Mirrors the MLS weekly close block. No tiebreaker for v1 — tied players
   // become co-winners with an even prize split.

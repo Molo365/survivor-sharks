@@ -11,9 +11,9 @@ import {
   pickemSeasonWeekGameCountsTable,
   sandboxGameScoresTable,
 } from "@workspace/db";
-import { eq, and, count, inArray } from "drizzle-orm";
+import { eq, and, count, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate, fetchGamesForDate } from "../lib/espn";
+import { getTodayEtDate, fetchGamesForDate, getWeekBoundsEt } from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 
 const router = Router();
@@ -28,6 +28,7 @@ const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, submitted: 1, not
 router.get("/summary", requireAuth, async (req, res) => {
   const userId = req.user!.id;
   const todayEt = getTodayEtDate();
+  const { weekStart, weekEnd } = getWeekBoundsEt(todayEt);
 
   const memberships = await db
     .select({ poolId: entriesTable.poolId })
@@ -143,13 +144,23 @@ router.get("/summary", requireAuth, async (req, res) => {
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
         const isDaily = pool.pickFrequency === "daily";
+        // MLS and Super League weekly pools use a calendar date range (Mon–Sun)
+        // as their "current week" anchor, mirroring the /week-games endpoint.
+        // pool.currentWeek is unreliable for recurring pools (may lag the calendar),
+        // so we use gameDate BETWEEN weekStart AND weekEnd instead.
+        const isMlsOrSlWeekly =
+          (pool.sport === "mls" || pool.sport === "superleague") &&
+          pool.pickFrequency === "weekly";
         // For ended daily pools (pool.isActive === false): omit the date filter
         // so any historical picks count — the game date has already passed.
         // For active daily pools: restrict to today's date.
-        // For weekly/season pools: restrict to the current week number.
+        // For MLS/Super League weekly: restrict to the current Mon–Sun calendar week.
+        // For all other weekly/season pools: restrict to the current week number.
         const dateFilter = isDaily
           ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)
-          : eq(pickemPicksTable.week, pool.currentWeek);
+          : isMlsOrSlWeekly
+            ? and(gte(pickemPicksTable.gameDate, weekStart), lte(pickemPicksTable.gameDate, weekEnd))
+            : eq(pickemPicksTable.week, pool.currentWeek);
         const [countRow] = await db
           .select({ cnt: count() })
           .from(pickemPicksTable)
