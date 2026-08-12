@@ -609,6 +609,28 @@ export async function fetchNbaGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
 }
 
 /**
+ * Given an ET date string (YYYY-MM-DD), return the Monday and Sunday
+ * of the Mon–Sun calendar week that contains it.
+ * Sunday is the LAST day of its week (e.g. 2026-08-11 Tue → weekEnd 2026-08-16 Sun).
+ * Shared by pickem.ts (local copy) and auto-eliminator.ts closure guards.
+ */
+export function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: string } {
+  const [y, m, d] = todayEt.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+  // In a Mon–Sun week, Sunday is the LAST day.
+  // Sunday (dow=0) → go back 6 days to this week's Monday.
+  // Mon–Sat        → go back to this week's Monday.
+  const daysToMonday = dow === 0 ? -6 : -(dow - 1);
+  const monday = new Date(date.getTime() + daysToMonday * 86_400_000);
+  const sunday = new Date(monday.getTime() + 6 * 86_400_000);
+  return {
+    weekStart: monday.toISOString().slice(0, 10),
+    weekEnd: sunday.toISOString().slice(0, 10),
+  };
+}
+
+/**
  * Return the "current slate date" as YYYY-MM-DD in ET (America/New_York).
  * The slate rolls over at 5 AM ET, not midnight, so that games finishing
  * after midnight still belong to the previous day's slate.

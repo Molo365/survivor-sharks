@@ -42,6 +42,7 @@ import {
   fetchNflGamesByWeek,
   fetchNflWeek18TiebreakerStats,
   getTeamsWithWin,
+  getWeekBoundsEt,
 } from "./espn";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
@@ -2906,6 +2907,28 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
+      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      // Prevents premature closure when early-week games all finish before Sunday
+      // (same bug that struck pool 349 on Tuesday of an MLB week).
+      // Closure is still allowed ON Sunday itself (todayEt === weekEnd) so that
+      // the normal "all picks graded Sunday night" path is unchanged.
+      {
+        const [nflMaxDateRow] = await db
+          .select({ maxDate: max(pickemPicksTable.gameDate) })
+          .from(pickemPicksTable)
+          .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, pool.currentWeek)));
+        if (nflMaxDateRow?.maxDate) {
+          const { weekEnd: nflWeekEnd } = getWeekBoundsEt(nflMaxDateRow.maxDate);
+          if (todayEt < nflWeekEnd) {
+            logger.info(
+              { poolId: pool.id, week: pool.currentWeek, nflWeekEnd, todayEt },
+              "NFL Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
+            );
+            continue;
+          }
+        }
+      }
+
       // 2. Sum correct picks per user for this week.
       const scoreRows = await db
         .select({ userId: pickemPicksTable.userId, correct: count() })
@@ -3118,6 +3141,25 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
+      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      // Root cause of pool-349 bug: picks for Mon/Tue games all graded by Tuesday →
+      // pendingCount=0 → pool closed mid-week. Guard allows closure ON Sunday
+      // (todayEt === weekEnd) so the normal "Sunday night" path is unchanged.
+      const [mlbMaxDateRow] = await db
+        .select({ maxDate: max(pickemPicksTable.gameDate) })
+        .from(pickemPicksTable)
+        .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, pool.currentWeek)));
+      const mlbCalendarWeekEnd = mlbMaxDateRow?.maxDate
+        ? getWeekBoundsEt(mlbMaxDateRow.maxDate).weekEnd
+        : null;
+      if (mlbCalendarWeekEnd && todayEt < mlbCalendarWeekEnd) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek, mlbCalendarWeekEnd, todayEt },
+          "MLB Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
+        );
+        continue;
+      }
+
       // 2. Sum correct picks per user for this week.
       const scoreRows = await db
         .select({ userId: pickemPicksTable.userId, correct: count() })
@@ -3151,8 +3193,8 @@ export async function processPickEmResults(): Promise<{
       }
 
       // 3. Fetch tiebreaker actuals: runs scored (primary) + strikeouts (secondary)
-      //    for the last completed game of the week. Mirrors the prev-week-results
-      //    endpoint. Falls back to null (even split) if ESPN / MLB Stats unavailable.
+      //    for the last completed game of the CALENDAR week's Sunday — not merely the
+      //    latest submitted pick date (which could be Monday or Tuesday in a short week).
       const mlbPickGameRows = await db
         .selectDistinct({ gameDate: pickemPicksTable.gameDate })
         .from(pickemPicksTable)
@@ -3162,7 +3204,10 @@ export async function processPickEmResults(): Promise<{
             eq(pickemPicksTable.week, pool.currentWeek),
           ),
         );
-      const mlbSundayDate = mlbPickGameRows.map((r) => r.gameDate).sort().pop() ?? null;
+      // Use the actual calendar-week Sunday as the tiebreaker reference date.
+      // Previously used MAX(gameDate) from submitted picks, which would resolve
+      // to Tuesday when all picks were for early-week games (secondary bug fix).
+      const mlbSundayDate = mlbCalendarWeekEnd ?? mlbPickGameRows.map((r) => r.gameDate).sort().pop() ?? null;
 
       let actualPrimary: number | null = null;
       let actualSecondary: number | null = null;
@@ -3363,6 +3408,24 @@ export async function processPickEmResults(): Promise<{
         const espnDate = gameDate.replace(/-/g, "");
         if (!nhlGameIdsByDate.has(espnDate)) nhlGameIdsByDate.set(espnDate, new Set());
         nhlGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      // NHL already has an "unfinished games" guard below, but that guard only catches
+      // games still in progress — it cannot catch a week where all scheduled games
+      // happened to finish before Sunday, leaving no unfinished games mid-week.
+      {
+        const nhlLatestPickDate = nhlPoolGameRows.map((r) => r.gameDate).sort().pop() ?? null;
+        if (nhlLatestPickDate) {
+          const { weekEnd: nhlWeekEnd } = getWeekBoundsEt(nhlLatestPickDate);
+          if (todayEt < nhlWeekEnd) {
+            logger.info(
+              { poolId: pool.id, week: pool.currentWeek, nhlWeekEnd, todayEt },
+              "NHL Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
+            );
+            continue;
+          }
+        }
       }
 
       // Fetch ESPN results for each date, collect all pool-relevant games.
@@ -3614,6 +3677,21 @@ export async function processPickEmResults(): Promise<{
         const espnDate = gameDate.replace(/-/g, "");
         if (!mlsGameIdsByDate.has(espnDate)) mlsGameIdsByDate.set(espnDate, new Set());
         mlsGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      {
+        const mlsLatestPickDate = mlsPoolGameRows.map((r) => r.gameDate).sort().pop() ?? null;
+        if (mlsLatestPickDate) {
+          const { weekEnd: mlsWeekEnd } = getWeekBoundsEt(mlsLatestPickDate);
+          if (todayEt < mlsWeekEnd) {
+            logger.info(
+              { poolId: pool.id, week: pool.currentWeek, mlsWeekEnd, todayEt },
+              "MLS Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
+            );
+            continue;
+          }
+        }
       }
 
       let mlsHasUnfinished = false;
@@ -3873,6 +3951,21 @@ export async function processPickEmResults(): Promise<{
         const espnDate = gameDate.replace(/-/g, "");
         if (!nbaGameIdsByDate.has(espnDate)) nbaGameIdsByDate.set(espnDate, new Set());
         nbaGameIdsByDate.get(espnDate)!.add(gameId);
+      }
+
+      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      {
+        const nbaLatestPickDate = nbaPoolGameRows.map((r) => r.gameDate).sort().pop() ?? null;
+        if (nbaLatestPickDate) {
+          const { weekEnd: nbaWeekEnd } = getWeekBoundsEt(nbaLatestPickDate);
+          if (todayEt < nbaWeekEnd) {
+            logger.info(
+              { poolId: pool.id, week: pool.currentWeek, nbaWeekEnd, todayEt },
+              "NBA ATS Weekly auto-closure: skipping — calendar week not yet ended",
+            );
+            continue;
+          }
+        }
       }
 
       // Build the game-score map for the margin tiebreaker while checking for
