@@ -49,7 +49,25 @@ router.get("/today", async (_req, res) => {
   const todayEspnDate = formatDateEt(new Date(todayEt + "T12:00:00"));
 
   const results = await Promise.allSettled(
-    SPORTS.map(({ sport }) => fetchGamesForDate(sport, todayEspnDate)),
+    SPORTS.map(({ sport }) => {
+      if (sport === "nfl") {
+        // Fetch both preseason (1) and regular season (2) in parallel so NFL preseason
+        // games appear in August without dropping regular-season games the rest of the year.
+        // ESPN's NFL date-based endpoint respects the seasontype filter, so we must query both.
+        return Promise.all([
+          fetchGamesForDate(sport, todayEspnDate, 1),
+          fetchGamesForDate(sport, todayEspnDate, 2),
+        ]).then(([pre, reg]) => {
+          const seen = new Set<string>();
+          const merged: EspnGame[] = [];
+          for (const g of [...pre, ...reg]) {
+            if (!seen.has(g.id)) { seen.add(g.id); merged.push(g); }
+          }
+          return merged;
+        });
+      }
+      return fetchGamesForDate(sport, todayEspnDate);
+    }),
   );
 
   const sports: {

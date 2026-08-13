@@ -143,12 +143,19 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const formattedGames = games.map(g => {
     const existing = pickMap.get(g.id);
-    // Use stored scores as fallback when ESPN returns null (e.g. season-ID mismatch
-    // causes ESPN to return future scheduled games with no scores).
-    const awayScore = g.awayScore ?? existing?.awayScore ?? null;
-    const homeScore = g.homeScore ?? existing?.homeScore ?? null;
-    // If ESPN says "scheduled" but we have stored scores from grading, treat as final.
-    const status = (g.status !== "final" && awayScore != null && homeScore != null)
+    // Use stored scores as fallback ONLY when ESPN itself returned null scores (e.g.
+    // season-ID mismatch causes ESPN to return scheduled games with no score data).
+    // ESPN returns score:"0" (not null) for unstarted NFL games, so we must distinguish
+    // "ESPN gave us a real 0" from "ESPN gave us nothing and we're falling back to stored data."
+    const espnAwayScore = g.awayScore;
+    const espnHomeScore = g.homeScore;
+    const awayScore = espnAwayScore ?? existing?.awayScore ?? null;
+    const homeScore = espnHomeScore ?? existing?.homeScore ?? null;
+    // Only override to "final" when ESPN returned no score at all (null) but stored
+    // graded scores exist — never fire on ESPN's own pre-kickoff "0" placeholder.
+    const status = (g.status !== "final"
+      && espnAwayScore == null && espnHomeScore == null
+      && existing?.awayScore != null && existing?.homeScore != null)
       ? "final"
       : g.status;
     return {
@@ -1244,28 +1251,19 @@ router.get("/grid", requireAuth, async (req, res) => {
       }
     }
   } else {
-    // Live ESPN path
+    // Live ESPN path — use fetchNflGamesByWeek so pool.isPreseason is respected
+    // (previously hardcoded seasontype=2, which returned no games in August)
     try {
-      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
-      for (const ev of espnData.events ?? []) {
-        const comp = ev.competitions?.[0];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
-        const isCompleted = comp?.status?.type?.completed ?? false;
-        const state = comp?.status?.type?.state ?? "pre";
-        const gameId = String(ev.id);
-        gameMap.set(gameId, {
-          id: gameId,
-          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
-          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
-          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
-          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
-          startTime: ev.date ?? "",
-          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
+      const espnGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      for (const g of espnGames) {
+        gameMap.set(g.id, {
+          id: g.id,
+          homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+          awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+          homeScore: g.homeScore,
+          awayScore: g.awayScore,
+          startTime: g.date,
+          status: g.status,
         });
       }
     } catch { /* ESPN unavailable */ }
