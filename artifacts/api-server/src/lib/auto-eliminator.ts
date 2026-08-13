@@ -3414,17 +3414,21 @@ export async function processPickEmResults(): Promise<{
       // NHL already has an "unfinished games" guard below, but that guard only catches
       // games still in progress — it cannot catch a week where all scheduled games
       // happened to finish before Sunday, leaving no unfinished games mid-week.
+      // IMPORTANT: derive weekEnd from the pool's own schedule (getNhlWeekBounds anchored
+      // to pool.createdAt / currentWeek) rather than from stored pick gameDates.
+      // Sandbox NHL picks are stored with Oct 2025 anchor dates (set via anchorGameDate
+      // in pick submission) — the pick-date approach would compute weekEnd ≈ Oct 2025,
+      // see today (Aug 2026) is not before that, and skip the guard entirely, allowing
+      // premature closure within one auto-eliminator cycle.
       {
-        const nhlLatestPickDate = nhlPoolGameRows.map((r) => r.gameDate).sort().pop() ?? null;
-        if (nhlLatestPickDate) {
-          const { weekEnd: nhlWeekEnd } = getWeekBoundsEt(nhlLatestPickDate);
-          if (todayEt < nhlWeekEnd) {
-            logger.info(
-              { poolId: pool.id, week: pool.currentWeek, nhlWeekEnd, todayEt },
-              "NHL Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
-            );
-            continue;
-          }
+        const { weekEnd: nhlWeekEndDate } = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+        const nhlWeekEnd = formatDateEtDash(nhlWeekEndDate);
+        if (todayEt < nhlWeekEnd) {
+          logger.info(
+            { poolId: pool.id, week: pool.currentWeek, nhlWeekEnd, todayEt },
+            "NHL Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
+          );
+          continue;
         }
       }
 
