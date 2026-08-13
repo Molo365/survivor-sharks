@@ -135,25 +135,15 @@ router.get("/picks", requireAuth, async (req, res) => {
   } else {
     // Fetch live scores + status from ESPN for non-sandbox pools
     try {
-      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
-      for (const ev of espnData.events ?? []) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const comp = ev.competitions?.[0];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
-        const isCompleted = comp?.status?.type?.completed ?? false;
-        const state = comp?.status?.type?.state ?? "pre";
-        gameMap.set(String(ev.id), {
-          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
-          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
-          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
-          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
-          startTime: ev.date ?? "",
-          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
+      const espnGamesForPicks = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      for (const g of espnGamesForPicks) {
+        gameMap.set(g.id, {
+          homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+          awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+          homeScore: g.homeScore,
+          awayScore: g.awayScore,
+          startTime: g.date,
+          status: g.status,
         });
       }
     } catch { /* ESPN unavailable; status derived from pick result below */ }
@@ -397,28 +387,17 @@ router.get("/grid", requireAuth, async (req, res) => {
   } else {
     // Non-sandbox: fetch completed game scores from ESPN so the grid shows final scores
     try {
-      const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const espnData = (await (await fetch(espnUrl)).json()) as { events?: any[] };
-      for (const ev of espnData.events ?? []) {
-        const comp = ev.competitions?.[0];
+      const espnGamesForGrid = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      for (const g of espnGamesForGrid) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
-        const isCompleted = comp?.status?.type?.completed ?? false;
-        const state = comp?.status?.type?.state ?? "pre";
-        const gameId = String(ev.id);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        gameMap.set(gameId, {
-          id: gameId,
-          homeTeam: { id: String(home?.team?.id ?? ""), abbreviation: home?.team?.abbreviation ?? "", name: home?.team?.displayName ?? "", logoUrl: home?.team?.logo ?? null },
-          awayTeam: { id: String(away?.team?.id ?? ""), abbreviation: away?.team?.abbreviation ?? "", name: away?.team?.displayName ?? "", logoUrl: away?.team?.logo ?? null },
-          homeScore: home?.score != null ? parseInt(String(home.score)) : null,
-          awayScore: away?.score != null ? parseInt(String(away.score)) : null,
-          startTime: ev.date ?? "",
-          status: isCompleted ? "final" : state === "in" ? "in_progress" : "scheduled",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        gameMap.set(g.id, {
+          id: g.id,
+          homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, name: g.homeTeam.displayName, logoUrl: g.homeTeam.logo ?? null },
+          awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
+          homeScore: g.homeScore,
+          awayScore: g.awayScore,
+          startTime: g.date,
+          status: g.status,
         } as any);
       }
     } catch { /* ESPN unavailable; grid shows picks without scores */ }
