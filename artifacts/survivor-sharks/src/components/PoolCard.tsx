@@ -211,9 +211,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No picks yet {periodLabel}</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               ) : pt === "nfl_confidence" ? (
@@ -250,9 +250,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Pool ended</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No picks yet {periodLabel}</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               ) : pt === "nfl_confidence_weekly" || pt === "crazy_8s" ? (
@@ -289,9 +289,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Pool ended</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No picks yet this week</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               ) : pt === "nfl_division_predictor" ? (
@@ -338,9 +338,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Pool ended</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No picks yet</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               ) : pt === "wc_bracket" ? (
@@ -377,9 +377,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Pool ended</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No bracket picks yet</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               ) : (
@@ -417,9 +417,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Pool ended</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
                     <span aria-hidden>⚠️</span>
-                    <span>No picks yet {periodLabel}</span>
+                    <span>Picks needed</span>
                   </div>
                 )
               )}
