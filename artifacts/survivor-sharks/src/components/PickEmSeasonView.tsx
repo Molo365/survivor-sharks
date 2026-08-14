@@ -147,6 +147,8 @@ function NflGameCard({
       return "border-green-500 bg-green-500/10 ring-2 ring-green-500/40";
     if (isPicked && result === "incorrect")
       return "border-destructive bg-destructive/10 ring-2 ring-destructive/30";
+    if (isPicked && result === "push")
+      return "border-muted-foreground/30 bg-muted/15 ring-1 ring-muted-foreground/15";
     if (isPicked)
       return "border-primary bg-primary/10 ring-2 ring-primary/40";
     return "border-border/40 bg-card/60 hover:border-border";
@@ -161,13 +163,17 @@ function NflGameCard({
             ? "text-green-400 bg-green-500/15"
             : result === "incorrect"
               ? "text-red-400 bg-red-500/15"
-              : "text-primary/70 bg-primary/10",
+              : result === "push"
+                ? "text-muted-foreground/60 bg-muted/20"
+                : "text-primary/70 bg-primary/10",
         )}
       >
         {result === "correct" ? (
           <Check className="w-2.5 h-2.5" />
         ) : result === "incorrect" ? (
           <X className="w-2.5 h-2.5" />
+        ) : result === "push" ? (
+          <span className="leading-none">=</span>
         ) : null}
       </div>
     );
@@ -251,7 +257,9 @@ function NflGameCard({
                   ? "text-green-400"
                   : isPicked && isWrong
                     ? "text-destructive/70"
-                    : "text-foreground/60",
+                    : isPicked && result === "push"
+                      ? "text-muted-foreground/60"
+                      : "text-foreground/60",
             )}>
               {score}
             </span>
@@ -429,6 +437,7 @@ function PickEmPickCard({
 }) {
   const isCorrect = pick.result === "correct";
   const isIncorrect = pick.result === "incorrect";
+  const isPush = pick.result === "push";
 
   if (!pick.pickedTeamId) {
     const matchupLabel = game
@@ -471,7 +480,9 @@ function PickEmPickCard({
           ? "border-green-500/25 bg-green-500/[0.06]"
           : isIncorrect
             ? "border-destructive/25 bg-destructive/[0.06]"
-            : "border-border/30 bg-muted/10",
+            : isPush
+              ? "border-muted-foreground/20 bg-muted/[0.06]"
+              : "border-border/30 bg-muted/10",
       )}
     >
       {logoUrl ? (

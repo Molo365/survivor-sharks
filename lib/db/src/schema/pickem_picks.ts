@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { poolsTable } from "./pools";
 
-export const pickemResultEnum = pgEnum("pickem_result", ["pending", "correct", "incorrect", "postponed"]);
+export const pickemResultEnum = pgEnum("pickem_result", ["pending", "correct", "incorrect", "postponed", "push"]);
 
 export const pickemPicksTable = pgTable(
   "pickem_picks",

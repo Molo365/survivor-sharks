@@ -313,6 +313,7 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
     const isCorrect = result === "correct";
     const isWrong = result === "incorrect";
     const isPickPostponed = result === "postponed";
+    const isPush = result === "push";
     const isHome = side === "home";
 
     // Build pitcher line e.g. "Spencer Miles (5-4) 3.45 ERA"
@@ -369,7 +370,9 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
                 ? "text-green-400"
                 : isPicked && isWrong
                   ? "text-destructive/70"
-                  : "text-foreground/60",
+                  : isPicked && isPush
+                    ? "text-muted-foreground/60"
+                    : "text-foreground/60",
           )}>
             {score}
           </span>
@@ -390,6 +393,10 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
               <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">
                 PPD
               </span>
+            ) : isPush ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                TIE
+              </span>
             ) : (
               <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
                 <Check className="w-3 h-3" /> Picked
@@ -409,13 +416,15 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
         className={cn(
           "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
           isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
-          isPicked && !isCorrect && !isWrong
+          isPicked && !isCorrect && !isWrong && !isPush
             ? "border-primary bg-primary/10 ring-2 ring-primary/40"
             : isPicked && isCorrect
               ? "border-green-500 bg-green-500/10 ring-2 ring-green-500/40"
               : isPicked && isWrong
                 ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
-                : "border-border/40 bg-card/60 hover:border-border",
+                : isPicked && isPush
+                  ? "border-muted-foreground/30 bg-muted/15 ring-1 ring-muted-foreground/15"
+                  : "border-border/40 bg-card/60 hover:border-border",
           isHome ? "flex-row-reverse" : "flex-row",
         )}
       >
@@ -669,6 +678,8 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                               ? "border-green-500/40 bg-green-500/10"
                               : pick.result === "incorrect"
                               ? "border-red-500/40 bg-red-500/10"
+                              : pick.result === "push"
+                              ? "border-muted-foreground/25 bg-muted/10"
                               : "border-border/30 bg-muted/10",
                           )}>
                             {team.logoUrl && (
@@ -680,12 +691,14 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                               "font-bebas text-[11px] tracking-wide leading-none",
                               pick.result === "correct" ? "text-green-400"
                               : pick.result === "incorrect" ? "text-red-400"
+                              : pick.result === "push" ? "text-muted-foreground/60"
                               : "text-muted-foreground/70",
                             )}>
                               {team.abbreviation}
                             </span>
                             {pick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
                             {pick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
+                            {pick.result === "push" && <span className="text-[8px] font-bold tracking-widest text-muted-foreground/50 leading-none">TIE</span>}
                           </div>
                         </td>
                       );
@@ -986,6 +999,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
         const suffix =
           pick.result === "correct" ? " W"
           : pick.result === "incorrect" ? " L"
+          : pick.result === "push" ? " TIE"
           : pick.result === "postponed" ? " PPD"
           : "";
         return `${abbrev}${suffix}`;
@@ -1152,6 +1166,8 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                                   ? "border-green-500/40 bg-green-500/10"
                                   : pick.result === "incorrect"
                                   ? "border-red-500/40 bg-red-500/10"
+                                  : pick.result === "push"
+                                  ? "border-muted-foreground/25 bg-muted/10"
                                   : pick.result === "postponed"
                                   ? "border-yellow-500/40 bg-yellow-500/10"
                                   : "border-border/30 bg-muted/10",
@@ -1171,6 +1187,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                                   "font-bebas text-[11px] tracking-wide leading-none",
                                   pick.result === "correct" ? "text-green-400"
                                   : pick.result === "incorrect" ? "text-red-400"
+                                  : pick.result === "push" ? "text-muted-foreground/60"
                                   : pick.result === "postponed" ? "text-yellow-400"
                                   : "text-muted-foreground/70",
                                 )}
@@ -1182,6 +1199,11 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                               )}
                               {pick.result === "incorrect" && (
                                 <X className="w-2.5 h-2.5 text-red-400" />
+                              )}
+                              {pick.result === "push" && (
+                                <span className="text-[8px] font-bold tracking-widest text-muted-foreground/50 leading-none">
+                                  TIE
+                                </span>
                               )}
                               {pick.result === "postponed" && (
                                 <span className="text-[8px] font-bold tracking-widest text-yellow-400 leading-none">
@@ -1282,6 +1304,8 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
                 ? "bg-green-500/[0.08] border-green-500/20"
                 : pick.result === "incorrect"
                 ? "bg-red-500/[0.08] border-red-500/20"
+                : pick.result === "push"
+                ? "bg-muted/[0.08] border-muted-foreground/15"
                 : "bg-card/40 border-border/20",
             )}
           >
@@ -1291,6 +1315,10 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
                 <CheckCircle2 className="w-4 h-4 text-green-400" />
               ) : pick.result === "incorrect" ? (
                 <XCircle className="w-4 h-4 text-red-400" />
+              ) : pick.result === "push" ? (
+                <div className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center">
+                  <span className="text-[9px] font-bold text-muted-foreground/50 leading-none">=</span>
+                </div>
               ) : (
                 <div className="w-4 h-4 rounded-full border-2 border-primary/30" />
               )}
@@ -1305,6 +1333,7 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
                 "font-medium text-sm truncate",
                 pick.result === "correct" ? "text-green-300"
                   : pick.result === "incorrect" ? "text-red-300"
+                  : pick.result === "push" ? "text-muted-foreground/70"
                   : "text-foreground",
               )}>
                 {pick.pickedTeamName}
@@ -1323,12 +1352,14 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
                 <span className={cn(
                   pick.result === "correct" ? "text-green-400" :
                   pick.result === "incorrect" ? "text-red-400" :
+                  pick.result === "push" ? "text-muted-foreground/60" :
                   "text-muted-foreground/70",
                 )}>
                   {pickedScore}–{opponentScore}
                 </span>
                 {pick.result === "correct" && <span className="ml-1 text-[10px] font-bold text-green-400">W</span>}
                 {pick.result === "incorrect" && <span className="ml-1 text-[10px] font-bold text-red-400">L</span>}
+                {pick.result === "push" && <span className="ml-1 text-[10px] font-bold text-muted-foreground/50">TIE</span>}
               </span>
             )}
           </div>
@@ -1674,6 +1705,7 @@ function DayResultsModal({
                             const isCorrect = pick.result === "correct";
                             const isWrong = pick.result === "incorrect";
                             const isPostponed = pick.result === "postponed";
+                            const isPush = pick.result === "push";
                             const abbr = teamAbbrMap.get(pick.pickedTeamId) ?? pick.pickedTeamName.slice(0, 4);
                             return (
                               <td key={game.id} className="px-1 py-2.5 text-center">
@@ -1683,7 +1715,8 @@ function DayResultsModal({
                                     isCorrect && "bg-green-500/10 text-green-400 border border-green-500/25",
                                     isWrong && "bg-red-500/10 text-red-400 border border-red-500/25",
                                     isPostponed && "bg-yellow-500/8 text-yellow-500/60 border border-yellow-500/20",
-                                    !isCorrect && !isWrong && !isPostponed && "bg-muted/10 text-muted-foreground/50 border border-border/20",
+                                    isPush && "bg-muted/10 text-muted-foreground/50 border border-muted-foreground/20",
+                                    !isCorrect && !isWrong && !isPostponed && !isPush && "bg-muted/10 text-muted-foreground/50 border border-border/20",
                                   )}
                                 >
                                   {abbr}

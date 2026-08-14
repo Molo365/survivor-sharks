@@ -839,6 +839,7 @@ export const PickEmGameUserPickResult = {
   correct: 'correct',
   incorrect: 'incorrect',
   postponed: 'postponed',
+  push: 'push',
 } as const;
 
 /**
@@ -1078,6 +1079,7 @@ export const PickEmPlayerPickResult = {
   correct: 'correct',
   incorrect: 'incorrect',
   postponed: 'postponed',
+  push: 'push',
 } as const;
 
 export interface PickEmPlayerPick {
@@ -1103,6 +1105,7 @@ export const PickEmDailyPickDetailResult = {
   correct: 'correct',
   incorrect: 'incorrect',
   postponed: 'postponed',
+  push: 'push',
 } as const;
 
 export interface PickEmDailyPickDetail {
@@ -1264,6 +1267,7 @@ export const PickEmDailyResultsPickResult = {
   correct: 'correct',
   incorrect: 'incorrect',
   postponed: 'postponed',
+  push: 'push',
 } as const;
 
 export interface PickEmDailyResultsPick {

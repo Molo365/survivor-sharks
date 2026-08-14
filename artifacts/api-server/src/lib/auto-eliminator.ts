@@ -2778,10 +2778,11 @@ export async function processPickEmResults(): Promise<{
           const home = game.homeScore!;
           const away = game.awayScore!;
           if (home === away) {
-            // Tied game: all picks are incorrect (matches process-results behaviour)
+            // Tied game: push — no winner declared, no loss charged to either side.
+            // Does not count toward or against leaderboard scoring.
             await db
               .update(pickemPicksTable)
-              .set({ result: "incorrect" })
+              .set({ result: "push" })
               .where(and(
                 eq(pickemPicksTable.poolId, pool.id),
                 eq(pickemPicksTable.gameId, game.id),
