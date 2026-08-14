@@ -68,6 +68,13 @@ function StatusBadge({ status }: { status: PoolSummary["pickStatus"] }) {
       </div>
     );
   }
+  if (status === "not_required") {
+    return (
+      <span className="text-[12px] font-semibold text-muted-foreground/50 tracking-wide">
+        Picks open Sat–Sun
+      </span>
+    );
+  }
   return (
     <span className="text-[12px] font-semibold text-muted-foreground/50 tracking-wide">
       No picks this week
