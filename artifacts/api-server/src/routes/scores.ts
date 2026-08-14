@@ -302,6 +302,7 @@ router.get("/game/:gameId", async (req, res) => {
           isRedZone: boolean;
           possession: string | null;
           shortDownDistanceText: string | null;
+          downDistanceText: string | null;
           possessionText: string | null;
           homeTimeouts: number;
           awayTimeouts: number;
@@ -330,6 +331,7 @@ router.get("/game/:gameId", async (req, res) => {
                 isRedZone:             sbSit.isRedZone             ?? false,
                 possession:            sbSit.possession            ?? null,
                 shortDownDistanceText: sbSit.shortDownDistanceText ?? null,
+                downDistanceText:      sbSit.downDistanceText      ?? null,
                 possessionText:        sbSit.possessionText        ?? null,
                 homeTimeouts:          sbSit.homeTimeouts          ?? 3,
                 awayTimeouts:          sbSit.awayTimeouts          ?? 3,

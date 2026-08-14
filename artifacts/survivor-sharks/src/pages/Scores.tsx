@@ -100,6 +100,7 @@ interface GameDetail {
         isRedZone: boolean;
         possession: string | null;
         shortDownDistanceText: string | null;
+        downDistanceText: string | null;
         possessionText: string | null;
         homeTimeouts: number;
         awayTimeouts: number;
@@ -668,36 +669,46 @@ function GameDetailSheet({
                         ) : sit.sport === "nfl" ? (
                           /* ── NFL: down/distance + possession + timeouts ── */
                           <div className="space-y-3">
-                            {/* Down & distance + field position */}
+                            {/* Down & distance + field position
+                                downDistanceText is ESPN's full combined string,
+                                e.g. "1st & 10 at LV 48" or "3rd & 7 at ARI 22".
+                                It covers both the down/distance AND the team-relative
+                                field position in standard NFL broadcast notation. */}
                             <div className="flex items-center gap-3 flex-wrap">
-                              {sit.shortDownDistanceText && (
+                              {sit.downDistanceText && (
                                 <span
                                   className={cn(
                                     "font-bebas text-2xl tracking-wide",
                                     sit.isRedZone ? "text-red-400" : "text-foreground",
                                   )}
                                 >
-                                  {sit.shortDownDistanceText}
+                                  {sit.downDistanceText}
                                 </span>
                               )}
-                              {sit.yardLine != null && (
+                              {sit.isRedZone && (
                                 <span className="text-xs text-muted-foreground">
-                                  {sit.isRedZone
-                                    ? "🔴 Red zone"
-                                    : `Ball on the ${sit.yardLine}`}
+                                  🔴 Red zone
                                 </span>
                               )}
                             </div>
-                            {/* Possession — possessionText is ESPN's "TEAM YARDLINE" combined
-                                string (e.g. "LV 39"); extract only the team abbreviation
-                                (first token) since field position is already shown above. */}
-                            {sit.possessionText && (
+                            {/* Possession — sit.possession is the ESPN team ID of the
+                                team that actually has the ball. possessionText is
+                                territorial notation ("LV 48" when ARI has the ball past
+                                midfield) and must NOT be used to identify the possessing
+                                team. Match the ID against homeTeam/awayTeam to get the
+                                correct abbreviation. */}
+                            {sit.possession && (
                               <p className="text-sm">
                                 <span className="text-muted-foreground">
                                   Possession:{" "}
                                 </span>
                                 <span className="font-semibold text-amber-400">
-                                  🏈 {sit.possessionText.split(" ")[0]}
+                                  🏈{" "}
+                                  {sit.possession === game?.homeTeam.id
+                                    ? (game?.homeTeam.abbreviation ?? "HME")
+                                    : sit.possession === game?.awayTeam.id
+                                      ? (game?.awayTeam.abbreviation ?? "AWY")
+                                      : sit.possession}
                                 </span>
                               </p>
                             )}
