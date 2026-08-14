@@ -3181,6 +3181,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       </Button>
                     </div>
                   )}
+
+                  {/* Missed-week notice — shown after the slate locks if the user never submitted picks */}
+                  {slateLocked && myPickCount === 0 && (
+                    <div className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                      <Clock className="w-4 h-4 shrink-0 text-muted-foreground/50" />
+                      <span>Picks were not submitted before this week's slate locked.</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

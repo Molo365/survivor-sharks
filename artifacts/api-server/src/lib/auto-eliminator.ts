@@ -1668,11 +1668,16 @@ export async function processPickEmResults(): Promise<{
 }> {
   let picksGraded = 0;
 
-  // Find all active pick-em pools
+  // Find all active pick-em pools — sandbox pools are excluded here because their picks
+  // are stored against historical anchor dates (e.g. Oct 2025) that are permanently
+  // older than yesterdayEt, which would cause the catch-up pass to fire on them every
+  // poll cycle and grade against real ESPN historical scores instead of the
+  // commissioner-controlled sandbox_game_scores. Sandbox pools must only be graded via
+  // POST /simulate-grading, never by this auto-grader.
   const pickemPools = await db
     .select()
     .from(poolsTable)
-    .where(and(eq(poolsTable.poolType, "pickem"), eq(poolsTable.isActive, true)));
+    .where(and(eq(poolsTable.poolType, "pickem"), eq(poolsTable.isActive, true), eq(poolsTable.sandboxMode, false)));
 
   const nflReplayPools = await db
     .select()
@@ -1724,6 +1729,7 @@ export async function processPickEmResults(): Promise<{
           eq(pickemPicksTable.result, "pending"),
           eq(poolsTable.isActive, true),
           eq(poolsTable.poolType, "pickem"),
+          eq(poolsTable.sandboxMode, false), // sandbox pools are graded only via simulate-grading
           lt(pickemPicksTable.gameDate, yesterdayEt),
         ),
       );
@@ -1767,6 +1773,7 @@ export async function processPickEmResults(): Promise<{
               eq(pickemPicksTable.gameDate, gameDate),
               eq(poolsTable.isActive, true),
               eq(poolsTable.poolType, "pickem"),
+              eq(poolsTable.sandboxMode, false), // sandbox pools are graded only via simulate-grading
               eq(poolsTable.sport, sport as "nfl"), // cast to satisfy enum type; runtime value is correct
             ),
           );

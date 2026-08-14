@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, usersTable, entriesTable, pickemPicksTable, picksTable } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, isNotNull, or, ne } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireCommissioner } from "../middlewares/auth";
 import { processCompletedGames } from "../lib/auto-eliminator";
 import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
@@ -144,6 +144,57 @@ router.patch("/users/:userId", requireAuth, requireAdmin, async (req, res) => {
     poolCount: Number(poolCount),
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+// POST /api/admin/pools/:poolId/reset-sandbox-picks
+// Resets all pickem_picks for a sandbox pool back to result='pending'.
+// Safety check: aborts if any entries in the pool have prize_amount or
+// finish_position set (indicates closure already ran — manual review required).
+router.post("/pools/:poolId/reset-sandbox-picks", requireAuth, requireAdmin, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  if (isNaN(poolId)) { res.status(400).json({ error: "Invalid pool ID" }); return; }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "pickem") { res.status(400).json({ error: "Not a Pick-Em pool" }); return; }
+  if (!(pool as any).sandboxMode) {
+    res.status(400).json({ error: "Only sandbox pools can be reset via this endpoint" });
+    return;
+  }
+
+  // Safety: verify no entries have prize_amount or finish_position set.
+  // Those are only written by pool closure code, not by pick grading.
+  // If they exist, the pool may have closed and this reset could corrupt results.
+  const dirtyEntries = await db
+    .select({ id: entriesTable.id, prizeAmount: entriesTable.prizeAmount, finishPosition: entriesTable.finishPosition })
+    .from(entriesTable)
+    .where(and(
+      eq(entriesTable.poolId, poolId),
+      or(isNotNull(entriesTable.prizeAmount), isNotNull(entriesTable.finishPosition)),
+    ));
+
+  if (dirtyEntries.length > 0) {
+    res.status(409).json({
+      error: "One or more entries have prize_amount or finish_position set — manual review required before reset",
+      dirtyEntries,
+    });
+    return;
+  }
+
+  // Count how many picks will be reset (those not already pending)
+  const [{ toReset }] = await db
+    .select({ toReset: count() })
+    .from(pickemPicksTable)
+    .where(and(eq(pickemPicksTable.poolId, poolId), ne(pickemPicksTable.result, "pending")));
+
+  // Reset all picks for this pool back to pending
+  await db
+    .update(pickemPicksTable)
+    .set({ result: "pending", updatedAt: new Date() })
+    .where(and(eq(pickemPicksTable.poolId, poolId), ne(pickemPicksTable.result, "pending")));
+
+  req.log.info({ poolId, picksReset: Number(toReset) }, "Admin reset sandbox Pick-Em picks to pending");
+  res.json({ ok: true, poolId, picksReset: Number(toReset) });
 });
 
 // POST /api/admin/process-results — manually trigger the auto-eliminator
