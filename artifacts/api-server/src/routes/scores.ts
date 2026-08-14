@@ -281,20 +281,37 @@ router.get("/game/:gameId", async (req, res) => {
     const lastPlayFallback: string | null =
       plays.length > 0 ? (plays[plays.length - 1]?.text ?? null) : null;
 
-    type SituationResult = {
-      balls: number;
-      strikes: number;
-      outs: number;
-      onFirst: boolean;
-      onSecond: boolean;
-      onThird: boolean;
-      batter: string | null;
-      pitcher: string | null;
-      lastPlay: string | null;
-    } | null;
+    type SituationResult =
+      | {
+          sport: "mlb";
+          balls: number;
+          strikes: number;
+          outs: number;
+          onFirst: boolean;
+          onSecond: boolean;
+          onThird: boolean;
+          batter: string | null;
+          pitcher: string | null;
+          lastPlay: string | null;
+        }
+      | {
+          sport: "nfl";
+          down: number | null;
+          distance: number | null;
+          yardLine: number | null;
+          isRedZone: boolean;
+          possession: string | null;
+          shortDownDistanceText: string | null;
+          possessionText: string | null;
+          homeTimeouts: number;
+          awayTimeouts: number;
+          lastPlay: string | null;
+        }
+      | null;
 
     let situation: SituationResult = null;
-    if (isLive) {
+    // Only mlb and nfl have a rendered Live Situation panel; other sports skip.
+    if (isLive && (sport === "mlb" || sport === "nfl")) {
       try {
         const sbUrl = `https://site.api.espn.com/apis/site/v2/sports/${espnPath}/scoreboard`;
         const sbRes = await fetch(sbUrl, { signal: AbortSignal.timeout(6000) });
@@ -304,25 +321,43 @@ router.get("/game/:gameId", async (req, res) => {
           const sbSit: any =
             (sbEvent?.competitions ?? [])[0]?.situation ?? null;
           if (sbSit) {
-            situation = {
-              balls:    sbSit.balls    ?? 0,
-              strikes:  sbSit.strikes  ?? 0,
-              outs:     sbSit.outs     ?? 0,
-              onFirst:  sbSit.onFirst  ?? false,
-              onSecond: sbSit.onSecond ?? false,
-              onThird:  sbSit.onThird  ?? false,
-              batter:
-                sbSit.batter?.athlete?.shortName ??
-                sbSit.batter?.athlete?.fullName ??
-                null,
-              pitcher:
-                sbSit.pitcher?.athlete?.shortName ??
-                sbSit.pitcher?.athlete?.fullName ??
-                null,
-              lastPlay:
-                sbSit.lastPlay?.text ??
-                lastPlayFallback,
-            };
+            if (sport === "nfl") {
+              situation = {
+                sport:                 "nfl",
+                down:                  sbSit.down                  ?? null,
+                distance:              sbSit.distance              ?? null,
+                yardLine:              sbSit.yardLine              ?? null,
+                isRedZone:             sbSit.isRedZone             ?? false,
+                possession:            sbSit.possession            ?? null,
+                shortDownDistanceText: sbSit.shortDownDistanceText ?? null,
+                possessionText:        sbSit.possessionText        ?? null,
+                homeTimeouts:          sbSit.homeTimeouts          ?? 3,
+                awayTimeouts:          sbSit.awayTimeouts          ?? 3,
+                lastPlay:              sbSit.lastPlay?.text        ?? lastPlayFallback,
+              };
+            } else {
+              // sport === "mlb"
+              situation = {
+                sport:    "mlb",
+                balls:    sbSit.balls    ?? 0,
+                strikes:  sbSit.strikes  ?? 0,
+                outs:     sbSit.outs     ?? 0,
+                onFirst:  sbSit.onFirst  ?? false,
+                onSecond: sbSit.onSecond ?? false,
+                onThird:  sbSit.onThird  ?? false,
+                batter:
+                  sbSit.batter?.athlete?.shortName ??
+                  sbSit.batter?.athlete?.fullName ??
+                  null,
+                pitcher:
+                  sbSit.pitcher?.athlete?.shortName ??
+                  sbSit.pitcher?.athlete?.fullName ??
+                  null,
+                lastPlay:
+                  sbSit.lastPlay?.text ??
+                  lastPlayFallback,
+              };
+            }
           }
         }
       } catch {

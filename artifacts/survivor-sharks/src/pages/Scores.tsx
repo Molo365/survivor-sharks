@@ -79,17 +79,33 @@ interface GameDetail {
     homeLabel: string;
     awayLabel: string;
   } | null;
-  situation: {
-    balls: number;
-    strikes: number;
-    outs: number;
-    onFirst: boolean;
-    onSecond: boolean;
-    onThird: boolean;
-    batter: string | null;
-    pitcher: string | null;
-    lastPlay: string | null;
-  } | null;
+  situation: (
+    | {
+        sport: "mlb";
+        balls: number;
+        strikes: number;
+        outs: number;
+        onFirst: boolean;
+        onSecond: boolean;
+        onThird: boolean;
+        batter: string | null;
+        pitcher: string | null;
+        lastPlay: string | null;
+      }
+    | {
+        sport: "nfl";
+        down: number | null;
+        distance: number | null;
+        yardLine: number | null;
+        isRedZone: boolean;
+        possession: string | null;
+        shortDownDistanceText: string | null;
+        possessionText: string | null;
+        homeTimeouts: number;
+        awayTimeouts: number;
+        lastPlay: string | null;
+      }
+  ) | null;
   scoringSummary: Array<{ period: string; description: string }>;
   homePitcher: { name: string; era: string; record: string } | null;
   awayPitcher: { name: string; era: string; record: string } | null;
@@ -561,95 +577,184 @@ function GameDetailSheet({
                     </div>
                   )}
 
-                  {/* Live situation */}
-                  {detail.situation && (
-                    <div>
-                      <h4 className="font-bebas text-xl tracking-wide mb-3">
-                        Live Situation
-                      </h4>
-                      <div className="flex items-start gap-4">
-                        <BaseDiamond
-                          onFirst={detail.situation.onFirst}
-                          onSecond={detail.situation.onSecond}
-                          onThird={detail.situation.onThird}
-                        />
-                        <div className="space-y-2 flex-1 pt-1">
-                          {/* Balls / Strikes / Outs */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1">
-                              {[0, 1, 2, 3].map((i) => (
-                                <div
-                                  key={i}
-                                  className={cn(
-                                    "w-3 h-3 rounded-full border",
-                                    i < detail.situation!.balls
-                                      ? "bg-green-400 border-green-400"
-                                      : "border-border/50",
-                                  )}
-                                />
-                              ))}
-                              <span className="text-[11px] text-muted-foreground ml-0.5">
-                                B
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {[0, 1, 2].map((i) => (
-                                <div
-                                  key={i}
-                                  className={cn(
-                                    "w-3 h-3 rounded-full border",
-                                    i < detail.situation!.strikes
-                                      ? "bg-yellow-400 border-yellow-400"
-                                      : "border-border/50",
-                                  )}
-                                />
-                              ))}
-                              <span className="text-[11px] text-muted-foreground ml-0.5">
-                                S
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {[0, 1, 2].map((i) => (
-                                <div
-                                  key={i}
-                                  className={cn(
-                                    "w-3 h-3 rounded-full border",
-                                    i < detail.situation!.outs
-                                      ? "bg-red-400 border-red-400"
-                                      : "border-border/50",
-                                  )}
-                                />
-                              ))}
-                              <span className="text-[11px] text-muted-foreground ml-0.5">
-                                O
-                              </span>
+                  {/* Live situation — captured into `sit` so TypeScript narrows
+                      the discriminated union correctly inside .map() closures */}
+                  {detail.situation && (() => {
+                    const sit = detail.situation!;
+                    return (
+                      <div>
+                        <h4 className="font-bebas text-xl tracking-wide mb-3">
+                          Live Situation
+                        </h4>
+
+                        {sit.sport === "mlb" ? (
+                          /* ── MLB: base diamond + B/S/O + batter/pitcher ── */
+                          <div className="flex items-start gap-4">
+                            <BaseDiamond
+                              onFirst={sit.onFirst}
+                              onSecond={sit.onSecond}
+                              onThird={sit.onThird}
+                            />
+                            <div className="space-y-2 flex-1 pt-1">
+                              {/* Balls / Strikes / Outs */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                  {[0, 1, 2, 3].map((i) => (
+                                    <div
+                                      key={i}
+                                      className={cn(
+                                        "w-3 h-3 rounded-full border",
+                                        i < sit.balls
+                                          ? "bg-green-400 border-green-400"
+                                          : "border-border/50",
+                                      )}
+                                    />
+                                  ))}
+                                  <span className="text-[11px] text-muted-foreground ml-0.5">
+                                    B
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {[0, 1, 2].map((i) => (
+                                    <div
+                                      key={i}
+                                      className={cn(
+                                        "w-3 h-3 rounded-full border",
+                                        i < sit.strikes
+                                          ? "bg-yellow-400 border-yellow-400"
+                                          : "border-border/50",
+                                      )}
+                                    />
+                                  ))}
+                                  <span className="text-[11px] text-muted-foreground ml-0.5">
+                                    S
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {[0, 1, 2].map((i) => (
+                                    <div
+                                      key={i}
+                                      className={cn(
+                                        "w-3 h-3 rounded-full border",
+                                        i < sit.outs
+                                          ? "bg-red-400 border-red-400"
+                                          : "border-border/50",
+                                      )}
+                                    />
+                                  ))}
+                                  <span className="text-[11px] text-muted-foreground ml-0.5">
+                                    O
+                                  </span>
+                                </div>
+                              </div>
+                              {sit.batter && (
+                                <p className="text-sm">
+                                  <span className="text-muted-foreground">
+                                    Batting:{" "}
+                                  </span>
+                                  {sit.batter}
+                                </p>
+                              )}
+                              {sit.pitcher && (
+                                <p className="text-sm">
+                                  <span className="text-muted-foreground">
+                                    Pitching:{" "}
+                                  </span>
+                                  {sit.pitcher}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          {detail.situation.batter && (
-                            <p className="text-sm">
-                              <span className="text-muted-foreground">
-                                Batting:{" "}
-                              </span>
-                              {detail.situation.batter}
-                            </p>
-                          )}
-                          {detail.situation.pitcher && (
-                            <p className="text-sm">
-                              <span className="text-muted-foreground">
-                                Pitching:{" "}
-                              </span>
-                              {detail.situation.pitcher}
-                            </p>
-                          )}
-                        </div>
+                        ) : sit.sport === "nfl" ? (
+                          /* ── NFL: down/distance + possession + timeouts ── */
+                          <div className="space-y-3">
+                            {/* Down & distance + field position */}
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {sit.shortDownDistanceText && (
+                                <span
+                                  className={cn(
+                                    "font-bebas text-2xl tracking-wide",
+                                    sit.isRedZone ? "text-red-400" : "text-foreground",
+                                  )}
+                                >
+                                  {sit.shortDownDistanceText}
+                                </span>
+                              )}
+                              {sit.yardLine != null && (
+                                <span className="text-xs text-muted-foreground">
+                                  {sit.isRedZone
+                                    ? "🔴 Red zone"
+                                    : `Ball on the ${sit.yardLine}`}
+                                </span>
+                              )}
+                            </div>
+                            {/* Possession */}
+                            {sit.possessionText && (
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                  Possession:{" "}
+                                </span>
+                                <span className="font-semibold text-amber-400">
+                                  🏈 {sit.possessionText}
+                                </span>
+                              </p>
+                            )}
+                            {/* Timeouts remaining */}
+                            <div className="flex items-center gap-5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground w-8 shrink-0">
+                                  {game?.awayTeam.abbreviation ?? "AWY"}
+                                </span>
+                                <div className="flex gap-1">
+                                  {[0, 1, 2].map((i) => (
+                                    <div
+                                      key={i}
+                                      className={cn(
+                                        "w-3 h-2 rounded-sm",
+                                        i < sit.awayTimeouts
+                                          ? "bg-yellow-400"
+                                          : "bg-border/30",
+                                      )}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">
+                                  TO
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground w-8 shrink-0">
+                                  {game?.homeTeam.abbreviation ?? "HME"}
+                                </span>
+                                <div className="flex gap-1">
+                                  {[0, 1, 2].map((i) => (
+                                    <div
+                                      key={i}
+                                      className={cn(
+                                        "w-3 h-2 rounded-sm",
+                                        i < sit.homeTimeouts
+                                          ? "bg-yellow-400"
+                                          : "bg-border/30",
+                                      )}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">
+                                  TO
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null /* other sports: no situation panel */}
+
+                        {sit.lastPlay && (
+                          <p className="mt-3 text-sm text-muted-foreground/80 italic border-l-2 border-primary/40 pl-3 leading-relaxed">
+                            {sit.lastPlay}
+                          </p>
+                        )}
                       </div>
-                      {detail.situation.lastPlay && (
-                        <p className="mt-3 text-sm text-muted-foreground/80 italic border-l-2 border-primary/40 pl-3 leading-relaxed">
-                          {detail.situation.lastPlay}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Scoring summary */}
                   {detail.scoringSummary.length > 0 && (
