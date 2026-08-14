@@ -688,14 +688,16 @@ function GameDetailSheet({
                                 </span>
                               )}
                             </div>
-                            {/* Possession */}
+                            {/* Possession — possessionText is ESPN's "TEAM YARDLINE" combined
+                                string (e.g. "LV 39"); extract only the team abbreviation
+                                (first token) since field position is already shown above. */}
                             {sit.possessionText && (
                               <p className="text-sm">
                                 <span className="text-muted-foreground">
                                   Possession:{" "}
                                 </span>
                                 <span className="font-semibold text-amber-400">
-                                  🏈 {sit.possessionText}
+                                  🏈 {sit.possessionText.split(" ")[0]}
                                 </span>
                               </p>
                             )}

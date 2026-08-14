@@ -371,17 +371,30 @@ router.get("/game/:gameId", async (req, res) => {
 
     // ── Scoring summary ───────────────────────────────────────────────────────
     // For soccer: goal data lives in d.keyEvents (d.plays is always empty).
+    // For NFL: d.plays is always empty; scoring plays live in d.scoringPlays
+    //   (a pre-filtered top-level array). Its period shape is {number: N}, not
+    //   {displayValue}, so we map to "Q1"/"Q2"/etc. manually.
     // For all other sports: d.plays filtered by scoringPlay === true.
-    const sourcePlays: any[] = isSoccer ? (d.keyEvents ?? []) : (d.plays ?? []);
-    const scoringSummary: { period: string; description: string }[] = sourcePlays
-      .filter((p: any) => p.scoringPlay === true)
-      .map((p: any) => ({
-        period: isSoccer
-          ? (p.clock?.displayValue ?? p.period?.displayValue ?? "")
-          : (p.period?.displayValue ?? ""),
-        description: p.text ?? "",
-      }))
-      .filter((s: { period: string; description: string }) => s.description);
+    let scoringSummary: { period: string; description: string }[];
+    if (sport === "nfl") {
+      scoringSummary = (d.scoringPlays ?? [])
+        .map((p: any) => ({
+          period: p.period?.number != null ? `Q${p.period.number}` : "",
+          description: p.text ?? "",
+        }))
+        .filter((s: { period: string; description: string }) => s.description);
+    } else {
+      const sourcePlays: any[] = isSoccer ? (d.keyEvents ?? []) : (d.plays ?? []);
+      scoringSummary = sourcePlays
+        .filter((p: any) => p.scoringPlay === true)
+        .map((p: any) => ({
+          period: isSoccer
+            ? (p.clock?.displayValue ?? p.period?.displayValue ?? "")
+            : (p.period?.displayValue ?? ""),
+          description: p.text ?? "",
+        }))
+        .filter((s: { period: string; description: string }) => s.description);
+    }
 
     // ── Starting pitchers (MLB only) ──────────────────────────────────────────
     type PitcherResult = { name: string; era: string; record: string } | null;
