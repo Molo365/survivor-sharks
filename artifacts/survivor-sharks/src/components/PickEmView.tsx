@@ -1283,11 +1283,20 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
   return (
     <div className="px-3 py-3 space-y-1.5 border-t border-border/10 bg-muted/5">
       {picks.map((pick: PickEmDailyPickDetail) => {
-        const pickedIsHome = pick.pickedTeamId === pick.homeTeam.id;
-        const opponent = pickedIsHome ? pick.awayTeam : pick.homeTeam;
+        // 3-way pools (mls/superleague) store "home_win"/"draw"/"away_win" in pickedTeamId,
+        // not an actual team ID. Detect and branch accordingly.
+        const WC_OPTIONS_PANEL = ["home_win", "draw", "away_win"] as const;
+        const is3wayPick = pick.pickedTeamId != null &&
+          (WC_OPTIONS_PANEL as readonly string[]).includes(pick.pickedTeamId);
+        const isDraw = is3wayPick && pick.pickedTeamId === "draw";
+        const pickedIsHome = is3wayPick
+          ? pick.pickedTeamId === "home_win"
+          : pick.pickedTeamId === pick.homeTeam.id;
+        const opponent = isDraw ? null : (pickedIsHome ? pick.awayTeam : pick.homeTeam);
         const hasScore = pick.homeScore !== null && pick.awayScore !== null;
-        const pickedScore = pickedIsHome ? pick.homeScore : pick.awayScore;
-        const opponentScore = pickedIsHome ? pick.awayScore : pick.homeScore;
+        // For draws: show both scores in home–away order so both values are visible.
+        const pickedScore   = (pickedIsHome || isDraw) ? pick.homeScore : pick.awayScore;
+        const opponentScore = (pickedIsHome || isDraw) ? pick.awayScore : pick.homeScore;
 
         // NBA ATS: show the line from the picked team's perspective.
         // favourite covers at -spread; underdog covers at +spread.
@@ -1343,8 +1352,12 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
               )}
             </div>
 
-            {/* Opponent */}
-            <span className="text-xs text-muted-foreground shrink-0">vs {opponent.abbreviation}</span>
+            {/* Opponent / matchup context */}
+            <span className="text-xs text-muted-foreground shrink-0">
+              {isDraw
+                ? `${pick.homeTeam.abbreviation} v ${pick.awayTeam.abbreviation}`
+                : `vs ${opponent!.abbreviation}`}
+            </span>
 
             {/* Score */}
             {hasScore && (
@@ -2298,7 +2311,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, undefined, {
     query: {
       queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId),
-      enabled: isWeekly,
+      enabled: isWeekly || isMlsWeekly,
       staleTime: 10 * 60 * 1000,
     },
   });
@@ -3373,6 +3386,38 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : isMlsWeekly ? (
             <div className="space-y-6">
+              {/* Last Week's Winner banner */}
+              {prevWeekWinners && prevWeekWinners.length > 0 && prevWeekResults && (
+                <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+                  <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-yellow-200">{prevWeekWinners.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:"}</span>
+                    <span className="text-sm text-yellow-300">{prevWeekWinners.map(w => w.displayName || w.username).join(" & ")}</span>
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-sm text-yellow-400/70">{prevWeekWinners[0].correct}/{prevWeekWinners[0].picked} correct</span>
+                    {prevWeekWinners[0].prizeWon != null && (
+                      <>
+                        <span className="text-yellow-500/50 text-xs">·</span>
+                        <span className="text-sm font-semibold text-yellow-300">${prevWeekWinners[0].prizeWon}</span>
+                      </>
+                    )}
+                    <span className="text-yellow-500/50 text-xs">·</span>
+                    <span className="text-xs text-yellow-500/60">
+                      {new Date(prevWeekResults.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {" – "}
+                      {new Date(prevWeekResults.weekEnd + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWeekResultsOpen(true)}
+                    className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+                  >
+                    View Full Results →
+                  </button>
+                </div>
+              )}
+
               {/* Static week header — no day-navigation for combined view */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>

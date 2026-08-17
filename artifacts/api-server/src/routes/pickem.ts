@@ -819,15 +819,22 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
       result: pick.result,
       startTime: game?.date,
     });
-    const pickedIsHome = revealed && game ? pick.pickedTeamId === game.homeTeam.id : false;
+    // 3-way pools (mls/superleague) store "home_win"/"draw"/"away_win" as pickedTeamId,
+    // not an actual team ID.  Detect before computing logo/side.
+    const WC_OPTIONS_BE = ["home_win", "draw", "away_win"] as const;
+    const is3wayOption = revealed && pick.pickedTeamId != null &&
+      (WC_OPTIONS_BE as readonly string[]).includes(pick.pickedTeamId);
+    const pickedIsHome = revealed && game
+      ? (is3wayOption ? pick.pickedTeamId === "home_win" : pick.pickedTeamId === game.homeTeam.id)
+      : false;
     const spreadEntry = isAts ? (spreadMap.get(pick.gameId) ?? null) : null;
     return {
       gameId: pick.gameId,
       pickedTeamId: revealed ? pick.pickedTeamId : null as string | null,
       pickedTeamName: revealed ? pick.pickedTeamName : null as string | null,
-      pickedTeamLogoUrl: revealed && game
-        ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
-        : null,
+      pickedTeamLogoUrl: !revealed || !game ? null
+        : (is3wayOption && pick.pickedTeamId === "draw") ? null
+        : (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null,
       result: pick.result,
       homeTeam: game
         ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
