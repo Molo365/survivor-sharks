@@ -74,6 +74,7 @@ import type {
   PickEmLeaderboard,
   PickEmPickInput,
   PickEmPicksResult,
+  GetPickEmPrevWeekResultsParams,
   PickEmPrevWeekResults,
   PickEmProcessResult,
   PickEmSlate,
@@ -2982,20 +2983,28 @@ export function useGetPickEmYesterdayWinner<TData = Awaited<ReturnType<typeof ge
 
 
 
-export const getGetPickEmPrevWeekResultsUrl = (poolId: number,) => {
+export const getGetPickEmPrevWeekResultsUrl = (poolId: number,
+    params?: GetPickEmPrevWeekResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-
-  return `/api/pools/${poolId}/pickem/prev-week-results`
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/pickem/prev-week-results?${stringifiedParams}` : `/api/pools/${poolId}/pickem/prev-week-results`
 }
 
 /**
- * @summary Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
+ * @summary Get final standings for the previous Mon\u2013Sun week (weekly pick-em pools only)
  */
-export const getPickEmPrevWeekResults = async (poolId: number, options?: RequestInit): Promise<PickEmPrevWeekResults> => {
+export const getPickEmPrevWeekResults = async (poolId: number,
+    params?: GetPickEmPrevWeekResultsParams, options?: RequestInit): Promise<PickEmPrevWeekResults> => {
 
-  return customFetch<PickEmPrevWeekResults>(getGetPickEmPrevWeekResultsUrl(poolId),
+  return customFetch<PickEmPrevWeekResults>(getGetPickEmPrevWeekResultsUrl(poolId, params),
   {
     ...options,
     method: 'GET'
@@ -3007,25 +3016,25 @@ export const getPickEmPrevWeekResults = async (poolId: number, options?: Request
 
 
 
-
-export const getGetPickEmPrevWeekResultsQueryKey = (poolId: number,) => {
+export const getGetPickEmPrevWeekResultsQueryKey = (poolId: number,
+    params?: GetPickEmPrevWeekResultsParams,) => {
     return [
-    `/api/pools/${poolId}/pickem/prev-week-results`
+    `/api/pools/${poolId}/pickem/prev-week-results`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetPickEmPrevWeekResultsQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPickEmPrevWeekResultsQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetPickEmPrevWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPickEmPrevWeekResultsQueryKey(poolId);
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmPrevWeekResultsQueryKey(poolId, params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>> = ({ signal }) => getPickEmPrevWeekResults(poolId, { signal, ...requestOptions });
-
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>> = ({ signal }) => getPickEmPrevWeekResults(poolId, params, { signal, ...requestOptions });
 
 
 
@@ -3038,23 +3047,21 @@ export type GetPickEmPrevWeekResultsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
+ * @summary Get final standings for the previous Mon\u2013Sun week (weekly pick-em pools only)
  */
 
 export function useGetPickEmPrevWeekResults<TData = Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError = ErrorType<unknown>>(
- poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ poolId: number,
+    params?: GetPickEmPrevWeekResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPickEmPrevWeekResultsQueryOptions(poolId,options)
+  const queryOptions = getGetPickEmPrevWeekResultsQueryOptions(poolId, params, options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
-
-
-
 
 
 

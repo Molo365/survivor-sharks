@@ -1306,6 +1306,11 @@ export interface PickEmDayWinnerEntry {
   prizeWon?: number | null;
 }
 
+export interface GetPickEmPrevWeekResultsParams {
+  /** Optional completed week number (1-indexed). Defaults to the immediately prior calendar week when omitted. */
+  week?: number;
+}
+
 export interface PickEmPrevWeekResults {
   /** True if at least one pick in the previous week has been graded */
   hasResults: boolean;
@@ -1313,6 +1318,8 @@ export interface PickEmPrevWeekResults {
   weekStart: string;
   /** Previous week Sunday (YYYY-MM-DD) */
   weekEnd: string;
+  /** The 1-indexed week number whose results are returned */
+  weekNumber?: number;
   entries: PickEmLeaderboardEntry[];
 }
 

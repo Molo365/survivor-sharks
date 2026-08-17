@@ -1112,18 +1112,35 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
+  // Optional ?week=N param: 1-indexed completed week number. Defaults to the
+  // immediately prior calendar/weekend week when omitted (backward-compatible).
+  const weekParam = req.query.week;
+  const requestedWeek = weekParam !== undefined ? parseInt(String(weekParam)) : null;
+  if (requestedWeek !== null) {
+    if (isNaN(requestedWeek) || requestedWeek < 1 || requestedWeek >= pool.currentWeek) {
+      res.status(400).json({ error: `week must be between 1 and ${pool.currentWeek - 1}` });
+      return;
+    }
+  }
+
   const todayEt = getTodayEtDate();
 
-  // NBA ATS pools use Fri/Sat/Sun weekend bounds derived from the pool's week
-  // counter, not the generic Mon–Sun calendar week. The currentWeek counter has
-  // already been incremented past the most-recently closed weekend, so week − 1
-  // is the weekend whose results we want to show.
+  // Compute date bounds for the requested (or default previous) week.
+  // For nba_ats: Fri–Sun weekend bounds keyed by week counter.
+  // For all others: Mon–Sun calendar week. Without a week param, default to
+  // the immediately prior calendar week (existing behavior).
   let prevWeekBounds: { weekStart: string; weekEnd: string };
   if (isNbaAts) {
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-    const prevWeekNum = Math.max(1, pool.currentWeek - 1);
-    const { days } = getNbaWeekendBounds(anchor, prevWeekNum);
+    const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
+    const { days } = getNbaWeekendBounds(anchor, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
+  } else if (requestedWeek !== null) {
+    // Offset back from the current week's Monday by (currentWeek − requestedWeek) weeks.
+    const currentWeekBounds = getWeekBoundsEt(todayEt);
+    const weeksBack = pool.currentWeek - requestedWeek;
+    const weekNMonday = offsetDateStr(currentWeekBounds.weekStart, -(weeksBack * 7));
+    prevWeekBounds = getWeekBoundsEt(weekNMonday);
   } else {
     const currentWeekBounds = getWeekBoundsEt(todayEt);
     // Previous week: the day before current week's Monday is last Sunday
@@ -1382,6 +1399,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     hasResults,
     weekStart: prevWeekBounds.weekStart,
     weekEnd: prevWeekBounds.weekEnd,
+    weekNumber: requestedWeek ?? Math.max(1, pool.currentWeek - 1),
     entries,
     tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,

@@ -1750,19 +1750,22 @@ function PrevWeekResultsModal({
   open,
   onClose,
   poolId,
-  weekStart,
-  weekEnd,
-  entries,
+  currentWeek,
+  weekStart: defaultWeekStart,
+  weekEnd: defaultWeekEnd,
+  entries: defaultEntries,
   currentUserId,
-  tiebreakerActualRuns,
-  tiebreakerActualStrikeouts,
-  tiebreakerActualShotsOnGoal,
-  tiebreakerActualPenaltyMinutes,
+  tiebreakerActualRuns: defaultTbRuns,
+  tiebreakerActualStrikeouts: defaultTbSO,
+  tiebreakerActualShotsOnGoal: defaultTbShots,
+  tiebreakerActualPenaltyMinutes: defaultTbPIM,
   isNbaAts,
 }: {
   open: boolean;
   onClose: () => void;
   poolId: number;
+  /** Total weeks played so far in this pool (pool.currentWeek). Used to bound the week selector. */
+  currentWeek: number;
   weekStart: string;
   weekEnd: string;
   entries: PickEmLeaderboardEntry[];
@@ -1773,6 +1776,41 @@ function PrevWeekResultsModal({
   tiebreakerActualPenaltyMinutes?: number | null;
   isNbaAts?: boolean;
 }) {
+  // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
+  const maxWeek = Math.max(1, currentWeek - 1);
+  const [selectedWeek, setSelectedWeek] = useState(maxWeek);
+
+  // Reset to the most recent week whenever the modal is opened.
+  useEffect(() => {
+    if (open) setSelectedWeek(maxWeek);
+  }, [open, maxWeek]);
+
+  const isDefaultWeek = selectedWeek === maxWeek;
+
+  // Fetch data for weeks other than the most recent one.
+  // The most-recent-week data is passed in via props (already fetched by the parent).
+  const { data: altWeekData, isFetching: isAltFetching } = useGetPickEmPrevWeekResults(
+    poolId,
+    { week: selectedWeek },
+    {
+      query: {
+        queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, { week: selectedWeek }),
+        enabled: open && !isDefaultWeek,
+        staleTime: 30 * 60 * 1000,
+      },
+    },
+  );
+
+  // Resolve display data — prop data for the default week, fetched data otherwise.
+  const weekStart = isDefaultWeek ? defaultWeekStart : (altWeekData?.weekStart ?? defaultWeekStart);
+  const weekEnd   = isDefaultWeek ? defaultWeekEnd   : (altWeekData?.weekEnd   ?? defaultWeekEnd);
+  const entries   = isDefaultWeek ? defaultEntries   : (altWeekData?.entries   ?? []);
+  const tiebreakerActualRuns          = isDefaultWeek ? (defaultTbRuns   ?? null) : ((altWeekData as any)?.tiebreakerActualRuns          ?? null);
+  const tiebreakerActualStrikeouts    = isDefaultWeek ? (defaultTbSO     ?? null) : ((altWeekData as any)?.tiebreakerActualStrikeouts    ?? null);
+  const tiebreakerActualShotsOnGoal   = isDefaultWeek ? (defaultTbShots  ?? null) : ((altWeekData as any)?.tiebreakerActualShotsOnGoal   ?? null);
+  const tiebreakerActualPenaltyMinutes = isDefaultWeek ? (defaultTbPIM   ?? null) : ((altWeekData as any)?.tiebreakerActualPenaltyMinutes ?? null);
+  const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
+
   // For nba_ats the modal receives weekStart = Friday (from getNbaWeekendBounds),
   // so generate the three weekend days as +0/+1/+2 from that Friday.
   // generateAtsDays adds +4/+5/+6 and is only correct when weekStart is a Monday
@@ -1797,17 +1835,57 @@ function PrevWeekResultsModal({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-[min(95vw,960px)] p-0 gap-0 flex flex-col overflow-hidden max-h-[90vh]">
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/40 shrink-0">
-          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-400" />
-            Week of {fmtDate(weekStart)} – {fmtDate(weekEnd)} · Final Results
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              Week of {fmtDate(weekStart)} – {fmtDate(weekEnd)} · Final Results
+            </DialogTitle>
+            {maxWeek > 1 && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  disabled={selectedWeek <= 1}
+                  onClick={() => setSelectedWeek((w) => Math.max(1, w - 1))}
+                  className={cn(
+                    "w-7 h-7 flex items-center justify-center rounded-md transition-colors",
+                    selectedWeek <= 1
+                      ? "text-muted-foreground/25 cursor-not-allowed"
+                      : "hover:bg-muted/20 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium text-muted-foreground min-w-[4.5rem] text-center tabular-nums">
+                  Week {selectedWeek}
+                </span>
+                <button
+                  type="button"
+                  disabled={selectedWeek >= maxWeek}
+                  onClick={() => setSelectedWeek((w) => Math.min(maxWeek, w + 1))}
+                  className={cn(
+                    "w-7 h-7 flex items-center justify-center rounded-md transition-colors",
+                    selectedWeek >= maxWeek
+                      ? "text-muted-foreground/25 cursor-not-allowed"
+                      : "hover:bg-muted/20 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
           <DialogDescription>
-            {entries.length} player{entries.length !== 1 ? "s" : ""} · Final standings
+            {isLoadingAlt ? "Loading…" : `${entries.length} player${entries.length !== 1 ? "s" : ""} · Final standings`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="overflow-auto flex-1 p-4">
-          {entries.length === 0 ? (
+          {isLoadingAlt ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <RefreshCw className="w-6 h-6 text-muted-foreground/30 animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading results…</p>
+            </div>
+          ) : entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <Trophy className="w-9 h-9 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">No picks recorded for this week.</p>
@@ -2217,7 +2295,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     { query: { queryKey: getGetPickEmYesterdayWinnerQueryKey(poolId, yesterdayParams), enabled: isToday && !isWc, staleTime: 5 * 60 * 1000 } },
   );
 
-  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, {
+  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, undefined, {
     query: {
       queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId),
       enabled: isWeekly,
@@ -2729,6 +2807,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         isNbaAts={isNbaAts}
         onClose={() => setWeekResultsOpen(false)}
         poolId={poolId}
+        currentWeek={poolDetail?.currentWeek ?? 1}
         weekStart={prevWeekResults.weekStart}
         weekEnd={prevWeekResults.weekEnd}
         entries={prevWeekResults.entries}
