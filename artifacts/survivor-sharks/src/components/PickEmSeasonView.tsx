@@ -1199,6 +1199,15 @@ export function PickEmSeasonView({
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const [displayWeek, setDisplayWeek] = useState<number>(currentWeek);
+
+  // Sync displayWeek when currentWeek changes — guards against React Query serving
+  // stale pool data (old currentWeek) on mount and then delivering a higher currentWeek
+  // in the fresh response. Without this, displayWeek stays at the stale value and the
+  // games query keeps requesting the old week.
+  useEffect(() => {
+    setDisplayWeek(currentWeek);
+  }, [currentWeek]);
+
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
   const [tbPassingYards, setTbPassingYards] = useState<string>("");
   const [tbRushingYards, setTbRushingYards] = useState<string>("");
