@@ -52,7 +52,7 @@ export default function PoolHome() {
     window.scrollTo(0, 0);
   }, []);
 
-  const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId) } });
+  const { data: pool, isLoading, error } = useGetPool(poolId, { query: { enabled: !!poolId, queryKey: getGetPoolQueryKey(poolId), staleTime: 0, refetchOnMount: "always" } });
 
   const isPickEm = (pool?.poolType as string) === "pickem";
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
