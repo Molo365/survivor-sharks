@@ -529,10 +529,8 @@ router.patch("/sandbox-week", requireAuth, requireCommissioner, async (req, res)
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (!(pool as any).sandboxMode) {
-    res.status(400).json({ error: "Pool is not in sandbox mode" });
-    return;
-  }
+  // Removed sandboxMode guard — live preseason pools also use this route to advance
+  // to the next week, matching how PATCH /schedule/sandbox-week behaves for Survivor.
 
   const [updated] = await db
     .update(poolsTable)
@@ -540,7 +538,7 @@ router.patch("/sandbox-week", requireAuth, requireCommissioner, async (req, res)
     .where(eq(poolsTable.id, poolId))
     .returning({ currentWeek: poolsTable.currentWeek });
 
-  req.log.info({ poolId, week }, "Sandbox week updated");
+  req.log.info({ poolId, week }, "NFL Confidence week updated");
   res.json({ ok: true, week: updated.currentWeek });
 });
 
