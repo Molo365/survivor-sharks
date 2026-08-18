@@ -742,9 +742,11 @@ function isPickRevealed(opts: {
   startTime: string | null | undefined;
 }): boolean {
   if (opts.isOwnPick) return true;
-  return opts.sandboxMode
-    ? opts.result !== "pending"
-    : !!opts.startTime && isGameLocked(opts.startTime);
+  if (opts.sandboxMode) return opts.result !== "pending";
+  // A pick whose result is already set is definitively graded and public —
+  // reveal it even if the live ESPN game lookup fails to return the historical game.
+  if (opts.result != null && opts.result !== "pending") return true;
+  return !!opts.startTime && isGameLocked(opts.startTime);
 }
 
 // GET /api/pools/:poolId/pickem/daily-picks?date=YYYY-MM-DD&userId=N
