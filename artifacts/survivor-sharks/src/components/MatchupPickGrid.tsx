@@ -702,7 +702,12 @@ export function MatchupPickGrid({
 }) {
   // MLB, NFL, NHL, NBA Survivor: pool-scoped schedule (correctly date-bounded per week, sandbox-aware)
   const { data: schedule, isLoading: loadingSchedule } = useGetPoolSchedule(poolId, {
-    query: { enabled: sport === "mlb" || sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season"), queryKey: ["pool-schedule", poolId] },
+    query: {
+      enabled: sport === "mlb" || sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season"),
+      queryKey: ["pool-schedule", poolId, currentWeek],
+      staleTime: 0,
+      refetchOnMount: "always",
+    },
   });
 
   // Non-MLB, non-NFL, non-NHL, non-NBA-Survivor: flat game list from ESPN schedule (NBA crazy_8s/FIFA)

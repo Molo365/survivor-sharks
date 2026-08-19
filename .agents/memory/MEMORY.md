@@ -11,3 +11,4 @@
 - [Season pool closure pattern](season-pool-closure-pattern.md) — grading ≠ closure; each season-long pool type needs its own sandbox + live closure blocks with the correct ranking metric.
 - [NBA ATS pool type](nba-ats-pool-type.md) — 7 touch-point checklist for nba_ats; weekend slate via getNbaWeekendBounds; pickem_game_spreads table needs prod migration before going live.
 - [NBA ATS margin tiebreaker](nba-ats-margin-tiebreaker.md) — closure uses ESPN game scores fetched in unfinished-check loop; leaderboard computes margins from espnGames+allPicks for ended pools.
+- [Week-scoped slate query keys](week-scoped-slate-query-keys.md) — child game/pick queries that read server-side currentWeek must include the week in their key or a pool transition can reuse the prior slate.

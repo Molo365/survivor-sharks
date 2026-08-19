@@ -934,20 +934,23 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     setShowHint(false);
   }
 
-  const myPicksKey = ["nfl-confidence-picks", poolId];
+  const myPicksKey = ["nfl-confidence-picks", poolId, currentWeek];
 
   const { data: myPicksData, isLoading: picksLoading } = useQuery<SubmittedPicksResponse>({
     queryKey: myPicksKey,
     queryFn: () => authedFetch<SubmittedPicksResponse>(`/api/pools/${poolId}/nfl-confidence/picks`),
     retry: false,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: "always",
     enabled: !!user,
   });
 
   const { data: slate, isLoading: slateLoading } = useQuery<{ week: number; games: PickEmGame[]; sandboxMode: boolean }>({
-    queryKey: ["nfl-confidence-games", poolId],
+    queryKey: ["nfl-confidence-games", poolId, currentWeek],
     queryFn: () => authedFetch<{ week: number; games: PickEmGame[]; sandboxMode: boolean }>(`/api/pools/${poolId}/nfl-confidence/games`),
     refetchInterval: 30_000,
+    staleTime: 0,
+    refetchOnMount: "always",
     enabled: !!user,
   });
 
