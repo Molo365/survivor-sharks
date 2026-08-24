@@ -27,6 +27,7 @@ import Picks from "@/pages/Picks";
 import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
 import Profile from "@/pages/Profile";
+import PastPools from "@/pages/PastPools";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -153,6 +154,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={Profile} />}
+      </Route>
+      <Route path="/past-pools">
+        {() => <ProtectedRoute component={PastPools} />}
       </Route>
 
       <Route component={NotFound} />

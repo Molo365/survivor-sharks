@@ -1,70 +1,16 @@
-import { useListPools, useListPastPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey, getListPoolsQueryKey, getListPastPoolsQueryKey, ApiError } from "@workspace/api-client-react";
-import type { PastPool } from "@workspace/api-client-react";
+import { useListPools, useGetPickEmDashboardStats, getGetPickEmDashboardStatsQueryKey, getListPoolsQueryKey, ApiError } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { NavBar } from "@/components/NavBar";
 import { PoolCard } from "@/components/PoolCard";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Plus, UserPlus, Info, ChevronRight, Trophy, Users, Calendar, Clock, History } from "lucide-react";
+import { Plus, UserPlus, Info, ChevronRight, History } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
 
-function formatEndedDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function PastPoolCard({ pool }: { pool: PastPool }) {
-  return (
-    <Link href={`/pools/${pool.id}`} className="block h-full group" data-testid={`card-past-pool-${pool.id}`}>
-      <Card className="shark-card h-full flex flex-col hover:border-primary/50 transition-all duration-300 opacity-75 hover:opacity-90">
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start gap-2">
-            <CardTitle className="font-bebas text-2xl truncate text-foreground/80">{pool.name}</CardTitle>
-            <Badge variant="secondary">Ended</Badge>
-          </div>
-          <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">
-            {pool.sport} • Season {pool.season}
-          </div>
-        </CardHeader>
-        <CardContent className="pb-4 flex-grow space-y-2">
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Users className="w-4 h-4 text-primary/60" />
-              <span>{pool.memberCount} members</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Calendar className="w-4 h-4 text-primary/60" />
-              <span>Week {pool.currentWeek}</span>
-            </div>
-          </div>
-
-          {pool.winnerName && (
-            <div className="flex items-center gap-1.5 text-sm">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span className="text-muted-foreground">Winner:</span>
-              <span className="font-medium text-amber-400">{pool.winnerName}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-            <Clock className="w-3 h-3" />
-            <span>Ended {formatEndedDate(pool.endedAt)}</span>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools({ query: { queryKey: getListPoolsQueryKey(), refetchInterval: 60 * 1000 } });
-  const { data: pastPools, isLoading: isPastLoading } = useListPastPools({ query: { queryKey: getListPastPoolsQueryKey(), refetchInterval: 60 * 1000 } });
   const { data: pickEmStats } = useGetPickEmDashboardStats({ query: { queryKey: getGetPickEmDashboardStatsQueryKey(), staleTime: 2 * 60 * 1000, refetchInterval: 60 * 1000 } });
   const pickEmStatMap = new Map((pickEmStats ?? []).map((s) => [s.poolId, s]));
-
-  const hasPastPools = (pastPools?.length ?? 0) > 0;
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
@@ -166,44 +112,13 @@ export default function Dashboard() {
 
         {/* ── View Past Pools link ── */}
         <div className="mt-6 flex justify-center">
-          <Link href="/profile">
+          <Link href="/past-pools">
             <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground/60 hover:text-muted-foreground text-xs uppercase tracking-wider">
               <History className="w-3.5 h-3.5" />
               View Past Pools
             </Button>
           </Link>
         </div>
-
-        {/* ── Past Pools ── */}
-        {(hasPastPools || isPastLoading) && (
-          <div className="mt-12">
-            <div className="mb-4">
-              <h2 className="font-bebas text-2xl tracking-wide text-foreground/70">PAST POOLS</h2>
-              <p className="text-muted-foreground text-xs uppercase tracking-wider">Pools you've participated in</p>
-            </div>
-
-            {isPastLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2].map(i => (
-                  <div key={i} className="h-36 rounded-lg border border-border/30 bg-card/30 p-5 space-y-3">
-                    <div className="flex justify-between">
-                      <Skeleton className="h-7 w-3/4 opacity-40" />
-                      <Skeleton className="h-5 w-14 opacity-40" />
-                    </div>
-                    <Skeleton className="h-3 w-1/3 opacity-30" />
-                    <Skeleton className="h-3 w-1/2 opacity-30" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(pastPools ?? []).map(pool => (
-                  <PastPoolCard key={pool.id} pool={pool} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="mt-12">
           <AdSlot />

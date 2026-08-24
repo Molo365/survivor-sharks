@@ -4,10 +4,11 @@ import { lt, and, isNotNull } from "drizzle-orm";
 import { logger } from "./logger";
 
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const RETENTION_MONTHS = 6;
 
 async function runCleanup() {
-  const cutoff = new Date(Date.now() - RETENTION_MS);
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - RETENTION_MONTHS);
   try {
     const deleted = await db
       .delete(poolsTable)
@@ -27,5 +28,5 @@ export function startPoolCleanup() {
   if (_timer) return;
   void runCleanup();
   _timer = setInterval(() => { void runCleanup(); }, CLEANUP_INTERVAL_MS);
-  logger.info({ intervalMs: CLEANUP_INTERVAL_MS }, "Pool cleanup scheduler started");
+    logger.info({ intervalMs: CLEANUP_INTERVAL_MS, retentionMonths: RETENTION_MONTHS }, "Pool cleanup scheduler started");
 }

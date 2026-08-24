@@ -125,7 +125,7 @@ router.get("/", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-// GET /api/pools/past — pools ended >2 days ago, within the 30-day retention window
+// GET /api/pools/past — pools ended >2 days ago; cleanup retains them for 6 calendar months
 router.get("/past", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 

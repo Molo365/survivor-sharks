@@ -338,7 +338,15 @@ export default function Profile() {
 
             {/* Past Pools */}
             <section className="space-y-4">
-              <SectionHeading>Past Pools</SectionHeading>
+              <div className="flex items-center justify-between gap-3">
+                <SectionHeading>Past Pools</SectionHeading>
+                <Link href="/past-pools">
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground text-xs">
+                    <History className="w-3.5 h-3.5" />
+                    View all
+                  </Button>
+                </Link>
+              </div>
               {isLoading ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <CardSkeleton />
