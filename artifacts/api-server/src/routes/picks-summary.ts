@@ -13,7 +13,13 @@ import {
 } from "@workspace/db";
 import { eq, and, count, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate, fetchGamesForDate, getWeekBoundsEt } from "../lib/espn";
+import {
+  getTodayEtDate,
+  fetchGamesForDate,
+  fetchSuperLeagueGamesForDate,
+  getWeekBoundsEt,
+  getSuperLeagueWeekBoundsEt,
+} from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 
 const router = Router();
@@ -78,7 +84,9 @@ router.get("/summary", requireAuth, async (req, res) => {
   const sportsWithLive2 = new Set<string>();
   const sportsWithGamesTodaySet = new Set<string>();
   await Promise.all(uniqueSports2.map(async (sport) => {
-    const games = await fetchGamesForDate(sport, todayDateStr);
+    const games = sport === "superleague"
+      ? await fetchSuperLeagueGamesForDate(todayDateStr)
+      : await fetchGamesForDate(sport, todayDateStr);
     if (games.some((g) => g.status === "in_progress")) sportsWithLive2.add(sport);
     if (games.length > 0) sportsWithGamesTodaySet.add(sport);
   }));
@@ -144,8 +152,8 @@ router.get("/summary", requireAuth, async (req, res) => {
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
         const isDaily = pool.pickFrequency === "daily";
-        // MLS and Super League weekly pools use a calendar date range (Mon–Sun)
-        // as their "current week" anchor, mirroring the /week-games endpoint.
+        // MLS weekly pools use Mon–Sun; Super League uses its dedicated Fri–Mon
+        // window, mirroring the /week-games endpoint.
         // pool.currentWeek is unreliable for recurring pools (may lag the calendar),
         // so we use gameDate BETWEEN weekStart AND weekEnd instead.
         const isMlsOrSlWeekly =
@@ -154,12 +162,18 @@ router.get("/summary", requireAuth, async (req, res) => {
         // For ended daily pools (pool.isActive === false): omit the date filter
         // so any historical picks count — the game date has already passed.
         // For active daily pools: restrict to today's date.
-        // For MLS/Super League weekly: restrict to the current Mon–Sun calendar week.
+        // For MLS/Super League weekly: restrict to their sport-specific current window.
         // For all other weekly/season pools: restrict to the current week number.
+        const weeklyBounds = pool.sport === "superleague"
+          ? getSuperLeagueWeekBoundsEt(todayEt)
+          : { weekStart, weekEnd };
         const dateFilter = isDaily
           ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)
           : isMlsOrSlWeekly
-            ? and(gte(pickemPicksTable.gameDate, weekStart), lte(pickemPicksTable.gameDate, weekEnd))
+            ? and(
+                gte(pickemPicksTable.gameDate, weeklyBounds.weekStart),
+                lte(pickemPicksTable.gameDate, weeklyBounds.weekEnd),
+              )
             : eq(pickemPicksTable.week, pool.currentWeek);
         const [countRow] = await db
           .select({ cnt: count() })

@@ -635,6 +635,28 @@ export function getWeekBoundsEt(todayEt: string): { weekStart: string; weekEnd: 
 }
 
 /**
+ * Return the Friday–Monday Super League slate that contains an ET date.
+ *
+ * Friday through Monday belong to the active slate. Tuesday through Thursday
+ * belong to the upcoming Friday–Monday slate, so the pool rolls over Tuesday
+ * without splitting Monday's closing fixtures into a new week.
+ */
+export function getSuperLeagueWeekBoundsEt(dateEt: string): { weekStart: string; weekEnd: string } {
+  const [y, m, d] = dateEt.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay(); // 0=Sun, 1=Mon … 5=Fri
+  const daysSinceFriday = (dow + 2) % 7; // Fri=0, Sat=1, Sun=2 … Thu=6
+  const daysToFriday = daysSinceFriday <= 3 ? -daysSinceFriday : 7 - daysSinceFriday;
+  const friday = new Date(date.getTime() + daysToFriday * 86_400_000);
+  const monday = new Date(friday.getTime() + 3 * 86_400_000);
+
+  return {
+    weekStart: friday.toISOString().slice(0, 10),
+    weekEnd: monday.toISOString().slice(0, 10),
+  };
+}
+
+/**
  * Return the "current slate date" as YYYY-MM-DD in ET (America/New_York).
  * The slate rolls over at 5 AM ET, not midnight, so that games finishing
  * after midnight still belong to the previous day's slate.
@@ -699,19 +721,27 @@ export async function fetchIntlGamesForDate(dateStr: string): Promise<EspnGame[]
  *   Pass 3 for a future playoff-bracket pool without modifying callers.
  *   Note: some ESPN sport endpoints ignore this parameter (e.g. MLB returns the same games regardless).
  */
-export async function fetchGamesForDate(sport: string, dateStr: string, seasonType = 2): Promise<EspnGame[]> {
+async function fetchGamesForDateChecked(
+  sport: string,
+  dateStr: string,
+  seasonType = 2,
+): Promise<EspnGame[] | null> {
   const base = ESPN_ENDPOINTS[sport];
-  if (!base) return [];
+  if (!base) return null;
 
   const url = `${base}/scoreboard?dates=${dateStr}&seasontype=${seasonType}&limit=100`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = await res.json() as { events?: EspnEvent[] };
     return (data.events ?? []).map(parseGame);
   } catch {
-    return [];
+    return null;
   }
+}
+
+export async function fetchGamesForDate(sport: string, dateStr: string, seasonType = 2): Promise<EspnGame[]> {
+  return (await fetchGamesForDateChecked(sport, dateStr, seasonType)) ?? [];
 }
 
 /**
@@ -751,23 +781,29 @@ export async function fetchMlbWeekGames(espnDates: string[], seasonType = 2): Pr
  * Fetch Super League games for a given date (YYYYMMDD ET).
  * Queries all 9 domestic league feeds in parallel, deduplicates by game ID,
  * then keeps only games involving a Super League club (home or away)
- * that fall on a Friday, Saturday, or Sunday (ET).
+ * that fall on a Friday, Saturday, Sunday, or Monday (ET).
  */
-export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<EspnGame[]> {
+export async function fetchSuperLeagueGamesForDateWithStatus(
+  dateStr: string,
+): Promise<{ games: EspnGame[]; available: boolean }> {
   // Day-of-week guard (dateStr is YYYYMMDD in ET)
   const y = parseInt(dateStr.slice(0, 4), 10);
   const m = parseInt(dateStr.slice(4, 6), 10) - 1;
   const d = parseInt(dateStr.slice(6, 8), 10);
-  const dow = new Date(Date.UTC(y, m, d)).getUTCDay(); // 0=Sun,5=Fri,6=Sat
-  if (dow !== 5 && dow !== 6 && dow !== 0) return [];
+  const dow = new Date(Date.UTC(y, m, d)).getUTCDay(); // 0=Sun, 1=Mon, 5=Fri, 6=Sat
+  if (dow !== 5 && dow !== 6 && dow !== 0 && dow !== 1) return { games: [], available: true };
 
   const results = await Promise.all(
-    SUPER_LEAGUE_SLUGS.map((slug) => fetchGamesForDate(slug, dateStr)),
+    SUPER_LEAGUE_SLUGS.map((slug) => fetchGamesForDateChecked(slug, dateStr)),
   );
+  if (results.some((games) => games === null)) {
+    return { games: [], available: false };
+  }
 
   const seen = new Set<string>();
   const games: EspnGame[] = [];
   for (const [i, dayGames] of results.entries()) {
+    if (!dayGames) continue;
     const slug = SUPER_LEAGUE_SLUGS[i]!;
     for (const g of dayGames) {
       if (seen.has(g.id)) continue;
@@ -781,7 +817,11 @@ export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<Esp
       }
     }
   }
-  return games;
+  return { games, available: true };
+}
+
+export async function fetchSuperLeagueGamesForDate(dateStr: string): Promise<EspnGame[]> {
+  return (await fetchSuperLeagueGamesForDateWithStatus(dateStr)).games;
 }
 
 /**

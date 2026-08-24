@@ -13,7 +13,13 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { getTodayEtDate, getNhlWeekBounds, NHL_SANDBOX_ANCHOR, fetchGamesForDate } from "../lib/espn";
+import {
+  getTodayEtDate,
+  getNhlWeekBounds,
+  NHL_SANDBOX_ANCHOR,
+  fetchGamesForDate,
+  getSuperLeagueWeekBoundsEt,
+} from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
@@ -1274,7 +1280,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           .limit(1);
 
         if (latestWeeklyRow?.gameDate) {
-          const actualWeekBounds = getWeekBoundsEt(latestWeeklyRow.gameDate);
+          const actualWeekBounds = pool.sport === "superleague"
+            ? getSuperLeagueWeekBoundsEt(latestWeeklyRow.gameDate)
+            : getWeekBoundsEt(latestWeeklyRow.gameDate);
           const [currentRows, winnerRows, myEntryRows] = await Promise.all([
             db
               .select({
@@ -1355,18 +1363,25 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         }
       }
 
+      const isSuperLeagueWeekly = isWeekly && pool.sport === "superleague";
+      const superLeagueCurrentBounds = getSuperLeagueWeekBoundsEt(todayEt);
+      const superLeaguePrevBounds = getSuperLeagueWeekBoundsEt(
+        offsetDateStr(superLeagueCurrentBounds.weekStart, -7),
+      );
+      const weeklyCurrentBounds = isSuperLeagueWeekly ? superLeagueCurrentBounds : currentWeekBounds;
+      const weeklyPrevBounds = isSuperLeagueWeekly ? superLeaguePrevBounds : prevWeekBounds;
       const currentStart = isWc
         ? WC_PHASES[currentWcPhase].start
         : isWeekly
-        ? currentWeekBounds.weekStart
+        ? weeklyCurrentBounds.weekStart
         : todayEt;
       const currentEnd = isWc
         ? WC_PHASES[currentWcPhase].end
         : isWeekly
-        ? currentWeekBounds.weekEnd
+        ? weeklyCurrentBounds.weekEnd
         : todayEt;
-      const prevStart = isWeekly ? prevWeekBounds.weekStart : yesterdayEt;
-      const prevEnd = isWeekly ? prevWeekBounds.weekEnd : yesterdayEt;
+      const prevStart = isWeekly ? weeklyPrevBounds.weekStart : yesterdayEt;
+      const prevEnd = isWeekly ? weeklyPrevBounds.weekEnd : yesterdayEt;
 
       const currentWhere = and(
         eq(pickemPicksTable.poolId, pool.id),

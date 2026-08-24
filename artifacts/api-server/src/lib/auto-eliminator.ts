@@ -25,6 +25,7 @@ import {
   fetchGames,
   fetchGamesForDate,
   fetchSuperLeagueGamesForDate,
+  fetchSuperLeagueGamesForDateWithStatus,
   fetchIntlGamesForDate,
   getTodayEtDate,
   formatDateEt,
@@ -43,6 +44,7 @@ import {
   fetchNflWeek18TiebreakerStats,
   getTeamsWithWin,
   getWeekBoundsEt,
+  getSuperLeagueWeekBoundsEt,
 } from "./espn";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
@@ -3693,7 +3695,9 @@ export async function processPickEmResults(): Promise<{
       // ambiguous result.
       const soccerEarliestPickDate = soccerPoolGameRows.map((r) => r.gameDate).sort()[0] ?? null;
       if (!soccerEarliestPickDate) continue;
-      const soccerClosingBounds = getWeekBoundsEt(soccerEarliestPickDate);
+      const soccerClosingBounds = pool.sport === "superleague"
+        ? getSuperLeagueWeekBoundsEt(soccerEarliestPickDate)
+        : getWeekBoundsEt(soccerEarliestPickDate);
       const hasPicksOutsideClosingWeek = soccerPoolGameRows.some(
         ({ gameDate }) => gameDate < soccerClosingBounds.weekStart || gameDate > soccerClosingBounds.weekEnd,
       );
@@ -3718,9 +3722,13 @@ export async function processPickEmResults(): Promise<{
         soccerGameIdsByDate.get(espnDate)!.add(gameId);
       }
 
-      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
+      // Calendar guard: MLS closes after Sunday. Super League keeps all Monday
+      // fixtures in the current week and does not settle or pay out until Tuesday.
       {
-        if (todayEt < soccerClosingBounds.weekEnd) {
+        const mustWaitForNextDay = pool.sport === "superleague"
+          ? todayEt <= soccerClosingBounds.weekEnd
+          : todayEt < soccerClosingBounds.weekEnd;
+        if (mustWaitForNextDay) {
           logger.info(
             { poolId: pool.id, week: pool.currentWeek, soccerWeekEnd: soccerClosingBounds.weekEnd, todayEt },
             `${sportLabel} Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended`,
@@ -3730,6 +3738,21 @@ export async function processPickEmResults(): Promise<{
       }
 
       let soccerHasUnfinished = false;
+      if (pool.sport === "superleague") {
+        const [sy, sm, sd] = soccerClosingBounds.weekStart.split("-").map(Number);
+        const friday = new Date(Date.UTC(sy!, sm! - 1, sd!));
+        const superLeagueSlate = await Promise.all(
+          Array.from({ length: 4 }, (_, i) =>
+            fetchSuperLeagueGamesForDateWithStatus(
+              new Date(friday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+            ),
+          ),
+        );
+        soccerHasUnfinished = superLeagueSlate.some(({ available }) => !available)
+          || superLeagueSlate
+            .flatMap(({ games }) => games)
+            .some((game) => !game.isCompleted && !game.isPostponed);
+      }
       for (const [espnDate, gameIds] of soccerGameIdsByDate) {
         if (soccerHasUnfinished) break;
         const gamesOnDate = pool.sport === "superleague"
@@ -3926,10 +3949,9 @@ export async function processPickEmResults(): Promise<{
 
   // ── Super League Pick-Ems Weekly: currentWeek advancement for recurring pools ──
   // Non-recurring SL pools are closed by the shared MLS/Super League weekly closure block above.
-  // Recurring pools stay open forever; we advance currentWeek once the Mon–Sun
-  // calendar week for the current batch of picks has ended so that new
-  // submissions land in the correct week bucket and the dashboard card reflects
-  // the right week. No ESPN calls needed — the decision is purely calendar-based.
+  // Recurring pools stay open forever; we advance currentWeek on Tuesday only
+  // after the Friday–Monday slate has been fully graded. That keeps Monday's
+  // closing fixtures in the same pool week.
 
   const slRecurringWeeklyPools = pickemPools.filter(
     (p) => p.sport === "superleague" && p.pickFrequency === "weekly" && p.isRecurring,
@@ -3954,9 +3976,9 @@ export async function processPickEmResults(): Promise<{
         continue;
       }
 
-      const { weekEnd: slWeekEnd } = getWeekBoundsEt(latestPickDate);
+      const { weekStart: slWeekStart, weekEnd: slWeekEnd } = getSuperLeagueWeekBoundsEt(latestPickDate);
       if (todayEt <= slWeekEnd) {
-        // The calendar week that contains the most recent pick hasn't ended yet.
+        // Monday remains part of the active slate; rollover begins Tuesday.
         logger.info(
           { poolId: pool.id, currentWeek: pool.currentWeek, slWeekEnd, todayEt },
           "Super League recurring weekly: calendar week not yet ended, skipping advancement",
@@ -3964,7 +3986,63 @@ export async function processPickEmResults(): Promise<{
         continue;
       }
 
-      // The Mon–Sun week for the current batch of picks has fully passed —
+      const [{ pendingCount }] = await db
+        .select({ pendingCount: count() })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+            eq(pickemPicksTable.result, "pending"),
+          ),
+        );
+      if (Number(pendingCount) > 0) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, pendingCount: Number(pendingCount) },
+          "Super League recurring weekly: picks still pending, skipping advancement",
+        );
+        continue;
+      }
+
+      const currentWeekDates = await db
+        .selectDistinct({ gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        );
+      if (currentWeekDates.some(({ gameDate }) => gameDate < slWeekStart || gameDate > slWeekEnd)) {
+        logger.warn(
+          { poolId: pool.id, currentWeek: pool.currentWeek, slWeekStart, slWeekEnd, currentWeekDates },
+          "Super League recurring weekly: current week spans multiple Friday–Monday slates; manual review required",
+        );
+        continue;
+      }
+
+      const [sy, sm, sd] = slWeekStart.split("-").map(Number);
+      const friday = new Date(Date.UTC(sy!, sm! - 1, sd!));
+      const superLeagueSlate = await Promise.all(
+        Array.from({ length: 4 }, (_, i) =>
+          fetchSuperLeagueGamesForDateWithStatus(
+            new Date(friday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          ),
+        ),
+      );
+      const hasUnfinishedGames = superLeagueSlate.some(({ available }) => !available)
+        || superLeagueSlate
+          .flatMap(({ games }) => games)
+          .some((game) => !game.isCompleted && !game.isPostponed);
+      if (hasUnfinishedGames) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, slWeekStart, slWeekEnd },
+          "Super League recurring weekly: Friday–Monday slate still has unfinished games, skipping advancement",
+        );
+        continue;
+      }
+
+      // The full Friday–Monday slate has passed and grading is complete —
       // advance currentWeek so the next round of submissions gets a fresh bucket.
       await db
         .update(poolsTable)
@@ -3977,9 +4055,10 @@ export async function processPickEmResults(): Promise<{
           previousWeek: pool.currentWeek,
           nextWeek: pool.currentWeek + 1,
           latestPickDate,
+          slWeekStart,
           slWeekEnd,
         },
-        "Super League recurring weekly: advanced currentWeek to next calendar week",
+        "Super League recurring weekly: advanced currentWeek after completed Friday–Monday slate",
       );
     } catch (err) {
       logger.error({ poolId: pool.id, err }, "Super League recurring weekly advancement error");

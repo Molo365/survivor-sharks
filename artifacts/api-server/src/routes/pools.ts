@@ -11,6 +11,7 @@ import {
   fetchNhlGamesByWeek,
   fetchNbaGamesByWeek,
   fetchSuperLeagueGamesForDate,
+  getSuperLeagueWeekBoundsEt,
 } from "../lib/espn";
 
 const router = Router();
@@ -422,15 +423,26 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
     }
 
     if (sport === "mls" || sport === "superleague") {
-      // Build the Mon–Sun date window for the current ET week
+      // MLS uses Mon–Sun; Super League uses its own Friday–Monday window.
       const todayEt = getTodayEtDate(); // YYYY-MM-DD
-      const [y, m, d] = todayEt.split("-").map(Number);
-      const dt = new Date(Date.UTC(y!, m! - 1, d!));
-      const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
-      const daysToMon = dow === 0 ? -6 : 1 - dow;
+      const bounds = sport === "superleague"
+        ? getSuperLeagueWeekBoundsEt(todayEt)
+        : (() => {
+            const [y, m, d] = todayEt.split("-").map(Number);
+            const dt = new Date(Date.UTC(y!, m! - 1, d!));
+            const dow = dt.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+            const daysToMon = dow === 0 ? -6 : 1 - dow;
+            const monday = new Date(Date.UTC(y!, m! - 1, d! + daysToMon));
+            return {
+              weekStart: monday.toISOString().slice(0, 10),
+              weekEnd: new Date(monday.getTime() + 6 * 86_400_000).toISOString().slice(0, 10),
+            };
+          })();
+      const [startY, startM, startD] = bounds.weekStart.split("-").map(Number);
+      const dayCount = sport === "superleague" ? 4 : 7;
       const weekDates: string[] = [];
-      for (let i = 0; i < 7; i++) {
-        const day = new Date(Date.UTC(y!, m! - 1, d! + daysToMon + i));
+      for (let i = 0; i < dayCount; i++) {
+        const day = new Date(Date.UTC(startY!, startM! - 1, startD! + i));
         const ds = day.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
         weekDates.push(ds);
       }
@@ -440,7 +452,7 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
         const dayResults = await Promise.all(weekDates.map(ds => fetchGamesForDate("mls", ds)));
         count = dayResults.flat().length;
       } else {
-        // superleague — fetchSuperLeagueGamesForDate already filters Fri/Sat/Sun + teams
+        // Super League fetches are already limited to the Friday–Monday window and team allow-list.
         const dayResults = await Promise.all(weekDates.map(ds => fetchSuperLeagueGamesForDate(ds)));
         count = dayResults.flat().length;
       }

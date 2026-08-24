@@ -19,6 +19,7 @@ import {
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
+  getSuperLeagueWeekBoundsEt,
   type EspnGame,
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
@@ -330,13 +331,13 @@ async function fetchMlsWeekDays(weekStart: string): Promise<{ date: string; game
     .filter((day) => day.games.length > 0);
 }
 
-// Same structure as fetchMlsWeekDays but uses fetchSuperLeagueGamesForDate, which
-// applies the Super League team-ID allow-list and the Fri/Sat/Sun day guard internally.
+// Same structure as fetchMlsWeekDays but fetches one Friday–Monday Super League
+// slate. The sport-specific fetcher applies the team allow-list and day guard.
 async function fetchSlWeekDays(weekStart: string): Promise<{ date: string; games: EspnGame[] }[]> {
   const [wy, wm, wd] = weekStart.split("-").map(Number);
-  const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
-  const dates = Array.from({ length: 7 }, (_, i) =>
-    new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10),
+  const friday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+  const dates = Array.from({ length: 4 }, (_, i) =>
+    new Date(friday.getTime() + i * 86_400_000).toISOString().slice(0, 10),
   );
   const results = await Promise.all(
     dates.map((d) => fetchSuperLeagueGamesForDate(d.replace(/-/g, ""))),
@@ -353,7 +354,7 @@ async function fetchSlWeekDays(weekStart: string): Promise<{ date: string; games
 }
 
 // GET /api/pools/:poolId/pickem/week-games
-// Returns the full Mon–Sun slate for an MLS weekly pick-em pool, grouped by day.
+// Returns the full Mon–Sun MLS slate or Fri–Mon Super League slate, grouped by day.
 // Only days that have at least one game are included. Game shape matches GET /pickem/games.
 router.get("/week-games", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -374,10 +375,11 @@ router.get("/week-games", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const { weekStart, weekEnd } = getWeekBoundsEt(todayEt);
+  const { weekStart, weekEnd } = pool.sport === "superleague"
+    ? getSuperLeagueWeekBoundsEt(todayEt)
+    : getWeekBoundsEt(todayEt);
 
-  // Fetch all 7 days in parallel; empty days are already excluded.
-  // Super League uses its own fetcher which applies the team allow-list and Fri/Sat/Sun guard.
+  // Fetch the sport's complete active window in parallel; empty days are excluded.
   const weekDays = pool.sport === "superleague"
     ? await fetchSlWeekDays(weekStart)
     : await fetchMlsWeekDays(weekStart);
@@ -557,6 +559,48 @@ router.post("/picks", requireAuth, async (req, res) => {
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
+  const superLeagueBounds = sport === "superleague" && pool.pickFrequency === "weekly"
+    ? getSuperLeagueWeekBoundsEt(todayEt)
+    : null;
+
+  if (superLeagueBounds) {
+    if (!submittedDate || !/^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
+      res.status(400).json({ error: "Super League weekly picks require a valid Friday–Monday slate date." });
+      return;
+    }
+    if (submittedDate < superLeagueBounds.weekStart || submittedDate > superLeagueBounds.weekEnd) {
+      res.status(400).json({
+        error: `Super League picks must be within the active ${superLeagueBounds.weekStart} through ${superLeagueBounds.weekEnd} slate.`,
+      });
+      return;
+    }
+    if (picks.some((pick) => pick.gameDate !== submittedDate)) {
+      res.status(400).json({ error: "Each Super League pick must use the submitted slate date." });
+      return;
+    }
+    if (pool.isRecurring) {
+      const [latestCurrentWeekPick] = await db
+        .select({ gameDate: pickemPicksTable.gameDate })
+        .from(pickemPicksTable)
+        .where(
+          and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ),
+        )
+        .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
+        .limit(1);
+      if (latestCurrentWeekPick?.gameDate) {
+        const storedBounds = getSuperLeagueWeekBoundsEt(latestCurrentWeekPick.gameDate);
+        if (storedBounds.weekEnd < superLeagueBounds.weekStart) {
+          res.status(409).json({
+            error: "The prior Super League slate is still processing. Please try again after the weekly rollover completes.",
+          });
+          return;
+        }
+      }
+    }
+  }
 
   // Build a map of all known games for validation
   const gameMap = new Map<string, { date: string }>();
@@ -618,7 +662,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     // If no gameDate supplied on picks, gameMap stays empty → picks rejected as "unknown games"
   } else if ((isMls) && pool.pickFrequency === "weekly" && !pool.sandboxMode && submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
     // Live MLS/Super League weekly: validate against the specific day the client submitted,
-    // not just today — a weekly slate spans Mon-Sun and submittedDate tells us which day.
+    // not just today. Super League's date is already constrained to its Friday–Monday slate.
     // Super League has no ESPN_ENDPOINTS key so must use its dedicated fetcher (YYYY-MM-DD).
     const games = sport === "superleague"
       ? await fetchSuperLeagueGamesForDate(submittedDate.replace(/-/g, ""))
@@ -1136,8 +1180,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   // Compute date bounds for the requested (or default previous) week.
   // For nba_ats: Fri–Sun weekend bounds keyed by week counter.
-  // For all others: Mon–Sun calendar week. Without a week param, default to
-  // the immediately prior calendar week (existing behavior).
+  // For Super League: Fri–Mon slate bounds. For all others: Mon–Sun calendar
+  // week. Without a week param, default to the immediately prior full window.
   let prevWeekBounds: { weekStart: string; weekEnd: string };
   if (isNbaAts) {
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
@@ -1146,15 +1190,24 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (requestedWeek !== null) {
     // Offset back from the current week's Monday by (currentWeek − requestedWeek) weeks.
-    const currentWeekBounds = getWeekBoundsEt(todayEt);
+    const currentWeekBounds = sport === "superleague"
+      ? getSuperLeagueWeekBoundsEt(todayEt)
+      : getWeekBoundsEt(todayEt);
     const weeksBack = pool.currentWeek - requestedWeek;
-    const weekNMonday = offsetDateStr(currentWeekBounds.weekStart, -(weeksBack * 7));
-    prevWeekBounds = getWeekBoundsEt(weekNMonday);
+    const weekNStart = offsetDateStr(currentWeekBounds.weekStart, -(weeksBack * 7));
+    prevWeekBounds = sport === "superleague"
+      ? getSuperLeagueWeekBoundsEt(weekNStart)
+      : getWeekBoundsEt(weekNStart);
   } else {
-    const currentWeekBounds = getWeekBoundsEt(todayEt);
-    // Previous week: the day before current week's Monday is last Sunday
-    const prevWeekSunday = offsetDateStr(currentWeekBounds.weekStart, -1);
-    prevWeekBounds = getWeekBoundsEt(prevWeekSunday);
+    const currentWeekBounds = sport === "superleague"
+      ? getSuperLeagueWeekBoundsEt(todayEt)
+      : getWeekBoundsEt(todayEt);
+    const priorWindowReference = sport === "superleague"
+      ? offsetDateStr(currentWeekBounds.weekStart, -7)
+      : offsetDateStr(currentWeekBounds.weekStart, -1);
+    prevWeekBounds = sport === "superleague"
+      ? getSuperLeagueWeekBoundsEt(priorWindowReference)
+      : getWeekBoundsEt(priorWindowReference);
   }
 
   const isMlb = sport === "mlb";
@@ -1499,9 +1552,14 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         .where(eq(pickemPicksTable.poolId, poolId))
         .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
         .limit(1);
-      weekBounds = getWeekBoundsEt(latestWeekRow ? latestWeekRow.gameDate : todayEt);
+      const referenceDate = latestWeekRow ? latestWeekRow.gameDate : todayEt;
+      weekBounds = sport === "superleague"
+        ? getSuperLeagueWeekBoundsEt(referenceDate)
+        : getWeekBoundsEt(referenceDate);
     } else {
-      weekBounds = getWeekBoundsEt(todayEt);
+      weekBounds = sport === "superleague"
+        ? getSuperLeagueWeekBoundsEt(todayEt)
+        : getWeekBoundsEt(todayEt);
     }
   }
 
@@ -1569,9 +1627,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : (sport === "superleague" && isWeekly && weekBounds)
       ? (() => {
           const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
-          const weekMonday = new Date(Date.UTC(wy!, wm! - 1, wd!));
-          const slWeekEspnDates = Array.from({ length: 7 }, (_, i) =>
-            new Date(weekMonday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
+          const friday = new Date(Date.UTC(wy!, wm! - 1, wd!));
+          const slWeekEspnDates = Array.from({ length: 4 }, (_, i) =>
+            new Date(friday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
           );
           return Promise.all(slWeekEspnDates.map((d) => fetchSuperLeagueGamesForDate(d))).then((results) => {
             const seen = new Set<string>();
