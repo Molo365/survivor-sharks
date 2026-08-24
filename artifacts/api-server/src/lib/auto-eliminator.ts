@@ -3627,19 +3627,21 @@ export async function processPickEmResults(): Promise<{
     }
   }
 
-  // Mirrors the NHL weekly close block above. Once every pick for the current
-  // week is graded (no result = 'pending'), rank players by correct picks,
-  // apply the tiebreaker logic from entries if available, assign
-  // finishPosition / prizeAmount, and close the pool.
-  // Recurring MLS weekly pools are intentionally left open.
+  // Once every pick for the current week is graded (no result = 'pending'),
+  // rank players by correct picks, apply the tiebreaker logic from entries if
+  // available, assign finishPosition / prizeAmount, and close the pool.
+  // This applies to non-recurring MLS and Super League weekly Pick-Ems; their
+  // 3-way outcome data uses the same correct/incorrect/postponed result values.
+  // Recurring weekly pools are intentionally left open.
 
-  const mlsPickemWeeklyPools = pickemPools.filter(
-    (p) => p.sport === "mls" && p.pickFrequency === "weekly" && !p.isRecurring,
+  const soccerPickemWeeklyPools = pickemPools.filter(
+    (p) => (p.sport === "mls" || p.sport === "superleague") && p.pickFrequency === "weekly" && !p.isRecurring,
   );
 
-  for (const pool of mlsPickemWeeklyPools) {
+  for (const pool of soccerPickemWeeklyPools) {
     try {
-      logger.info({ poolId: pool.id, week: pool.currentWeek }, "MLS Pick-Ems Weekly auto-closure: checking pool");
+      const sportLabel = pool.sport === "superleague" ? "Super League" : "MLS";
+      logger.info({ poolId: pool.id, week: pool.currentWeek }, `${sportLabel} Pick-Ems Weekly auto-closure: checking pool`);
 
       // 1. Skip if any picks for this week are still pending.
       const [{ pendingCount }] = await db
@@ -3673,7 +3675,7 @@ export async function processPickEmResults(): Promise<{
       // date-range sweep: (a) week-window drift when pool.createdAt is not a
       // Monday, and (b) picking up unrelated league games / exhibitions that
       // share the same calendar week but were never part of this pool.
-      const mlsPoolGameRows = await db
+      const soccerPoolGameRows = await db
         .selectDistinct({ gameId: pickemPicksTable.gameId, gameDate: pickemPicksTable.gameDate })
         .from(pickemPicksTable)
         .where(
@@ -3683,45 +3685,67 @@ export async function processPickEmResults(): Promise<{
           ),
         );
 
+      // A non-recurring pool represents exactly one calendar week. If it was
+      // accidentally left open, later-calendar-week picks can share its
+      // currentWeek number. Never merge those picks into the original payout:
+      // stop for manual review rather than automatically finalizing an
+      // ambiguous result.
+      const soccerEarliestPickDate = soccerPoolGameRows.map((r) => r.gameDate).sort()[0] ?? null;
+      if (!soccerEarliestPickDate) continue;
+      const soccerClosingBounds = getWeekBoundsEt(soccerEarliestPickDate);
+      const hasPicksOutsideClosingWeek = soccerPoolGameRows.some(
+        ({ gameDate }) => gameDate < soccerClosingBounds.weekStart || gameDate > soccerClosingBounds.weekEnd,
+      );
+      if (hasPicksOutsideClosingWeek) {
+        logger.warn(
+          {
+            poolId: pool.id,
+            week: pool.currentWeek,
+            weekStart: soccerClosingBounds.weekStart,
+            weekEnd: soccerClosingBounds.weekEnd,
+          },
+          `${sportLabel} Pick-Ems Weekly auto-closure: skipping — picks span multiple calendar weeks and require manual review`,
+        );
+        continue;
+      }
+
       // Group game IDs by date so we make one ESPN call per unique date.
-      const mlsGameIdsByDate = new Map<string, Set<string>>();
-      for (const { gameId, gameDate } of mlsPoolGameRows) {
+      const soccerGameIdsByDate = new Map<string, Set<string>>();
+      for (const { gameId, gameDate } of soccerPoolGameRows) {
         const espnDate = gameDate.replace(/-/g, "");
-        if (!mlsGameIdsByDate.has(espnDate)) mlsGameIdsByDate.set(espnDate, new Set());
-        mlsGameIdsByDate.get(espnDate)!.add(gameId);
+        if (!soccerGameIdsByDate.has(espnDate)) soccerGameIdsByDate.set(espnDate, new Set());
+        soccerGameIdsByDate.get(espnDate)!.add(gameId);
       }
 
       // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
       {
-        const mlsLatestPickDate = mlsPoolGameRows.map((r) => r.gameDate).sort().pop() ?? null;
-        if (mlsLatestPickDate) {
-          const { weekEnd: mlsWeekEnd } = getWeekBoundsEt(mlsLatestPickDate);
-          if (todayEt < mlsWeekEnd) {
-            logger.info(
-              { poolId: pool.id, week: pool.currentWeek, mlsWeekEnd, todayEt },
-              "MLS Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended",
-            );
-            continue;
-          }
+        if (todayEt < soccerClosingBounds.weekEnd) {
+          logger.info(
+            { poolId: pool.id, week: pool.currentWeek, soccerWeekEnd: soccerClosingBounds.weekEnd, todayEt },
+            `${sportLabel} Pick-Ems Weekly auto-closure: skipping — calendar week not yet ended`,
+          );
+          continue;
         }
       }
 
-      let mlsHasUnfinished = false;
-      for (const [espnDate, gameIds] of mlsGameIdsByDate) {
-        if (mlsHasUnfinished) break;
-        const gamesOnDate = await fetchGamesForDate("mls", espnDate);
+      let soccerHasUnfinished = false;
+      for (const [espnDate, gameIds] of soccerGameIdsByDate) {
+        if (soccerHasUnfinished) break;
+        const gamesOnDate = pool.sport === "superleague"
+          ? await fetchSuperLeagueGamesForDate(espnDate)
+          : await fetchGamesForDate("mls", espnDate);
         for (const g of gamesOnDate) {
           if (gameIds.has(g.id) && !g.isCompleted && !g.isPostponed) {
-            mlsHasUnfinished = true;
+            soccerHasUnfinished = true;
             break;
           }
         }
       }
 
-      if (mlsHasUnfinished) {
+      if (soccerHasUnfinished) {
         logger.info(
           { poolId: pool.id, week: pool.currentWeek },
-          "MLS Pick-Ems Weekly auto-closure: skipping — unfinished games remain in week schedule",
+          `${sportLabel} Pick-Ems Weekly auto-closure: skipping — unfinished games remain in week schedule`,
         );
         continue;
       }
@@ -3892,15 +3916,15 @@ export async function processPickEmResults(): Promise<{
           actualPrimary,
           actualSecondary,
         },
-        "MLS Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared",
+        `${sportLabel} Pick-Ems Weekly auto-closure: all picks graded — pool closed and winner(s) declared`,
       );
     } catch (err) {
-      logger.error({ poolId: pool.id, err }, "MLS Pick-Ems Weekly auto-closure error");
+      logger.error({ poolId: pool.id, err }, `${pool.sport === "superleague" ? "Super League" : "MLS"} Pick-Ems Weekly auto-closure error`);
     }
   }
 
   // ── Super League Pick-Ems Weekly: currentWeek advancement for recurring pools ──
-  // Non-recurring SL pools are closed by the MLS weekly closure block above.
+  // Non-recurring SL pools are closed by the shared MLS/Super League weekly closure block above.
   // Recurring pools stay open forever; we advance currentWeek once the Mon–Sun
   // calendar week for the current batch of picks has ended so that new
   // submissions land in the correct week bucket and the dashboard card reflects
