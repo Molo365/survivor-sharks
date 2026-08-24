@@ -99,6 +99,8 @@ export interface EspnGame {
   groupLabel: string | null; // WC group (e.g. "Group A"), null for other sports
   /** ESPN season type: 1 = preseason, 2 = regular season, 3 = postseason. Defaults to 2 when ESPN omits the field. */
   seasonType: number;
+  /** ESPN's week number within the event's season type, when the feed provides it. */
+  weekNumber?: number;
   homeLinescores: { value: number; period: number }[];
   awayLinescores: { value: number; period: number }[];
   /** Which ESPN league slug this game belongs to (e.g. "eng.1", "esp.1"). Only set for Super League games. */
@@ -140,6 +142,7 @@ type EspnEvent = {
    *  type is a plain number: 1 = preseason, 2 = regular season, 3 = postseason.
    *  slug is a sibling of type, not a child. */
   season?: { year?: number; type?: number; slug?: string };
+  week?: { number?: number };
   competitions?: {
     competitors?: EspnCompetitor[];
     status?: {
@@ -239,6 +242,7 @@ function parseGame(event: EspnEvent): EspnGame {
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
     groupLabel,
     seasonType: event.season?.type ?? 2,
+    weekNumber: event.week?.number,
     homeLinescores: home?.linescores ?? [],
     awayLinescores: away?.linescores ?? [],
   };
@@ -250,7 +254,7 @@ async function fetchGames(sport: string, week?: number, season?: number, seasonT
 
   const resolvedSeason = season ?? new Date().getFullYear();
   const url = sport === "nfl" && week
-    ? `${base}/scoreboard?week=${week}&seasontype=${seasonType}&season=${resolvedSeason}`
+    ? `${base}/scoreboard?week=${week}&seasontype=${seasonType}&season=${resolvedSeason}&limit=100`
     : `${base}/scoreboard`;
 
   try {

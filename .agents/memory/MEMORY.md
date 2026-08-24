@@ -13,3 +13,4 @@
 - [NBA ATS margin tiebreaker](nba-ats-margin-tiebreaker.md) — closure uses ESPN game scores fetched in unfinished-check loop; leaderboard computes margins from espnGames+allPicks for ended pools.
 - [Week-scoped slate query keys](week-scoped-slate-query-keys.md) — child game/pick queries that read server-side currentWeek must include the week in their key or a pool transition can reuse the prior slate.
 - [Non-recurring soccer closure safety](non-recurring-soccer-closure-safety.md) — never auto-settle a weekly non-recurring pool when its currentWeek picks span calendar weeks.
+- [NFL preseason advancement](nfl-preseason-advancement.md) — ESPN preseason weeks 1–4 include Hall of Fame week; only advance after verified in-week ESPN events are final.

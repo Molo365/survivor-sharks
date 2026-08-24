@@ -64,6 +64,7 @@ import { processReplayTick } from "./replayMode";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const NFL_PRESEASON_TOTAL_WEEKS = 4;
 
 // ---------------------------------------------------------------------------
 // Non-MLB: grade pending picks against live ESPN scores
@@ -4892,6 +4893,106 @@ export async function processCrazyEightsResults(): Promise<{
 // Scheduler
 // ---------------------------------------------------------------------------
 
+/**
+ * Advances live NFL preseason pools after ESPN reports every game in the active
+ * preseason week as final.
+ *
+ * This is deliberately limited to the three preseason season-long pool types.
+ * Regular-season pools remain manual-only, and sandbox/replay pools retain
+ * their existing commissioner-controlled week selection.
+ */
+export async function advanceCompletedNflPreseasonPools(): Promise<number> {
+  const preseasonPools = await db
+    .select({
+      id: poolsTable.id,
+      currentWeek: poolsTable.currentWeek,
+      season: poolsTable.season,
+    })
+    .from(poolsTable)
+    .where(
+      and(
+        eq(poolsTable.sport, "nfl"),
+        inArray(poolsTable.poolType, ["season", "nfl_confidence", "pickem_season"]),
+        eq(poolsTable.isPreseason, true),
+        eq(poolsTable.isActive, true),
+        eq(poolsTable.sandboxMode, false),
+      ),
+    );
+
+  let advanced = 0;
+
+  for (const pool of preseasonPools) {
+    if (pool.currentWeek >= NFL_PRESEASON_TOTAL_WEEKS) continue;
+
+    try {
+      const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined, 1);
+      if (games.length === 0) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek },
+          "NFL preseason auto-advance: skipping — ESPN returned no games for the active week",
+        );
+        continue;
+      }
+
+      // The URL requests preseason + this exact week, but validate the returned
+      // events as well. This fails closed on a stale/wrong ESPN response rather
+      // than advancing based on a finished slate from a different NFL week.
+      const hasExpectedPreseasonSlate = games.every(
+        (game) => game.seasonType === 1 && game.weekNumber === pool.currentWeek,
+      );
+      if (!hasExpectedPreseasonSlate) {
+        logger.warn(
+          { poolId: pool.id, week: pool.currentWeek },
+          "NFL preseason auto-advance: skipping — ESPN response did not match the requested preseason week",
+        );
+        continue;
+      }
+
+      // A postponed or suspended game is intentionally not terminal here. Its
+      // picks must remain on the displayed week until the game has a final
+      // result and the existing grading passes can settle them.
+      const unfinishedGames = games.filter((game) => !game.isCompleted);
+      if (unfinishedGames.length > 0) {
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek, unfinishedGames: unfinishedGames.length },
+          "NFL preseason auto-advance: skipping — active week still has unfinished games",
+        );
+        continue;
+      }
+
+      // Compare-and-set keeps this idempotent if a slow scheduler poll overlaps
+      // another process or a commissioner uses the manual week-control endpoint.
+      const updated = await db
+        .update(poolsTable)
+        .set({ currentWeek: pool.currentWeek + 1 })
+        .where(
+          and(
+            eq(poolsTable.id, pool.id),
+            eq(poolsTable.currentWeek, pool.currentWeek),
+            eq(poolsTable.isPreseason, true),
+            eq(poolsTable.isActive, true),
+          ),
+        )
+        .returning({ currentWeek: poolsTable.currentWeek });
+
+      if (updated.length > 0) {
+        advanced++;
+        logger.info(
+          { poolId: pool.id, previousWeek: pool.currentWeek, nextWeek: updated[0].currentWeek },
+          "NFL preseason auto-advance: active week fully final — advanced to next week",
+        );
+      }
+    } catch (err) {
+      logger.error(
+        { poolId: pool.id, week: pool.currentWeek, err },
+        "NFL preseason auto-advance: ESPN check or pool update failed",
+      );
+    }
+  }
+
+  return advanced;
+}
+
 // ---------------------------------------------------------------------------
 // WC Bracket grader — handles STATUS_FINAL, STATUS_FINAL_AET, STATUS_FINAL_PEN
 // ---------------------------------------------------------------------------
@@ -5073,6 +5174,10 @@ export function startAutoEliminator(): void {
       processWcBracketResults(),
       processReplayTick(),
     ]);
+    // Run only after survivor, confidence, and Pick-Ems Season grading finish.
+    // The advance changes which slate the UI shows; it must not race grading of
+    // the just-finished preseason week.
+    const nflPreseasonWeeksAdvanced = await advanceCompletedNflPreseasonPools();
     return {
       ...nonMlb,
       mlbWeeksProcessed: mlbWeekly.weeksProcessed,
@@ -5082,6 +5187,7 @@ export function startAutoEliminator(): void {
       pickEmPicksGraded: pickEm.picksGraded,
       crazyEightsPicksGraded: crazyEights.picksGraded,
       wcBracketPicksGraded: wcBracket.picksGraded,
+      nflPreseasonWeeksAdvanced,
     };
   }
 
@@ -5097,7 +5203,8 @@ export function startAutoEliminator(): void {
           stats.playersEliminated > 0 ||
           stats.mlbWeeksProcessed > 0 ||
           stats.mlbDaysProcessed > 0 ||
-          stats.pickEmPicksGraded > 0
+          stats.pickEmPicksGraded > 0 ||
+          stats.nflPreseasonWeeksAdvanced > 0
         ) {
           logger.info(stats, "Auto-eliminator poll complete");
         }
