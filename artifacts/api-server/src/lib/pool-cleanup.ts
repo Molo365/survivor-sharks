@@ -7,8 +7,16 @@ const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const RETENTION_MONTHS = 6;
 
 async function runCleanup() {
-  const cutoff = new Date();
+  const now = new Date();
+  const cutoff = new Date(now);
+  const originalDay = cutoff.getDate();
+  // Clamp the day when the target month is shorter (for example, Aug 31 → Feb)
+  // so the cutoff remains exactly six calendar months ago instead of rolling
+  // into a seventh month.
+  cutoff.setDate(1);
   cutoff.setMonth(cutoff.getMonth() - RETENTION_MONTHS);
+  const lastDayOfTargetMonth = new Date(cutoff.getFullYear(), cutoff.getMonth() + 1, 0).getDate();
+  cutoff.setDate(Math.min(originalDay, lastDayOfTargetMonth));
   try {
     const deleted = await db
       .delete(poolsTable)
