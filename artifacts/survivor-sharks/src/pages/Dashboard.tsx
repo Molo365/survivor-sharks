@@ -113,7 +113,7 @@ export default function Dashboard() {
         {/* ── View Past Pools link ── */}
         <div className="mt-6 flex justify-center">
           <Link href="/past-pools">
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground/60 hover:text-muted-foreground text-xs uppercase tracking-wider">
+            <Button variant="outline" size="default" className="gap-2 border-primary/40 bg-primary/5 px-4 font-semibold text-primary hover:border-primary/60 hover:bg-primary/10 hover:text-primary">
               <History className="w-3.5 h-3.5" />
               View Past Pools
             </Button>
