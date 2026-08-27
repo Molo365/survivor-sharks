@@ -18,7 +18,7 @@ function isGridPickRevealed(opts: {
   game: EspnGame | undefined;
 }): boolean {
   if (opts.isOwnPick) return true;
-  if (opts.result !== "pending") return true;
+  if (opts.result != null && opts.result !== "pending") return true;
   if (opts.sandboxMode || !opts.game) return false;
   return new Date(opts.game.date).getTime() <= Date.now();
 }
@@ -301,7 +301,7 @@ router.get("/grid", requireAuth, async (req, res) => {
 
     const userMap = new Map<number, {
       userId: number; username: string; displayName: string | null;
-      picks: Map<string, { pickedTeamId: string; pickedTeamName: string; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+      picks: Map<string, { pickedTeamId: string | null; pickedTeamName: string | null; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
     }>();
 
     for (const pick of allPicks) {
@@ -391,7 +391,7 @@ router.get("/grid", requireAuth, async (req, res) => {
 
     const userMap = new Map<number, {
       userId: number; username: string; displayName: string | null;
-      picks: Map<string, { pickedTeamId: string; pickedTeamName: string; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+      picks: Map<string, { pickedTeamId: string | null; pickedTeamName: string | null; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
     }>();
 
     for (const pick of allPicks) {
@@ -465,7 +465,7 @@ router.get("/grid", requireAuth, async (req, res) => {
 
   const userMap = new Map<number, {
     userId: number; username: string; displayName: string | null;
-    picks: Map<string, { pickedTeamId: string; pickedTeamName: string; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+    picks: Map<string, { pickedTeamId: string | null; pickedTeamName: string | null; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
   }>();
 
   for (const pick of allPicks) {

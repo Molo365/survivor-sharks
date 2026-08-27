@@ -14,3 +14,4 @@
 - [Week-scoped slate query keys](week-scoped-slate-query-keys.md) — child game/pick queries that read server-side currentWeek must include the week in their key or a pool transition can reuse the prior slate.
 - [Non-recurring soccer closure safety](non-recurring-soccer-closure-safety.md) — MLS is Mon–Sun; Super League is Fri–Mon and must settle Tuesday only after a complete slate.
 - [NFL preseason advancement](nfl-preseason-advancement.md) — ESPN preseason weeks 1–4 include Hall of Fame week; only advance after verified in-week ESPN events are final.
+- [Pick visibility timing](pick-visibility-timing.md) — submission locks and pick disclosure are separate: opponents' picks reveal only at actual kickoff or after grading.
