@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { fetchNflGamesByWeek } from "../lib/espn";
+import { fetchGames, fetchNflGamesByWeek } from "../lib/espn";
 
 const router = Router({ mergeParams: true });
 
@@ -36,14 +36,16 @@ router.get("/", requireAuth, async (req, res) => {
     ? [...weekSet].sort((a, b) => a - b)
     : Array.from({ length: pool.currentWeek }, (_, i) => i + 1);
 
-  // For NFL pools: build teamId -> kickoff Date map by fetching each unique week's
-  // games once (batched). Picks reveal at kickoff, not when grading completes.
+  // Build teamId -> kickoff Date map by fetching each unique week's games once.
+  // A grid must never expose an opponent's pending pick before that team plays.
   const teamKickoffMap = new Map<string, Date>();
-  if (pool.sport === "nfl" && weekSet.size > 0) {
+  if (!pool.sandboxMode && weekSet.size > 0) {
     const seasonType = pool.isPreseason ? 1 : 2;
     const uniqueWeeks = [...weekSet];
     const weekGamesList = await Promise.all(
-      uniqueWeeks.map(w => fetchNflGamesByWeek(w, pool.season ?? undefined, seasonType)),
+      uniqueWeeks.map((week) => pool.sport === "nfl"
+        ? fetchNflGamesByWeek(week, pool.season ?? undefined, seasonType)
+        : fetchGames(pool.sport, week, pool.season ?? undefined, seasonType)),
     );
     for (const games of weekGamesList) {
       for (const game of games) {
@@ -72,13 +74,11 @@ router.get("/", requireAuth, async (req, res) => {
       // Other players' picks reveal at kickoff (picks are locked by then, so
       // revealing during an in-progress game is fine). isGraded is kept as a
       // safe fallback in case the team/kickoff lookup ever misses.
-      // For non-NFL sports the kickoffPassed branch stays false, so
-      // isGraded remains the sole reveal condition (unchanged behaviour).
       const isOwnPick = pick.userId === userId;
       const isGraded  = pick.result !== "pending";
 
       let kickoffPassed = false;
-      if (pool.sport === "nfl" && pick.teamId) {
+       if (pick.teamId) {
         const kickoff = teamKickoffMap.get(pick.teamId);
         kickoffPassed = kickoff !== undefined && now >= kickoff;
       }

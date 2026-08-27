@@ -46,6 +46,11 @@ function isGameLocked(gameStartIso: string): boolean {
   return new Date(gameStartIso).getTime() - 5 * 60 * 1000 <= Date.now();
 }
 
+/** Picks become public at the actual scheduled kickoff, not at the submission lock. */
+function hasGameStarted(gameStartIso: string): boolean {
+  return new Date(gameStartIso).getTime() <= Date.now();
+}
+
 function wcOutcome(homeScore: number, awayScore: number): WcPickOption {
   if (homeScore > awayScore) return "home_win";
   if (awayScore > homeScore) return "away_win";
@@ -777,7 +782,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
 /**
  * Shared reveal gate used by the leaderboard entry loop and the daily-pick drill-down.
- * Own picks are always shown; other players' picks are hidden until the game/pick is graded or locked.
+ * Own picks are always shown; other players' picks are hidden until the game is graded
+ * or has actually started. The five-minute submission lock intentionally does not reveal picks.
  */
 function isPickRevealed(opts: {
   isOwnPick: boolean;
@@ -790,7 +796,7 @@ function isPickRevealed(opts: {
   // A pick whose result is already set is definitively graded and public —
   // reveal it even if the live ESPN game lookup fails to return the historical game.
   if (opts.result != null && opts.result !== "pending") return true;
-  return !!opts.startTime && isGameLocked(opts.startTime);
+  return !!opts.startTime && hasGameStarted(opts.startTime);
 }
 
 // GET /api/pools/:poolId/pickem/daily-picks?date=YYYY-MM-DD&userId=N

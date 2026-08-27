@@ -1291,10 +1291,10 @@ router.get("/grid", requireAuth, async (req, res) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const game = gameMap.get(pick.gameId) as any;
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    const isLocked = game
-      ? new Date(game.startTime).getTime() - 5 * 60 * 1000 <= Date.now()
-      : false;
-    userMap.get(pick.userId)!.picks.set(pick.gameId, isLocked ? {
+    const revealed = pick.userId === userId
+      || (pick.result != null && pick.result !== "pending")
+      || (!pool.sandboxMode && game != null && new Date(game.startTime).getTime() <= Date.now());
+    userMap.get(pick.userId)!.picks.set(pick.gameId, revealed ? {
       pickedTeamId: pick.pickedTeamId,
       pickedTeamName: pick.pickedTeamName,
       pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logoUrl : game.awayTeam.logoUrl) ?? null : null,

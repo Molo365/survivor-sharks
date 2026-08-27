@@ -595,10 +595,17 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
 
                     {/* Per-game pick cells */}
                     {games.map((game) => {
+                      const pick = pickMap.get(game.id);
+                      // The API redacts unopened opponent picks. Keep the presentation
+                      // equally strict if a stale response is still in the query cache.
+                      const pickIsVisible = isMe
+                        || (pick?.result != null && pick.result !== "pending")
+                        || (game.startTime != null && new Date(game.startTime).getTime() <= Date.now());
+                      const visiblePick = pickIsVisible ? pick : undefined;
+
                       if (isWc) {
-                        const pick = pickMap.get(game.id);
-                        const pickedOpt = (pick?.pickedTeamId ?? null) as WcPickOption | null;
-                        const result = pick?.result ?? null;
+                        const pickedOpt = (visiblePick?.pickedTeamId ?? null) as WcPickOption | null;
+                        const result = visiblePick?.result ?? null;
 
                         const sectionCn = (opt: WcPickOption) => {
                           const active = pickedOpt === opt;
@@ -658,8 +665,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                       }
 
                       // Non-WC pick cells
-                      const pick = pickMap.get(game.id);
-                      if (!pick || !pick.pickedTeamId) {
+                      if (!visiblePick || !visiblePick.pickedTeamId) {
                         return (
                           <td key={game.id} className="px-1 py-2 text-center">
                             <span className="text-muted-foreground/20 text-xs">—</span>
@@ -667,18 +673,18 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                         );
                       }
 
-                      const isAway = pick.pickedTeamId === game.awayTeam.id;
+                      const isAway = visiblePick.pickedTeamId === game.awayTeam.id;
                       const team = isAway ? game.awayTeam : game.homeTeam;
 
                       return (
                         <td key={game.id} className="px-1 py-2 text-center">
                           <div className={cn(
                             "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[52px]",
-                            pick.result === "correct"
+                            visiblePick.result === "correct"
                               ? "border-green-500/40 bg-green-500/10"
-                              : pick.result === "incorrect"
+                              : visiblePick.result === "incorrect"
                               ? "border-red-500/40 bg-red-500/10"
-                              : pick.result === "push"
+                              : visiblePick.result === "push"
                               ? "border-muted-foreground/25 bg-muted/10"
                               : "border-border/30 bg-muted/10",
                           )}>
@@ -689,16 +695,16 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
                             )}
                             <span className={cn(
                               "font-bebas text-[11px] tracking-wide leading-none",
-                              pick.result === "correct" ? "text-green-400"
-                              : pick.result === "incorrect" ? "text-red-400"
-                              : pick.result === "push" ? "text-muted-foreground/60"
+                              visiblePick.result === "correct" ? "text-green-400"
+                              : visiblePick.result === "incorrect" ? "text-red-400"
+                              : visiblePick.result === "push" ? "text-muted-foreground/60"
                               : "text-muted-foreground/70",
                             )}>
                               {team.abbreviation}
                             </span>
-                            {pick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
-                            {pick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
-                            {pick.result === "push" && <span className="text-[8px] font-bold tracking-widest text-muted-foreground/50 leading-none">TIE</span>}
+                            {visiblePick.result === "correct" && <Check className="w-2.5 h-2.5 text-green-400" />}
+                            {visiblePick.result === "incorrect" && <X className="w-2.5 h-2.5 text-red-400" />}
+                            {visiblePick.result === "push" && <span className="text-[8px] font-bold tracking-widest text-muted-foreground/50 leading-none">TIE</span>}
                           </div>
                         </td>
                       );

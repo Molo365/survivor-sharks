@@ -11,6 +11,18 @@ import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 
 const router = Router({ mergeParams: true });
 
+function isGridPickRevealed(opts: {
+  isOwnPick: boolean;
+  sandboxMode: boolean;
+  result: string | null;
+  game: EspnGame | undefined;
+}): boolean {
+  if (opts.isOwnPick) return true;
+  if (opts.result !== "pending") return true;
+  if (opts.sandboxMode || !opts.game) return false;
+  return new Date(opts.game.date).getTime() <= Date.now();
+}
+
 // ── NHL helper ────────────────────────────────────────────────────────────────
 
 async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise<{
@@ -297,11 +309,17 @@ router.get("/grid", requireAuth, async (req, res) => {
         userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
       }
       const game = gameMap.get(pick.gameId);
+      const revealed = isGridPickRevealed({
+        isOwnPick: pick.userId === userId,
+        sandboxMode: pool.sandboxMode ?? false,
+        result: pick.result ?? null,
+        game,
+      });
       const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
       userMap.get(pick.userId)!.picks.set(pick.gameId, {
-        pickedTeamId: pick.pickedTeamId,
-        pickedTeamName: pick.pickedTeamName,
-        pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
+        pickedTeamId: revealed ? pick.pickedTeamId : null,
+        pickedTeamName: revealed ? pick.pickedTeamName : null,
+        pickedTeamLogoUrl: revealed && game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
         confidencePoints: (pick as any).confidencePoints ?? null,
         result: pick.result ?? null,
       });
@@ -381,11 +399,17 @@ router.get("/grid", requireAuth, async (req, res) => {
         userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
       }
       const game = gameMap.get(pick.gameId);
+      const revealed = isGridPickRevealed({
+        isOwnPick: pick.userId === userId,
+        sandboxMode: pool.sandboxMode ?? false,
+        result: pick.result ?? null,
+        game,
+      });
       const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
       userMap.get(pick.userId)!.picks.set(pick.gameId, {
-        pickedTeamId: pick.pickedTeamId,
-        pickedTeamName: pick.pickedTeamName,
-        pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
+        pickedTeamId: revealed ? pick.pickedTeamId : null,
+        pickedTeamName: revealed ? pick.pickedTeamName : null,
+        pickedTeamLogoUrl: revealed && game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
         confidencePoints: (pick as any).confidencePoints ?? null,
         result: pick.result ?? null,
       });
@@ -449,11 +473,17 @@ router.get("/grid", requireAuth, async (req, res) => {
       userMap.set(pick.userId, { userId: pick.userId, username: pick.username, displayName: pick.displayName ?? null, picks: new Map() });
     }
     const game = gameMap.get(pick.gameId);
+    const revealed = isGridPickRevealed({
+      isOwnPick: pick.userId === userId,
+      sandboxMode: pool.sandboxMode ?? false,
+      result: pick.result ?? null,
+      game,
+    });
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
     userMap.get(pick.userId)!.picks.set(pick.gameId, {
-      pickedTeamId: pick.pickedTeamId,
-      pickedTeamName: pick.pickedTeamName,
-      pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
+      pickedTeamId: revealed ? pick.pickedTeamId : null,
+      pickedTeamName: revealed ? pick.pickedTeamName : null,
+      pickedTeamLogoUrl: revealed && game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
       confidencePoints: (pick as any).confidencePoints ?? null,
       result: pick.result ?? null,
     });
