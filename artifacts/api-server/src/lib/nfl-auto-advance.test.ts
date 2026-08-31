@@ -4,6 +4,8 @@ import {
   evaluateNflAutoAdvanceSlate,
   isNflGameFromRequestedSlate,
   isUnambiguousFinalNflGame,
+  validateNflPreseasonPool,
+  validateNflPreseasonSlate,
   type NflAutoAdvanceBlockReason,
 } from "./nfl-auto-advance";
 
@@ -135,5 +137,86 @@ test("grading predicates reject wrong slates and ambiguous completion", () => {
       finalGame({ status: "suspended", isCompleted: true, isPostponed: true }),
     ),
     false,
+  );
+});
+
+function preseasonGame(overrides: Partial<Parameters<typeof validateNflPreseasonSlate>[0][number]> = {}) {
+  return {
+    id: "game-1",
+    seasonType: 1,
+    seasonYear: 2026,
+    weekNumber: 4,
+    status: "final" as const,
+    isCompleted: true,
+    isPostponed: false,
+    homeScore: 24,
+    awayScore: 17,
+    ...overrides,
+  };
+}
+
+test("manual preseason validation accepts an exact fully final scored slate", () => {
+  assert.deepEqual(
+    validateNflPreseasonSlate(
+      [preseasonGame(), preseasonGame({ id: "game-2" })],
+      2026,
+      4,
+    ),
+    { valid: true },
+  );
+});
+
+test("manual preseason validation rejects duplicate, stale, unfinished, and unscored data", () => {
+  assert.deepEqual(
+    validateNflPreseasonSlate([preseasonGame(), preseasonGame()], 2026, 4),
+    { valid: false, reason: "mismatched-slate" },
+  );
+  assert.deepEqual(
+    validateNflPreseasonSlate([preseasonGame({ seasonYear: 2025 })], 2026, 4),
+    { valid: false, reason: "mismatched-slate" },
+  );
+  assert.deepEqual(
+    validateNflPreseasonSlate([preseasonGame({ status: "in_progress", isCompleted: false })], 2026, 4),
+    { valid: false, reason: "unfinished-slate" },
+  );
+  assert.deepEqual(
+    validateNflPreseasonSlate([preseasonGame({ homeScore: null })], 2026, 4),
+    { valid: false, reason: "unfinished-slate" },
+  );
+});
+
+const validPreseasonPool = {
+  sport: "nfl" as const,
+  poolType: "season" as const,
+  isPreseason: true,
+  sandboxMode: false,
+  isActive: true,
+  currentWeek: 4,
+};
+
+test("manual preseason pool guards reject unsafe pool states", () => {
+  function reasonFor(pool: Parameters<typeof validateNflPreseasonPool>[0]) {
+    const decision = validateNflPreseasonPool(pool);
+    if (decision.valid) throw new Error("Expected pool guard to refuse this pool");
+    return decision.reason;
+  }
+
+  assert.deepEqual(validateNflPreseasonPool(validPreseasonPool), { valid: true });
+  assert.equal(reasonFor({ ...validPreseasonPool, sport: "mlb" as const }), "not-nfl");
+  assert.equal(reasonFor({ ...validPreseasonPool, poolType: "pickem" as const }), "unsupported-pool-type");
+  assert.equal(reasonFor({ ...validPreseasonPool, isPreseason: false }), "not-preseason");
+  assert.equal(reasonFor({ ...validPreseasonPool, sandboxMode: true }), "sandbox");
+  assert.equal(reasonFor({ ...validPreseasonPool, isActive: false }), "inactive");
+  assert.equal(reasonFor({ ...validPreseasonPool, currentWeek: 5 }), "invalid-week");
+});
+
+test("manual preseason pool guards allow both season-long Pick-Em variants", () => {
+  assert.deepEqual(
+    validateNflPreseasonPool({ ...validPreseasonPool, poolType: "pickem_season" }),
+    { valid: true },
+  );
+  assert.deepEqual(
+    validateNflPreseasonPool({ ...validPreseasonPool, poolType: "nfl_confidence" }),
+    { valid: true },
   );
 });

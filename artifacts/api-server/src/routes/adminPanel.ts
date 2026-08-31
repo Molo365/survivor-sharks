@@ -5,9 +5,13 @@ import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, gro
 import { eq, count, gte, sql, and, or } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
-import { fetchGamesForDate, fetchIntlGamesForDate } from "../lib/espn";
+import { fetchGamesForDate, fetchIntlGamesForDate, fetchNflGamesByWeek, type EspnGame } from "../lib/espn";
 import { fetchWcStandings } from "../lib/wc";
 import { closePredictorPool, GSP_GROUP_COUNT } from "../lib/closePredictorPool";
+import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure } from "../lib/pickem-season-closure";
+import { applySeasonSurvivorClosure } from "../lib/season-survivor-closure";
+import { gradeNflPreseasonPoolWeek } from "../lib/nfl-preseason-closure";
+import { validateNflPreseasonPool, validateNflPreseasonSlate } from "../lib/nfl-auto-advance";
 
 const router = Router();
 
@@ -408,6 +412,244 @@ router.post("/process-results", async (req, res) => {
   req.log.info("Manual auto-elimination triggered via admin panel");
   const stats = await processCompletedGames();
   res.json({ success: true, ...stats });
+});
+
+async function getPreseasonFinalStandings(poolId: number, poolType: string) {
+  const rows = await db
+    .select({
+      userId: entriesTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      status: entriesTable.status,
+      eliminatedWeek: entriesTable.eliminatedWeek,
+      finalWinner: entriesTable.finalWinner,
+      finishPosition: entriesTable.finishPosition,
+      prizeAmount: entriesTable.prizeAmount,
+    })
+    .from(entriesTable)
+    .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+    .where(eq(entriesTable.poolId, poolId));
+
+  const scoreRows = poolType === "season"
+    ? []
+    : await db
+      .select({
+        userId: pickemPicksTable.userId,
+        correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+        confidencePoints: sql<string>`COALESCE(SUM(${pickemPicksTable.confidencePoints}) FILTER (WHERE ${pickemPicksTable.result} = 'correct'), 0)`,
+      })
+      .from(pickemPicksTable)
+      .where(eq(pickemPicksTable.poolId, poolId))
+      .groupBy(pickemPicksTable.userId);
+  const scoreByUser = new Map(scoreRows.map((row) => [
+    row.userId,
+    poolType === "nfl_confidence" ? Number(row.confidencePoints) : Number(row.correct),
+  ]));
+
+  return rows
+    .sort((a, b) => (a.finishPosition ?? Number.MAX_SAFE_INTEGER) - (b.finishPosition ?? Number.MAX_SAFE_INTEGER))
+    .map((row) => ({
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName ?? null,
+      status: row.status,
+      eliminatedWeek: row.eliminatedWeek ?? null,
+      finalWinner: row.finalWinner,
+      finishPosition: row.finishPosition ?? null,
+      prizeAmount: row.prizeAmount ?? null,
+      ...(poolType !== "season" ? { score: scoreByUser.get(row.userId) ?? 0 } : {}),
+    }));
+}
+
+// POST /api/admin-panel/pools/:poolId/close-preseason
+// Safely settles exactly one live NFL preseason season, Pick-Ems Season, or
+// NFL Confidence pool. This is intentionally separate from global processing
+// and Cancel Pool: neither route is called here.
+router.post("/pools/:poolId/close-preseason", async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId), 10);
+  if (isNaN(poolId)) {
+    res.status(400).json({ error: "Invalid pool ID" });
+    return;
+  }
+
+  const [pool] = await db
+    .select()
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+
+  const poolType = String(pool.poolType);
+  const poolDecision = validateNflPreseasonPool(pool);
+  if (!poolDecision.valid && poolDecision.reason === "inactive") {
+    const standingsBefore = await getPreseasonFinalStandings(poolId, poolType);
+    res.json({
+      success: true,
+      alreadyClosed: true,
+      poolId,
+      week: pool.currentWeek,
+      poolType,
+      closureReason: pool.closureReason ?? null,
+      standings: standingsBefore,
+    });
+    return;
+  }
+  if (!poolDecision.valid) {
+    const errorByReason = {
+      "not-nfl": "Only NFL Survivor, Pick-Ems Season, and NFL Confidence pools can use preseason closure",
+      "unsupported-pool-type": "Only NFL Survivor, Pick-Ems Season, and NFL Confidence pools can use preseason closure",
+      "not-preseason": "Regular-season pools must use the normal Week 18 closure path",
+      sandbox: "Sandbox and replay pools cannot use live ESPN preseason closure",
+      "invalid-week": "NFL preseason closure requires currentWeek 1–4",
+      inactive: "Pool is already inactive",
+    } satisfies Record<Exclude<typeof poolDecision, { valid: true }>["reason"], string>;
+    const status = poolDecision.reason === "not-preseason" ? 409 : 400;
+    res.status(status).json({ error: errorByReason[poolDecision.reason] });
+    return;
+  }
+
+  const week = pool.currentWeek;
+
+  let games: EspnGame[];
+  try {
+    games = await fetchNflGamesByWeek(week, pool.season, 1);
+  } catch (err) {
+    req.log.error({ err, poolId, week, season: pool.season }, "Preseason closure: ESPN fetch failed");
+    res.status(503).json({ error: "ESPN preseason slate is unavailable; no changes were made" });
+    return;
+  }
+
+  const slateDecision = validateNflPreseasonSlate(games, pool.season, week);
+  if (!slateDecision.valid) {
+    req.log.warn(
+      { poolId, week, season: pool.season, reason: slateDecision.reason },
+      "Preseason closure refused: ESPN slate did not pass fail-closed validation",
+    );
+    res.status(409).json({
+      error: "Preseason closure requires a complete, unambiguous final ESPN slate",
+      reason: slateDecision.reason,
+      poolId,
+      week,
+    });
+    return;
+  }
+
+  const gameIds = new Set(games.map((game) => game.id));
+  const pendingRows = poolType === "season"
+    ? await db
+      .select({ id: picksTable.id, week: picksTable.week, teamId: picksTable.teamId })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, poolId), eq(picksTable.result, "pending")))
+    : await db
+      .select({ id: pickemPicksTable.id, week: pickemPicksTable.week, gameId: pickemPicksTable.gameId })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.result, "pending")));
+
+  const pendingEarlier = pendingRows.filter((row) => row.week !== week);
+  if (pendingEarlier.length > 0) {
+    res.status(409).json({
+      error: "Cannot close preseason pool while an earlier week still has pending picks",
+      pendingCount: pendingEarlier.length,
+    });
+    return;
+  }
+
+  const invalidCurrentPending = pendingRows.filter((row) => {
+    if (row.week !== week) return false;
+    return "teamId" in row
+      ? !games.some((game) => game.homeTeam.id === row.teamId || game.awayTeam.id === row.teamId)
+      : !gameIds.has(row.gameId);
+  });
+  if (invalidCurrentPending.length > 0) {
+    res.status(409).json({
+      error: "Cannot close preseason pool because a pending pick is not on the confirmed ESPN slate",
+      pendingCount: invalidCurrentPending.length,
+    });
+    return;
+  }
+
+  const gradeResult = await gradeNflPreseasonPoolWeek(pool, games);
+  if (gradeResult.pendingCount > 0) {
+    res.status(409).json({
+      error: "Cannot close preseason pool while picks remain pending",
+      pendingCount: gradeResult.pendingCount,
+    });
+    return;
+  }
+
+  let closureResult: { closureApplied: boolean; winnerCount: number };
+  if (poolType === "season") {
+    closureResult = await applySeasonSurvivorClosure({
+      poolId,
+      week,
+      terminalWeek: week,
+      pool,
+      log: req.log,
+    });
+  } else {
+    closureResult = poolType === "pickem_season"
+      ? await applyPickEmSeasonClosure({
+        poolId,
+        week,
+        terminalWeek: week,
+        pool,
+        actualPassingYards: null,
+        actualRushingYards: null,
+        log: req.log,
+      })
+      : await applyNflConfidenceSeasonClosure({
+        poolId,
+        week,
+        terminalWeek: week,
+        pool,
+        actualPassingYards: null,
+        actualRushingYards: null,
+        log: req.log,
+      });
+  }
+
+  if (!closureResult.closureApplied) {
+    res.status(409).json({
+      error: "The pool did not have enough settled data to close",
+      poolId,
+      week,
+      graded: gradeResult.graded,
+    });
+    return;
+  }
+
+  const [closedPool] = await db
+    .select({
+      isActive: poolsTable.isActive,
+      endedAt: poolsTable.endedAt,
+      closureReason: poolsTable.closureReason,
+    })
+    .from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+  const standings = await getPreseasonFinalStandings(poolId, poolType);
+
+  req.log.info(
+    { poolId, week, poolType, winnerCount: closureResult.winnerCount },
+    "Preseason pool closed through scoped admin endpoint",
+  );
+  res.json({
+    success: true,
+    alreadyClosed: false,
+    poolId,
+    week,
+    poolType,
+    graded: gradeResult.graded,
+    eliminated: gradeResult.eliminated,
+    isActive: closedPool?.isActive ?? false,
+    endedAt: closedPool?.endedAt?.toISOString() ?? null,
+    closureReason: closedPool?.closureReason ?? null,
+    winnerCount: closureResult.winnerCount,
+    standings,
+  });
 });
 
 // POST /api/admin-panel/pickem/process-results

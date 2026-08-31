@@ -10,6 +10,43 @@ export type NflAutoAdvanceDecision =
   | { canAdvance: true }
   | { canAdvance: false; reason: NflAutoAdvanceBlockReason };
 
+export type NflPreseasonSlateDecision =
+  | { valid: true }
+  | { valid: false; reason: "empty-slate" | "mismatched-slate" | "unfinished-slate" };
+
+export type NflPreseasonPoolDecision =
+  | { valid: true }
+  | {
+      valid: false;
+      reason: "not-nfl" | "unsupported-pool-type" | "not-preseason" | "sandbox" | "inactive" | "invalid-week";
+    };
+
+type NflPreseasonValidationGame = Pick<
+  EspnGame,
+  "seasonType" | "seasonYear" | "weekNumber" | "status" | "isCompleted" | "isPostponed" | "homeScore" | "awayScore"
+> & { id: string };
+
+export function validateNflPreseasonPool(pool: {
+  sport: string;
+  poolType: string;
+  isPreseason: boolean;
+  sandboxMode: boolean;
+  isActive: boolean;
+  currentWeek: number;
+}): NflPreseasonPoolDecision {
+  if (pool.sport !== "nfl") return { valid: false, reason: "not-nfl" };
+  if (!["season", "pickem_season", "nfl_confidence"].includes(pool.poolType)) {
+    return { valid: false, reason: "unsupported-pool-type" };
+  }
+  if (!pool.isPreseason) return { valid: false, reason: "not-preseason" };
+  if (pool.sandboxMode) return { valid: false, reason: "sandbox" };
+  if (!pool.isActive) return { valid: false, reason: "inactive" };
+  if (!Number.isInteger(pool.currentWeek) || pool.currentWeek < 1 || pool.currentWeek > 4) {
+    return { valid: false, reason: "invalid-week" };
+  }
+  return { valid: true };
+}
+
 type NflSlateGame = Pick<
   EspnGame,
   "seasonType" | "seasonYear" | "weekNumber" | "status" | "isCompleted" | "isPostponed"
@@ -46,6 +83,38 @@ export function isUnambiguousFinalNflGame(game: NflSlateGame): boolean {
     !game.isPostponed &&
     game.status === "final"
   );
+}
+
+/**
+ * Fail-closed validation for the manually settled NFL preseason week.
+ * Unlike auto-advance, this intentionally permits the current week to be the
+ * terminal week because the caller is explicitly closing the pool.
+ */
+export function validateNflPreseasonSlate(
+  games: NflPreseasonValidationGame[],
+  expectedSeason: number,
+  expectedWeek: number,
+): NflPreseasonSlateDecision {
+  if (games.length === 0) return { valid: false, reason: "empty-slate" };
+
+  const hasDuplicateEventIds = new Set(games.map((game) => game.id)).size !== games.length;
+  const matchesRequestedSlate = !hasDuplicateEventIds && games.every((game) =>
+    isNflGameFromRequestedSlate(game, {
+      expectedSeason,
+      expectedSeasonType: 1,
+      expectedWeek,
+    }),
+  );
+  if (!matchesRequestedSlate) return { valid: false, reason: "mismatched-slate" };
+
+  const isFullyFinal = games.every((game) =>
+    isUnambiguousFinalNflGame(game) &&
+    Number.isFinite(game.homeScore) &&
+    Number.isFinite(game.awayScore),
+  );
+  if (!isFullyFinal) return { valid: false, reason: "unfinished-slate" };
+
+  return { valid: true };
 }
 
 /**

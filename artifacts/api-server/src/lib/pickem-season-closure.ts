@@ -27,6 +27,7 @@ interface SeasonClosureOpts {
   actualPassingYards: number | null;
   actualRushingYards: number | null;
   log: { info(obj: object, msg: string): void; warn(obj: object, msg?: string): void };
+  terminalWeek?: number;
 }
 
 interface SeasonClosureResult {
@@ -65,7 +66,8 @@ async function applySeasonClosureCore(
   const { poolId, week, pool, log } = opts;
   let { actualPassingYards, actualRushingYards } = opts;
 
-  if (week !== NFL_TOTAL_WEEKS || !pool.isActive) {
+  const terminalWeek = opts.terminalWeek ?? NFL_TOTAL_WEEKS;
+  if (week !== terminalWeek || !pool.isActive) {
     return { closureApplied: false, winnerCount: 0 };
   }
 
@@ -79,7 +81,7 @@ async function applySeasonClosureCore(
     .groupBy(pickemPicksTable.userId);
 
   if (seasonTotals.length === 0) {
-    log.warn({ poolId }, `${label} Week 18 closure: no pick data — skipping`);
+    log.warn({ poolId, week }, `${label} closure: no pick data — skipping`);
     return { closureApplied: false, winnerCount: 0 };
   }
 
@@ -97,7 +99,7 @@ async function applySeasonClosureCore(
         .where(
           and(
             eq(nflConfidenceResultsTable.poolId, poolId),
-            eq(nflConfidenceResultsTable.week, NFL_TOTAL_WEEKS),
+            eq(nflConfidenceResultsTable.week, week),
           ),
         )
         .limit(1);
@@ -137,10 +139,10 @@ async function applySeasonClosureCore(
       }
       log.info(
         { poolId, resolvedPassingYards: actualPassingYards, resolvedRushingYards: actualRushingYards, remainingTied: topGroup.length, tiebrokenToSingle: winnerIds !== null && topGroup.length === 1 },
-        `${label} Week 18: sequential tiebreaker applied`,
+        `${label} ${week}: sequential tiebreaker applied`,
       );
     } else {
-      log.info({ poolId }, `${label} Week 18: tiebreaker actuals unavailable — split declared`);
+      log.info({ poolId, week }, `${label} ${week}: tiebreaker actuals unavailable — split declared`);
     }
   }
 
@@ -216,7 +218,7 @@ async function applySeasonClosureCore(
 
   log.info(
     { poolId, maxScore, winnerCount: winnerUserIds.length, winnerUserIds },
-    `${label} Week 18: season closed`,
+    `${label} ${week}: season closed`,
   );
 
   return { closureApplied: true, winnerCount: winnerUserIds.length };
