@@ -99,6 +99,8 @@ export interface EspnGame {
   groupLabel: string | null; // WC group (e.g. "Group A"), null for other sports
   /** ESPN season type: 1 = preseason, 2 = regular season, 3 = postseason. Defaults to 2 when ESPN omits the field. */
   seasonType: number;
+  /** ESPN's season year for this event, when the feed provides it. */
+  seasonYear?: number;
   /** ESPN's week number within the event's season type, when the feed provides it. */
   weekNumber?: number;
   homeLinescores: { value: number; period: number }[];
@@ -242,6 +244,7 @@ function parseGame(event: EspnEvent): EspnGame {
     awayStartingPitcher: extractStartingPitcher(away?.probables?.[0]),
     groupLabel,
     seasonType: event.season?.type ?? 2,
+    seasonYear: event.season?.year,
     weekNumber: event.week?.number,
     homeLinescores: home?.linescores ?? [],
     awayLinescores: away?.linescores ?? [],
