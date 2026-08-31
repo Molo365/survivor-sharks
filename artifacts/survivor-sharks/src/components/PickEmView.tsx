@@ -15,6 +15,8 @@ import {
   getGetPickEmYesterdayWinnerQueryKey,
   getGetPickEmDailyResultsQueryKey,
   getGetPickEmPrevWeekResultsQueryKey,
+  useGetPoolPickStatus,
+  getGetPoolPickStatusQueryKey,
   useGetPool,
   useGetPoolSchedule,
   useUpdatePool,
@@ -51,6 +53,7 @@ import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 function BaseDiamond({
   onFirst,
@@ -1403,6 +1406,14 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
   const todayEt = getTodayEt();
   const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!poolId,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map((pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]));
 
   function toggleCell(userId: number, date: string) {
     setOpenCell((prev) =>
@@ -1476,6 +1487,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                             {entry.rank}
                           </span>
                           <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
+                            <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} className="mr-1.5 align-middle" />
                             {entry.displayName || entry.username}
                             {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                           </span>

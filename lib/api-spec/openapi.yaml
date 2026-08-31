@@ -466,6 +466,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Leaderboard"
 
+  /pools/{poolId}/pick-status:
+    get:
+      operationId: getPoolPickStatus
+      tags: [leaderboard]
+      summary: Get privacy-safe pick submission status for every pool member
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pick submission status for each pool member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoolPickStatus"
+
   /pools/{poolId}/final-results:
     get:
       operationId: getFinalResults
@@ -916,6 +937,12 @@ paths:
         - name: poolId
           in: path
           required: true
+          schema:
+            type: integer
+        - name: week
+          in: query
+          required: false
+          description: Optional completed week number (1-indexed)
           schema:
             type: integer
       responses:
@@ -2591,6 +2618,20 @@ components:
           items:
             $ref: "#/components/schemas/LeaderboardEntry"
 
+    PoolPickStatus:
+      type: object
+      required: [userId, pickStatus, submittedCount, requiredCount]
+      properties:
+        userId:
+          type: integer
+        pickStatus:
+          type: string
+          enum: [submitted, pending, not_required]
+        submittedCount:
+          type: integer
+        requiredCount:
+          type: integer
+
     # ── Results Schemas ───────────────────────────────────────────────────────
     ProcessResultsInput:
       type: object
@@ -2996,7 +3037,7 @@ components:
           description: Team ID the current user picked, null if no pick yet
         userPickResult:
           type: ["string", "null"]
-          enum: [pending, correct, incorrect, postponed, null]
+          enum: [pending, correct, incorrect, postponed, push, null]
         liveDetail:
           type: ["string", "null"]
           description: Live game clock/inning label from ESPN (e.g. "Top 7th", "Bot 4th", "3rd Quarter"), null when not in progress
@@ -3254,7 +3295,7 @@ components:
           type: string
         result:
           type: string
-          enum: [pending, correct, incorrect, postponed]
+          enum: [pending, correct, incorrect, postponed, push]
 
     PickEmDailyPickDetailTeam:
       type: object
@@ -3283,7 +3324,13 @@ components:
           type: ["string", "null"]
         result:
           type: string
-          enum: [pending, correct, incorrect, postponed]
+          enum: [pending, correct, incorrect, postponed, push]
+        spread:
+          type: ["number", "null"]
+          description: "NBA ATS only — commissioner-entered spread line"
+        favoriteTeamId:
+          type: ["string", "null"]
+          description: "NBA ATS only — ESPN team ID of the favourite"
         homeTeam:
           $ref: "#/components/schemas/PickEmDailyPickDetailTeam"
         awayTeam:
@@ -3438,7 +3485,7 @@ components:
         result:
           type: string
           nullable: true
-          enum: [correct, incorrect, postponed, null]
+          enum: [correct, incorrect, postponed, push, null]
 
     PickEmDailyResultsPlayer:
       type: object
@@ -3503,6 +3550,9 @@ components:
         weekEnd:
           type: string
           description: Previous week Sunday (YYYY-MM-DD)
+        weekNumber:
+          type: integer
+          description: The 1-indexed week number whose results are returned
         entries:
           type: array
           items:

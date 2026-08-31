@@ -39,6 +39,7 @@ import type {
   GetPickEmDailyResultsParams,
   GetPickEmGamesParams,
   GetPickEmLeaderboardParams,
+  GetPickEmPrevWeekResultsParams,
   GetPickEmYesterdayWinnerParams,
   GetWcBracketRoundAllPicksParams,
   GspGroupResult,
@@ -74,7 +75,6 @@ import type {
   PickEmLeaderboard,
   PickEmPickInput,
   PickEmPicksResult,
-  GetPickEmPrevWeekResultsParams,
   PickEmPrevWeekResults,
   PickEmProcessResult,
   PickEmSlate,
@@ -84,6 +84,7 @@ import type {
   PoolDetail,
   PoolInput,
   PoolPickEmStat,
+  PoolPickStatus,
   PoolSchedule,
   PoolStats,
   PoolUpdate,
@@ -1626,6 +1627,83 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
 
 
 
+export const getGetPoolPickStatusUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pick-status`
+}
+
+/**
+ * @summary Get privacy-safe pick submission status for every pool member
+ */
+export const getPoolPickStatus = async (poolId: number, options?: RequestInit): Promise<PoolPickStatus[]> => {
+
+  return customFetch<PoolPickStatus[]>(getGetPoolPickStatusUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPoolPickStatusQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pick-status`
+    ] as const;
+    }
+
+
+export const getGetPoolPickStatusQueryOptions = <TData = Awaited<ReturnType<typeof getPoolPickStatus>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolPickStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPoolPickStatusQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPoolPickStatus>>> = ({ signal }) => getPoolPickStatus(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPoolPickStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPoolPickStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getPoolPickStatus>>>
+export type GetPoolPickStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get privacy-safe pick submission status for every pool member
+ */
+
+export function useGetPoolPickStatus<TData = Awaited<ReturnType<typeof getPoolPickStatus>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolPickStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPoolPickStatusQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetFinalResultsUrl = (poolId: number,) => {
 
 
@@ -2988,6 +3066,7 @@ export const getGetPickEmPrevWeekResultsUrl = (poolId: number,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -2999,12 +3078,12 @@ export const getGetPickEmPrevWeekResultsUrl = (poolId: number,
 }
 
 /**
- * @summary Get final standings for the previous Mon\u2013Sun week (weekly pick-em pools only)
+ * @summary Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
  */
 export const getPickEmPrevWeekResults = async (poolId: number,
     params?: GetPickEmPrevWeekResultsParams, options?: RequestInit): Promise<PickEmPrevWeekResults> => {
 
-  return customFetch<PickEmPrevWeekResults>(getGetPickEmPrevWeekResultsUrl(poolId, params),
+  return customFetch<PickEmPrevWeekResults>(getGetPickEmPrevWeekResultsUrl(poolId,params),
   {
     ...options,
     method: 'GET'
@@ -3012,6 +3091,7 @@ export const getPickEmPrevWeekResults = async (poolId: number,
 
   }
 );}
+
 
 
 
@@ -3030,11 +3110,12 @@ export const getGetPickEmPrevWeekResultsQueryOptions = <TData = Awaited<ReturnTy
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPickEmPrevWeekResultsQueryKey(poolId, params);
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmPrevWeekResultsQueryKey(poolId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>> = ({ signal }) => getPickEmPrevWeekResults(poolId, params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmPrevWeekResults>>> = ({ signal }) => getPickEmPrevWeekResults(poolId,params, { signal, ...requestOptions });
+
 
 
 
@@ -3047,7 +3128,7 @@ export type GetPickEmPrevWeekResultsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get final standings for the previous Mon\u2013Sun week (weekly pick-em pools only)
+ * @summary Get final standings for the previous Mon–Sun week (weekly pick-em pools only)
  */
 
 export function useGetPickEmPrevWeekResults<TData = Awaited<ReturnType<typeof getPickEmPrevWeekResults>>, TError = ErrorType<unknown>>(
@@ -3056,12 +3137,15 @@ export function useGetPickEmPrevWeekResults<TData = Awaited<ReturnType<typeof ge
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPickEmPrevWeekResultsQueryOptions(poolId, params, options)
+  const queryOptions = getGetPickEmPrevWeekResultsQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+
+
 
 
 

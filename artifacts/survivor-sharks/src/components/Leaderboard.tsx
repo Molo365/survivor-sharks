@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
+import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
@@ -14,6 +16,14 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
   const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
     query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
   });
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!poolId,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map((pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]));
 
   if (isLoading) return <Skeleton className="h-[400px] w-full" />;
   if (!leaderboard) return null;
@@ -100,6 +110,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                         idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : "text-amber-600",
                       )}>{entry.rank}</span>
                       <span className="font-medium text-sm text-foreground/90">
+                        <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
                         {entry.displayName ?? entry.username}
                       </span>
                     </div>
@@ -168,6 +179,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                     {idx + 1}
                   </span>
                   <span className="font-medium text-sm text-foreground/90">
+                    <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
                     {entry.displayName ?? entry.username}
                   </span>
                 </div>
@@ -199,6 +211,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                   <div className="font-bebas text-2xl sm:text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
                   <div>
                     <div className="font-medium text-base sm:text-xl flex items-center gap-2">
+                      <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
                       {entry.displayName || entry.username}
                       {maxLives > 1 && strikeCount > 0 && (
                         <span
@@ -278,6 +291,7 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                     {entry.rank}
                   </div>
                   <div className="font-medium text-sm sm:text-lg line-through text-muted-foreground">
+                    <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
                     {entry.displayName || entry.username}
                   </div>
                 </div>

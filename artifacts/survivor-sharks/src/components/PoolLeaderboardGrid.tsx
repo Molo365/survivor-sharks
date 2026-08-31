@@ -2,6 +2,8 @@ import { Fragment, ReactNode, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Users, X, Info } from "lucide-react";
+import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 // ── Base player shape every consumer must satisfy ──────────────────────────
 
@@ -23,6 +25,7 @@ export interface WeekCellDescriptor {
 // ── Props ─────────────────────────────────────────────────────────────────
 
 export interface PoolLeaderboardGridProps<TPlayer extends LeaderboardPlayer> {
+  poolId: number;
   players: TPlayer[];
   weekColumns: number[];
   currentUserId: number | null;
@@ -71,6 +74,7 @@ function RankBadge({ rank }: { rank: number }) {
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
+  poolId,
   players,
   weekColumns,
   currentUserId,
@@ -85,6 +89,15 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
   footer,
   footnote,
 }: PoolLeaderboardGridProps<TPlayer>) {
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!poolId,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map((pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]));
+
   const [showHint, setShowHint] = useState<boolean>(() => {
     try {
       return localStorage.getItem(hintKey) !== "1";
@@ -238,6 +251,7 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                             isMe ? "text-purple-300" : "text-foreground",
                           )}
                         >
+                          <PickStatusIndicator status={pickStatusByUserId.get(player.userId)} />
                           {player.displayName ?? player.username}
                         </span>
                         {isMe && (

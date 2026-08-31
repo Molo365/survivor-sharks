@@ -569,6 +569,22 @@ export interface Leaderboard {
   eliminated: LeaderboardEntry[];
 }
 
+export type PoolPickStatusPickStatus = typeof PoolPickStatusPickStatus[keyof typeof PoolPickStatusPickStatus];
+
+
+export const PoolPickStatusPickStatus = {
+  submitted: 'submitted',
+  pending: 'pending',
+  not_required: 'not_required',
+} as const;
+
+export interface PoolPickStatus {
+  userId: number;
+  pickStatus: PoolPickStatusPickStatus;
+  submittedCount: number;
+  requiredCount: number;
+}
+
 export interface ProcessResultsInput {
   week: number;
   losingTeamIds: string[];
@@ -1115,6 +1131,16 @@ export interface PickEmDailyPickDetail {
   /** @nullable */
   pickedTeamLogoUrl?: string | null;
   result: PickEmDailyPickDetailResult;
+  /**
+     * NBA ATS only — commissioner-entered spread line
+     * @nullable
+     */
+  spread?: number | null;
+  /**
+     * NBA ATS only — ESPN team ID of the favourite
+     * @nullable
+     */
+  favoriteTeamId?: string | null;
   homeTeam: PickEmDailyPickDetailTeam;
   awayTeam: PickEmDailyPickDetailTeam;
   /** @nullable */
@@ -1123,10 +1149,6 @@ export interface PickEmDailyPickDetail {
   awayScore?: number | null;
   startTime: string;
   status: string;
-  /** NBA ATS only — commissioner-entered spread line (e.g. 6.5). Null for all other pool types. @nullable */
-  spread?: number | null;
-  /** NBA ATS only — ESPN team ID of the favourite. Null for all other pool types. @nullable */
-  favoriteTeamId?: string | null;
 }
 
 export interface PickEmDailyBreakdown {
@@ -1304,11 +1326,6 @@ export interface PickEmDayWinnerEntry {
   total: number;
   /** Prize amount won; null if the pool has no prize structure */
   prizeWon?: number | null;
-}
-
-export interface GetPickEmPrevWeekResultsParams {
-  /** Optional completed week number (1-indexed). Defaults to the immediately prior calendar week when omitted. */
-  week?: number;
 }
 
 export interface PickEmPrevWeekResults {
@@ -1913,6 +1930,13 @@ export type GetPickEmYesterdayWinnerParams = {
  * Date in YYYY-MM-DD format (ET)
  */
 date: string;
+};
+
+export type GetPickEmPrevWeekResultsParams = {
+/**
+ * Optional completed week number (1-indexed)
+ */
+week?: number;
 };
 
 export type GetWcBracketRoundAllPicksParams = {

@@ -746,6 +746,22 @@ export const GetLeaderboardResponse = zod.object({
 
 
 /**
+ * @summary Get privacy-safe pick submission status for every pool member
+ */
+export const GetPoolPickStatusParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPoolPickStatusResponseItem = zod.object({
+  "userId": zod.number(),
+  "pickStatus": zod.enum(['submitted', 'pending', 'not_required']),
+  "submittedCount": zod.number(),
+  "requiredCount": zod.number()
+})
+export const GetPoolPickStatusResponse = zod.array(GetPoolPickStatusResponseItem)
+
+
+/**
  * @summary Get final results for a closed pool
  */
 export const GetFinalResultsParams = zod.object({
@@ -1049,7 +1065,7 @@ export const GetPickEmGamesResponse = zod.object({
   "awayScore": zod.number().nullish(),
   "homeScore": zod.number().nullish(),
   "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
-  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish(),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal('push'),zod.literal(null)]).nullish(),
   "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress'),
   "liveOuts": zod.number().nullish().describe('Current number of outs (0–3) for in-progress MLB games, null otherwise'),
   "liveBaseRunners": zod.object({
@@ -1114,7 +1130,7 @@ export const GetPickEmWeekGamesResponse = zod.object({
   "awayScore": zod.number().nullish(),
   "homeScore": zod.number().nullish(),
   "userPickTeamId": zod.string().nullish().describe('Team ID the current user picked, null if no pick yet'),
-  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish(),
+  "userPickResult": zod.union([zod.literal('pending'),zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal('push'),zod.literal(null)]).nullish(),
   "liveDetail": zod.string().nullish().describe('Live game clock\/inning label from ESPN (e.g. \"Top 7th\", \"Bot 4th\", \"3rd Quarter\"), null when not in progress'),
   "liveOuts": zod.number().nullish().describe('Current number of outs (0–3) for in-progress MLB games, null otherwise'),
   "liveBaseRunners": zod.object({
@@ -1258,7 +1274,7 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
-  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed'])
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed', 'push'])
 })),
   "dailyBreakdown": zod.array(zod.object({
   "date": zod.string().describe('YYYY-MM-DD date in ET'),
@@ -1310,7 +1326,9 @@ export const GetPickEmDailyPicksResponseItem = zod.object({
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
   "pickedTeamLogoUrl": zod.string().nullish(),
-  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed']),
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed', 'push']),
+  "spread": zod.number().nullish().describe('NBA ATS only — commissioner-entered spread line'),
+  "favoriteTeamId": zod.string().nullish().describe('NBA ATS only — ESPN team ID of the favourite'),
   "homeTeam": zod.object({
   "id": zod.string(),
   "abbreviation": zod.string(),
@@ -1374,7 +1392,7 @@ export const GetPickEmDailyResultsResponse = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
-  "result": zod.union([zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal(null)]).nullish()
+  "result": zod.union([zod.literal('correct'),zod.literal('incorrect'),zod.literal('postponed'),zod.literal('push'),zod.literal(null)]).nullish()
 }))
 }))
 })
@@ -1412,10 +1430,15 @@ export const GetPickEmPrevWeekResultsParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const GetPickEmPrevWeekResultsQueryParams = zod.object({
+  "week": zod.coerce.number().optional().describe('Optional completed week number (1-indexed)')
+})
+
 export const GetPickEmPrevWeekResultsResponse = zod.object({
   "hasResults": zod.boolean().describe('True if at least one pick in the previous week has been graded'),
   "weekStart": zod.string().describe('Previous week Monday (YYYY-MM-DD)'),
   "weekEnd": zod.string().describe('Previous week Sunday (YYYY-MM-DD)'),
+  "weekNumber": zod.number().optional().describe('The 1-indexed week number whose results are returned'),
   "entries": zod.array(zod.object({
   "rank": zod.number(),
   "userId": zod.number(),
@@ -1427,7 +1450,7 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "gameId": zod.string(),
   "pickedTeamId": zod.string(),
   "pickedTeamName": zod.string(),
-  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed'])
+  "result": zod.enum(['pending', 'correct', 'incorrect', 'postponed', 'push'])
 })),
   "dailyBreakdown": zod.array(zod.object({
   "date": zod.string().describe('YYYY-MM-DD date in ET'),

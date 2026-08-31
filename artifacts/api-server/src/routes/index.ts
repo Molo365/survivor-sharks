@@ -28,6 +28,7 @@ import picksSummaryRouter from "./picks-summary";
 import usersRouter from "./users";
 import replayRouter from "./replay";
 import finalResultsRouter from "./final-results";
+import pickStatusRouter from "./pick-status";
 
 const router: IRouter = Router();
 
@@ -74,6 +75,7 @@ router.use("/pools/:poolId/pickem-season", pickemSeasonRouter);
 router.use("/pools/:poolId/bracket", bracketRouter);
 router.use("/pools/:poolId/replay", replayRouter);
 router.use("/pools/:poolId/final-results", finalResultsRouter);
+router.use("/pools/:poolId/pick-status", pickStatusRouter);
 router.use("/scores", scoresRouter);
 router.use("/picks", picksSummaryRouter);
 router.use("/dashboard", dashboardRouter);

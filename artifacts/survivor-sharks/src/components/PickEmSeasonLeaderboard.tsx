@@ -363,6 +363,7 @@ export function PickEmSeasonLeaderboard({
 
   return (
     <PoolLeaderboardGrid
+      poolId={poolId}
       players={entries as PickEmPlayer[]}
       weekColumns={weekColumns}
       currentUserId={currentUserId}

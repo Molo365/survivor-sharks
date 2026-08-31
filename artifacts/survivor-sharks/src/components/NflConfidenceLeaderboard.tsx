@@ -385,6 +385,7 @@ export function NflConfidenceLeaderboard({
 
   return (
     <PoolLeaderboardGrid
+      poolId={poolId}
       players={players}
       weekColumns={weekColumns}
       currentUserId={user?.id ?? null}

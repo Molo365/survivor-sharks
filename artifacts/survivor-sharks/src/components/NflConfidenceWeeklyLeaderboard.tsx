@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Users, Trophy } from "lucide-react";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
+import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,14 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!user,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map((pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]));
 
   const players = data?.players ?? [];
   const isCurrentWeek = week === (initialWeek ?? 1);
@@ -195,6 +205,7 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
                       isMe ? "text-cyan-300" : "text-foreground",
                     )}
                   >
+                    <PickStatusIndicator status={pickStatusByUserId.get(player.userId)} />
                     {player.displayName ?? player.username}
                   </span>
                   {isMe && (
