@@ -538,6 +538,8 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
   }
 
   const gameIds = new Set(games.map((game) => game.id));
+  const reconcileHistoricalTies = req.body?.reconcileHistoricalTies === true;
+  let historicalTieReconciled = 0;
   const pendingRows = poolType === "season"
     ? await db
       .select({ id: picksTable.id, week: picksTable.week, userId: picksTable.userId, teamId: picksTable.teamId })
@@ -560,17 +562,90 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
       counts[String(row.week)] = (counts[String(row.week)] ?? 0) + 1;
       return counts;
     }, {});
-    res.status(409).json({
-      error: "Cannot close preseason pool while an earlier week still has pending picks",
-      pendingCount: pendingEarlier.length,
-      pendingByWeek,
-      pendingPicks: pendingEarlier.map((row) =>
-        "teamId" in row
-          ? { id: row.id, week: row.week, userId: row.userId, teamId: row.teamId }
-          : { id: row.id, week: row.week, userId: row.userId, gameId: row.gameId, pickedTeamId: row.pickedTeamId },
-      ),
-    });
-    return;
+    if (reconcileHistoricalTies) {
+      const historicalGamesById = new Map<string, EspnGame>();
+      const historicalWeeks = [...new Set(pendingEarlier.map((row) => row.week))];
+      for (const historicalWeek of historicalWeeks) {
+        let historicalGames: EspnGame[];
+        try {
+          historicalGames = await fetchNflGamesByWeek(historicalWeek, pool.season, 1);
+        } catch (err) {
+          req.log.error({ err, poolId, week: historicalWeek }, "Historical tie reconciliation: ESPN fetch failed");
+          res.status(503).json({ error: "Historical ESPN slate is unavailable; no changes were made" });
+          return;
+        }
+        const historicalDecision = validateNflPreseasonSlate(historicalGames, pool.season, historicalWeek);
+        if (!historicalDecision.valid) {
+          res.status(409).json({
+            error: "Historical tie reconciliation requires an exact, fully final ESPN slate",
+            week: historicalWeek,
+            reason: historicalDecision.reason,
+            pendingByWeek,
+          });
+          return;
+        }
+        for (const game of historicalGames) historicalGamesById.set(game.id, game);
+      }
+
+      const historicalTieRows = pendingEarlier.map((row) => {
+        if ("teamId" in row) {
+          const game = [...historicalGamesById.values()].find((candidate) =>
+            candidate.homeTeam.id === row.teamId || candidate.awayTeam.id === row.teamId);
+          return { row, game, isTie: game != null && game.homeScore === game.awayScore };
+        }
+        const game = historicalGamesById.get(row.gameId);
+        return { row, game, isTie: game != null && game.homeScore === game.awayScore };
+      });
+      if (historicalTieRows.some(({ isTie }) => !isTie)) {
+        res.status(409).json({
+          error: "Historical reconciliation is limited to pending picks on confirmed tie games",
+          pendingByWeek,
+          pendingPicks: pendingEarlier.map((row) =>
+            "teamId" in row
+              ? { id: row.id, week: row.week, userId: row.userId, teamId: row.teamId }
+              : { id: row.id, week: row.week, userId: row.userId, gameId: row.gameId, pickedTeamId: row.pickedTeamId },
+          ),
+        });
+        return;
+      }
+
+      for (const { row, game } of historicalTieRows) {
+        if (!game) continue;
+        if ("teamId" in row) {
+          await db
+            .update(picksTable)
+            .set({ result: "loss", marginOfVictory: 0 })
+            .where(and(eq(picksTable.id, row.id), eq(picksTable.result, "pending")));
+        } else {
+          await db
+            .update(pickemPicksTable)
+            .set({
+              result: "incorrect",
+              awayScore: game.awayScore,
+              homeScore: game.homeScore,
+              winnerTeamId: null,
+            })
+            .where(and(eq(pickemPicksTable.id, row.id), eq(pickemPicksTable.result, "pending")));
+        }
+      }
+      req.log.info(
+        { poolId, reconciledCount: historicalTieRows.length, pendingByWeek },
+        "Historical tie picks reconciled through scoped preseason closure",
+      );
+      historicalTieReconciled = historicalTieRows.length;
+    } else {
+      res.status(409).json({
+        error: "Cannot close preseason pool while an earlier week still has pending picks",
+        pendingCount: pendingEarlier.length,
+        pendingByWeek,
+        pendingPicks: pendingEarlier.map((row) =>
+          "teamId" in row
+            ? { id: row.id, week: row.week, userId: row.userId, teamId: row.teamId }
+            : { id: row.id, week: row.week, userId: row.userId, gameId: row.gameId, pickedTeamId: row.pickedTeamId },
+        ),
+      });
+      return;
+    }
   }
 
   const invalidCurrentPending = pendingRows.filter((row) => {
@@ -659,6 +734,7 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
     week,
     poolType,
     graded: gradeResult.graded,
+    historicalTieReconciled,
     eliminated: gradeResult.eliminated,
     isActive: closedPool?.isActive ?? false,
     endedAt: closedPool?.endedAt?.toISOString() ?? null,
