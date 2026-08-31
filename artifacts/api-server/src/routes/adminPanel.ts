@@ -550,9 +550,19 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
 
   const pendingEarlier = pendingRows.filter((row) => row.week !== week);
   if (pendingEarlier.length > 0) {
+    const pendingByWeek = pendingEarlier.reduce<Record<string, number>>((counts, row) => {
+      counts[String(row.week)] = (counts[String(row.week)] ?? 0) + 1;
+      return counts;
+    }, {});
     res.status(409).json({
       error: "Cannot close preseason pool while an earlier week still has pending picks",
       pendingCount: pendingEarlier.length,
+      pendingByWeek,
+      pendingPicks: pendingEarlier.map((row) =>
+        "teamId" in row
+          ? { id: row.id, week: row.week, teamId: row.teamId }
+          : { id: row.id, week: row.week, gameId: row.gameId },
+      ),
     });
     return;
   }
