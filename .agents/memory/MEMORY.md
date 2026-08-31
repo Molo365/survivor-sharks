@@ -15,3 +15,4 @@
 - [Non-recurring soccer closure safety](non-recurring-soccer-closure-safety.md) — MLS is Mon–Sun; Super League is Fri–Mon and must settle Tuesday only after a complete slate.
 - [NFL week advancement](nfl-preseason-advancement.md) — live preseason and regular-season pools advance only after exact ESPN slate validation, grading, pending-pick checks, and a full-state CAS.
 - [Pick visibility timing](pick-visibility-timing.md) — submission locks and pick disclosure are separate: opponents' picks reveal only at actual kickoff or after grading.
+- [NFL tie grading](nfl-tie-grading.md) — final NFL ties need explicit resolved outcomes; otherwise confidence/Pick-Em rows can remain pending and block closure.
