@@ -540,11 +540,17 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
   const gameIds = new Set(games.map((game) => game.id));
   const pendingRows = poolType === "season"
     ? await db
-      .select({ id: picksTable.id, week: picksTable.week, teamId: picksTable.teamId })
+      .select({ id: picksTable.id, week: picksTable.week, userId: picksTable.userId, teamId: picksTable.teamId })
       .from(picksTable)
       .where(and(eq(picksTable.poolId, poolId), eq(picksTable.result, "pending")))
     : await db
-      .select({ id: pickemPicksTable.id, week: pickemPicksTable.week, gameId: pickemPicksTable.gameId })
+      .select({
+        id: pickemPicksTable.id,
+        week: pickemPicksTable.week,
+        userId: pickemPicksTable.userId,
+        gameId: pickemPicksTable.gameId,
+        pickedTeamId: pickemPicksTable.pickedTeamId,
+      })
       .from(pickemPicksTable)
       .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.result, "pending")));
 
@@ -560,8 +566,8 @@ router.post("/pools/:poolId/close-preseason", async (req, res) => {
       pendingByWeek,
       pendingPicks: pendingEarlier.map((row) =>
         "teamId" in row
-          ? { id: row.id, week: row.week, teamId: row.teamId }
-          : { id: row.id, week: row.week, gameId: row.gameId },
+          ? { id: row.id, week: row.week, userId: row.userId, teamId: row.teamId }
+          : { id: row.id, week: row.week, userId: row.userId, gameId: row.gameId, pickedTeamId: row.pickedTeamId },
       ),
     });
     return;
