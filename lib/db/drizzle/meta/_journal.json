@@ -15,6 +15,13 @@
       "when": 1786780800000,
       "tag": "0001_push_result_for_pickem",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788235699685,
+      "tag": "0002_stale_legion",
+      "breakpoints": true
     }
   ]
 }

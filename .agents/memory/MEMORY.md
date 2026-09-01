@@ -16,3 +16,4 @@
 - [NFL week advancement](nfl-preseason-advancement.md) — live preseason and regular-season pools advance only after exact ESPN slate validation, grading, pending-pick checks, and a full-state CAS.
 - [Pick visibility timing](pick-visibility-timing.md) — submission locks and pick disclosure are separate: opponents' picks reveal only at actual kickoff or after grading.
 - [NFL tie grading](nfl-tie-grading.md) — final NFL ties need explicit resolved outcomes; otherwise confidence/Pick-Em rows can remain pending and block closure.
+- [Drizzle migration drift](drizzle-migration-drift.md) — dev may be push-applied ahead of checked-in migration history; scope generated migrations before external production use.
