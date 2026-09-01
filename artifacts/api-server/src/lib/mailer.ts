@@ -1,3 +1,4 @@
+import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
 function createTransport() {
@@ -16,7 +17,10 @@ function createTransport() {
   });
 }
 
-const FROM = process.env.SMTP_FROM ?? "Survivor Sharks <noreply@survivorsharks.app>";
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const RESEND_FROM = "Survivor Sharks <noreply@survivorsharks.com>";
+const SMTP_FROM = process.env.SMTP_FROM ?? RESEND_FROM;
 
 export async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   const transport = createTransport();
@@ -34,10 +38,26 @@ export async function sendPasswordResetEmail(toEmail: string, resetUrl: string):
     </div>
   `;
 
-  if (transport) {
-    await transport.sendMail({ from: FROM, to: toEmail, subject: "Reset your Survivor Sharks password", html });
-  } else {
-    // Dev fallback — print reset link to server console
-    console.log(`\n====== PASSWORD RESET LINK (no SMTP configured) ======\nTo: ${toEmail}\nURL: ${resetUrl}\n======================================================\n`);
+  if (resend) {
+    const { error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to: toEmail,
+      subject: "Reset your Survivor Sharks password",
+      html,
+    });
+
+    if (error) {
+      throw new Error(`Resend password reset email failed: ${error.message}`);
+    }
+
+    return;
   }
+
+  if (transport) {
+    await transport.sendMail({ from: SMTP_FROM, to: toEmail, subject: "Reset your Survivor Sharks password", html });
+    return;
+  }
+
+  // Dev fallback — print reset link to server console
+  console.log(`\n====== PASSWORD RESET LINK (no email provider configured) ======\nTo: ${toEmail}\nURL: ${resetUrl}\n======================================================\n`);
 }
