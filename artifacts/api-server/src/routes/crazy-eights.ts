@@ -125,6 +125,11 @@ router.get("/slate", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
+  if (pool.sport === "mlb" && !pool.isActive) {
+    res.status(410).json({ error: "This High Heat pool has ended", poolEnded: true });
+    return;
+  }
+
   if (pool.sport === "nhl") {
     const isSandbox = (pool as any).sandboxMode as boolean;
     const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
@@ -763,6 +768,11 @@ router.post("/picks", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) {
     res.status(403).json({ error: "You are not a member of this pool" });
+    return;
+  }
+
+  if (!pool.isActive) {
+    res.status(410).json({ error: "This pool has ended — picks are no longer accepted.", poolEnded: true });
     return;
   }
 

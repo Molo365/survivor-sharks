@@ -1128,7 +1128,12 @@ export async function processMlbWeeklyResults(): Promise<{
   // Find all active MLB weekly pools (daily pools handled separately)
   const mlbPools = await db.select()
     .from(poolsTable)
-    .where(and(eq(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true), eq(poolsTable.pickFrequency, "weekly")));
+    .where(and(
+      eq(poolsTable.sport, "mlb"),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.pickFrequency, "weekly"),
+      ne(poolsTable.poolType, "crazy_8s"),
+    ));
 
   for (const pool of mlbPools) {
     // Check if processing is due: now >= trigger time for this week
@@ -4651,6 +4656,17 @@ async function resolveCrazyEightsPeriod(
   periodDates: string[],
   periodGames: EspnGame[],
 ): Promise<void> {
+  // A weekly MLB High Heat pool must be resolved against the entire Mon–Sun
+  // period. This guard prevents any caller from accidentally closing it from
+  // a single day's grading pass.
+  if (pool.sport === "mlb" && pool.pickFrequency === "weekly" && periodDates.length < 7) {
+    logger.info(
+      { poolId: pool.id, periodDates },
+      "Crazy 8's: skipping weekly MLB resolution for an incomplete period",
+    );
+    return;
+  }
+
   // 1. Any picks submitted for this period?
   const [{ total }] = await db
     .select({ total: count() })
@@ -4786,6 +4802,97 @@ async function resolveCrazyEightsPeriod(
 //  - No elimination — Crazy 8's is a scoring game, not a survival game
 // ---------------------------------------------------------------------------
 
+function offsetEtDate(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function dateRangeInclusive(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const [year, month, day] = start.split("-").map(Number);
+  const cursor = new Date(Date.UTC(year, month - 1, day));
+  const endMs = Date.parse(`${end}T00:00:00Z`);
+
+  while (cursor.getTime() <= endMs) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+/**
+ * Grade MLB Crazy 8s picks for the supplied ET date range.
+ *
+ * Weekly High Heat pools use this for the full Monday–Sunday period before
+ * resolution. Daily pools use it for the rolling yesterday/today pass.
+ */
+async function gradeMlbCrazyEightsPicks(
+  pool: typeof poolsTable.$inferSelect,
+  games: EspnGame[],
+  periodDates: string[],
+): Promise<number> {
+  if (periodDates.length === 0) return 0;
+
+  const periodDateSet = new Set(periodDates);
+  const winnerByGameId = new Map<string, string>();
+  const postponedIds: string[] = [];
+
+  for (const game of games) {
+    const gameDate = formatDateEtDash(new Date(game.date));
+    if (!periodDateSet.has(gameDate)) continue;
+    if (game.isPostponed) {
+      postponedIds.push(game.id);
+      continue;
+    }
+    if (game.isCompleted && game.homeScore != null && game.awayScore != null && game.homeScore !== game.awayScore) {
+      winnerByGameId.set(game.id, game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id);
+    }
+  }
+
+  let picksGraded = 0;
+  for (const [gameId, winningTeamId] of winnerByGameId) {
+    const gamePicks = await db
+      .select()
+      .from(pickemPicksTable)
+      .where(and(
+        eq(pickemPicksTable.poolId, pool.id),
+        eq(pickemPicksTable.gameId, gameId),
+        inArray(pickemPicksTable.gameDate, periodDates),
+        eq(pickemPicksTable.result, "pending"),
+      ));
+
+    for (const pick of gamePicks) {
+      const result: "correct" | "incorrect" = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+      await db.update(pickemPicksTable)
+        .set({ result, updatedAt: new Date() })
+        .where(eq(pickemPicksTable.id, pick.id));
+      picksGraded++;
+      logger.info(
+        { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result },
+        "Crazy 8's: auto-graded pick",
+      );
+    }
+  }
+
+  for (const gameId of postponedIds) {
+    const updated = await db
+      .update(pickemPicksTable)
+      .set({ result: "postponed", updatedAt: new Date() })
+      .where(and(
+        eq(pickemPicksTable.poolId, pool.id),
+        eq(pickemPicksTable.gameId, gameId),
+        inArray(pickemPicksTable.gameDate, periodDates),
+        eq(pickemPicksTable.result, "pending"),
+      ))
+      .returning({ id: pickemPicksTable.id });
+    if (updated.length > 0) {
+      logger.info({ poolId: pool.id, gameId, count: updated.length }, "Crazy 8's: marked picks as postponed");
+    }
+  }
+
+  return picksGraded;
+}
+
 export async function processCrazyEightsResults(): Promise<{
   picksGraded: number;
 }> {
@@ -4816,59 +4923,40 @@ export async function processCrazyEightsResults(): Promise<{
       fetchGamesForDate("mlb", yesterdayEspn),
     ]);
 
-    const winnerByGameId = new Map<string, string>();
-    const postponedIds: string[] = [];
-    for (const game of [...todayGames, ...yesterdayGames]) {
-      if (game.isPostponed) {
-        postponedIds.push(game.id);
-        continue;
-      }
-      if (game.isCompleted && game.homeScore != null && game.awayScore != null && game.homeScore !== game.awayScore) {
-        const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;
-        winnerByGameId.set(game.id, winningTeamId);
-        logger.info(
-          { gameId: game.id, winner: winningTeamId, score: `${game.awayTeam.abbreviation} ${game.awayScore} @ ${game.homeTeam.abbreviation} ${game.homeScore}` },
-          "Crazy 8's: completed game found",
-        );
-      }
-    }
+    const weeklyMlbPools = mlbPools.filter((pool) => pool.pickFrequency === "weekly");
+    const currentWeek = weeklyMlbPools.length > 0 ? getWeekBoundsEt(todayEt) : null;
+    const isCurrentWeekComplete = currentWeek != null && todayEt === currentWeek.weekEnd;
+    const weeklyStart = currentWeek == null
+      ? null
+      : isCurrentWeekComplete
+        ? currentWeek.weekStart
+        : offsetEtDate(currentWeek.weekStart, -7);
+    const weeklyEnd = currentWeek == null
+      ? null
+      : isCurrentWeekComplete
+        ? currentWeek.weekEnd
+        : offsetEtDate(currentWeek.weekEnd, -7);
+    const weeklyDates = weeklyStart != null && weeklyEnd != null
+      ? dateRangeInclusive(weeklyStart, weeklyEnd)
+      : [];
+    const weeklyGames = weeklyDates.length === 7
+      ? await fetchMlbWeekGames(weeklyDates.map((date) => date.replace(/-/g, "")))
+      : [];
 
     for (const pool of mlbPools) {
-      // Grade correct / incorrect
-      for (const [gameId, winningTeamId] of winnerByGameId) {
-        const gamePicks = await db
-          .select()
-          .from(pickemPicksTable)
-          .where(and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, gameId),
-            inArray(pickemPicksTable.gameDate, [todayEt, yesterdayEt]),
-            eq(pickemPicksTable.result, "pending"),
-          ));
-        for (const pick of gamePicks) {
-          const result: "correct" | "incorrect" = pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
-          await db.update(pickemPicksTable).set({ result, updatedAt: new Date() }).where(eq(pickemPicksTable.id, pick.id));
-          picksGraded++;
-          logger.info({ poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result }, "Crazy 8's: auto-graded pick");
-        }
-      }
-      // Mark postponed
-      for (const gameId of postponedIds) {
-        const updated = await db
-          .update(pickemPicksTable)
-          .set({ result: "postponed", updatedAt: new Date() })
-          .where(and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.gameId, gameId),
-            eq(pickemPicksTable.result, "pending"),
-          ))
-          .returning({ id: pickemPicksTable.id });
-        if (updated.length > 0) logger.info({ poolId: pool.id, gameId, count: updated.length }, "Crazy 8's: marked picks as postponed");
-      }
+      const dailyDates = [yesterdayEt, todayEt];
+      picksGraded += await gradeMlbCrazyEightsPicks(pool, [...yesterdayGames, ...todayGames], dailyDates);
 
-      // Resolve each day separately (yesterday first — most likely complete)
-      await resolveCrazyEightsPeriod(pool, [yesterdayEt], yesterdayGames);
-      await resolveCrazyEightsPeriod(pool, [todayEt], todayGames);
+      if (pool.pickFrequency === "weekly") {
+        // Re-grade the complete period as a catch-up pass, then resolve only
+        // after all seven calendar days have been included.
+        picksGraded += await gradeMlbCrazyEightsPicks(pool, weeklyGames, weeklyDates);
+        await resolveCrazyEightsPeriod(pool, weeklyDates, weeklyGames);
+      } else {
+        // Daily High Heat keeps its existing one-day resolution behavior.
+        await resolveCrazyEightsPeriod(pool, [yesterdayEt], yesterdayGames);
+        await resolveCrazyEightsPeriod(pool, [todayEt], todayGames);
+      }
     }
   }
 

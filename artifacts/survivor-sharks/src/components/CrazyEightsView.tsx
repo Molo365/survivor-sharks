@@ -26,6 +26,7 @@ interface CrazyEightsViewProps {
   sport: string;
   pickFrequency?: string;
   poolName?: string;
+  isActive?: boolean;
 }
 
 interface PitcherInfo {
@@ -730,7 +731,7 @@ function GameCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: CrazyEightsViewProps) {
+export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActive = true }: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -798,7 +799,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
   const { data: yesterdayWinner } = useQuery<YesterdayWinnerResponse>({
     queryKey: ["crazy-eights-yesterday-winner", poolId, priorPeriodDate],
     queryFn: () => authedFetch<YesterdayWinnerResponse>(`/api/pools/${poolId}/crazy-eights/yesterday-winner?date=${priorPeriodDate}`),
-    enabled: !!user,
+    enabled: !!user && isActive,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -809,7 +810,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     queryFn: () => authedFetch<SubmittedPicksResponse>(`/api/pools/${poolId}/crazy-eights/picks`),
     retry: false,
     staleTime: 30_000,
-    enabled: !!user,
+    enabled: !!user && isActive,
   });
 
   const { data: slateData, isLoading: slateLoading } = useQuery<SlateResponse>({
@@ -817,7 +818,7 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
     queryFn: () => authedFetch<SlateResponse>(`/api/pools/${poolId}/crazy-eights/slate`),
     staleTime: 30_000,
     refetchInterval: 30_000,
-    enabled: !!user,
+    enabled: !!user && isActive,
   });
 
   const games: SlateGame[] = slateData?.games ?? [];
@@ -966,6 +967,16 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily" }: Craz
         ? { picks, tiebreakerPoints: parseInt(tbPoints, 10), tiebreakerThrees: parseInt(tbThrees, 10) }
         : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
     await postPicks(body);
+  }
+
+  if (!isActive) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
+        <Lock className="w-10 h-10 text-muted-foreground/50 mb-3" />
+        <p className="font-bebas text-2xl tracking-wide text-muted-foreground">PICKS CLOSED</p>
+        <p className="text-sm text-muted-foreground/70 mt-1">This High Heat pool has ended. View the leaderboard for final results.</p>
+      </div>
+    );
   }
 
   // ── Loading state ─────────────────────────────────────────────────────────
