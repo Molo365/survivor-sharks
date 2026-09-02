@@ -17,3 +17,4 @@
 - [Pick visibility timing](pick-visibility-timing.md) — submission locks and pick disclosure are separate: opponents' picks reveal only at actual kickoff or after grading.
 - [NFL tie grading](nfl-tie-grading.md) — final NFL ties need explicit resolved outcomes; otherwise confidence/Pick-Em rows can remain pending and block closure.
 - [Drizzle migration drift](drizzle-migration-drift.md) — dev may be push-applied ahead of checked-in migration history; scope generated migrations before external production use.
+- [High Heat weekly closure](crazy-eights-weekly-closure.md) — MLB weekly Crazy 8s must not use the daily resolver or open-pool pick endpoints after closure.
