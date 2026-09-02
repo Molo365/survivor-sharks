@@ -36,8 +36,8 @@ export default function Landing() {
         {/* ── 2. GET STARTED / SIGN IN buttons ──────────────────── */}
         {/* ── 3. NFL countdown timer ────────────────────────────── */}
         <section className="flex flex-col items-center text-center px-4 pt-5 pb-2">
-          <div className="landing-logo-effect relative w-full max-w-[820px] mb-1">
-            <img src="/hero-banner-clean.jpg" alt="Survivor Sharks" className="landing-logo w-full object-contain block" style={{ maxHeight: "min(200px, 28vh)" }} />
+          <div className="relative w-full max-w-[820px] mb-1">
+            <img src="/hero-banner-clean.jpg" alt="Survivor Sharks" className="w-full object-contain block" style={{ maxHeight: "min(200px, 28vh)" }} />
             <div className="absolute inset-y-0 left-0 w-[12%] pointer-events-none" style={{ background: "linear-gradient(to right, rgba(6,8,16,0.82), transparent)" }} />
             <div className="absolute inset-y-0 right-0 w-[12%] pointer-events-none" style={{ background: "linear-gradient(to left, rgba(6,8,16,0.82), transparent)" }} />
             <div className="absolute inset-x-0 bottom-0 h-[18%] pointer-events-none" style={{ background: "linear-gradient(to top, rgba(6,8,16,0.82), transparent)" }} />
