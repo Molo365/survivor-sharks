@@ -334,7 +334,7 @@ export default function PoolHome() {
             )}
 
             {isMlbBracket ? (
-              <MlbPostseasonBracketView poolId={pool.id} isCommissioner={isCommissioner} sandboxMode={(pool as any).sandboxMode ?? false} isActive={pool.isActive} />
+              <MlbPostseasonBracketView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isActive={pool.isActive} />
             ) : isPickEmSeason ? (
               <PickEmSeasonView
                 poolId={pool.id}

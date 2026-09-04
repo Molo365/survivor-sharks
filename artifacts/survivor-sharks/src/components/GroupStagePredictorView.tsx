@@ -35,6 +35,7 @@ import {
   Minus,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InviteCodeCard } from "@/components/InviteCodeCard";
 
 interface Props {
   poolId: number;
@@ -392,52 +393,9 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
 // ── Commissioner tab ──────────────────────────────────────────────────────────
 
 function CommissionerTab({ poolId, inviteCode }: { poolId: number; inviteCode: string }) {
-  const { toast } = useToast();
-
-  const copyInvite = () => {
-    navigator.clipboard.writeText(inviteCode);
-    toast({ title: "Invite code copied to clipboard!" });
-  };
-
-  const copyLink = () => {
-    const url = `${window.location.origin}/join/${inviteCode}`;
-    navigator.clipboard.writeText(url);
-    toast({ title: "Invite link copied!", description: url });
-  };
-
   return (
     <div className="pt-4 max-w-xl space-y-6">
-      <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
-        <div className="absolute right-0 top-0 bottom-0 w-24 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.08),transparent)] pointer-events-none" />
-        <div className="p-6 space-y-4">
-          <div>
-            <h4 className="font-bebas text-2xl tracking-wide text-primary mb-0.5">
-              Invite Code
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Share this code to let players join the pool.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
-              {inviteCode}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="lg" onClick={copyInvite} className="font-bebas text-xl tracking-wider">
-                <Copy className="w-5 h-5 mr-2" /> Copy Code
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={copyLink}
-                className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
-              >
-                <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <InviteCodeCard inviteCode={inviteCode} />
       <CancelPoolButton poolId={poolId} />
     </div>
   );

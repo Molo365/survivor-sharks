@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1017,20 +1018,6 @@ export function WcBracketView({
     );
   };
 
-  const copyInvite = () => {
-    if (inviteCode) {
-      navigator.clipboard.writeText(inviteCode);
-      toast({ title: "Invite code copied!" });
-    }
-  };
-
-  const copyInviteLink = () => {
-    if (inviteCode) {
-      navigator.clipboard.writeText(`${window.location.origin}/join/${inviteCode}`);
-      toast({ title: "Invite link copied!", description: "Share it with anyone to let them join." });
-    }
-  };
-
   const { data: roundData, isLoading } = useGetWcBracket(poolId, {
     query: { queryKey: getGetWcBracketQueryKey(poolId) },
   });
@@ -1392,35 +1379,7 @@ export function WcBracketView({
           {isCommissioner && (
             <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
               <div className="space-y-8 max-w-4xl">
-                {/* Invite Code */}
-                <Card className="bg-card border-border/50 overflow-hidden relative">
-                  <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />
-                  <CardHeader>
-                    <CardTitle className="font-bebas text-3xl tracking-wide text-primary">Invite Code</CardTitle>
-                    <CardDescription>Share this code to let sharks into the pool.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                      <div className="bg-background border border-primary/20 px-8 py-4 rounded-md font-mono text-3xl tracking-widest text-foreground font-bold">
-                        {inviteCode ?? "—"}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="lg" onClick={copyInvite} disabled={!inviteCode} className="font-bebas text-xl tracking-wider">
-                          <Copy className="w-5 h-5 mr-2" /> Copy Code
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          disabled={!inviteCode}
-                          className="font-bebas text-xl tracking-wider border-primary/30 hover:bg-primary/10 hover:border-primary/50"
-                          onClick={copyInviteLink}
-                        >
-                          <Copy className="w-5 h-5 mr-2" /> Copy Invite Link
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <InviteCodeCard inviteCode={inviteCode} />
 
                 {/* Settings */}
                 <Card className="bg-card border-border/50">

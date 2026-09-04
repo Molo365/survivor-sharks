@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { InviteCodeCard } from "@/components/InviteCodeCard";
 
 const ROUND_LABELS: Record<string, string> = {
   wild_card: "Wild Card",
@@ -121,7 +122,7 @@ function SeriesCard({ series, pick, eligibleTeams, teamLogos, editable, onPick }
   );
 }
 
-export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, isActive }: { poolId: number; isCommissioner: boolean; sandboxMode: boolean; isActive: boolean }) {
+export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, sandboxMode, isActive }: { poolId: number; isCommissioner: boolean; inviteCode?: string | null; sandboxMode: boolean; isActive: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading, error } = useGetMlbBracket(poolId, { query: { queryKey: getGetMlbBracketQueryKey(poolId), staleTime: 0 } });
@@ -164,7 +165,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, 
     <TabsList className="bg-card border border-border h-auto p-1.5 gap-1">
       <TabsTrigger value="picks" data-testid="tab-mlb-bracket-picks"><Trophy className="w-4 h-4 mr-1.5" />Postseason Bracket</TabsTrigger>
       <TabsTrigger value="leaderboard" data-testid="tab-mlb-bracket-leaderboard"><Activity className="w-4 h-4 mr-1.5" />Leaderboard</TabsTrigger>
-      {isCommissioner && sandboxMode && <TabsTrigger value="commissioner" data-testid="tab-mlb-bracket-commissioner"><ShieldAlert className="w-4 h-4 mr-1.5" />Commissioner</TabsTrigger>}
+      {isCommissioner && <TabsTrigger value="commissioner" data-testid="tab-mlb-bracket-commissioner"><ShieldAlert className="w-4 h-4 mr-1.5" />Commissioner</TabsTrigger>}
     </TabsList>
     <TabsContent value="picks" className="mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -177,7 +178,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, 
       {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} eligibleTeams={eligibleTeamsBySlot[s.seriesId] ?? []} teamLogos={data.teamLogos} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
     </TabsContent>
     <TabsContent value="leaderboard" className="mt-6 space-y-2">{leaderboardLoading ? <Skeleton className="h-44" /> : leaderboard.length === 0 ? <Card><CardContent className="p-10 text-center text-muted-foreground">No brackets submitted yet.</CardContent></Card> : leaderboard.map((entry, index) => <button type="button" key={entry.userId} data-testid={`button-mlb-member-${entry.userId}`} onClick={() => setMember(entry)} className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4 text-left hover:border-primary/40"><span className="font-bebas text-xl text-primary w-8">#{entry.rank ?? index + 1}</span><span className="flex-1 font-semibold">{entry.displayName ?? entry.username ?? "Member"}</span><span className="text-right"><b className="text-accent">{entry.points ?? 0}</b><span className="text-xs text-muted-foreground"> pts</span></span></button>)}</TabsContent>
-    {isCommissioner && sandboxMode && <TabsContent value="commissioner" className="mt-6"><Card><CardContent className="p-5"><h3 className="font-bebas text-xl tracking-wide mb-1">Sandbox controls</h3><p className="text-sm text-muted-foreground mb-4">Advance the next full round or grade the entire postseason.</p><div className="flex flex-wrap gap-3"><Button data-testid="button-simulate-mlb-next" variant="outline" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateNext.mutate({ poolId })}>Simulate next round</Button><Button data-testid="button-simulate-mlb-full" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateFull.mutate({ poolId })}>Simulate full bracket</Button></div></CardContent></Card></TabsContent>}
+    {isCommissioner && <TabsContent value="commissioner" className="mt-6"><div className="space-y-6"><InviteCodeCard inviteCode={inviteCode} />{sandboxMode && <Card><CardContent className="p-5"><h3 className="font-bebas text-xl tracking-wide mb-1">Sandbox controls</h3><p className="text-sm text-muted-foreground mb-4">Advance the next full round or grade the entire postseason.</p><div className="flex flex-wrap gap-3"><Button data-testid="button-simulate-mlb-next" variant="outline" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateNext.mutate({ poolId })}>Simulate next round</Button><Button data-testid="button-simulate-mlb-full" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateFull.mutate({ poolId })}>Simulate full bracket</Button></div></CardContent></Card>}</div></TabsContent>}
     {member && <Dialog open onOpenChange={open => !open && setMember(null)}><DialogContent><DialogHeader><DialogTitle>{member.displayName ?? member.username}'s bracket</DialogTitle></DialogHeader>{memberPicks.isLoading ? <Skeleton className="h-40" /> : memberRows.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No submitted picks are available.</p> : <div className="max-h-80 space-y-4 overflow-auto">{ROUND_ORDER.map((round) => { const picksForRound = memberRows.filter((pick) => pick.round === round); return picksForRound.length ? <section key={round}><h3 className="font-bebas tracking-wide text-muted-foreground">{ROUND_LABELS[round]}</h3><div className="mt-2 space-y-2">{picksForRound.map((pick) => <div key={pick.seriesId} className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-3"><span className="font-semibold">{pick.seriesSlot?.replaceAll("_", " ") ?? pick.seriesId}</span><span className="text-right text-sm"><b className="text-primary">{pick.predictedWinner}</b><span className="block text-xs text-muted-foreground">in {pick.predictedLength}</span></span></div>)}</div></section> : null; })}</div>}</DialogContent></Dialog>}
   </Tabs>;
 }
