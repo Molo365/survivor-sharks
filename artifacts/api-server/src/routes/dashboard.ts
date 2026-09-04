@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   pickemPicksTable,
+  picksTable,
   poolsTable,
   usersTable,
   entriesTable,
@@ -186,6 +187,15 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           .from(entriesTable)
           .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, userId)))
           .limit(1);
+        const [currentWeekPick] = await db
+          .select({ id: picksTable.id })
+          .from(picksTable)
+          .where(and(
+            eq(picksTable.poolId, pool.id),
+            eq(picksTable.userId, userId),
+            eq(picksTable.week, pool.currentWeek),
+          ))
+          .limit(1);
         // For ended pools, a finalWinner entry is treated as "alive" regardless of
         // the live status field (which the auto-eliminator may have flipped to "eliminated").
         const isFinalWinner = entry?.finalWinner ?? false;
@@ -259,7 +269,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners: null,
           myStanding: {
             rank: survivorRank, isTied: computeIsTied(survivorScored, userId), correct: 0, picked: 0,
-            hasPicks: !!entry,
+            // Preserve the existing entry-based value for eliminated users; for
+            // alive entries, this reflects whether they picked the current week.
+            hasPicks: entry?.status === "alive" ? !!currentWeekPick : !!entry,
             status,
             eliminatedWeek,
             score: null,

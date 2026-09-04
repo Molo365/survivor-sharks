@@ -194,12 +194,19 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                       </div>
                     )
                   ) : (
+                    pool.isActive && !pickEmStat.myStanding.hasPicks ? (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                        <span aria-hidden>⚠️</span>
+                        <span>Picks needed</span>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <span aria-hidden>💪</span>
                       <span className="text-foreground/70 font-medium">You&apos;re alive</span>
                       <span className="text-muted-foreground/40">·</span>
                       <span>{pool.activeCount ?? 0} alive</span>
                     </div>
+                    )
                   )
                 ) : pickEmStat.myStanding.status === "eliminated" ? (
                   <div className="flex items-center gap-1.5 text-xs text-amber-500/70">
