@@ -1943,8 +1943,52 @@ export interface MlbBracketResultBreakdownItem {
   winnerCorrect: boolean | null;
   /** @nullable */
   lengthCorrect: boolean | null;
+  predictedTeamEliminated: boolean;
   pointsEarned: number;
   possiblePoints: number;
+}
+
+export type MlbBracketGridSeriesItemRound = typeof MlbBracketGridSeriesItemRound[keyof typeof MlbBracketGridSeriesItemRound];
+
+
+export const MlbBracketGridSeriesItemRound = {
+  wild_card: 'wild_card',
+  division_series: 'division_series',
+  league_championship: 'league_championship',
+  world_series: 'world_series',
+} as const;
+
+export type MlbBracketGridSeriesItem = {
+  seriesId: string;
+  round: MlbBracketGridSeriesItemRound;
+  roundLabel: string;
+  completed: boolean;
+};
+
+/**
+ * @nullable
+ */
+export type MlbBracketGridMembersItemPicksItem = {
+  seriesId?: string;
+  predictedWinner?: string;
+  teamAbbreviation?: string;
+  predictedLength?: number;
+  /** @nullable */
+  winnerCorrect?: boolean | null;
+  predictedTeamEliminated?: boolean;
+} | null;
+
+export type MlbBracketGridMembersItem = {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName: string | null;
+  picks: MlbBracketGridMembersItemPicksItem[];
+};
+
+export interface MlbBracketGrid {
+  series: MlbBracketGridSeriesItem[];
+  members: MlbBracketGridMembersItem[];
 }
 
 export type MlbBracketStateTeamLogos = {[key: string]: string | null};
@@ -2000,6 +2044,7 @@ export type MlbBracketStateRoundsItem = {
 export interface MlbBracketState {
   field: string[];
   teamLogos: MlbBracketStateTeamLogos;
+  eliminatedTeams: string[];
   isLocked: boolean;
   rounds: MlbBracketStateRoundsItem[];
 }

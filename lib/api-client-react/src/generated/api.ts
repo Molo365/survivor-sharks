@@ -54,6 +54,7 @@ import type {
   JoinPoolInput,
   Leaderboard,
   LoginInput,
+  MlbBracketGrid,
   MlbBracketPickBatch,
   MlbBracketResultBreakdownItem,
   MlbBracketState,
@@ -2154,6 +2155,83 @@ export function useGetMlbBracketLeaderboard<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMlbBracketLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMlbBracketGridUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket/grid`
+}
+
+/**
+ * @summary Get every member's predictions for all MLB postseason series
+ */
+export const getMlbBracketGrid = async (poolId: number, options?: RequestInit): Promise<MlbBracketGrid> => {
+
+  return customFetch<MlbBracketGrid>(getGetMlbBracketGridUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMlbBracketGridQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/mlb-bracket/grid`
+    ] as const;
+    }
+
+
+export const getGetMlbBracketGridQueryOptions = <TData = Awaited<ReturnType<typeof getMlbBracketGrid>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketGrid>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMlbBracketGridQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMlbBracketGrid>>> = ({ signal }) => getMlbBracketGrid(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketGrid>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMlbBracketGridQueryResult = NonNullable<Awaited<ReturnType<typeof getMlbBracketGrid>>>
+export type GetMlbBracketGridQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get every member's predictions for all MLB postseason series
+ */
+
+export function useGetMlbBracketGrid<TData = Awaited<ReturnType<typeof getMlbBracketGrid>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketGrid>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMlbBracketGridQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

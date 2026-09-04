@@ -594,6 +594,22 @@ paths:
           schema: { type: integer }
       responses:
         "200": { description: Standings }
+  /pools/{poolId}/mlb-bracket/grid:
+    get:
+      operationId: getMlbBracketGrid
+      tags: [pools]
+      summary: Get every member's predictions for all MLB postseason series
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Complete MLB bracket pick grid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MlbBracketGrid" }
   /pools/{poolId}/mlb-bracket/members/{userId}/picks:
     get:
       operationId: getMlbBracketMemberPicks
@@ -4807,7 +4823,7 @@ components:
           items: { $ref: "#/components/schemas/MlbBracketPickInput" }
     MlbBracketResultBreakdownItem:
       type: object
-      required: [seriesId, seriesSlot, round, roundLabel, predictedWinner, predictedLength, actualWinner, actualLength, winnerCorrect, lengthCorrect, pointsEarned, possiblePoints]
+      required: [seriesId, seriesSlot, round, roundLabel, predictedWinner, predictedLength, actualWinner, actualLength, winnerCorrect, lengthCorrect, predictedTeamEliminated, pointsEarned, possiblePoints]
       properties:
         seriesId: { type: string }
         seriesSlot: { type: string }
@@ -4819,11 +4835,46 @@ components:
         actualLength: { type: [integer, "null"] }
         winnerCorrect: { type: [boolean, "null"] }
         lengthCorrect: { type: [boolean, "null"] }
+        predictedTeamEliminated: { type: boolean }
         pointsEarned: { type: integer }
         possiblePoints: { type: integer }
+    MlbBracketGrid:
+      type: object
+      required: [series, members]
+      properties:
+        series:
+          type: array
+          items:
+            type: object
+            required: [seriesId, round, roundLabel, completed]
+            properties:
+              seriesId: { type: string }
+              round: { type: string, enum: [wild_card, division_series, league_championship, world_series] }
+              roundLabel: { type: string }
+              completed: { type: boolean }
+        members:
+          type: array
+          items:
+            type: object
+            required: [userId, username, displayName, picks]
+            properties:
+              userId: { type: integer }
+              username: { type: string }
+              displayName: { type: [string, "null"] }
+              picks:
+                type: array
+                items:
+                  type: [object, "null"]
+                  properties:
+                    seriesId: { type: string }
+                    predictedWinner: { type: string }
+                    teamAbbreviation: { type: string }
+                    predictedLength: { type: integer }
+                    winnerCorrect: { type: [boolean, "null"] }
+                    predictedTeamEliminated: { type: boolean }
     MlbBracketState:
       type: object
-      required: [field, teamLogos, isLocked, rounds]
+      required: [field, teamLogos, eliminatedTeams, isLocked, rounds]
       properties:
         field:
           type: array
@@ -4832,6 +4883,9 @@ components:
           type: object
           additionalProperties:
             type: [string, "null"]
+        eliminatedTeams:
+          type: array
+          items: { type: string }
         isLocked:
           type: boolean
         rounds:

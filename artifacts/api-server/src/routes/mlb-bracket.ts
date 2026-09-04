@@ -3,11 +3,15 @@ import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBrac
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
-import { fetchMlbPostseasonSeries, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
 type Context = { poolId: number; pool: typeof poolsTable.$inferSelect };
+
+function getEliminatedTeams(results: Array<typeof mlbBracketResultsTable.$inferSelect>): Set<string> {
+  return new Set(results.flatMap(result => [result.team1, result.team2].filter(team => team !== result.winner)));
+}
 
 async function getContext(req: any, res: any): Promise<Context | null> {
   const poolId = Number(req.params.poolId);
@@ -80,8 +84,9 @@ router.get("/", requireAuth, async (req, res) => {
     team,
     liveLogos.get(team) ?? getMlbTeamLogoUrl(team),
   ]));
+  const eliminatedTeams = [...getEliminatedTeams(results)];
   const picksBySeries = new Map(picks.map(p => [p.seriesId, p]));
-  res.json({ field, teamLogos, isLocked: await pickLocked(ctx, series), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
+  res.json({ field, teamLogos, eliminatedTeams, isLocked: await pickLocked(ctx, series), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
 });
 async function submitPicks(req: any, res: any) {
   const ctx = await getContext(req, res); if (!ctx) return;
@@ -116,17 +121,59 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const rows = members.map(member => { const own = picks.filter(p => p.userId === member.userId); return { ...member, points: own.filter(p => p.winnerCorrect).reduce((sum, p) => sum + MLB_ROUND_POINTS[p.round], 0), correctLengths: own.filter(p => p.lengthCorrect).length }; }).sort((a, b) => b.points - a.points || b.correctLengths - a.correctLengths);
   let rank = 0; res.json(rows.map((row, index) => { if (!index || row.points !== rows[index - 1].points || row.correctLengths !== rows[index - 1].correctLengths) rank = index + 1; return { ...row, rank }; }));
 });
+router.get("/grid", requireAuth, async (req, res) => {
+  const ctx = await getContext(req, res); if (!ctx) return;
+  if (!await pickLocked(ctx)) {
+    res.status(403).json({ error: "The pick grid becomes available once the bracket locks." });
+    return;
+  }
+  const [members, picks, results] = await Promise.all([
+    db.select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, ctx.poolId)),
+    db.select().from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, ctx.poolId)),
+    db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
+  ]);
+  const eliminatedTeams = getEliminatedTeams(results);
+  const completedSlots = new Set(results.map(result => result.seriesSlot));
+  const picksByUser = new Map<number, Map<string, typeof mlbBracketPicksTable.$inferSelect>>();
+  for (const pick of picks) {
+    const userPicks = picksByUser.get(pick.userId) ?? new Map();
+    userPicks.set(pick.seriesSlot, pick);
+    picksByUser.set(pick.userId, userPicks);
+  }
+  res.json({
+    series: MLB_BRACKET_SLOTS.map(([round, seriesId]) => ({ seriesId, round, roundLabel: ROUND_LABELS[round], completed: completedSlots.has(seriesId) })),
+    members: members.map(member => ({
+      ...member,
+      picks: MLB_BRACKET_SLOTS.map(([, seriesId]) => {
+        const pick = picksByUser.get(member.userId)?.get(seriesId);
+        return pick ? {
+          seriesId,
+          predictedWinner: pick.predictedWinner,
+          teamAbbreviation: getMlbTeamAbbreviation(pick.predictedWinner) ?? pick.predictedWinner.slice(0, 3).toUpperCase(),
+          predictedLength: pick.predictedLength,
+          winnerCorrect: pick.winnerCorrect,
+          predictedTeamEliminated: eliminatedTeams.has(pick.predictedWinner),
+        } : null;
+      }),
+    })),
+  });
+});
 router.get("/members/:userId/picks", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
   const userId = Number(req.params.userId);
   const exists = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(eq(entriesTable.poolId, ctx.poolId), eq(entriesTable.userId, userId))).limit(1);
   if (!exists.length) { res.status(404).json({ error: "Member not found" }); return; }
+  if (userId !== req.user!.id && !await pickLocked(ctx)) {
+    res.status(403).json({ error: "Other players' brackets become available once the bracket locks." });
+    return;
+  }
   const [picks, results] = await Promise.all([
     db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, userId))),
     db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
   ]);
   const picksBySlot = new Map(picks.map(pick => [pick.seriesSlot, pick]));
   const resultsBySlot = new Map(results.map(result => [result.seriesSlot, result]));
+  const eliminatedTeams = getEliminatedTeams(results);
   res.json(MLB_BRACKET_SLOTS.map(([round, seriesSlot]) => {
     const pick = picksBySlot.get(seriesSlot);
     const result = resultsBySlot.get(seriesSlot);
@@ -141,6 +188,7 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
       actualLength: result?.actualLength ?? null,
       winnerCorrect: pick?.winnerCorrect ?? null,
       lengthCorrect: pick?.lengthCorrect ?? null,
+      predictedTeamEliminated: pick ? eliminatedTeams.has(pick.predictedWinner) : false,
       pointsEarned: pick?.winnerCorrect ? MLB_ROUND_POINTS[round] : 0,
       possiblePoints: MLB_ROUND_POINTS[round],
     };

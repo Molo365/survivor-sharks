@@ -2,6 +2,7 @@ import type { MlbBracketResultBreakdownItem } from "@workspace/api-client-react"
 import { Check, Clock3, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
 
 const ROUND_ORDER = ["wild_card", "division_series", "league_championship", "world_series"];
 const ROUND_LABELS: Record<string, string> = {
@@ -48,12 +49,25 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
             <div className="space-y-2">
               {roundRows.map(row => {
                 const pending = row.actualWinner === null;
+                const visualState = getMlbBracketPickVisualState({
+                  winnerCorrect: row.winnerCorrect,
+                  seriesCompleted: !pending,
+                  predictedTeamEliminated: row.predictedTeamEliminated,
+                });
+                const eliminatedFuture = visualState === "eliminated";
                 return (
-                  <div key={row.seriesId} className={cn("rounded-xl border p-3", pending ? "border-border/40 bg-muted/10" : row.winnerCorrect ? "border-emerald-500/25 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5")}>
+                  <div key={row.seriesId} className={cn(
+                    "rounded-xl border p-3",
+                    visualState === "alive" && "border-primary/20 bg-card",
+                    visualState === "eliminated" && "border-border/30 bg-muted/20 text-muted-foreground/50 grayscale",
+                    visualState === "correct" && "border-emerald-500/25 bg-emerald-500/5",
+                    visualState === "incorrect" && "border-red-500/20 bg-red-500/5",
+                    visualState === "processing" && "border-amber-500/25 bg-amber-500/5",
+                  )}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{row.seriesSlot.replaceAll("_", " ")}</p>
-                        <p className="mt-1 font-semibold">{row.predictedWinner ?? "No pick"} <span className="font-normal text-muted-foreground">in {row.predictedLength ?? "—"}</span></p>
+                        <p className="mt-1 font-semibold">{row.predictedWinner ?? "No pick"} <span className="font-normal text-muted-foreground">in {row.predictedLength ?? "—"}</span>{eliminatedFuture && <span className="ml-2 text-[9px] uppercase tracking-wider">Eliminated</span>}{visualState === "processing" && <span className="ml-2 text-[9px] uppercase tracking-wider text-amber-300">Processing</span>}</p>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className={cn("font-bebas text-xl", row.pointsEarned > 0 ? "text-primary" : "text-muted-foreground")}>{row.pointsEarned}/{row.possiblePoints}</p>

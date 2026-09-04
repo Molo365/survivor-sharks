@@ -834,6 +834,7 @@ export const GetMlbBracketParams = zod.object({
 export const GetMlbBracketResponse = zod.object({
   "field": zod.array(zod.string()),
   "teamLogos": zod.record(zod.string(), zod.string().nullable()),
+  "eliminatedTeams": zod.array(zod.string()),
   "isLocked": zod.boolean(),
   "rounds": zod.array(zod.object({
   "seriesId": zod.string(),
@@ -886,6 +887,36 @@ export const GetMlbBracketLeaderboardParams = zod.object({
 
 
 /**
+ * @summary Get every member's predictions for all MLB postseason series
+ */
+export const GetMlbBracketGridParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetMlbBracketGridResponse = zod.object({
+  "series": zod.array(zod.object({
+  "seriesId": zod.string(),
+  "round": zod.enum(['wild_card', 'division_series', 'league_championship', 'world_series']),
+  "roundLabel": zod.string(),
+  "completed": zod.boolean()
+})),
+  "members": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullable(),
+  "picks": zod.array(zod.object({
+  "seriesId": zod.string().optional(),
+  "predictedWinner": zod.string().optional(),
+  "teamAbbreviation": zod.string().optional(),
+  "predictedLength": zod.number().optional(),
+  "winnerCorrect": zod.boolean().nullish(),
+  "predictedTeamEliminated": zod.boolean().optional()
+}).nullable())
+}))
+})
+
+
+/**
  * @summary Get a member's MLB bracket predictions
  */
 export const GetMlbBracketMemberPicksParams = zod.object({
@@ -904,6 +935,7 @@ export const GetMlbBracketMemberPicksResponseItem = zod.object({
   "actualLength": zod.number().nullable(),
   "winnerCorrect": zod.boolean().nullable(),
   "lengthCorrect": zod.boolean().nullable(),
+  "predictedTeamEliminated": zod.boolean(),
   "pointsEarned": zod.number(),
   "possiblePoints": zod.number()
 })

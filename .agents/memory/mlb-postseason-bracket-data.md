@@ -14,3 +14,9 @@ Division Series slots must treat the advancing Wild Card winner as the opponent 
 **Why:** A resolver that always assigned feeder side 1 to matchup team 1 let the fixed bye team overwrite the feeder winner, leaving matchup team 2 unresolved and also preventing later live-series mapping.
 
 **How to apply:** Use one shared slot-team resolver for display, sandbox simulation, and live grading; do not independently combine fixed teams and feeder winners in those paths.
+
+Bracket points are awarded when the predicted team wins that round; predicting the wrong opponent does not invalidate the team pick. A future pick is dead only after that picked team actually loses a completed postseason series.
+
+**Why:** Opponent projections describe bracket paths, but scoring and remaining point potential follow the real team’s postseason survival independently.
+
+**How to apply:** Derive eliminated teams from losers in persisted completed-series results. For display precedence, show graded correct/incorrect first, then processing, then future eliminated versus still alive.

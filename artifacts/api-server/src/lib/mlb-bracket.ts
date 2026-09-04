@@ -17,6 +17,11 @@ export function getMlbTeamLogoUrl(teamName: string | null | undefined): string |
   return team ? getTeamLogoUrl("mlb", team) : null;
 }
 
+export function getMlbTeamAbbreviation(teamName: string | null | undefined): string | null {
+  if (!teamName) return null;
+  return ESPN_TEAMS.mlb.find(candidate => candidate.name === teamName)?.abbreviation ?? null;
+}
+
 export function bracketBlueprint(field: MlbField) {
   const rows = (league: "AL" | "NL", teams: string[]) => [
     { seriesSlot: `${league}_WC_1`, round: "wild_card", fixedTeam1: teams[2], fixedTeam2: teams[5] },
