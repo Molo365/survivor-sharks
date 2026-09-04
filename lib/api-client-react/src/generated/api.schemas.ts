@@ -94,6 +94,7 @@ export const PoolInputPoolType = {
   nfl_confidence: 'nfl_confidence',
   nfl_confidence_weekly: 'nfl_confidence_weekly',
   wc_bracket: 'wc_bracket',
+  mlb_bracket: 'mlb_bracket',
 } as const;
 
 /**
@@ -156,6 +157,7 @@ export const PoolUpdatePoolType = {
   nfl_confidence: 'nfl_confidence',
   nfl_confidence_weekly: 'nfl_confidence_weekly',
   wc_bracket: 'wc_bracket',
+  mlb_bracket: 'mlb_bracket',
 } as const;
 
 export type PoolUpdatePickFrequency = typeof PoolUpdatePickFrequency[keyof typeof PoolUpdatePickFrequency];
@@ -246,6 +248,7 @@ export const PoolPoolType = {
   nfl_confidence: 'nfl_confidence',
   nfl_confidence_weekly: 'nfl_confidence_weekly',
   wc_bracket: 'wc_bracket',
+  mlb_bracket: 'mlb_bracket',
 } as const;
 
 /**
@@ -328,6 +331,7 @@ export const PoolDetailPoolType = {
   nfl_confidence: 'nfl_confidence',
   nfl_confidence_weekly: 'nfl_confidence_weekly',
   wc_bracket: 'wc_bracket',
+  mlb_bracket: 'mlb_bracket',
 } as const;
 
 /**
@@ -430,6 +434,7 @@ export const PastPoolPoolType = {
   nfl_confidence: 'nfl_confidence',
   nfl_confidence_weekly: 'nfl_confidence_weekly',
   wc_bracket: 'wc_bracket',
+  mlb_bracket: 'mlb_bracket',
 } as const;
 
 export interface PastPool {
@@ -1875,6 +1880,83 @@ export interface FinalResults {
   isFreePool: boolean;
   hadTiebreaker: boolean;
   tiebreakerSummary?: TiebreakerSummary | null;
+}
+
+export type MlbBracketPickInputSeriesId = typeof MlbBracketPickInputSeriesId[keyof typeof MlbBracketPickInputSeriesId];
+
+
+export const MlbBracketPickInputSeriesId = {
+  AL_WC_1: 'AL_WC_1',
+  AL_WC_2: 'AL_WC_2',
+  NL_WC_1: 'NL_WC_1',
+  NL_WC_2: 'NL_WC_2',
+  AL_DS_1: 'AL_DS_1',
+  AL_DS_2: 'AL_DS_2',
+  NL_DS_1: 'NL_DS_1',
+  NL_DS_2: 'NL_DS_2',
+  ALCS: 'ALCS',
+  NLCS: 'NLCS',
+  WORLD_SERIES: 'WORLD_SERIES',
+} as const;
+
+export interface MlbBracketPickInput {
+  seriesId: MlbBracketPickInputSeriesId;
+  predictedWinner: string;
+  predictedLength: number;
+}
+
+export interface MlbBracketPickBatch {
+  picks: MlbBracketPickInput[];
+}
+
+export type MlbBracketStateRoundsItemRound = typeof MlbBracketStateRoundsItemRound[keyof typeof MlbBracketStateRoundsItemRound];
+
+
+export const MlbBracketStateRoundsItemRound = {
+  wild_card: 'wild_card',
+  division_series: 'division_series',
+  league_championship: 'league_championship',
+  world_series: 'world_series',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MlbBracketStateRoundsItemPick = {
+  seriesId?: string;
+  predictedWinner?: string;
+  predictedLength?: number;
+  /** @nullable */
+  winnerCorrect?: boolean | null;
+  /** @nullable */
+  lengthCorrect?: boolean | null;
+} | null;
+
+export type MlbBracketStateRoundsItem = {
+  seriesId: string;
+  seriesSlot: string;
+  round: MlbBracketStateRoundsItemRound;
+  roundLabel?: string;
+  /** @nullable */
+  team1?: string | null;
+  /** @nullable */
+  team2?: string | null;
+  eligibleTeams?: string[];
+  allowedLengths: number[];
+  points: number;
+  completed: boolean;
+  /** @nullable */
+  winner?: string | null;
+  /** @nullable */
+  actualLength?: number | null;
+  /** @nullable */
+  pick?: MlbBracketStateRoundsItemPick;
+};
+
+export interface MlbBracketState {
+  field: string[];
+  isLocked: boolean;
+  rounds: MlbBracketStateRoundsItem[];
 }
 
 export type GetDailyScheduleParams = {

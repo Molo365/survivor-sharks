@@ -36,6 +36,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   nfl_confidence: "Confidence",
   nfl_confidence_weekly: "Weekly Confidence",
   wc_bracket: "WC Bracket",
+  mlb_bracket: "MLB Postseason Bracket",
 };
 
 function formatMemberSince(iso: string): string {

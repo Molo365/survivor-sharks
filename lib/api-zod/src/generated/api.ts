@@ -146,7 +146,7 @@ export const ListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -190,7 +190,7 @@ export const createPoolBodyPrizeModeDefault = `fixed`;
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
   "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls', 'superleague']),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']).default(createPoolBodyPoolTypeDefault),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "description": zod.string().optional(),
   "maxEntries": zod.number().optional(),
@@ -222,7 +222,7 @@ export const JoinPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -260,7 +260,7 @@ export const ListPastPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "currentWeek": zod.number(),
   "season": zod.number(),
   "memberCount": zod.number(),
@@ -283,7 +283,7 @@ export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -336,7 +336,7 @@ export const UpdatePoolBody = zod.object({
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "isActive": zod.boolean().optional(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']).optional(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).optional(),
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
@@ -352,7 +352,7 @@ export const UpdatePoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),
@@ -797,6 +797,89 @@ export const GetFinalResultsResponse = zod.object({
   "isWinner": zod.boolean()
 }))
 }).nullish()
+})
+
+
+/**
+ * @summary Get MLB postseason bracket cards and current user's upfront picks
+ */
+export const GetMlbBracketParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetMlbBracketResponse = zod.object({
+  "field": zod.array(zod.string()),
+  "isLocked": zod.boolean(),
+  "rounds": zod.array(zod.object({
+  "seriesId": zod.string(),
+  "seriesSlot": zod.string(),
+  "round": zod.enum(['wild_card', 'division_series', 'league_championship', 'world_series']),
+  "roundLabel": zod.string().optional(),
+  "team1": zod.string().nullish(),
+  "team2": zod.string().nullish(),
+  "eligibleTeams": zod.array(zod.string()).optional(),
+  "allowedLengths": zod.array(zod.number()),
+  "points": zod.number(),
+  "completed": zod.boolean(),
+  "winner": zod.string().nullish(),
+  "actualLength": zod.number().nullish(),
+  "pick": zod.object({
+  "seriesId": zod.string().optional(),
+  "predictedWinner": zod.string().optional(),
+  "predictedLength": zod.number().optional(),
+  "winnerCorrect": zod.boolean().nullish(),
+  "lengthCorrect": zod.boolean().nullish()
+}).nullish()
+}))
+})
+
+
+/**
+ * @summary Save upfront MLB bracket predictions
+ */
+export const SubmitMlbBracketPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SubmitMlbBracketPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "seriesId": zod.enum(['AL_WC_1', 'AL_WC_2', 'NL_WC_1', 'NL_WC_2', 'AL_DS_1', 'AL_DS_2', 'NL_DS_1', 'NL_DS_2', 'ALCS', 'NLCS', 'WORLD_SERIES']),
+  "predictedWinner": zod.string(),
+  "predictedLength": zod.number()
+}))
+})
+
+
+/**
+ * @summary Get MLB bracket standings with length-prediction tiebreaker
+ */
+export const GetMlbBracketLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get a member's MLB bracket predictions
+ */
+export const GetMlbBracketMemberPicksParams = zod.object({
+  "poolId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Advance one sandbox MLB bracket series
+ */
+export const SimulateMlbBracketNextRoundParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Complete and grade a sandbox MLB bracket
+ */
+export const SimulateMlbBracketFullParams = zod.object({
+  "poolId": zod.coerce.number()
 })
 
 
@@ -2069,7 +2152,7 @@ export const AdminListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "description": zod.string().nullish(),
   "inviteCode": zod.string(),

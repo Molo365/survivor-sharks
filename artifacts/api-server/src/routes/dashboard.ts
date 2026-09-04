@@ -11,6 +11,7 @@ import {
   groupStagePredictorPicksTable,
   groupStageResultsTable,
   wcBracketPicksTable,
+  mlbBracketPicksTable,
 } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
@@ -93,7 +94,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "crazy_8s", "nba_ats"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket", "crazy_8s", "nba_ats"];
 
 function computeRank<T extends { score: number }>(rows: T[], userId: number): number {
   if (rows.length === 0) return 0;
@@ -795,6 +796,17 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           sport: pool.sport as string,
           totalPlayers: memberCountMap.get(pool.id) ?? 0,
         };
+      }
+
+      if (poolType === "mlb_bracket") {
+        const rows = await db.select({
+          userId: mlbBracketPicksTable.userId,
+          score: sql<string>`COALESCE(SUM(CASE WHEN ${mlbBracketPicksTable.winnerCorrect} IS TRUE THEN CASE ${mlbBracketPicksTable.round} WHEN 'wild_card' THEN 1 WHEN 'division_series' THEN 2 WHEN 'league_championship' THEN 3 WHEN 'world_series' THEN 4 ELSE 0 END ELSE 0 END), 0)`,
+          correct: sql<string>`COUNT(*) FILTER (WHERE ${mlbBracketPicksTable.winnerCorrect} IS TRUE)`,
+          picked: sql<string>`COUNT(*)`,
+        }).from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id)).groupBy(mlbBracketPicksTable.userId);
+        const mine = rows.find(r => r.userId === userId);
+        return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows.map(r => ({ ...r, score: Number(r.score) })), userId), isTied: computeIsTied(rows.map(r => ({ ...r, score: Number(r.score) })), userId), correct: mine ? Number(mine.correct) : 0, picked: mine ? Number(mine.picked) : 0, hasPicks: Boolean(mine?.picked), status: null, eliminatedWeek: null, score: mine ? Number(mine.score) : null, maxScore: 22 }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
       }
 
       // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────

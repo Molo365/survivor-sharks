@@ -53,6 +53,8 @@ import type {
   JoinPoolInput,
   Leaderboard,
   LoginInput,
+  MlbBracketPickBatch,
+  MlbBracketState,
   MlsWeekGames,
   NdpDivisionResult,
   NdpDivisionWithPick,
@@ -1780,6 +1782,454 @@ export function useGetFinalResults<TData = Awaited<ReturnType<typeof getFinalRes
 
 
 
+
+export const getGetMlbBracketUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket`
+}
+
+/**
+ * @summary Get MLB postseason bracket cards and current user's upfront picks
+ */
+export const getMlbBracket = async (poolId: number, options?: RequestInit): Promise<MlbBracketState> => {
+
+  return customFetch<MlbBracketState>(getGetMlbBracketUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMlbBracketQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/mlb-bracket`
+    ] as const;
+    }
+
+
+export const getGetMlbBracketQueryOptions = <TData = Awaited<ReturnType<typeof getMlbBracket>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMlbBracketQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMlbBracket>>> = ({ signal }) => getMlbBracket(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMlbBracket>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMlbBracketQueryResult = NonNullable<Awaited<ReturnType<typeof getMlbBracket>>>
+export type GetMlbBracketQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get MLB postseason bracket cards and current user's upfront picks
+ */
+
+export function useGetMlbBracket<TData = Awaited<ReturnType<typeof getMlbBracket>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMlbBracketQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitMlbBracketPicksUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket`
+}
+
+/**
+ * @summary Save upfront MLB bracket predictions
+ */
+export const submitMlbBracketPicks = async (poolId: number,
+    mlbBracketPickBatch: MlbBracketPickBatch, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getSubmitMlbBracketPicksUrl(poolId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mlbBracketPickBatch,)
+  }
+);}
+
+
+
+
+export const getSubmitMlbBracketPicksMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMlbBracketPicks>>, TError,{poolId: number;data: BodyType<MlbBracketPickBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitMlbBracketPicks>>, TError,{poolId: number;data: BodyType<MlbBracketPickBatch>}, TContext> => {
+
+const mutationKey = ['submitMlbBracketPicks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitMlbBracketPicks>>, {poolId: number;data: BodyType<MlbBracketPickBatch>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  submitMlbBracketPicks(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitMlbBracketPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitMlbBracketPicks>>>
+    export type SubmitMlbBracketPicksMutationBody = BodyType<MlbBracketPickBatch>
+    export type SubmitMlbBracketPicksMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save upfront MLB bracket predictions
+ */
+export const useSubmitMlbBracketPicks = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMlbBracketPicks>>, TError,{poolId: number;data: BodyType<MlbBracketPickBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitMlbBracketPicks>>,
+        TError,
+        {poolId: number;data: BodyType<MlbBracketPickBatch>},
+        TContext
+      > => {
+      return useMutation(getSubmitMlbBracketPicksMutationOptions(options));
+    }
+
+export const getGetMlbBracketLeaderboardUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket/leaderboard`
+}
+
+/**
+ * @summary Get MLB bracket standings with length-prediction tiebreaker
+ */
+export const getMlbBracketLeaderboard = async (poolId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getGetMlbBracketLeaderboardUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMlbBracketLeaderboardQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/mlb-bracket/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetMlbBracketLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMlbBracketLeaderboardQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMlbBracketLeaderboard>>> = ({ signal }) => getMlbBracketLeaderboard(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMlbBracketLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getMlbBracketLeaderboard>>>
+export type GetMlbBracketLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get MLB bracket standings with length-prediction tiebreaker
+ */
+
+export function useGetMlbBracketLeaderboard<TData = Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMlbBracketLeaderboardQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMlbBracketMemberPicksUrl = (poolId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket/members/${userId}/picks`
+}
+
+/**
+ * @summary Get a member's MLB bracket predictions
+ */
+export const getMlbBracketMemberPicks = async (poolId: number,
+    userId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getGetMlbBracketMemberPicksUrl(poolId,userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMlbBracketMemberPicksQueryKey = (poolId: number,
+    userId: number,) => {
+    return [
+    `/api/pools/${poolId}/mlb-bracket/members/${userId}/picks`
+    ] as const;
+    }
+
+
+export const getGetMlbBracketMemberPicksQueryOptions = <TData = Awaited<ReturnType<typeof getMlbBracketMemberPicks>>, TError = ErrorType<unknown>>(poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMlbBracketMemberPicksQueryKey(poolId,userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMlbBracketMemberPicks>>> = ({ signal }) => getMlbBracketMemberPicks(poolId,userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId && userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketMemberPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMlbBracketMemberPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getMlbBracketMemberPicks>>>
+export type GetMlbBracketMemberPicksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a member's MLB bracket predictions
+ */
+
+export function useGetMlbBracketMemberPicks<TData = Awaited<ReturnType<typeof getMlbBracketMemberPicks>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMlbBracketMemberPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMlbBracketMemberPicksQueryOptions(poolId,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSimulateMlbBracketNextRoundUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket/sandbox/simulate-next-round`
+}
+
+/**
+ * @summary Advance one sandbox MLB bracket series
+ */
+export const simulateMlbBracketNextRound = async (poolId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getSimulateMlbBracketNextRoundUrl(poolId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSimulateMlbBracketNextRoundMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketNextRound>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketNextRound>>, TError,{poolId: number}, TContext> => {
+
+const mutationKey = ['simulateMlbBracketNextRound'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof simulateMlbBracketNextRound>>, {poolId: number}> = (props) => {
+          const {poolId} = props ?? {};
+
+          return  simulateMlbBracketNextRound(poolId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SimulateMlbBracketNextRoundMutationResult = NonNullable<Awaited<ReturnType<typeof simulateMlbBracketNextRound>>>
+
+    export type SimulateMlbBracketNextRoundMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Advance one sandbox MLB bracket series
+ */
+export const useSimulateMlbBracketNextRound = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketNextRound>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof simulateMlbBracketNextRound>>,
+        TError,
+        {poolId: number},
+        TContext
+      > => {
+      return useMutation(getSimulateMlbBracketNextRoundMutationOptions(options));
+    }
+
+export const getSimulateMlbBracketFullUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/mlb-bracket/sandbox/simulate-full`
+}
+
+/**
+ * @summary Complete and grade a sandbox MLB bracket
+ */
+export const simulateMlbBracketFull = async (poolId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getSimulateMlbBracketFullUrl(poolId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSimulateMlbBracketFullMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketFull>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketFull>>, TError,{poolId: number}, TContext> => {
+
+const mutationKey = ['simulateMlbBracketFull'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof simulateMlbBracketFull>>, {poolId: number}> = (props) => {
+          const {poolId} = props ?? {};
+
+          return  simulateMlbBracketFull(poolId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SimulateMlbBracketFullMutationResult = NonNullable<Awaited<ReturnType<typeof simulateMlbBracketFull>>>
+
+    export type SimulateMlbBracketFullMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Complete and grade a sandbox MLB bracket
+ */
+export const useSimulateMlbBracketFull = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simulateMlbBracketFull>>, TError,{poolId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof simulateMlbBracketFull>>,
+        TError,
+        {poolId: number},
+        TContext
+      > => {
+      return useMutation(getSimulateMlbBracketFullMutationOptions(options));
+    }
 
 export const getGetResultsUrl = (poolId: number,) => {
 

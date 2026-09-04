@@ -38,6 +38,7 @@ import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { WcBracketView } from "@/components/WcBracketView";
+import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
@@ -63,6 +64,7 @@ export default function PoolHome() {
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
   const isWcBracket = (pool?.poolType as string) === "wc_bracket";
+  const isMlbBracket = (pool?.poolType as string) === "mlb_bracket";
   const isNbaAts = (pool?.poolType as string) === "nba_ats";
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
@@ -215,6 +217,11 @@ export default function PoolHome() {
                       <Globe className="w-3 h-3" /> {!pool.isActive ? "Complete" : bracketRoundData?.roundLabel ?? "Bracket"}
                     </span>
                   )}
+                  {isMlbBracket && (
+                    <span className="flex items-center gap-1 bg-red-500/10 text-red-300 border border-red-500/20 px-2 py-1 rounded">
+                      <Trophy className="w-3 h-3" /> MLB Postseason Bracket
+                    </span>
+                  )}
                   {isNdp && (
                     <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
                       <ListOrdered className="w-3 h-3" /> Division Predictor
@@ -326,7 +333,9 @@ export default function PoolHome() {
               <PoolEndedResult poolId={pool.id} isRecurring={pool.isRecurring} />
             )}
 
-            {isPickEmSeason ? (
+            {isMlbBracket ? (
+              <MlbPostseasonBracketView poolId={pool.id} isCommissioner={isCommissioner} sandboxMode={(pool as any).sandboxMode ?? false} isActive={pool.isActive} />
+            ) : isPickEmSeason ? (
               <PickEmSeasonView
                 poolId={pool.id}
                 poolName={pool.name}

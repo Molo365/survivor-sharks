@@ -14,5 +14,8 @@ export * from "./sandbox_game_scores";
 export * from "./pickem_season_week_game_counts";
 export * from "./wc_bracket_picks";
 export * from "./wc_bracket_results";
+export * from "./mlb_bracket_picks";
+export * from "./mlb_bracket_results";
+export * from "./mlb_bracket_slots";
 export * from "./pickem_game_spreads";
 export * from "./password_resets";

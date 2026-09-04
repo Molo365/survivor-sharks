@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { NavBar } from "@/components/NavBar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat, Globe } from "lucide-react";
+import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat, Globe, Brackets } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
 ];
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
-  [PoolInputSport.mlb]: ["crazy_8s"],
+  [PoolInputSport.mlb]: ["crazy_8s", "mlb_bracket"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "nba_ats", "crazy_8s"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
@@ -92,6 +92,16 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
 };
 
 const POOL_TYPES = [
+  {
+    id: "mlb_bracket" as const,
+    label: "Postseason Bracket Challenge",
+    icon: Brackets,
+    tagline: "Pick All 11 Series Up Front",
+    description: "Predict every MLB postseason series winner and length, from Wild Card through the World Series. Correct lengths break ties.",
+    badge: "MLB",
+    badgeClass: "bg-red-500/20 text-red-300 border-red-500/30",
+    cardClass: "border-red-500/60 bg-[linear-gradient(145deg,rgba(239,68,68,0.08)_0%,transparent_100%)]",
+  },
   {
     id: "season" as const,
     label: "Survivor Season",
@@ -272,7 +282,7 @@ function StepHeader({
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "nba_ats"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "mlb_bracket", "nba_ats"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   isRecurring: z.boolean().optional(),
@@ -449,7 +459,7 @@ export default function CreatePool() {
     if (!selectedSport) return;
     const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
     if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket", { shouldValidate: true });
+      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket" | "mlb_bracket", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
@@ -626,6 +636,8 @@ export default function CreatePool() {
       ? "HIT THE ICE!"
       : selectedSport === PoolInputSport.nba && selectedType === "crazy_8s"
       ? "NBA FAST BREAK"
+      : selectedSport === PoolInputSport.mlb && selectedType === "mlb_bracket"
+      ? "MLB POSTSEASON BRACKET"
       : selectedSport === PoolInputSport.mlb
       ? "MLB PICK-EMS"
       : "CREATE A NEW POOL";
@@ -679,6 +691,7 @@ export default function CreatePool() {
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" || values.poolType === "nba_ats" ||
+            values.poolType === "mlb_bracket" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
@@ -891,6 +904,29 @@ export default function CreatePool() {
                                     <p className="text-xs text-muted-foreground leading-snug">Pick the winner of every MLB game each week. Picks accumulate Mon–Sun — most correct picks by Sunday wins.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "pickem" && field.value === "weekly" ? "border-primary bg-primary" : "border-muted-foreground/30")} />
+                                </div>
+                              </button>
+                              {/* MLB Postseason Bracket */}
+                              <button
+                                type="button"
+                                onClick={() => { form.setValue("poolType", "mlb_bracket", { shouldValidate: true }); field.onChange("weekly"); setEditStep(3); }}
+                                data-testid="pickem-freq-mlb_bracket"
+                                className={cn(
+                                  "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                  selectedType === "mlb_bracket"
+                                    ? "border-red-500/60 bg-red-500/5 ring-2 ring-offset-1 ring-offset-background"
+                                    : "border-border/40 hover:border-border bg-card/50",
+                                )}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <Brackets className={cn("w-5 h-5 mt-0.5 shrink-0", selectedType === "mlb_bracket" ? "text-red-300" : "text-muted-foreground")} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className={cn("font-bebas text-lg tracking-wide", selectedType === "mlb_bracket" ? "text-foreground" : "text-muted-foreground")}>Postseason Bracket Challenge</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick all 11 postseason series and their lengths before the Wild Card round. Bracket opens once the playoff field is set; Sandbox is available now.</p>
+                                  </div>
+                                  <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "mlb_bracket" ? "border-red-500 bg-red-500" : "border-muted-foreground/30")} />
                                 </div>
                               </button>
                               {/* Crazy 8's */}
@@ -1235,8 +1271,8 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Sandbox Mode — NFL Confidence + Pick-Ems Season + NHL Survivor Season + NBA ATS ── */}
-                      {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season" || selectedType === "nba_ats") ||
+                      {/* ── Sandbox Mode — supported testable pool types ── */}
+                      {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season" || selectedType === "nba_ats" || selectedType === "mlb_bracket") ||
                         (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "crazy_8s")) && (
@@ -1253,7 +1289,9 @@ export default function CreatePool() {
                                       Sandbox Mode
                                     </FormLabel>
                                     <FormDescription className="text-xs mt-0.5">
-                                      {selectedSport === PoolInputSport.nhl
+                                      {selectedType === "mlb_bracket"
+                                        ? "Use a complete synthetic 12-team playoff field and simulate the postseason immediately."
+                                        : selectedSport === PoolInputSport.nhl
                                         ? "Use the real 2025-26 NHL schedule for testing — weeks load via Live Week, scores simulated."
                                         : selectedSport === PoolInputSport.nba
                                           ? "Use the real 2025-26 NBA schedule anchored to a fixed weekend for testing — scores simulated."

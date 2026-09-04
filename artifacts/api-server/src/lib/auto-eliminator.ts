@@ -18,7 +18,7 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import {
@@ -63,6 +63,7 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
+import { fetchMlbPostseasonSeries } from "./mlb-bracket";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 import {
   evaluateNflAutoAdvanceSlate,
@@ -5457,6 +5458,100 @@ export async function processWcBracketResults(): Promise<{ picksGraded: number }
   return { picksGraded };
 }
 
+/** Idempotently persists completed MLB series and grades both winner and length. */
+export async function processMlbBracketResults(): Promise<{ picksGraded: number }> {
+  let picksGraded = 0;
+  const pools = await db.select({ id: poolsTable.id, season: poolsTable.season, sandboxMode: poolsTable.sandboxMode, prizeStructure: poolsTable.prizeStructure, prizeMode: poolsTable.prizeMode, entryFee: poolsTable.entryFee, prizePot: poolsTable.prizePot, maxEntries: poolsTable.maxEntries })
+    .from(poolsTable).where(and(eq(poolsTable.poolType, "mlb_bracket"), eq(poolsTable.isActive, true)));
+  if (!pools.length) return { picksGraded };
+  for (const pool of pools) {
+    const [live, slots, priorResults] = await Promise.all([
+      pool.sandboxMode ? Promise.resolve([]) : fetchMlbPostseasonSeries(pool.season),
+      db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, pool.id)),
+      db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, pool.id)),
+    ]);
+    const resultWinners = new Map(priorResults.map(result => [result.seriesSlot, result.winner]));
+    const completed = pool.sandboxMode
+      ? priorResults
+      : live.filter(s => s.completed && s.winner).sort((a, b) =>
+          ["wild_card", "division_series", "league_championship", "world_series"].indexOf(a.round)
+          - ["wild_card", "division_series", "league_championship", "world_series"].indexOf(b.round));
+    for (const result of completed) {
+      let canonicalSlot = result.seriesSlot;
+      if (!pool.sandboxMode) {
+        const liveTeams = new Set([result.team1, result.team2]);
+        const match = slots.find(slot => {
+          if (slot.round !== result.round) return false;
+          const team1 = slot.fixedTeam1 ?? (slot.feederSlot1 ? resultWinners.get(slot.feederSlot1) : null);
+          const team2 = slot.fixedTeam2 ?? (slot.feederSlot2 ? resultWinners.get(slot.feederSlot2) : null);
+          return Boolean(team1 && team2 && liveTeams.has(team1) && liveTeams.has(team2));
+        });
+        if (!match) continue;
+        canonicalSlot = match.seriesSlot;
+      }
+      // Sandbox rows are already persisted by the simulation endpoint. Do not
+      // reinsert them as ESPN rows or overwrite their deterministic source.
+      if (!pool.sandboxMode) {
+        const liveResult = result as Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>[number];
+        await db.insert(mlbBracketResultsTable).values({
+          poolId: pool.id, seriesId: canonicalSlot, round: liveResult.round, seriesSlot: canonicalSlot,
+          team1: liveResult.team1, team2: liveResult.team2, winner: liveResult.winner!, actualLength: liveResult.games,
+          completedAt: liveResult.completedAt ?? new Date(), source: "espn",
+        }).onConflictDoNothing();
+        resultWinners.set(canonicalSlot, liveResult.winner!);
+      }
+      const actualLength = "actualLength" in result ? result.actualLength : result.games;
+      const pending = await db.select().from(mlbBracketPicksTable).where(and(
+        eq(mlbBracketPicksTable.poolId, pool.id), eq(mlbBracketPicksTable.seriesId, canonicalSlot),
+        isNull(mlbBracketPicksTable.winnerCorrect),
+      ));
+      for (const pick of pending) {
+        await db.update(mlbBracketPicksTable).set({
+          winnerCorrect: pick.predictedWinner === result.winner,
+          lengthCorrect: pick.predictedLength === actualLength,
+          updatedAt: new Date(),
+        }).where(eq(mlbBracketPicksTable.id, pick.id));
+        picksGraded++;
+      }
+    }
+    const ws = await db.select({ id: mlbBracketResultsTable.id }).from(mlbBracketResultsTable).where(and(eq(mlbBracketResultsTable.poolId, pool.id), eq(mlbBracketResultsTable.seriesSlot, "WORLD_SERIES"))).limit(1);
+    if (ws.length) {
+      const already = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))).limit(1);
+      if (!already.length) {
+        const all = await db.select().from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id));
+        const entries = await db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
+        const scored = entries.map(e => { const ps = all.filter(p => p.userId === e.userId); return { userId: e.userId, points: ps.filter(p => p.winnerCorrect).reduce((n,p) => n + ({wild_card:1,division_series:2,league_championship:3,world_series:4}[p.round] ?? 0), 0), lengths: ps.filter(p => p.lengthCorrect).length }; }).sort((a,b) => b.points-a.points || b.lengths-a.lengths);
+        if (scored.length) {
+          let offset = 0;
+          const remaining = [...scored];
+          while (remaining.length > 0 && offset < 3) {
+            const score = remaining[0];
+            const group = remaining.filter(row => row.points === score.points && row.lengths === score.lengths);
+            const finishPosition = offset + 1;
+            const prize = calcPrize({
+              placeIndex: offset,
+              coWinners: group.length,
+              prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
+              prizeMode: pool.prizeMode,
+              entryFee: pool.entryFee,
+              prizePot: pool.prizePot,
+              totalEntries: entries.length,
+              maxEntries: pool.maxEntries,
+            });
+            await db.update(entriesTable)
+              .set({ finalWinner: finishPosition === 1, finishPosition, prizeAmount: prize })
+              .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, group.map(row => row.userId))));
+            offset += group.length;
+            remaining.splice(0, group.length);
+          }
+          await db.update(poolsTable).set({ isActive: false, endedAt: new Date() }).where(eq(poolsTable.id, pool.id));
+        }
+      }
+    }
+  }
+  return { picksGraded };
+}
+
 let _timer: ReturnType<typeof setInterval> | null = null;
 
 export function startAutoEliminator(): void {
@@ -5465,13 +5560,14 @@ export function startAutoEliminator(): void {
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
-    const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights, wcBracket] = await Promise.all([
+    const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights, wcBracket, mlbBracket] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
       processMlbDailyResults(),
       processPickEmResults(),
       processCrazyEightsResults(),
       processWcBracketResults(),
+      processMlbBracketResults(),
       processReplayTick(),
     ]);
     // Run only after survivor, confidence, and Pick-Ems Season grading finish.
@@ -5487,6 +5583,7 @@ export function startAutoEliminator(): void {
       pickEmPicksGraded: pickEm.picksGraded,
       crazyEightsPicksGraded: crazyEights.picksGraded,
       wcBracketPicksGraded: wcBracket.picksGraded,
+        mlbBracketPicksGraded: mlbBracket.picksGraded,
       nflWeeksAdvanced,
     };
   }

@@ -7,6 +7,7 @@ import {
   pickemPicksTable,
   nflDivisionPredictorPicksTable,
   wcBracketPicksTable,
+  mlbBracketPicksTable,
   groupStagePredictorPicksTable,
   pickemSeasonWeekGameCountsTable,
   sandboxGameScoresTable,
@@ -323,6 +324,13 @@ router.get("/summary", requireAuth, async (req, res) => {
           pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
           summary: picked > 0 ? `${picked}/${currentRoundEventIds.length} picked` : null,
         };
+      }
+
+      if (poolType === "mlb_bracket") {
+        const [countRow] = await db.select({ cnt: count() }).from(mlbBracketPicksTable)
+          .where(and(eq(mlbBracketPicksTable.poolId, pool.id), eq(mlbBracketPicksTable.userId, userId)));
+        const picked = Number(countRow?.cnt ?? 0);
+        return { ...base, pickStatus: (picked === 11 ? "submitted" : "pending") as PickStatus, summary: picked ? `${picked}/11 series picked` : null };
       }
 
       // ── Crazy 8s (daily or weekly — respects pickFrequency) ──────────────

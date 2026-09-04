@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable } from "@workspace/db";
+import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
@@ -13,6 +13,7 @@ import {
   fetchSuperLeagueGamesForDate,
   getSuperLeagueWeekBoundsEt,
 } from "../lib/espn";
+import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
 const router = Router();
 
@@ -203,6 +204,19 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  if (resolvedPoolType === "mlb_bracket") {
+    if (sport !== "mlb") {
+      res.status(400).json({ error: "MLB Postseason Bracket pools require MLB" });
+      return;
+    }
+    if (sandboxMode !== true) {
+      const field = await getMlbPostseasonField(season ?? new Date().getFullYear());
+      if (!field) {
+        res.status(400).json({ error: "Bracket opens once the playoff field is set" });
+        return;
+      }
+    }
+  }
   if (resolvedPoolType === "mid_season" && !startWeek) {
     res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;
@@ -293,6 +307,13 @@ router.post("/", requireAuth, async (req, res) => {
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
+  if (resolvedPoolType === "mlb_bracket") {
+    const field = sandboxMode === true
+      ? { AL: SANDBOX_MLB_FIELD.slice(0, 6), NL: SANDBOX_MLB_FIELD.slice(6, 12) }
+      : await getMlbPostseasonField(resolvedSeason);
+    if (!field) throw new Error("MLB playoff field disappeared during pool creation");
+    await db.insert(mlbBracketSlotsTable).values(bracketBlueprint(field).map(slot => ({ poolId: pool.id, ...slot })));
+  }
 
   res.status(201).json(formatPool(pool, 1, 1, req.user!.username));
 });
@@ -548,7 +569,7 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(currentWeek !== undefined && { currentWeek }),
     ...(season !== undefined && { season }),
     ...(isActive !== undefined && { isActive }),
-    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" | "wc_bracket" }),
+    ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" | "wc_bracket" | "mlb_bracket" }),
     ...(startWeek !== undefined && { startWeek }),
     ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
@@ -605,6 +626,10 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
       .select({ n: count() })
       .from(wcBracketPicksTable)
       .where(and(eq(wcBracketPicksTable.poolId, poolId), ne(wcBracketPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else if (pt === "mlb_bracket") {
+    const [row] = await db.select({ n: count() }).from(mlbBracketPicksTable)
+      .where(and(eq(mlbBracketPicksTable.poolId, poolId), ne(mlbBracketPicksTable.userId, pool.commissionerId)));
     hasOtherPicks = Number(row.n) > 0;
   } else if (pt === "nfl_division_predictor") {
     const [row] = await db

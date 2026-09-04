@@ -92,6 +92,7 @@ function fmtPoolType(t: string): string {
     group_stage_predictor: "Group Stage Predictor",
     nfl_division_predictor: "NFL Division Predictor",
     wc_bracket: "WC Bracket",
+    mlb_bracket: "MLB Postseason Bracket",
   };
   return map[t] ?? t;
 }

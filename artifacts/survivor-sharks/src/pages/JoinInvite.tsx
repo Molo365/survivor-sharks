@@ -77,6 +77,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   nfl_confidence:          "Confidence",
   nfl_confidence_weekly:   "Confidence Weekly",
   wc_bracket:              "WC Bracket",
+  mlb_bracket:             "MLB Postseason Bracket",
 };
 
 const SPORT_META: Record<string, { emoji: string; label: string; color: string }> = {

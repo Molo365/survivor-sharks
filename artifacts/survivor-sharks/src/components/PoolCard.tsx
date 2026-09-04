@@ -40,6 +40,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   nfl_division_predictor: "Division Predictor",
   group_stage_predictor: "Group Stage",
   wc_bracket: "Bracket",
+  mlb_bracket: "MLB Postseason Bracket",
   dirty_dozen: "Dirty Dozen",
   crazy_8s: "High Heat",
 };
@@ -105,7 +106,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="w-3.5 h-3.5 text-primary/70" />
-              <span>{pt === "wc_bracket" ? "WC 2026 Bracket" : `Week ${pool.currentWeek}`}</span>
+              <span>{pt === "wc_bracket" ? "WC 2026 Bracket" : pt === "mlb_bracket" ? "11-Series Bracket" : `Week ${pool.currentWeek}`}</span>
             </div>
           </div>
 
