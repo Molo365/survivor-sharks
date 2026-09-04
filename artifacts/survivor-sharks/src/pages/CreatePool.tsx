@@ -97,7 +97,7 @@ const POOL_TYPES = [
     label: "Postseason Bracket Challenge",
     icon: Brackets,
     tagline: "Pick All 11 Series Up Front",
-    description: "Predict every MLB postseason series winner and length, from Wild Card through the World Series. Correct lengths break ties.",
+    description: "Predict every MLB postseason series winner and length, from Wild Card through the World Series. Winner picks earn 1/2/3/4 points by round (max 22); correct series lengths add +1 bonus per series (max 11), for a maximum total of 33.",
     badge: "MLB",
     badgeClass: "bg-red-500/20 text-red-300 border-red-500/30",
     cardClass: "border-red-500/60 bg-[linear-gradient(145deg,rgba(239,68,68,0.08)_0%,transparent_100%)]",
