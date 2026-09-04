@@ -55,6 +55,7 @@ import type {
   Leaderboard,
   LoginInput,
   MlbBracketPickBatch,
+  MlbBracketResultBreakdownItem,
   MlbBracketState,
   MlsWeekGames,
   NdpDivisionResult,
@@ -2178,9 +2179,9 @@ export const getGetMlbBracketMemberPicksUrl = (poolId: number,
  * @summary Get a member's MLB bracket predictions
  */
 export const getMlbBracketMemberPicks = async (poolId: number,
-    userId: number, options?: RequestInit): Promise<void> => {
+    userId: number, options?: RequestInit): Promise<MlbBracketResultBreakdownItem[]> => {
 
-  return customFetch<void>(getGetMlbBracketMemberPicksUrl(poolId,userId),
+  return customFetch<MlbBracketResultBreakdownItem[]>(getGetMlbBracketMemberPicksUrl(poolId,userId),
   {
     ...options,
     method: 'GET'

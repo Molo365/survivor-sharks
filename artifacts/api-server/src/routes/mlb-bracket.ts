@@ -3,7 +3,7 @@ import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBrac
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
-import { fetchMlbPostseasonSeries, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
@@ -34,8 +34,9 @@ function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Ar
   return slots.map(slot => {
     const { round, seriesSlot } = slot;
     const result = saved.get(seriesSlot);
-    const resolvedTeam1 = result?.team1 ?? slot.fixedTeam1 ?? (slot.feederSlot1 ? resultMap.get(slot.feederSlot1) ?? null : null);
-    const resolvedTeam2 = result?.team2 ?? slot.fixedTeam2 ?? (slot.feederSlot2 ? resultMap.get(slot.feederSlot2) ?? null : null);
+    const [slotTeam1, slotTeam2] = resolveMlbBracketSlotTeams(slot, resultMap);
+    const resolvedTeam1 = result?.team1 ?? slotTeam1;
+    const resolvedTeam2 = result?.team2 ?? slotTeam2;
     const current = resolvedTeam1 && resolvedTeam2
       ? series.find(candidate =>
           candidate.round === round &&
@@ -120,7 +121,30 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
   const userId = Number(req.params.userId);
   const exists = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(eq(entriesTable.poolId, ctx.poolId), eq(entriesTable.userId, userId))).limit(1);
   if (!exists.length) { res.status(404).json({ error: "Member not found" }); return; }
-  res.json(await db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, userId))));
+  const [picks, results] = await Promise.all([
+    db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, userId))),
+    db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
+  ]);
+  const picksBySlot = new Map(picks.map(pick => [pick.seriesSlot, pick]));
+  const resultsBySlot = new Map(results.map(result => [result.seriesSlot, result]));
+  res.json(MLB_BRACKET_SLOTS.map(([round, seriesSlot]) => {
+    const pick = picksBySlot.get(seriesSlot);
+    const result = resultsBySlot.get(seriesSlot);
+    return {
+      seriesId: seriesSlot,
+      seriesSlot,
+      round,
+      roundLabel: ROUND_LABELS[round],
+      predictedWinner: pick?.predictedWinner ?? null,
+      predictedLength: pick?.predictedLength ?? null,
+      actualWinner: result?.winner ?? null,
+      actualLength: result?.actualLength ?? null,
+      winnerCorrect: pick?.winnerCorrect ?? null,
+      lengthCorrect: pick?.lengthCorrect ?? null,
+      pointsEarned: pick?.winnerCorrect ? MLB_ROUND_POINTS[round] : 0,
+      possiblePoints: MLB_ROUND_POINTS[round],
+    };
+  }));
 });
 async function simulate(ctx: Context, full: boolean) {
   const results = await db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId));
@@ -134,8 +158,7 @@ async function simulate(ctx: Context, full: boolean) {
     const unresolved = slots.filter(slot => slot.round === round && !completedSlots.has(slot.seriesSlot));
     if (unresolved.length === 0) continue;
     for (const slot of unresolved) {
-      const team1 = slot.fixedTeam1 ?? (slot.feederSlot1 ? winners.get(slot.feederSlot1) : null);
-      const team2 = slot.fixedTeam2 ?? (slot.feederSlot2 ? winners.get(slot.feederSlot2) : null);
+      const [team1, team2] = resolveMlbBracketSlotTeams(slot, winners);
       if (!team1 || !team2) continue;
       await db.insert(mlbBracketResultsTable).values({
         poolId: ctx.poolId,

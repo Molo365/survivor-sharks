@@ -609,7 +609,13 @@ paths:
           required: true
           schema: { type: integer }
       responses:
-        "200": { description: Member picks }
+        "200":
+          description: Per-series prediction and scoring breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MlbBracketResultBreakdownItem" }
   /pools/{poolId}/mlb-bracket/sandbox/simulate-next-round:
     post:
       operationId: simulateMlbBracketNextRound
@@ -4799,6 +4805,22 @@ components:
         picks:
           type: array
           items: { $ref: "#/components/schemas/MlbBracketPickInput" }
+    MlbBracketResultBreakdownItem:
+      type: object
+      required: [seriesId, seriesSlot, round, roundLabel, predictedWinner, predictedLength, actualWinner, actualLength, winnerCorrect, lengthCorrect, pointsEarned, possiblePoints]
+      properties:
+        seriesId: { type: string }
+        seriesSlot: { type: string }
+        round: { type: string, enum: [wild_card, division_series, league_championship, world_series] }
+        roundLabel: { type: string }
+        predictedWinner: { type: [string, "null"] }
+        predictedLength: { type: [integer, "null"] }
+        actualWinner: { type: [string, "null"] }
+        actualLength: { type: [integer, "null"] }
+        winnerCorrect: { type: [boolean, "null"] }
+        lengthCorrect: { type: [boolean, "null"] }
+        pointsEarned: { type: integer }
+        possiblePoints: { type: integer }
     MlbBracketState:
       type: object
       required: [field, teamLogos, isLocked, rounds]

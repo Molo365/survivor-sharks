@@ -893,6 +893,22 @@ export const GetMlbBracketMemberPicksParams = zod.object({
   "userId": zod.coerce.number()
 })
 
+export const GetMlbBracketMemberPicksResponseItem = zod.object({
+  "seriesId": zod.string(),
+  "seriesSlot": zod.string(),
+  "round": zod.enum(['wild_card', 'division_series', 'league_championship', 'world_series']),
+  "roundLabel": zod.string(),
+  "predictedWinner": zod.string().nullable(),
+  "predictedLength": zod.number().nullable(),
+  "actualWinner": zod.string().nullable(),
+  "actualLength": zod.number().nullable(),
+  "winnerCorrect": zod.boolean().nullable(),
+  "lengthCorrect": zod.boolean().nullable(),
+  "pointsEarned": zod.number(),
+  "possiblePoints": zod.number()
+})
+export const GetMlbBracketMemberPicksResponse = zod.array(GetMlbBracketMemberPicksResponseItem)
+
 
 /**
  * @summary Advance one sandbox MLB bracket series

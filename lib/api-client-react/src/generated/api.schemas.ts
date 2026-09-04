@@ -1916,6 +1916,37 @@ export interface MlbBracketPickBatch {
   picks: MlbBracketPickInput[];
 }
 
+export type MlbBracketResultBreakdownItemRound = typeof MlbBracketResultBreakdownItemRound[keyof typeof MlbBracketResultBreakdownItemRound];
+
+
+export const MlbBracketResultBreakdownItemRound = {
+  wild_card: 'wild_card',
+  division_series: 'division_series',
+  league_championship: 'league_championship',
+  world_series: 'world_series',
+} as const;
+
+export interface MlbBracketResultBreakdownItem {
+  seriesId: string;
+  seriesSlot: string;
+  round: MlbBracketResultBreakdownItemRound;
+  roundLabel: string;
+  /** @nullable */
+  predictedWinner: string | null;
+  /** @nullable */
+  predictedLength: number | null;
+  /** @nullable */
+  actualWinner: string | null;
+  /** @nullable */
+  actualLength: number | null;
+  /** @nullable */
+  winnerCorrect: boolean | null;
+  /** @nullable */
+  lengthCorrect: boolean | null;
+  pointsEarned: number;
+  possiblePoints: number;
+}
+
 export type MlbBracketStateTeamLogos = {[key: string]: string | null};
 
 export type MlbBracketStateRoundsItemRound = typeof MlbBracketStateRoundsItemRound[keyof typeof MlbBracketStateRoundsItemRound];

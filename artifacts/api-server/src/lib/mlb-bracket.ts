@@ -21,11 +21,35 @@ export function bracketBlueprint(field: MlbField) {
   const rows = (league: "AL" | "NL", teams: string[]) => [
     { seriesSlot: `${league}_WC_1`, round: "wild_card", fixedTeam1: teams[2], fixedTeam2: teams[5] },
     { seriesSlot: `${league}_WC_2`, round: "wild_card", fixedTeam1: teams[3], fixedTeam2: teams[4] },
-    { seriesSlot: `${league}_DS_1`, round: "division_series", fixedTeam1: teams[0], feederSlot1: `${league}_WC_2` },
-    { seriesSlot: `${league}_DS_2`, round: "division_series", fixedTeam1: teams[1], feederSlot1: `${league}_WC_1` },
+    { seriesSlot: `${league}_DS_1`, round: "division_series", fixedTeam1: teams[0], feederSlot2: `${league}_WC_2` },
+    { seriesSlot: `${league}_DS_2`, round: "division_series", fixedTeam1: teams[1], feederSlot2: `${league}_WC_1` },
     { seriesSlot: `${league}CS`, round: "league_championship", feederSlot1: `${league}_DS_1`, feederSlot2: `${league}_DS_2` },
   ];
   return [...rows("AL", field.AL), ...rows("NL", field.NL), { seriesSlot: "WORLD_SERIES", round: "world_series", feederSlot1: "ALCS", feederSlot2: "NLCS" }];
+}
+
+type MlbBracketSlotSource = {
+  fixedTeam1: string | null;
+  fixedTeam2: string | null;
+  feederSlot1: string | null;
+  feederSlot2: string | null;
+};
+
+/**
+ * Resolves a canonical slot from completed feeder winners.
+ * Older pools persisted Division Series feeders in feederSlot1 even though
+ * fixedTeam1 already occupied that side, so retain compatibility with them.
+ */
+export function resolveMlbBracketSlotTeams(slot: MlbBracketSlotSource, winners: Map<string, string>): [string | null, string | null] {
+  const feederTeam1 = slot.feederSlot1 ? winners.get(slot.feederSlot1) ?? null : null;
+  const feederTeam2 = slot.feederSlot2 ? winners.get(slot.feederSlot2) ?? null : null;
+  const legacyFixedTeamOpponent = slot.fixedTeam1 && !slot.fixedTeam2 && feederTeam1 && !slot.feederSlot2
+    ? feederTeam1
+    : null;
+  return [
+    slot.fixedTeam1 ?? feederTeam1,
+    slot.fixedTeam2 ?? feederTeam2 ?? legacyFixedTeamOpponent,
+  ];
 }
 
 export type MlbSeries = {

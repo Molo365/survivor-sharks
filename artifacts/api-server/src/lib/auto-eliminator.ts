@@ -63,7 +63,7 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
-import { fetchMlbPostseasonSeries } from "./mlb-bracket";
+import { fetchMlbPostseasonSeries, resolveMlbBracketSlotTeams } from "./mlb-bracket";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 import {
   evaluateNflAutoAdvanceSlate,
@@ -5482,8 +5482,7 @@ export async function processMlbBracketResults(): Promise<{ picksGraded: number 
         const liveTeams = new Set([result.team1, result.team2]);
         const match = slots.find(slot => {
           if (slot.round !== result.round) return false;
-          const team1 = slot.fixedTeam1 ?? (slot.feederSlot1 ? resultWinners.get(slot.feederSlot1) : null);
-          const team2 = slot.fixedTeam2 ?? (slot.feederSlot2 ? resultWinners.get(slot.feederSlot2) : null);
+          const [team1, team2] = resolveMlbBracketSlotTeams(slot, resultWinners);
           return Boolean(team1 && team2 && liveTeams.has(team1) && liveTeams.has(team2));
         });
         if (!match) continue;

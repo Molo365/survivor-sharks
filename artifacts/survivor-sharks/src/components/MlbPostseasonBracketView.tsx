@@ -10,9 +10,9 @@ import {
   useSimulateMlbBracketNextRound,
   useSubmitMlbBracketPicks,
 } from "@workspace/api-client-react";
-import type { MlbBracketPickInput, MlbBracketPickInputSeriesId, MlbBracketStateRoundsItem } from "@workspace/api-client-react";
+import type { MlbBracketPickInput, MlbBracketPickInputSeriesId, MlbBracketResultBreakdownItem, MlbBracketStateRoundsItem } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Loader2, Lock, Save, ShieldAlert, Trophy } from "lucide-react";
+import { Activity, ChartNoAxesColumn, Check, Loader2, Lock, Save, ShieldAlert, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
+import { MlbBracketResultsBreakdown } from "@/components/MlbBracketResultsBreakdown";
 
 const ROUND_LABELS: Record<string, string> = {
   wild_card: "Wild Card",
@@ -41,22 +42,6 @@ const SLOT_FEEDERS: Record<string, string[]> = {
 
 type Pick = { predictedWinner: string; predictedLength: number };
 type Leader = { userId: number; username?: string; displayName?: string; rank?: number; points?: number; correctLengths?: number };
-type MemberPick = { seriesId: string; round?: string; seriesSlot?: string; predictedWinner: string; predictedLength: number };
-
-function memberPickRows(value: unknown): MemberPick[] {
-  const records = Array.isArray(value)
-    ? value
-    : value && typeof value === "object" && "picks" in value && Array.isArray(value.picks)
-      ? value.picks
-      : [];
-  return records.flatMap((record): MemberPick[] => {
-    if (!record || typeof record !== "object") return [];
-    const pick = record as Record<string, unknown>;
-    return typeof pick.seriesId === "string" && typeof pick.predictedWinner === "string" && typeof pick.predictedLength === "number"
-      ? [{ seriesId: pick.seriesId, round: typeof pick.round === "string" ? pick.round : undefined, seriesSlot: typeof pick.seriesSlot === "string" ? pick.seriesSlot : undefined, predictedWinner: pick.predictedWinner, predictedLength: pick.predictedLength }]
-      : [];
-  });
-}
 
 function SeriesCard({ series, pick, eligibleTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
@@ -155,7 +140,21 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
   })), [picks, rounds]);
   const pickedCount = rounds.filter(s => picks[s.seriesId]?.predictedWinner && picks[s.seriesId]?.predictedLength).length;
   const leaderboard = (Array.isArray(rawLeaderboard) ? rawLeaderboard : []) as Leader[];
-  const memberRows = memberPickRows(memberPicks.data);
+  const memberRows = memberPicks.data ?? [];
+  const myResultRows = useMemo<MlbBracketResultBreakdownItem[]>(() => rounds.map(series => ({
+    seriesId: series.seriesId,
+    seriesSlot: series.seriesSlot,
+    round: series.round,
+    roundLabel: series.roundLabel ?? ROUND_LABELS[series.round],
+    predictedWinner: series.pick?.predictedWinner ?? null,
+    predictedLength: series.pick?.predictedLength ?? null,
+    actualWinner: series.winner ?? null,
+    actualLength: series.actualLength ?? null,
+    winnerCorrect: series.pick?.winnerCorrect ?? null,
+    lengthCorrect: series.pick?.lengthCorrect ?? null,
+    pointsEarned: series.pick?.winnerCorrect ? series.points : 0,
+    possiblePoints: series.points,
+  })), [rounds]);
   if (isLoading) return <div className="grid md:grid-cols-2 gap-4">{Array.from({ length: 11 }, (_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}</div>;
   if (error) return <Card className="border-destructive/30"><CardContent className="p-8 text-center text-muted-foreground">Unable to load this postseason bracket. Please try again.</CardContent></Card>;
   if (!data || rounds.length === 0) return <Card><CardContent className="p-10 text-center"><Trophy className="w-9 h-9 mx-auto mb-3 text-muted-foreground/50" /><p className="font-bebas text-2xl">Bracket unavailable</p><p className="text-sm text-muted-foreground mt-1">Bracket opens once the playoff field is set.</p></CardContent></Card>;
@@ -164,6 +163,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
   return <Tabs defaultValue="picks">
     <TabsList className="bg-card border border-border h-auto p-1.5 gap-1">
       <TabsTrigger value="picks" data-testid="tab-mlb-bracket-picks"><Trophy className="w-4 h-4 mr-1.5" />Postseason Bracket</TabsTrigger>
+      <TabsTrigger value="results" data-testid="tab-mlb-bracket-results"><ChartNoAxesColumn className="w-4 h-4 mr-1.5" />My Results</TabsTrigger>
       <TabsTrigger value="leaderboard" data-testid="tab-mlb-bracket-leaderboard"><Activity className="w-4 h-4 mr-1.5" />Leaderboard</TabsTrigger>
       {isCommissioner && <TabsTrigger value="commissioner" data-testid="tab-mlb-bracket-commissioner"><ShieldAlert className="w-4 h-4 mr-1.5" />Commissioner</TabsTrigger>}
     </TabsList>
@@ -177,8 +177,9 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
       {data.isLocked ? <p data-testid="status-mlb-bracket-locked" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">This bracket is locked. Picks can no longer be changed.</p> : !isActive && <p data-testid="status-mlb-bracket-closed" className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">This bracket is closed. Picks and results are shown below.</p>}
       {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} eligibleTeams={eligibleTeamsBySlot[s.seriesId] ?? []} teamLogos={data.teamLogos} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
     </TabsContent>
+    <TabsContent value="results" className="mt-6"><MlbBracketResultsBreakdown rows={myResultRows} /></TabsContent>
     <TabsContent value="leaderboard" className="mt-6 space-y-2">{leaderboardLoading ? <Skeleton className="h-44" /> : leaderboard.length === 0 ? <Card><CardContent className="p-10 text-center text-muted-foreground">No brackets submitted yet.</CardContent></Card> : leaderboard.map((entry, index) => <button type="button" key={entry.userId} data-testid={`button-mlb-member-${entry.userId}`} onClick={() => setMember(entry)} className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4 text-left hover:border-primary/40"><span className="font-bebas text-xl text-primary w-8">#{entry.rank ?? index + 1}</span><span className="flex-1 font-semibold">{entry.displayName ?? entry.username ?? "Member"}</span><span className="text-right"><b className="text-accent">{entry.points ?? 0}</b><span className="text-xs text-muted-foreground"> pts</span></span></button>)}</TabsContent>
     {isCommissioner && <TabsContent value="commissioner" className="mt-6"><div className="space-y-6"><InviteCodeCard inviteCode={inviteCode} />{sandboxMode && <Card><CardContent className="p-5"><h3 className="font-bebas text-xl tracking-wide mb-1">Sandbox controls</h3><p className="text-sm text-muted-foreground mb-4">Advance the next full round or grade the entire postseason.</p><div className="flex flex-wrap gap-3"><Button data-testid="button-simulate-mlb-next" variant="outline" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateNext.mutate({ poolId })}>Simulate next round</Button><Button data-testid="button-simulate-mlb-full" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateFull.mutate({ poolId })}>Simulate full bracket</Button></div></CardContent></Card>}</div></TabsContent>}
-    {member && <Dialog open onOpenChange={open => !open && setMember(null)}><DialogContent><DialogHeader><DialogTitle>{member.displayName ?? member.username}'s bracket</DialogTitle></DialogHeader>{memberPicks.isLoading ? <Skeleton className="h-40" /> : memberRows.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No submitted picks are available.</p> : <div className="max-h-80 space-y-4 overflow-auto">{ROUND_ORDER.map((round) => { const picksForRound = memberRows.filter((pick) => pick.round === round); return picksForRound.length ? <section key={round}><h3 className="font-bebas tracking-wide text-muted-foreground">{ROUND_LABELS[round]}</h3><div className="mt-2 space-y-2">{picksForRound.map((pick) => <div key={pick.seriesId} className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-3"><span className="font-semibold">{pick.seriesSlot?.replaceAll("_", " ") ?? pick.seriesId}</span><span className="text-right text-sm"><b className="text-primary">{pick.predictedWinner}</b><span className="block text-xs text-muted-foreground">in {pick.predictedLength}</span></span></div>)}</div></section> : null; })}</div>}</DialogContent></Dialog>}
+    {member && <Dialog open onOpenChange={open => !open && setMember(null)}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>{member.displayName ?? member.username}'s bracket results</DialogTitle></DialogHeader>{memberPicks.isLoading ? <Skeleton className="h-40" /> : <div className="max-h-[70vh] overflow-auto pr-1"><MlbBracketResultsBreakdown rows={memberRows} /></div>}</DialogContent></Dialog>}
   </Tabs>;
 }
