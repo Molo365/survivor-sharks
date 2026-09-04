@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, UserPlus, Info, ChevronRight, History } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdSlot } from "@/components/AdSlot";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 
 export default function Dashboard() {
   const { data: pools, isLoading, error } = useListPools({ query: { queryKey: getListPoolsQueryKey(), refetchInterval: 60 * 1000 } });
@@ -27,6 +28,7 @@ export default function Dashboard() {
       <NavBar />
       
       <main className="flex-1 container px-4 py-8 max-w-6xl mx-auto">
+        <EmailVerificationBanner />
         {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>

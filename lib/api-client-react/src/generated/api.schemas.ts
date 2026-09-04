@@ -34,6 +34,8 @@ export interface AuthUser {
   /** @nullable */
   displayName?: string | null;
   role: AuthUserRole;
+  /** @nullable */
+  emailVerifiedAt: string | null;
   createdAt?: string;
 }
 
@@ -54,6 +56,11 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string;
   password: string;
+}
+
+export interface EmailVerificationResponse {
+  success: boolean;
+  message: string;
 }
 
 export interface PrizeEntry {
@@ -1965,6 +1972,10 @@ export interface MlbBracketState {
   isLocked: boolean;
   rounds: MlbBracketStateRoundsItem[];
 }
+
+export type VerifyEmailParams = {
+token: string;
+};
 
 export type GetDailyScheduleParams = {
 /**

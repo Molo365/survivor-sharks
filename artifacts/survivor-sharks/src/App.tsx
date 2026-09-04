@@ -23,6 +23,7 @@ import AdminPanel from "@/pages/AdminPanel";
 import AgentDashboard from "@/pages/AgentDashboard";
 import ResetPassword from "@/pages/ResetPassword";
 import JoinInvite from "@/pages/JoinInvite";
+import VerifyEmail from "@/pages/VerifyEmail";
 import Picks from "@/pages/Picks";
 import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
@@ -141,6 +142,7 @@ function Router() {
       </Route>
 
       <Route path="/join/:inviteCode" component={JoinInvite} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/reset-password" component={ResetPassword} />
 
       <Route path="/picks">

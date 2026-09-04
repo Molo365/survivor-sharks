@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   displayName: text("display_name"),
   role: userRoleEnum("role").notNull().default("user"),
   agentId: integer("agent_id").references((): AnyPgColumn => usersTable.id, { onDelete: "set null" }),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

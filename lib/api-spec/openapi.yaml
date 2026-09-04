@@ -136,6 +136,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/verify-email:
+    get:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Verify an email address with a one-time token
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailVerificationResponse"
+        "400":
+          description: Invalid or expired verification token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerificationEmail
+      tags: [auth]
+      summary: Send a fresh email verification link
+      responses:
+        "200":
+          description: Verification email sent or already verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailVerificationResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Verification email cooldown is active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Users ─────────────────────────────────────────────────────────────────
   /users/me/balance:
     get:
@@ -2131,7 +2181,7 @@ components:
 
     AuthUser:
       type: object
-      required: [id, username, email, role]
+      required: [id, username, email, role, emailVerifiedAt]
       properties:
         id:
           type: integer
@@ -2144,7 +2194,19 @@ components:
         role:
           type: string
           enum: [user, admin, agent]
+        emailVerifiedAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
+          type: string
+
+    EmailVerificationResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
           type: string
 
     # ── Pool Schemas ──────────────────────────────────────────────────────────

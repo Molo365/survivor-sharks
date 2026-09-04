@@ -49,6 +49,7 @@ export const LoginUserResponse = zod.object({
   "email": zod.string(),
   "displayName": zod.string().nullish(),
   "role": zod.enum(['user', 'admin', 'agent']),
+  "emailVerifiedAt": zod.coerce.date().nullable(),
   "createdAt": zod.string().optional()
 })
 })
@@ -72,7 +73,30 @@ export const GetMeResponse = zod.object({
   "email": zod.string(),
   "displayName": zod.string().nullish(),
   "role": zod.enum(['user', 'admin', 'agent']),
+  "emailVerifiedAt": zod.coerce.date().nullable(),
   "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Verify an email address with a one-time token
+ */
+export const VerifyEmailQueryParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const VerifyEmailResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Send a fresh email verification link
+ */
+export const ResendVerificationEmailResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
 })
 
 
