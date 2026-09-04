@@ -28,6 +28,7 @@ import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
+import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 
 const router = Router();
 
@@ -799,14 +800,26 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       }
 
       if (poolType === "mlb_bracket") {
-        const rows = await db.select({
+        const picks = await db.select({
           userId: mlbBracketPicksTable.userId,
-          score: sql<string>`COALESCE(SUM(CASE WHEN ${mlbBracketPicksTable.winnerCorrect} IS TRUE THEN CASE ${mlbBracketPicksTable.round} WHEN 'wild_card' THEN 1 WHEN 'division_series' THEN 2 WHEN 'league_championship' THEN 3 WHEN 'world_series' THEN 4 ELSE 0 END ELSE 0 END), 0)`,
-          correct: sql<string>`COUNT(*) FILTER (WHERE ${mlbBracketPicksTable.winnerCorrect} IS TRUE)`,
-          picked: sql<string>`COUNT(*)`,
-        }).from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id)).groupBy(mlbBracketPicksTable.userId);
+          round: mlbBracketPicksTable.round,
+          winnerCorrect: mlbBracketPicksTable.winnerCorrect,
+          lengthCorrect: mlbBracketPicksTable.lengthCorrect,
+        }).from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id));
+        const picksByUser = new Map<number, typeof picks>();
+        for (const pick of picks) {
+          const userPicks = picksByUser.get(pick.userId) ?? [];
+          userPicks.push(pick);
+          picksByUser.set(pick.userId, userPicks);
+        }
+        const rows = [...picksByUser.entries()].map(([userId, userPicks]) => ({
+          userId,
+          score: userPicks.reduce((sum, pick) => sum + getMlbBracketPickPoints(pick.round, pick.winnerCorrect, pick.lengthCorrect), 0),
+          correct: userPicks.filter(pick => pick.winnerCorrect === true).length,
+          picked: userPicks.length,
+        }));
         const mine = rows.find(r => r.userId === userId);
-        return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows.map(r => ({ ...r, score: Number(r.score) })), userId), isTied: computeIsTied(rows.map(r => ({ ...r, score: Number(r.score) })), userId), correct: mine ? Number(mine.correct) : 0, picked: mine ? Number(mine.picked) : 0, hasPicks: Boolean(mine?.picked), status: null, eliminatedWeek: null, score: mine ? Number(mine.score) : null, maxScore: 22 }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
+        return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows, userId), isTied: computeIsTied(rows, userId), correct: mine?.correct ?? 0, picked: mine?.picked ?? 0, hasPicks: Boolean(mine?.picked), status: null, eliminatedWeek: null, score: mine?.score ?? null, maxScore: MLB_MAX_SCORE }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
       }
 
       // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────

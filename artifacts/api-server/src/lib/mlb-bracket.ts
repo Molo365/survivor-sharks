@@ -8,6 +8,7 @@ export const MLB_BRACKET_SLOTS = [
 ] as const;
 export const MLB_ROUND_POINTS: Record<string, number> = { wild_card: 1, division_series: 2, league_championship: 3, world_series: 4 };
 export const MLB_LENGTH_BONUS_POINTS = 1;
+export const MLB_MAX_SCORE = MLB_BRACKET_SLOTS.reduce((sum, [round]) => sum + MLB_ROUND_POINTS[round] + MLB_LENGTH_BONUS_POINTS, 0);
 export const MLB_ROUND_LENGTHS: Record<string, number[]> = { wild_card: [2, 3], division_series: [3, 4, 5], league_championship: [4, 5, 6, 7], world_series: [4, 5, 6, 7] };
 export const SANDBOX_MLB_FIELD = ["Baltimore Orioles", "Boston Red Sox", "Cleveland Guardians", "Detroit Tigers", "Houston Astros", "New York Yankees", "Atlanta Braves", "Chicago Cubs", "Los Angeles Dodgers", "Milwaukee Brewers", "New York Mets", "Philadelphia Phillies"];
 export type MlbField = { AL: string[]; NL: string[] };
