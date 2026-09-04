@@ -28,16 +28,24 @@ async function pickLocked(ctx: Context, series?: Awaited<ReturnType<typeof fetch
   return firstPitch !== undefined && Date.now() >= firstPitch;
 }
 function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Array<typeof mlbBracketPicksTable.$inferSelect>, series: Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>, results: Array<typeof mlbBracketResultsTable.$inferSelect>) {
-  const live = new Map(series.map(s => [s.seriesSlot, s]));
   const saved = new Map(results.map(r => [r.seriesSlot, r]));
   const pickMap = new Map(picks.map(p => [p.seriesSlot, p.predictedWinner]));
   const resultMap = new Map(results.map(r => [r.seriesSlot, r.winner]));
   return slots.map(slot => {
     const { round, seriesSlot } = slot;
-    const current = live.get(seriesSlot);
     const result = saved.get(seriesSlot);
-    const team1 = current?.team1 ?? result?.team1 ?? slot.fixedTeam1 ?? (slot.feederSlot1 ? resultMap.get(slot.feederSlot1) ?? null : null);
-    const team2 = current?.team2 ?? result?.team2 ?? slot.fixedTeam2 ?? (slot.feederSlot2 ? resultMap.get(slot.feederSlot2) ?? null : null);
+    const resolvedTeam1 = result?.team1 ?? slot.fixedTeam1 ?? (slot.feederSlot1 ? resultMap.get(slot.feederSlot1) ?? null : null);
+    const resolvedTeam2 = result?.team2 ?? slot.fixedTeam2 ?? (slot.feederSlot2 ? resultMap.get(slot.feederSlot2) ?? null : null);
+    const current = resolvedTeam1 && resolvedTeam2
+      ? series.find(candidate =>
+          candidate.round === round &&
+          new Set([candidate.team1, candidate.team2]).size === 2 &&
+          [candidate.team1, candidate.team2].includes(resolvedTeam1) &&
+          [candidate.team1, candidate.team2].includes(resolvedTeam2))
+      : undefined;
+    const matchupResolved = Boolean(result || current || (resolvedTeam1 && resolvedTeam2));
+    const team1 = matchupResolved ? current?.team1 ?? result?.team1 ?? resolvedTeam1 : null;
+    const team2 = matchupResolved ? current?.team2 ?? result?.team2 ?? resolvedTeam2 : null;
     const eligibleTeams = [slot.fixedTeam1, slot.fixedTeam2, slot.feederSlot1 ? pickMap.get(slot.feederSlot1) : null, slot.feederSlot2 ? pickMap.get(slot.feederSlot2) : null].filter((team): team is string => Boolean(team));
     return {
       seriesId: seriesSlot, seriesSlot, round, roundLabel: ROUND_LABELS[round],
@@ -50,7 +58,7 @@ function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Ar
 router.get("/", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
   const [series, picks, results, slots] = await Promise.all([
-    fetchMlbPostseasonSeries(ctx.pool.season),
+    ctx.pool.sandboxMode ? Promise.resolve([]) : fetchMlbPostseasonSeries(ctx.pool.season),
     db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, req.user!.id))),
     db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
     db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, ctx.poolId)),

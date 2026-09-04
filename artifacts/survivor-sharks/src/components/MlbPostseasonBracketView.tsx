@@ -28,6 +28,15 @@ const ROUND_LABELS: Record<string, string> = {
   world_series: "World Series",
 };
 const ROUND_ORDER = ["wild_card", "division_series", "league_championship", "world_series"];
+const SLOT_FEEDERS: Record<string, string[]> = {
+  AL_DS_1: ["AL_WC_2"],
+  AL_DS_2: ["AL_WC_1"],
+  NL_DS_1: ["NL_WC_2"],
+  NL_DS_2: ["NL_WC_1"],
+  ALCS: ["AL_DS_1", "AL_DS_2"],
+  NLCS: ["NL_DS_1", "NL_DS_2"],
+  WORLD_SERIES: ["ALCS", "NLCS"],
+};
 
 type Pick = { predictedWinner: string; predictedLength: number };
 type Leader = { userId: number; username?: string; displayName?: string; rank?: number; points?: number; correctLengths?: number };
@@ -48,9 +57,11 @@ function memberPickRows(value: unknown): MemberPick[] {
   });
 }
 
-function SeriesCard({ series, pick, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; editable: boolean; onPick: (pick: Pick) => void }) {
+function SeriesCard({ series, pick, eligibleTeams, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
-  const teams = unresolved ? (series.eligibleTeams ?? []) : [series.team1!, series.team2!];
+  const matchupTeams = unresolved ? [] : [series.team1!, series.team2!];
+  const choiceTeams = unresolved ? eligibleTeams : matchupTeams;
+  const hasCompleteChoice = choiceTeams.length === 2;
   return (
     <Card className={cn("shark-card border overflow-hidden", unresolved && "border-muted/30 bg-muted/20 opacity-80")}>
       <CardContent className="p-4 space-y-3">
@@ -59,14 +70,19 @@ function SeriesCard({ series, pick, editable, onPick }: { series: MlbBracketStat
           <span className="text-primary font-semibold">{series.points} pt{series.points === 1 ? "" : "s"}</span>
         </div>
         {unresolved && <p className="flex gap-1.5 text-xs text-muted-foreground"><Lock className="w-3.5 h-3.5 shrink-0" />Matchup to be determined — pick any eligible playoff team.</p>}
+        {unresolved && <div className="grid grid-cols-1 gap-1.5">
+          <div className="rounded-lg border border-dashed border-border/40 px-3 py-2 text-sm text-muted-foreground text-center">TBD</div>
+          <div className="rounded-lg border border-dashed border-border/40 px-3 py-2 text-sm text-muted-foreground text-center">TBD</div>
+        </div>}
+        {unresolved && hasCompleteChoice && <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pick your projected winner</p>}
         <div className="grid grid-cols-1 gap-1.5">
-          {teams.length ? teams.map((team) => (
+          {hasCompleteChoice ? choiceTeams.map((team) => (
             <button key={team} type="button" disabled={!editable} data-testid={`button-mlb-winner-${series.seriesId}-${team}`}
               onClick={() => onPick({ predictedWinner: team, predictedLength: pick?.predictedLength ?? series.allowedLengths[0] })}
               className={cn("rounded-lg border px-3 py-2 text-left font-bebas tracking-wide transition-colors", pick?.predictedWinner === team ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40" : "border-border/50 bg-card hover:border-primary/50", !editable && "cursor-default opacity-70")}>
               {team}{series.completed && series.winner === team && <Check className="inline w-4 h-4 ml-2 text-green-400" />}
             </button>
-          )) : <div className="rounded-lg border border-dashed border-border/40 px-3 py-4 text-sm text-muted-foreground text-center">Playoff field pending</div>}
+          )) : !unresolved && null}
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Series length</p>
@@ -106,6 +122,12 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, 
   const simulateNext = useSimulateMlbBracketNextRound({ mutation: { onSuccess: () => { void refresh(); toast({ title: "Round advanced" }); }, onError: () => toast({ title: "Simulation failed", variant: "destructive" }) } });
   const simulateFull = useSimulateMlbBracketFull({ mutation: { onSuccess: () => { void refresh(); toast({ title: "Bracket completed and graded" }); }, onError: () => toast({ title: "Simulation failed", variant: "destructive" }) } });
   const rounds = useMemo(() => data?.rounds ?? [], [data]);
+  const eligibleTeamsBySlot = useMemo(() => Object.fromEntries(rounds.map((series) => {
+    const projectedFeeders = (SLOT_FEEDERS[series.seriesId] ?? [])
+      .map((feeder) => picks[feeder]?.predictedWinner)
+      .filter((team): team is string => Boolean(team));
+    return [series.seriesId, [...new Set([...(series.eligibleTeams ?? []), ...projectedFeeders])]];
+  })), [picks, rounds]);
   const pickedCount = rounds.filter(s => picks[s.seriesId]?.predictedWinner && picks[s.seriesId]?.predictedLength).length;
   const leaderboard = (Array.isArray(rawLeaderboard) ? rawLeaderboard : []) as Leader[];
   const memberRows = memberPickRows(memberPicks.data);
@@ -128,7 +150,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, 
         </Button>
       </div>
       {data.isLocked ? <p data-testid="status-mlb-bracket-locked" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">This bracket is locked. Picks can no longer be changed.</p> : !isActive && <p data-testid="status-mlb-bracket-closed" className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">This bracket is closed. Picks and results are shown below.</p>}
-      {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
+      {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} eligibleTeams={eligibleTeamsBySlot[s.seriesId] ?? []} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
     </TabsContent>
     <TabsContent value="leaderboard" className="mt-6 space-y-2">{leaderboardLoading ? <Skeleton className="h-44" /> : leaderboard.length === 0 ? <Card><CardContent className="p-10 text-center text-muted-foreground">No brackets submitted yet.</CardContent></Card> : leaderboard.map((entry, index) => <button type="button" key={entry.userId} data-testid={`button-mlb-member-${entry.userId}`} onClick={() => setMember(entry)} className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4 text-left hover:border-primary/40"><span className="font-bebas text-xl text-primary w-8">#{entry.rank ?? index + 1}</span><span className="flex-1 font-semibold">{entry.displayName ?? entry.username ?? "Member"}</span><span className="text-right"><b className="text-accent">{entry.points ?? 0}</b><span className="text-xs text-muted-foreground"> pts</span></span></button>)}</TabsContent>
     {isCommissioner && sandboxMode && <TabsContent value="commissioner" className="mt-6"><Card><CardContent className="p-5"><h3 className="font-bebas text-xl tracking-wide mb-1">Sandbox controls</h3><p className="text-sm text-muted-foreground mb-4">Advance the next full round or grade the entire postseason.</p><div className="flex flex-wrap gap-3"><Button data-testid="button-simulate-mlb-next" variant="outline" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateNext.mutate({ poolId })}>Simulate next round</Button><Button data-testid="button-simulate-mlb-full" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateFull.mutate({ poolId })}>Simulate full bracket</Button></div></CardContent></Card></TabsContent>}
