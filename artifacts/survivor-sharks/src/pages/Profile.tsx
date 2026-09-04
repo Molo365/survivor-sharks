@@ -1,15 +1,23 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGetUserBalance } from "@workspace/api-client-react";
-import type { UserBalanceActivePool, UserBalancePastPool } from "@workspace/api-client-react";
+import {
+  getGetMeQueryKey,
+  useGetUserBalance,
+  useUpdateReminderPreferences,
+} from "@workspace/api-client-react";
+import type { AuthUser, UserBalanceActivePool, UserBalancePastPool } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { NavBar } from "@/components/NavBar";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import { KeyRound, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -260,12 +268,52 @@ function HistoryTab({ pastPools }: { pastPools: UserBalancePastPool[] }) {
 
 export default function Profile() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: balance, isLoading } = useGetUserBalance();
+  const updateReminderPreferences = useUpdateReminderPreferences();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const remindersEnabled = user?.remindersEnabled ?? false;
 
   const initials = (user?.displayName ?? user?.username ?? "?")
     .charAt(0)
     .toUpperCase();
+
+  const setRemindersEnabled = (enabled: boolean) => {
+    queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cachedUser) =>
+      cachedUser ? { ...cachedUser, remindersEnabled: enabled } : cachedUser,
+    );
+  };
+
+  const handleReminderChange = (enabled: boolean) => {
+    if (!user || updateReminderPreferences.isPending) return;
+
+    const previousValue = remindersEnabled;
+    setRemindersEnabled(enabled);
+
+    updateReminderPreferences.mutate(
+      { data: { enabled } },
+      {
+        onSuccess: ({ remindersEnabled: savedValue }) => {
+          setRemindersEnabled(savedValue);
+          toast({
+            title: "Reminder preferences updated",
+            description: savedValue
+              ? "You'll receive email pick reminders."
+              : "Email pick reminders are turned off.",
+          });
+        },
+        onError: (error) => {
+          setRemindersEnabled(previousValue);
+          toast({
+            variant: "destructive",
+            title: "Couldn't update reminders",
+            description: error.message || "Please try again.",
+          });
+        },
+      },
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -402,6 +450,25 @@ export default function Profile() {
                   <KeyRound className="w-3.5 h-3.5" />
                   Change
                 </Button>
+              </CardContent>
+            </Card>
+            <Card className="shark-card">
+              <CardContent className="p-4 flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="email-pick-reminders" className="font-medium text-sm">
+                    Email me pick reminders
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Get an email before your pool picks are due.
+                  </p>
+                </div>
+                <Switch
+                  id="email-pick-reminders"
+                  data-testid="switch-email-pick-reminders"
+                  checked={remindersEnabled}
+                  disabled={!user || updateReminderPreferences.isPending}
+                  onCheckedChange={handleReminderChange}
+                />
               </CardContent>
             </Card>
           </TabsContent>

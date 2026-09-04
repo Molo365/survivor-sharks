@@ -36,6 +36,7 @@ export interface AuthUser {
   role: AuthUserRole;
   /** @nullable */
   emailVerifiedAt: string | null;
+  remindersEnabled: boolean;
   createdAt?: string;
 }
 
@@ -2051,6 +2052,14 @@ export interface MlbBracketState {
 
 export type VerifyEmailParams = {
 token: string;
+};
+
+export type UpdateReminderPreferencesBody = {
+  enabled: boolean;
+};
+
+export type UpdateReminderPreferences200 = {
+  remindersEnabled: boolean;
 };
 
 export type GetDailyScheduleParams = {

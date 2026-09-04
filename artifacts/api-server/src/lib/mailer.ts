@@ -22,6 +22,46 @@ const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const RESEND_FROM = "Survivor Sharks <noreply@survivorsharks.com>";
 const SMTP_FROM = process.env.SMTP_FROM ?? RESEND_FROM;
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]!);
+}
+
+export async function sendPickReminderEmail(
+  toEmail: string,
+  poolName: string,
+  picksUrl: string,
+  stage: "24h" | "final",
+): Promise<string | null> {
+  const transport = createTransport();
+  const urgent = stage === "final";
+  const safePoolName = escapeHtml(poolName);
+  const safeUrl = escapeHtml(picksUrl);
+  const subject = urgent
+    ? `Final reminder: make your picks for ${poolName}`
+    : `Don't forget your picks for ${poolName}`;
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px">
+      <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff">SURVIVOR SHARKS</h1>
+      <p>${urgent ? "<strong>Your pick deadline is coming up soon.</strong>" : "Your next pick window closes within 24 hours."}</p>
+      <p>Make your picks for <strong>${safePoolName}</strong> before the deadline.</p>
+      <a href="${safeUrl}" style="display:inline-block;padding:14px 32px;background:#1e90ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">MAKE PICKS</a>
+      <p style="margin-top:24px;font-size:11px;color:#64748b;word-break:break-all">${safeUrl}</p>
+    </div>`;
+  if (resend) {
+    const { data, error } = await resend.emails.send({ from: RESEND_FROM, to: toEmail, subject, html });
+    if (error) throw new Error(`Resend pick reminder email failed: ${error.message}`);
+    return data?.id ?? null;
+  }
+  if (transport) {
+    const result = await transport.sendMail({ from: SMTP_FROM, to: toEmail, subject, html });
+    return result.messageId ?? null;
+  }
+  console.log(`\n====== PICK REMINDER (no email provider configured) ======\nTo: ${toEmail}\nPool: ${poolName}\nURL: ${picksUrl}\n=====================================================\n`);
+  return null;
+}
+
 export async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   const transport = createTransport();
 

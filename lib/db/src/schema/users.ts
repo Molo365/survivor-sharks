@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, pgEnum, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, pgEnum, integer, boolean, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   role: userRoleEnum("role").notNull().default("user"),
   agentId: integer("agent_id").references((): AnyPgColumn => usersTable.id, { onDelete: "set null" }),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  remindersEnabled: boolean("reminders_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

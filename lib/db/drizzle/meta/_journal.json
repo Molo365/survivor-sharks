@@ -43,6 +43,13 @@
       "when": 1788531820838,
       "tag": "0005_cuddly_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788531820839,
+      "tag": "0006_pick_reminders",
+      "breakpoints": true
     }
   ]
 }

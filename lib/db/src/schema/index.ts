@@ -20,3 +20,4 @@ export * from "./mlb_bracket_slots";
 export * from "./pickem_game_spreads";
 export * from "./password_resets";
 export * from "./email_verification_tokens";
+export * from "./pick_reminders";

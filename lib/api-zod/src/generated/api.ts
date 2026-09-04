@@ -50,6 +50,7 @@ export const LoginUserResponse = zod.object({
   "displayName": zod.string().nullish(),
   "role": zod.enum(['user', 'admin', 'agent']),
   "emailVerifiedAt": zod.coerce.date().nullable(),
+  "remindersEnabled": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 })
@@ -74,6 +75,7 @@ export const GetMeResponse = zod.object({
   "displayName": zod.string().nullish(),
   "role": zod.enum(['user', 'admin', 'agent']),
   "emailVerifiedAt": zod.coerce.date().nullable(),
+  "remindersEnabled": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 
@@ -126,6 +128,18 @@ export const GetUserBalanceResponse = zod.object({
   "netResult": zod.number(),
   "winnerName": zod.string().nullish()
 }))
+})
+
+
+/**
+ * @summary Enable or disable current user's pick reminder emails
+ */
+export const UpdateReminderPreferencesBody = zod.object({
+  "enabled": zod.boolean()
+})
+
+export const UpdateReminderPreferencesResponse = zod.object({
+  "remindersEnabled": zod.boolean()
 })
 
 

@@ -30,7 +30,7 @@ import {
 
 const router = Router({ mergeParams: true });
 
-type PickStatus = "submitted" | "pending" | "not_required";
+export type PickStatus = "submitted" | "pending" | "not_required";
 
 type Member = {
   userId: number;
@@ -44,10 +44,10 @@ type StatusRecord = {
   requiredCount: number;
 };
 
-type PickemPeriod =
-  | { kind: "week"; gameIds: Set<string>; confidenceRequired: boolean }
-  | { kind: "date"; date: string; gameIds: Set<string>; confidenceRequired: boolean }
-  | { kind: "range"; start: string; end: string; gameIds: Set<string>; confidenceRequired: boolean };
+export type PickemPeriod =
+  | { kind: "week"; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean }
+  | { kind: "date"; date: string; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean }
+  | { kind: "range"; start: string; end: string; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean };
 
 function selectableGameIds(
   games: Array<{ id: string; status?: string; isPostponed?: boolean }>,
@@ -57,6 +57,10 @@ function selectableGameIds(
       .filter((game) => game.status !== "suspended" && game.status !== "postponed" && !game.isPostponed)
       .map((game) => game.id),
   );
+}
+
+function selectableGames(games: EspnGame[]): EspnGame[] {
+  return games.filter((game) => selectableGameIds([game]).has(game.id));
 }
 
 function datesFromRange(start: string, end: string): string[] {
@@ -86,7 +90,7 @@ async function fetchGamesForDates(
   });
 }
 
-async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promise<PickemPeriod | null> {
+export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promise<PickemPeriod | null> {
   const sport = pool.sport as string;
   const todayEt = getTodayEtDate();
 
@@ -95,6 +99,7 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
     return {
       kind: "date",
       date: todayEt,
+      games: selectableGames(games),
       gameIds: selectableGameIds(games),
       confidenceRequired: false,
     };
@@ -115,6 +120,7 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
     const games = await fetchGamesForDates("nba", dates);
     return {
       kind: "week",
+      games: selectableGames(games),
       gameIds: selectableGameIds(games),
       confidenceRequired: false,
     };
@@ -129,7 +135,7 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
         ? pool.createdAt
         : new Date(pool.createdAt);
     const games = await fetchNhlGamesByWeek(anchor, pool.currentWeek);
-    return { kind: "week", gameIds: selectableGameIds(games), confidenceRequired: false };
+    return { kind: "week", games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 
   if (sport === "nba") {
@@ -139,7 +145,7 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
         ? pool.createdAt
         : new Date(pool.createdAt);
     const games = await fetchNbaGamesByWeek(anchor, pool.currentWeek);
-    return { kind: "week", gameIds: selectableGameIds(games), confidenceRequired: false };
+    return { kind: "week", games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 
   if (sport === "mlb") {
@@ -148,13 +154,13 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
       return [full.weekStart, full.weekEnd] as const;
     })();
     const games = await fetchGamesForDates("mlb", datesFromRange(start, end));
-    return { kind: "range", start, end, gameIds: selectableGameIds(games), confidenceRequired: false };
+    return { kind: "range", start, end, games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 
   if (sport === "mls") {
     const { weekStart, weekEnd } = getWeekBoundsEt(todayEt);
     const games = await fetchGamesForDates("mls", datesFromRange(weekStart, weekEnd));
-    return { kind: "range", start: weekStart, end: weekEnd, gameIds: selectableGameIds(games), confidenceRequired: false };
+    return { kind: "range", start: weekStart, end: weekEnd, games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 
   if (sport === "superleague") {
@@ -164,15 +170,15 @@ async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promis
       datesFromRange(weekStart, weekEnd),
       (date) => fetchSuperLeagueGamesForDate(date.replace(/-/g, "")),
     );
-    return { kind: "range", start: weekStart, end: weekEnd, gameIds: selectableGameIds(games), confidenceRequired: false };
+    return { kind: "range", start: weekStart, end: weekEnd, games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 
   return null;
 }
 
-async function resolveNflGameIds(
+export async function resolveNflSelectableGames(
   pool: typeof poolsTable.$inferSelect,
-): Promise<Set<string>> {
+): Promise<Array<{ id: string; date: string }>> {
   const week = pool.currentWeek;
   if (pool.sandboxMode) {
     const replayRows = await db
@@ -184,17 +190,21 @@ async function resolveNflGameIds(
         isNotNull(sandboxGameScoresTable.gameStatus),
       ));
     if (replayRows.length > 0) {
-      return selectableGameIds(replayRows.map(replayRowToPickEmShape));
+      return replayRows.map(replayRowToPickEmShape).map((game) => ({ id: game.id, date: game.startTime }));
     }
-    return new Set(getSandboxGamesForWeek(week).map((game) => game.id));
+    return getSandboxGamesForWeek(week).map((game) => ({ id: game.id, date: game.gameTime }));
   }
 
   const seasonType = pool.isPreseason ? 1 : 2;
   const games = await fetchNflGamesByWeek(week, pool.season, seasonType);
-  return selectableGameIds(games);
+  return selectableGames(games).map((game) => ({ id: game.id, date: game.date }));
 }
 
-function buildStatuses(
+export async function resolveNflGameIds(pool: typeof poolsTable.$inferSelect): Promise<Set<string>> {
+  return new Set((await resolveNflSelectableGames(pool)).map((game) => game.id));
+}
+
+export function buildStatuses(
   members: Member[],
   requiredCount: number,
   submittedByUser: Map<number, number>,
@@ -218,6 +228,20 @@ function buildStatuses(
       requiredCount,
     };
   });
+}
+
+export function countSubmittedPickemGames(
+  rows: Array<{ userId: number; gameId: string; confidencePoints: number | null }>,
+  gameIds: Set<string>,
+  confidenceRequired: boolean,
+): Map<number, number> {
+  const submittedByUser = new Map<number, Set<string>>();
+  for (const row of rows) {
+    if (!gameIds.has(row.gameId) || (confidenceRequired && row.confidencePoints == null)) continue;
+    if (!submittedByUser.has(row.userId)) submittedByUser.set(row.userId, new Set());
+    submittedByUser.get(row.userId)!.add(row.gameId);
+  }
+  return new Map([...submittedByUser].map(([id, games]) => [id, games.size]));
 }
 
 // GET /api/pools/:poolId/pick-status
@@ -288,17 +312,10 @@ router.get("/", requireAuth, async (req, res) => {
         eq(pickemPicksTable.poolId, poolId),
         eq(pickemPicksTable.week, pool.currentWeek),
       ));
-    const submittedByUser = new Map<number, Set<string>>();
-    for (const row of pickRows) {
-      if (!gameIds.has(row.gameId)) continue;
-      if (pool.poolType !== "pickem_season" && row.confidencePoints == null) continue;
-      if (!submittedByUser.has(row.userId)) submittedByUser.set(row.userId, new Set());
-      submittedByUser.get(row.userId)!.add(row.gameId);
-    }
     res.json(buildStatuses(
       members,
       gameIds.size,
-      new Map([...submittedByUser].map(([id, games]) => [id, games.size])),
+      countSubmittedPickemGames(pickRows, gameIds, pool.poolType !== "pickem_season"),
     ));
     return;
   }
@@ -323,18 +340,10 @@ router.get("/", requireAuth, async (req, res) => {
     .from(pickemPicksTable)
     .where(and(eq(pickemPicksTable.poolId, poolId), pickCondition));
 
-  const submittedByUser = new Map<number, Set<string>>();
-  for (const row of pickRows) {
-    if (!period.gameIds.has(row.gameId)) continue;
-    if (period.confidenceRequired && row.confidencePoints == null) continue;
-    if (!submittedByUser.has(row.userId)) submittedByUser.set(row.userId, new Set());
-    submittedByUser.get(row.userId)!.add(row.gameId);
-  }
-
   res.json(buildStatuses(
     members,
     period.gameIds.size,
-    new Map([...submittedByUser].map(([id, games]) => [id, games.size])),
+    countSubmittedPickemGames(pickRows, period.gameIds, period.confidenceRequired),
   ));
 });
 

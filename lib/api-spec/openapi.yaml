@@ -206,6 +206,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/me/reminders:
+    patch:
+      operationId: updateReminderPreferences
+      tags: [users]
+      summary: Enable or disable current user's pick reminder emails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated reminder preference
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [remindersEnabled]
+                properties:
+                  remindersEnabled:
+                    type: boolean
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Dashboard ─────────────────────────────────────────────────────────────
   /dashboard/pickem-stats:
     get:
@@ -2203,7 +2242,7 @@ components:
 
     AuthUser:
       type: object
-      required: [id, username, email, role, emailVerifiedAt]
+      required: [id, username, email, role, emailVerifiedAt, remindersEnabled]
       properties:
         id:
           type: integer
@@ -2219,6 +2258,8 @@ components:
         emailVerifiedAt:
           type: ["string", "null"]
           format: date-time
+        remindersEnabled:
+          type: boolean
         createdAt:
           type: string
 

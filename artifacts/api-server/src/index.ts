@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startAutoEliminator } from "./lib/auto-eliminator";
 import { startPoolCleanup } from "./lib/pool-cleanup";
+import { startPickReminderScheduler } from "./lib/pick-reminders";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startAutoEliminator();
+  startPickReminderScheduler();
   if (process.env["ENABLE_POOL_CLEANUP"] === "true") {
     startPoolCleanup();
   }

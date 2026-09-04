@@ -18,6 +18,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     displayName: user.displayName,
     role: user.role,
     emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+    remindersEnabled: user.remindersEnabled,
     createdAt: user.createdAt.toISOString(),
   };
 }

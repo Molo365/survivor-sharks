@@ -105,6 +105,8 @@ import type {
   SurvivorGrid,
   Team,
   TeamInjuryReport,
+  UpdateReminderPreferences200,
+  UpdateReminderPreferencesBody,
   UserBalance,
   VerifyEmailParams,
   WcBracketLeaderboardEntry,
@@ -725,6 +727,77 @@ export function useGetUserBalance<TData = Awaited<ReturnType<typeof getUserBalan
 
 
 
+
+export const getUpdateReminderPreferencesUrl = () => {
+
+
+
+
+  return `/api/users/me/reminders`
+}
+
+/**
+ * @summary Enable or disable current user's pick reminder emails
+ */
+export const updateReminderPreferences = async (updateReminderPreferencesBody: UpdateReminderPreferencesBody, options?: RequestInit): Promise<UpdateReminderPreferences200> => {
+
+  return customFetch<UpdateReminderPreferences200>(getUpdateReminderPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateReminderPreferencesBody,)
+  }
+);}
+
+
+
+
+export const getUpdateReminderPreferencesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReminderPreferences>>, TError,{data: BodyType<UpdateReminderPreferencesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReminderPreferences>>, TError,{data: BodyType<UpdateReminderPreferencesBody>}, TContext> => {
+
+const mutationKey = ['updateReminderPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReminderPreferences>>, {data: BodyType<UpdateReminderPreferencesBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateReminderPreferences(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReminderPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateReminderPreferences>>>
+    export type UpdateReminderPreferencesMutationBody = BodyType<UpdateReminderPreferencesBody>
+    export type UpdateReminderPreferencesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Enable or disable current user's pick reminder emails
+ */
+export const useUpdateReminderPreferences = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReminderPreferences>>, TError,{data: BodyType<UpdateReminderPreferencesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReminderPreferences>>,
+        TError,
+        {data: BodyType<UpdateReminderPreferencesBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateReminderPreferencesMutationOptions(options));
+    }
 
 export const getGetPickEmDashboardStatsUrl = () => {
 

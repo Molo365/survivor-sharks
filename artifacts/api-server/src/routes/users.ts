@@ -6,6 +6,20 @@ import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
 
+// PATCH /api/users/me/reminders
+router.patch("/me/reminders", requireAuth, async (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+  const [user] = await db.update(usersTable)
+    .set({ remindersEnabled: enabled })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning({ remindersEnabled: usersTable.remindersEnabled });
+  res.json({ remindersEnabled: user!.remindersEnabled });
+});
+
 // GET /api/users/me/balance
 router.get("/me/balance", requireAuth, async (req, res) => {
   const userId = req.user!.id;
