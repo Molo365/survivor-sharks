@@ -193,7 +193,15 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
     </TabsList>
     <TabsContent value="picks" className="mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <div><p className="font-bebas text-xl tracking-wide">Complete your full bracket</p><p className="text-sm text-muted-foreground">{pickedCount} of 11 series selected. Winner picks earn 1/2/3/4 points by round (max 22); correct series lengths add +1 bonus per series (max 11), for a maximum total of 33.</p></div>
+        <div>
+          <p className="font-bebas text-xl tracking-wide">Complete your full bracket</p>
+          <p className="text-sm text-muted-foreground">{pickedCount} of 11 series selected.</p>
+          <div className="mt-2 space-y-0.5 text-sm text-muted-foreground">
+            <p>Pick the winner: 1 pt (Wild Card) → 2 pts (Division Series) → 3 pts (League Championship) → 4 pts (World Series) <span className="text-muted-foreground/70">(max 22 winner points)</span></p>
+            <p>Pick the series length too: +1 bonus point per series <span className="text-muted-foreground/70">(max 11 bonus points)</span></p>
+            <p className="font-semibold text-foreground">Max possible score: 33 points</p>
+          </div>
+        </div>
         <Button data-testid="button-submit-mlb-bracket" disabled={!editable || pickedCount !== rounds.length || saving} onClick={() => submit.mutate({ poolId, data: { picks: rounds.map((series) => ({ seriesId: series.seriesId as MlbBracketPickInputSeriesId, predictedWinner: picks[series.seriesId].predictedWinner, predictedLength: picks[series.seriesId].predictedLength } satisfies MlbBracketPickInput)) } })}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}Submit bracket
         </Button>

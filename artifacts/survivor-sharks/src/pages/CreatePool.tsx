@@ -97,7 +97,7 @@ const POOL_TYPES = [
     label: "Postseason Bracket Challenge",
     icon: Brackets,
     tagline: "Pick All 11 Series Up Front",
-    description: "Predict every MLB postseason series winner and length, from Wild Card through the World Series. Winner picks earn 1/2/3/4 points by round (max 22); correct series lengths add +1 bonus per series (max 11), for a maximum total of 33.",
+    description: "Predict every MLB postseason series winner and length, from Wild Card through the World Series.\nPick the winner: 1 pt (Wild Card) → 2 pts (Division Series) → 3 pts (League Championship) → 4 pts (World Series) (max 22 winner points)\nPick the series length too: +1 bonus point per series (max 11 bonus points)\nMax possible score: 33 points",
     badge: "MLB",
     badgeClass: "bg-red-500/20 text-red-300 border-red-500/30",
     cardClass: "border-red-500/60 bg-[linear-gradient(145deg,rgba(239,68,68,0.08)_0%,transparent_100%)]",
@@ -1039,7 +1039,7 @@ export default function CreatePool() {
                                         )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week"
                                           : type.id === "crazy_8s" && (selectedSport === PoolInputSport.nhl || selectedSport === PoolInputSport.nba) ? "8 Games. 8 Confidence Points."
                                           : type.tagline}</p>
-                                        <p className="text-sm text-muted-foreground leading-snug">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
+                                         <p className="text-sm text-muted-foreground leading-snug whitespace-pre-line">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
                                           : type.id === "pickem" && (selectedSport as string) === "superleague" ? "Pick the winner of every Super League match — Home Win, Draw, or Away Win. Friday, Saturday and Sunday games only. Most correct picks by Sunday wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "Pick any 8 games from the weekend (Fri+Sat+Sun) NBA slate. Assign confidence points 1–8. Highest total wins."
