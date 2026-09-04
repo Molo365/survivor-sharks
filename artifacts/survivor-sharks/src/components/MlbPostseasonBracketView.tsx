@@ -49,7 +49,10 @@ type Leader = { userId: number; username?: string; displayName?: string; rank?: 
 function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; eliminatedTeams: Set<string>; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
   const matchupTeams = unresolved ? [] : [series.team1!, series.team2!];
-  const choiceTeams = [...new Set([...(unresolved ? eligibleTeams : matchupTeams), ...(pick?.predictedWinner ? [pick.predictedWinner] : [])])];
+  const choiceTeams = unresolved
+    ? [...new Set([...eligibleTeams, ...(pick?.predictedWinner ? [pick.predictedWinner] : [])])]
+    : matchupTeams;
+  const predictedOutsideMatchup = !unresolved && Boolean(pick?.predictedWinner) && !matchupTeams.includes(pick!.predictedWinner);
   const winnerOptions = choiceTeams.length ? choiceTeams.map((team) => {
     const selected = pick?.predictedWinner === team;
     const visualState = selected ? getMlbBracketPickVisualState({
@@ -119,6 +122,11 @@ function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, e
         ) : (
           <>
             <div className="grid grid-cols-1 gap-1.5">{winnerOptions}</div>
+             {predictedOutsideMatchup && pick?.predictedWinner && (
+               <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                 Your prediction (eliminated): <span className="font-semibold">{pick.predictedWinner}</span>
+               </div>
+             )}
             {lengthPicker}
           </>
         )}
