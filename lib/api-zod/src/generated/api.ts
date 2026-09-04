@@ -809,6 +809,7 @@ export const GetMlbBracketParams = zod.object({
 
 export const GetMlbBracketResponse = zod.object({
   "field": zod.array(zod.string()),
+  "teamLogos": zod.record(zod.string(), zod.string().nullable()),
   "isLocked": zod.boolean(),
   "rounds": zod.array(zod.object({
   "seriesId": zod.string(),
@@ -817,6 +818,8 @@ export const GetMlbBracketResponse = zod.object({
   "roundLabel": zod.string().optional(),
   "team1": zod.string().nullish(),
   "team2": zod.string().nullish(),
+  "team1LogoUrl": zod.string().nullish(),
+  "team2LogoUrl": zod.string().nullish(),
   "eligibleTeams": zod.array(zod.string()).optional(),
   "allowedLengths": zod.array(zod.number()),
   "points": zod.number(),

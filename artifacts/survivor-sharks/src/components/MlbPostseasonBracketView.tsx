@@ -57,7 +57,7 @@ function memberPickRows(value: unknown): MemberPick[] {
   });
 }
 
-function SeriesCard({ series, pick, eligibleTeams, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; editable: boolean; onPick: (pick: Pick) => void }) {
+function SeriesCard({ series, pick, eligibleTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
   const matchupTeams = unresolved ? [] : [series.team1!, series.team2!];
   const choiceTeams = unresolved ? eligibleTeams : matchupTeams;
@@ -79,8 +79,17 @@ function SeriesCard({ series, pick, eligibleTeams, editable, onPick }: { series:
           {hasCompleteChoice ? choiceTeams.map((team) => (
             <button key={team} type="button" disabled={!editable} data-testid={`button-mlb-winner-${series.seriesId}-${team}`}
               onClick={() => onPick({ predictedWinner: team, predictedLength: pick?.predictedLength ?? series.allowedLengths[0] })}
-              className={cn("rounded-lg border px-3 py-2 text-left font-bebas tracking-wide transition-colors", pick?.predictedWinner === team ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40" : "border-border/50 bg-card hover:border-primary/50", !editable && "cursor-default opacity-70")}>
-              {team}{series.completed && series.winner === team && <Check className="inline w-4 h-4 ml-2 text-green-400" />}
+              className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left font-bebas tracking-wide transition-colors", pick?.predictedWinner === team ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40" : "border-border/50 bg-card hover:border-primary/50", !editable && "cursor-default opacity-70")}>
+              {(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team]) && (
+                <img
+                  src={(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team])!}
+                  alt=""
+                  className="h-8 w-8 shrink-0 object-contain"
+                  onError={(event) => { event.currentTarget.style.display = "none"; }}
+                />
+              )}
+              <span className="flex-1">{team}</span>
+              {series.completed && series.winner === team && <Check className="w-4 h-4 shrink-0 text-green-400" />}
             </button>
           )) : !unresolved && null}
         </div>
@@ -150,7 +159,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, sandboxMode, 
         </Button>
       </div>
       {data.isLocked ? <p data-testid="status-mlb-bracket-locked" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">This bracket is locked. Picks can no longer be changed.</p> : !isActive && <p data-testid="status-mlb-bracket-closed" className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">This bracket is closed. Picks and results are shown below.</p>}
-      {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} eligibleTeams={eligibleTeamsBySlot[s.seriesId] ?? []} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
+      {ROUND_ORDER.map(round => { const cards = rounds.filter(s => s.round === round); return cards.length ? <section key={round}><h2 className="font-bebas text-2xl tracking-wider mb-3">{ROUND_LABELS[round]}</h2><div className="grid lg:grid-cols-2 gap-4">{cards.map(s => <SeriesCard key={s.seriesId} series={s} pick={picks[s.seriesId]} eligibleTeams={eligibleTeamsBySlot[s.seriesId] ?? []} teamLogos={data.teamLogos} editable={editable} onPick={pick => setPicks(prev => ({ ...prev, [s.seriesId]: pick }))} />)}</div></section> : null; })}
     </TabsContent>
     <TabsContent value="leaderboard" className="mt-6 space-y-2">{leaderboardLoading ? <Skeleton className="h-44" /> : leaderboard.length === 0 ? <Card><CardContent className="p-10 text-center text-muted-foreground">No brackets submitted yet.</CardContent></Card> : leaderboard.map((entry, index) => <button type="button" key={entry.userId} data-testid={`button-mlb-member-${entry.userId}`} onClick={() => setMember(entry)} className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4 text-left hover:border-primary/40"><span className="font-bebas text-xl text-primary w-8">#{entry.rank ?? index + 1}</span><span className="flex-1 font-semibold">{entry.displayName ?? entry.username ?? "Member"}</span><span className="text-right"><b className="text-accent">{entry.points ?? 0}</b><span className="text-xs text-muted-foreground"> pts</span></span></button>)}</TabsContent>
     {isCommissioner && sandboxMode && <TabsContent value="commissioner" className="mt-6"><Card><CardContent className="p-5"><h3 className="font-bebas text-xl tracking-wide mb-1">Sandbox controls</h3><p className="text-sm text-muted-foreground mb-4">Advance the next full round or grade the entire postseason.</p><div className="flex flex-wrap gap-3"><Button data-testid="button-simulate-mlb-next" variant="outline" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateNext.mutate({ poolId })}>Simulate next round</Button><Button data-testid="button-simulate-mlb-full" disabled={simulateNext.isPending || simulateFull.isPending} onClick={() => simulateFull.mutate({ poolId })}>Simulate full bracket</Button></div></CardContent></Card></TabsContent>}

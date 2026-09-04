@@ -1,3 +1,5 @@
+import { ESPN_TEAMS, getTeamLogoUrl } from "./teams-data";
+
 /** ESPN publishes MLB postseason as games; this module aggregates them into series. */
 export const MLB_BRACKET_SLOTS = [
   ["wild_card", "AL_WC_1"], ["wild_card", "AL_WC_2"], ["wild_card", "NL_WC_1"], ["wild_card", "NL_WC_2"],
@@ -8,6 +10,12 @@ export const MLB_ROUND_POINTS: Record<string, number> = { wild_card: 1, division
 export const MLB_ROUND_LENGTHS: Record<string, number[]> = { wild_card: [2, 3], division_series: [3, 4, 5], league_championship: [4, 5, 6, 7], world_series: [4, 5, 6, 7] };
 export const SANDBOX_MLB_FIELD = ["Baltimore Orioles", "Boston Red Sox", "Cleveland Guardians", "Detroit Tigers", "Houston Astros", "New York Yankees", "Atlanta Braves", "Chicago Cubs", "Los Angeles Dodgers", "Milwaukee Brewers", "New York Mets", "Philadelphia Phillies"];
 export type MlbField = { AL: string[]; NL: string[] };
+
+export function getMlbTeamLogoUrl(teamName: string | null | undefined): string | null {
+  if (!teamName) return null;
+  const team = ESPN_TEAMS.mlb.find(candidate => candidate.name === teamName);
+  return team ? getTeamLogoUrl("mlb", team) : null;
+}
 
 export function bracketBlueprint(field: MlbField) {
   const rows = (league: "AL" | "NL", teams: string[]) => [
@@ -20,8 +28,31 @@ export function bracketBlueprint(field: MlbField) {
   return [...rows("AL", field.AL), ...rows("NL", field.NL), { seriesSlot: "WORLD_SERIES", round: "world_series", feederSlot1: "ALCS", feederSlot2: "NLCS" }];
 }
 
-export type MlbSeries = { seriesId: string; round: string; seriesSlot: string; team1: string; team2: string; games: number; startsAt: Date; winner: string | null; completed: boolean; completedAt: Date | null };
-type Competition = { date?: string; altGameNote?: string; notes?: Array<{ headline?: string }>; status?: { type?: { completed?: boolean } }; competitors?: Array<{ homeAway?: string; winner?: boolean; team?: { displayName?: string } }> };
+export type MlbSeries = {
+  seriesId: string;
+  round: string;
+  seriesSlot: string;
+  team1: string;
+  team2: string;
+  team1LogoUrl: string | null;
+  team2LogoUrl: string | null;
+  games: number;
+  startsAt: Date;
+  winner: string | null;
+  completed: boolean;
+  completedAt: Date | null;
+};
+type Competition = {
+  date?: string;
+  altGameNote?: string;
+  notes?: Array<{ headline?: string }>;
+  status?: { type?: { completed?: boolean } };
+  competitors?: Array<{
+    homeAway?: string;
+    winner?: boolean;
+    team?: { displayName?: string; logo?: string };
+  }>;
+};
 type Event = { date?: string; competitions?: Competition[] };
 
 function roundFor(note: string): string | null {
@@ -45,18 +76,40 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
     const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${dates}&limit=1000&seasontype=3`, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) return [];
     const data = await response.json() as { events?: Event[] };
-    const groups = new Map<string, { round: string; league: "AL" | "NL" | null; teams: [string, string]; wins: Map<string, number>; completedGames: number; startsAt: Date; completedAt: Date | null }>();
+    const groups = new Map<string, {
+      round: string;
+      league: "AL" | "NL" | null;
+      teams: [string, string];
+      logos: Map<string, string>;
+      wins: Map<string, number>;
+      completedGames: number;
+      startsAt: Date;
+      completedAt: Date | null;
+    }>();
     for (const event of data.events ?? []) {
       const competition = event.competitions?.[0];
       const note = competition?.notes?.[0]?.headline ?? competition?.altGameNote ?? "";
       const round = roundFor(note);
       const competitors = competition?.competitors ?? [];
-      const home = competitors.find(c => c.homeAway === "home")?.team?.displayName;
-      const away = competitors.find(c => c.homeAway === "away")?.team?.displayName;
+      const homeTeam = competitors.find(c => c.homeAway === "home")?.team;
+      const awayTeam = competitors.find(c => c.homeAway === "away")?.team;
+      const home = homeTeam?.displayName;
+      const away = awayTeam?.displayName;
       if (!round || !home || !away) continue;
       const key = `${round}:${[home, away].sort().join("|")}`;
       const startsAt = new Date(competition?.date ?? event.date ?? Date.now());
-      const group = groups.get(key) ?? { round, league: leagueFor(note), teams: [away, home], wins: new Map(), completedGames: 0, startsAt, completedAt: null };
+      const group = groups.get(key) ?? {
+        round,
+        league: leagueFor(note),
+        teams: [away, home],
+        logos: new Map(),
+        wins: new Map(),
+        completedGames: 0,
+        startsAt,
+        completedAt: null,
+      };
+      if (awayTeam.logo) group.logos.set(away, awayTeam.logo);
+      if (homeTeam.logo) group.logos.set(home, homeTeam.logo);
       if (startsAt < group.startsAt) group.startsAt = startsAt;
       if (competition?.status?.type?.completed) {
         group.completedGames++;
@@ -76,7 +129,20 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
       const index = (counts.get(groupKey) ?? 0) + 1;
       counts.set(groupKey, index);
       const seriesSlot = group.round === "world_series" ? "WORLD_SERIES" : group.round === "league_championship" ? `${league ?? "AL"}CS` : `${league ?? "AL"}_${group.round === "wild_card" ? "WC" : "DS"}_${index}`;
-      return { seriesId: seriesSlot, round: group.round, seriesSlot, team1: group.teams[0], team2: group.teams[1], games: group.completedGames, startsAt: group.startsAt, winner, completed: winner !== null, completedAt: winner ? group.completedAt : null };
+      return {
+        seriesId: seriesSlot,
+        round: group.round,
+        seriesSlot,
+        team1: group.teams[0],
+        team2: group.teams[1],
+        team1LogoUrl: group.logos.get(group.teams[0]) ?? getMlbTeamLogoUrl(group.teams[0]),
+        team2LogoUrl: group.logos.get(group.teams[1]) ?? getMlbTeamLogoUrl(group.teams[1]),
+        games: group.completedGames,
+        startsAt: group.startsAt,
+        winner,
+        completed: winner !== null,
+        completedAt: winner ? group.completedAt : null,
+      };
     });
   } catch { return []; }
 }

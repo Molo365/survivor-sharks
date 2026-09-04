@@ -1909,6 +1909,8 @@ export interface MlbBracketPickBatch {
   picks: MlbBracketPickInput[];
 }
 
+export type MlbBracketStateTeamLogos = {[key: string]: string | null};
+
 export type MlbBracketStateRoundsItemRound = typeof MlbBracketStateRoundsItemRound[keyof typeof MlbBracketStateRoundsItemRound];
 
 
@@ -1941,6 +1943,10 @@ export type MlbBracketStateRoundsItem = {
   team1?: string | null;
   /** @nullable */
   team2?: string | null;
+  /** @nullable */
+  team1LogoUrl?: string | null;
+  /** @nullable */
+  team2LogoUrl?: string | null;
   eligibleTeams?: string[];
   allowedLengths: number[];
   points: number;
@@ -1955,6 +1961,7 @@ export type MlbBracketStateRoundsItem = {
 
 export interface MlbBracketState {
   field: string[];
+  teamLogos: MlbBracketStateTeamLogos;
   isLocked: boolean;
   rounds: MlbBracketStateRoundsItem[];
 }

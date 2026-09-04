@@ -3,7 +3,7 @@ import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBrac
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
-import { fetchMlbPostseasonSeries, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
@@ -46,10 +46,17 @@ function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Ar
     const matchupResolved = Boolean(result || current || (resolvedTeam1 && resolvedTeam2));
     const team1 = matchupResolved ? current?.team1 ?? result?.team1 ?? resolvedTeam1 : null;
     const team2 = matchupResolved ? current?.team2 ?? result?.team2 ?? resolvedTeam2 : null;
+    const logoFor = (team: string | null) => {
+      if (!team) return null;
+      if (current?.team1 === team) return current.team1LogoUrl;
+      if (current?.team2 === team) return current.team2LogoUrl;
+      return getMlbTeamLogoUrl(team);
+    };
     const eligibleTeams = [slot.fixedTeam1, slot.fixedTeam2, slot.feederSlot1 ? pickMap.get(slot.feederSlot1) : null, slot.feederSlot2 ? pickMap.get(slot.feederSlot2) : null].filter((team): team is string => Boolean(team));
     return {
       seriesId: seriesSlot, seriesSlot, round, roundLabel: ROUND_LABELS[round],
-      team1, team2, eligibleTeams, allowedLengths: MLB_ROUND_LENGTHS[round], points: MLB_ROUND_POINTS[round],
+      team1, team2, team1LogoUrl: logoFor(team1), team2LogoUrl: logoFor(team2),
+      eligibleTeams, allowedLengths: MLB_ROUND_LENGTHS[round], points: MLB_ROUND_POINTS[round],
       completed: Boolean(result), winner: result?.winner ?? null, actualLength: result?.actualLength ?? null,
       visuallyLocked: !current && round !== "wild_card",
     };
@@ -64,8 +71,16 @@ router.get("/", requireAuth, async (req, res) => {
     db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, ctx.poolId)),
   ]);
   const field = slots.flatMap(slot => [slot.fixedTeam1, slot.fixedTeam2]).filter((team): team is string => Boolean(team));
+  const liveLogos = new Map(series.flatMap(item => [
+    [item.team1, item.team1LogoUrl] as const,
+    [item.team2, item.team2LogoUrl] as const,
+  ]));
+  const teamLogos = Object.fromEntries(field.map(team => [
+    team,
+    liveLogos.get(team) ?? getMlbTeamLogoUrl(team),
+  ]));
   const picksBySeries = new Map(picks.map(p => [p.seriesId, p]));
-  res.json({ field, isLocked: await pickLocked(ctx, series), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
+  res.json({ field, teamLogos, isLocked: await pickLocked(ctx, series), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
 });
 async function submitPicks(req: any, res: any) {
   const ctx = await getContext(req, res); if (!ctx) return;

@@ -4739,11 +4739,15 @@ components:
           items: { $ref: "#/components/schemas/MlbBracketPickInput" }
     MlbBracketState:
       type: object
-      required: [field, isLocked, rounds]
+      required: [field, teamLogos, isLocked, rounds]
       properties:
         field:
           type: array
           items: { type: string }
+        teamLogos:
+          type: object
+          additionalProperties:
+            type: [string, "null"]
         isLocked:
           type: boolean
         rounds:
@@ -4758,6 +4762,8 @@ components:
               roundLabel: { type: string }
               team1: { type: [string, "null"] }
               team2: { type: [string, "null"] }
+              team1LogoUrl: { type: [string, "null"] }
+              team2LogoUrl: { type: [string, "null"] }
               eligibleTeams: { type: array, items: { type: string } }
               allowedLengths: { type: array, items: { type: integer } }
               points: { type: integer }
