@@ -44,7 +44,7 @@ const SLOT_FEEDERS: Record<string, string[]> = {
 };
 
 type Pick = { predictedWinner: string; predictedLength: number };
-type Leader = { userId: number; username?: string; displayName?: string; rank?: number; points?: number; correctLengths?: number };
+type Leader = { userId: number; username?: string; displayName?: string; rank?: number; points?: number };
 
 function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; eliminatedTeams: Set<string>; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
@@ -175,8 +175,8 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
     winnerCorrect: series.pick?.winnerCorrect ?? null,
     lengthCorrect: series.pick?.lengthCorrect ?? null,
     predictedTeamEliminated: series.pick?.predictedWinner ? data?.eliminatedTeams.includes(series.pick.predictedWinner) ?? false : false,
-    pointsEarned: series.pick?.winnerCorrect ? series.points : 0,
-    possiblePoints: series.points,
+    pointsEarned: (series.pick?.winnerCorrect ? series.points : 0) + (series.pick?.lengthCorrect ? 1 : 0),
+    possiblePoints: series.points + 1,
   })), [rounds]);
   if (isLoading) return <div className="grid md:grid-cols-2 gap-4">{Array.from({ length: 11 }, (_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}</div>;
   if (error) return <Card className="border-destructive/30"><CardContent className="p-8 text-center text-muted-foreground">Unable to load this postseason bracket. Please try again.</CardContent></Card>;
@@ -193,7 +193,7 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
     </TabsList>
     <TabsContent value="picks" className="mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <div><p className="font-bebas text-xl tracking-wide">Complete your full bracket</p><p className="text-sm text-muted-foreground">{pickedCount} of 11 series selected. Winner points total 22; correct lengths break ties.</p></div>
+        <div><p className="font-bebas text-xl tracking-wide">Complete your full bracket</p><p className="text-sm text-muted-foreground">{pickedCount} of 11 series selected. Winner points total 22, plus 1 point for each correct series length. Maximum score: 33.</p></div>
         <Button data-testid="button-submit-mlb-bracket" disabled={!editable || pickedCount !== rounds.length || saving} onClick={() => submit.mutate({ poolId, data: { picks: rounds.map((series) => ({ seriesId: series.seriesId as MlbBracketPickInputSeriesId, predictedWinner: picks[series.seriesId].predictedWinner, predictedLength: picks[series.seriesId].predictedLength } satisfies MlbBracketPickInput)) } })}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}Submit bracket
         </Button>

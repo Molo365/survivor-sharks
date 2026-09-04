@@ -7,9 +7,14 @@ export const MLB_BRACKET_SLOTS = [
   ["league_championship", "ALCS"], ["league_championship", "NLCS"], ["world_series", "WORLD_SERIES"],
 ] as const;
 export const MLB_ROUND_POINTS: Record<string, number> = { wild_card: 1, division_series: 2, league_championship: 3, world_series: 4 };
+export const MLB_LENGTH_BONUS_POINTS = 1;
 export const MLB_ROUND_LENGTHS: Record<string, number[]> = { wild_card: [2, 3], division_series: [3, 4, 5], league_championship: [4, 5, 6, 7], world_series: [4, 5, 6, 7] };
 export const SANDBOX_MLB_FIELD = ["Baltimore Orioles", "Boston Red Sox", "Cleveland Guardians", "Detroit Tigers", "Houston Astros", "New York Yankees", "Atlanta Braves", "Chicago Cubs", "Los Angeles Dodgers", "Milwaukee Brewers", "New York Mets", "Philadelphia Phillies"];
 export type MlbField = { AL: string[]; NL: string[] };
+
+export function getMlbBracketPickPoints(round: string, winnerCorrect: boolean | null, lengthCorrect: boolean | null): number {
+  return (winnerCorrect ? MLB_ROUND_POINTS[round] ?? 0 : 0) + (lengthCorrect ? MLB_LENGTH_BONUS_POINTS : 0);
+}
 
 export function getMlbTeamLogoUrl(teamName: string | null | undefined): string | null {
   if (!teamName) return null;

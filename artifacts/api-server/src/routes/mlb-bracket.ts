@@ -3,7 +3,7 @@ import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBrac
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
-import { fetchMlbPostseasonSeries, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
@@ -118,8 +118,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
   const members = await db.select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, ctx.poolId));
   const picks = await db.select().from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, ctx.poolId));
-  const rows = members.map(member => { const own = picks.filter(p => p.userId === member.userId); return { ...member, points: own.filter(p => p.winnerCorrect).reduce((sum, p) => sum + MLB_ROUND_POINTS[p.round], 0), correctLengths: own.filter(p => p.lengthCorrect).length }; }).sort((a, b) => b.points - a.points || b.correctLengths - a.correctLengths);
-  let rank = 0; res.json(rows.map((row, index) => { if (!index || row.points !== rows[index - 1].points || row.correctLengths !== rows[index - 1].correctLengths) rank = index + 1; return { ...row, rank }; }));
+  const rows = members.map(member => {
+    const own = picks.filter(pick => pick.userId === member.userId);
+    return { ...member, points: own.reduce((sum, pick) => sum + getMlbBracketPickPoints(pick.round, pick.winnerCorrect, pick.lengthCorrect), 0) };
+  }).sort((a, b) => b.points - a.points);
+  let rank = 0; res.json(rows.map((row, index) => { if (!index || row.points !== rows[index - 1].points) rank = index + 1; return { ...row, rank }; }));
 });
 router.get("/grid", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
@@ -189,8 +192,8 @@ router.get("/members/:userId/picks", requireAuth, async (req, res) => {
       winnerCorrect: pick?.winnerCorrect ?? null,
       lengthCorrect: pick?.lengthCorrect ?? null,
       predictedTeamEliminated: pick ? eliminatedTeams.has(pick.predictedWinner) : false,
-      pointsEarned: pick?.winnerCorrect ? MLB_ROUND_POINTS[round] : 0,
-      possiblePoints: MLB_ROUND_POINTS[round],
+      pointsEarned: getMlbBracketPickPoints(round, pick?.winnerCorrect ?? null, pick?.lengthCorrect ?? null),
+      possiblePoints: MLB_ROUND_POINTS[round] + MLB_LENGTH_BONUS_POINTS,
     };
   }));
 });

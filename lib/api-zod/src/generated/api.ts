@@ -879,7 +879,7 @@ export const SubmitMlbBracketPicksBody = zod.object({
 
 
 /**
- * @summary Get MLB bracket standings with length-prediction tiebreaker
+ * @summary Get MLB bracket standings with winner and series-length points
  */
 export const GetMlbBracketLeaderboardParams = zod.object({
   "poolId": zod.coerce.number()

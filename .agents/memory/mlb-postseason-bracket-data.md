@@ -20,3 +20,9 @@ Bracket points are awarded when the predicted team wins that round; predicting t
 **Why:** Opponent projections describe bracket paths, but scoring and remaining point potential follow the real team’s postseason survival independently.
 
 **How to apply:** Derive eliminated teams from losers in persisted completed-series results. For display precedence, show graded correct/incorrect first, then processing, then future eliminated versus still alive.
+
+Series-length correctness is an independent one-point bonus, not a tiebreaker. Total MLB bracket scores combine round-weighted winner points (1/2/3/4) with up to 11 length bonus points, for a maximum of 33.
+
+**Why:** Length accuracy must affect the player’s actual score even when the predicted winner is wrong; equal combined totals use the standard even prize split.
+
+**How to apply:** Use the shared pick-scoring rule for leaderboard totals and closure standings. Rank and group ties only by combined points; never compare a separate correct-length count.

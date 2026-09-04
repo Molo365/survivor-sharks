@@ -2099,7 +2099,7 @@ export const getGetMlbBracketLeaderboardUrl = (poolId: number,) => {
 }
 
 /**
- * @summary Get MLB bracket standings with length-prediction tiebreaker
+ * @summary Get MLB bracket standings with winner and series-length points
  */
 export const getMlbBracketLeaderboard = async (poolId: number, options?: RequestInit): Promise<void> => {
 
@@ -2146,7 +2146,7 @@ export type GetMlbBracketLeaderboardQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get MLB bracket standings with length-prediction tiebreaker
+ * @summary Get MLB bracket standings with winner and series-length points
  */
 
 export function useGetMlbBracketLeaderboard<TData = Awaited<ReturnType<typeof getMlbBracketLeaderboard>>, TError = ErrorType<unknown>>(

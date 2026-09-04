@@ -63,7 +63,7 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
-import { fetchMlbPostseasonSeries, resolveMlbBracketSlotTeams } from "./mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlotTeams } from "./mlb-bracket";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 import {
   evaluateNflAutoAdvanceSlate,
@@ -5519,13 +5519,16 @@ export async function processMlbBracketResults(): Promise<{ picksGraded: number 
       if (!already.length) {
         const all = await db.select().from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id));
         const entries = await db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
-        const scored = entries.map(e => { const ps = all.filter(p => p.userId === e.userId); return { userId: e.userId, points: ps.filter(p => p.winnerCorrect).reduce((n,p) => n + ({wild_card:1,division_series:2,league_championship:3,world_series:4}[p.round] ?? 0), 0), lengths: ps.filter(p => p.lengthCorrect).length }; }).sort((a,b) => b.points-a.points || b.lengths-a.lengths);
+        const scored = entries.map(entry => {
+          const picks = all.filter(pick => pick.userId === entry.userId);
+          return { userId: entry.userId, points: picks.reduce((sum, pick) => sum + getMlbBracketPickPoints(pick.round, pick.winnerCorrect, pick.lengthCorrect), 0) };
+        }).sort((a, b) => b.points - a.points);
         if (scored.length) {
           let offset = 0;
           const remaining = [...scored];
           while (remaining.length > 0 && offset < 3) {
             const score = remaining[0];
-            const group = remaining.filter(row => row.points === score.points && row.lengths === score.lengths);
+            const group = remaining.filter(row => row.points === score.points);
             const finishPosition = offset + 1;
             const prize = calcPrize({
               placeIndex: offset,

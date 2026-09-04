@@ -29,14 +29,14 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
 
   const totalPoints = rows.reduce((sum, row) => sum + row.pointsEarned, 0);
   const totalPossible = rows.reduce((sum, row) => sum + row.possiblePoints, 0);
-  const correctLengths = rows.filter(row => row.lengthCorrect === true).length;
+  const lengthBonusPoints = rows.filter(row => row.lengthCorrect === true).length;
   const gradedSeries = rows.filter(row => row.actualWinner !== null).length;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-2">
         <Card className="border-primary/25 bg-primary/5"><CardContent className="p-3 text-center"><p className="font-bebas text-2xl text-primary">{totalPoints}/{totalPossible}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Points</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="p-3 text-center"><p className="font-bebas text-2xl">{correctLengths}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Lengths</p></CardContent></Card>
+        <Card className="border-border/50"><CardContent className="p-3 text-center"><p className="font-bebas text-2xl">+{lengthBonusPoints}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Length bonus</p></CardContent></Card>
         <Card className="border-border/50"><CardContent className="p-3 text-center"><p className="font-bebas text-2xl">{gradedSeries}/11</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Resolved</p></CardContent></Card>
       </div>
 
@@ -71,7 +71,9 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                       </div>
                       <div className="shrink-0 text-right">
                         <p className={cn("font-bebas text-xl", row.pointsEarned > 0 ? "text-primary" : "text-muted-foreground")}>{row.pointsEarned}/{row.possiblePoints}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">points</p>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Winner {row.winnerCorrect ? row.possiblePoints - 1 : 0} + length {row.lengthCorrect ? 1 : 0}
+                        </p>
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:grid-cols-2">

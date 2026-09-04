@@ -586,7 +586,7 @@ paths:
     get:
       operationId: getMlbBracketLeaderboard
       tags: [leaderboard]
-      summary: Get MLB bracket standings with length-prediction tiebreaker
+      summary: Get MLB bracket standings with winner and series-length points
       parameters:
         - name: poolId
           in: path
