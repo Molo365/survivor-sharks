@@ -62,45 +62,60 @@ function SeriesCard({ series, pick, eligibleTeams, teamLogos, editable, onPick }
   const matchupTeams = unresolved ? [] : [series.team1!, series.team2!];
   const choiceTeams = unresolved ? eligibleTeams : matchupTeams;
   const hasCompleteChoice = choiceTeams.length === 2;
+  const winnerOptions = hasCompleteChoice ? choiceTeams.map((team) => (
+    <button key={team} type="button" disabled={!editable} data-testid={`button-mlb-winner-${series.seriesId}-${team}`}
+      onClick={() => onPick({ predictedWinner: team, predictedLength: pick?.predictedLength ?? series.allowedLengths[0] })}
+      className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left font-bebas tracking-wide transition-colors", pick?.predictedWinner === team ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40" : "border-border/50 bg-card hover:border-primary/50", !editable && "cursor-default opacity-70")}>
+      {(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team]) && (
+        <img
+          src={(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team])!}
+          alt=""
+          className="h-8 w-8 shrink-0 object-contain"
+          onError={(event) => { event.currentTarget.style.display = "none"; }}
+        />
+      )}
+      <span className="flex-1">{team}</span>
+      {series.completed && series.winner === team && <Check className="w-4 h-4 shrink-0 text-green-400" />}
+    </button>
+  )) : null;
+  const lengthPicker = (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Series length</p>
+      <div className="flex gap-1.5">
+        {series.allowedLengths.map((length) => <button key={length} type="button" disabled={!editable} data-testid={`button-mlb-length-${series.seriesId}-${length}`}
+          onClick={() => onPick({ predictedWinner: pick?.predictedWinner ?? "", predictedLength: length })}
+          className={cn("flex-1 rounded-md border py-1.5 text-sm font-bold", pick?.predictedLength === length ? "border-primary bg-primary/15 text-primary" : "border-border/40 text-muted-foreground", !editable && "cursor-default")}>{length}</button>)}
+      </div>
+    </div>
+  );
   return (
-    <Card className={cn("shark-card border overflow-hidden", unresolved && "border-muted/30 bg-muted/20 opacity-80")}>
+    <Card className={cn("shark-card border overflow-hidden", unresolved && "border-muted/30 bg-muted/10")}>
       <CardContent className="p-4 space-y-3">
         <div className="flex justify-between gap-2 text-xs">
           <span className="font-bold uppercase tracking-widest text-muted-foreground">{series.seriesSlot.replaceAll("_", " ")}</span>
           <span className="text-primary font-semibold">{series.points} pt{series.points === 1 ? "" : "s"}</span>
         </div>
-        {unresolved && <p className="flex gap-1.5 text-xs text-muted-foreground"><Lock className="w-3.5 h-3.5 shrink-0" />Matchup to be determined — pick any eligible playoff team.</p>}
-        {unresolved && <div className="grid grid-cols-1 gap-1.5">
-          <div className="rounded-lg border border-dashed border-border/40 px-3 py-2 text-sm text-muted-foreground text-center">TBD</div>
-          <div className="rounded-lg border border-dashed border-border/40 px-3 py-2 text-sm text-muted-foreground text-center">TBD</div>
-        </div>}
-        {unresolved && hasCompleteChoice && <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pick your projected winner</p>}
-        <div className="grid grid-cols-1 gap-1.5">
-          {hasCompleteChoice ? choiceTeams.map((team) => (
-            <button key={team} type="button" disabled={!editable} data-testid={`button-mlb-winner-${series.seriesId}-${team}`}
-              onClick={() => onPick({ predictedWinner: team, predictedLength: pick?.predictedLength ?? series.allowedLengths[0] })}
-              className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left font-bebas tracking-wide transition-colors", pick?.predictedWinner === team ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40" : "border-border/50 bg-card hover:border-primary/50", !editable && "cursor-default opacity-70")}>
-              {(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team]) && (
-                <img
-                  src={(team === series.team1 ? series.team1LogoUrl : team === series.team2 ? series.team2LogoUrl : teamLogos[team])!}
-                  alt=""
-                  className="h-8 w-8 shrink-0 object-contain"
-                  onError={(event) => { event.currentTarget.style.display = "none"; }}
-                />
-              )}
-              <span className="flex-1">{team}</span>
-              {series.completed && series.winner === team && <Check className="w-4 h-4 shrink-0 text-green-400" />}
-            </button>
-          )) : !unresolved && null}
-        </div>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Series length</p>
-          <div className="flex gap-1.5">
-            {series.allowedLengths.map((length) => <button key={length} type="button" disabled={!editable} data-testid={`button-mlb-length-${series.seriesId}-${length}`}
-              onClick={() => onPick({ predictedWinner: pick?.predictedWinner ?? "", predictedLength: length })}
-              className={cn("flex-1 rounded-md border py-1.5 text-sm font-bold", pick?.predictedLength === length ? "border-primary bg-primary/15 text-primary" : "border-border/40 text-muted-foreground", !editable && "cursor-default")}>{length}</button>)}
-          </div>
-        </div>
+        {unresolved ? (
+          <>
+            <div className="flex items-center gap-2 rounded-md border border-dashed border-border/40 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span><span className="font-semibold text-muted-foreground">Actual matchup: TBD</span><span className="text-muted-foreground/70"> · not yet determined</span></span>
+            </div>
+            <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-primary">Your prediction</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Choose the team you project to advance.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-1.5">{winnerOptions}</div>
+              {lengthPicker}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-1.5">{winnerOptions}</div>
+            {lengthPicker}
+          </>
+        )}
       </CardContent>
     </Card>
   );
