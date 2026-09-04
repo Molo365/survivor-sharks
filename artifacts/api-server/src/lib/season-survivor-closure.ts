@@ -7,8 +7,8 @@
  */
 
 import { db } from "@workspace/db";
-import { entriesTable, poolsTable, picksTable } from "@workspace/db";
-import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
+import { entriesTable, poolsTable, picksTable, weekResultsTable } from "@workspace/db";
+import { and, count, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 
 type Pool = typeof poolsTable.$inferSelect;
@@ -119,11 +119,61 @@ export async function applySeasonSurvivorClosure(
     return { closureApplied: false, winnerCount: 0, closureReason: null };
   }
 
+  if (aliveEntries.length === 0) {
+    log.warn({ poolId, week }, "Season Survivor closure skipped: no alive entries remain");
+    return { closureApplied: false, winnerCount: 0, closureReason: null };
+  }
+
   const totalEntriesRows = await db
     .select({ totalEntries: count() })
     .from(entriesTable)
     .where(eq(entriesTable.poolId, poolId));
   const totalEntries = Number(totalEntriesRows[0]?.totalEntries ?? 0);
+
+  if (aliveEntries.length === 1) {
+    const [[eliminatedEntry], [gradedPick], [finalizedPeriod]] = await Promise.all([
+      db
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(and(
+          eq(entriesTable.poolId, poolId),
+          eq(entriesTable.status, "eliminated"),
+          isNotNull(entriesTable.eliminatedWeek),
+        ))
+        .limit(1),
+      db
+        .select({ id: picksTable.id })
+        .from(picksTable)
+        .where(and(eq(picksTable.poolId, poolId), ne(picksTable.result, "pending")))
+        .limit(1),
+      db
+        .select({ id: weekResultsTable.id })
+        .from(weekResultsTable)
+        .where(eq(weekResultsTable.poolId, poolId))
+        .limit(1),
+    ]);
+    const startWeek = pool.startWeek ?? 1;
+    const hasStarted =
+      pool.currentWeek > startWeek ||
+      week > startWeek ||
+      gradedPick != null ||
+      finalizedPeriod != null;
+
+    if (totalEntries < 2 || eliminatedEntry == null || !hasStarted) {
+      log.warn(
+        {
+          poolId,
+          week,
+          totalEntries,
+          hasEliminatedEntry: eliminatedEntry != null,
+          hasStarted,
+        },
+        "Season Survivor closure skipped: one alive entry without sufficient gameplay evidence",
+      );
+      return { closureApplied: false, winnerCount: 0, closureReason: null };
+    }
+  }
+
   const prizeStructure = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
   if (aliveEntries.length > 1) {
@@ -167,7 +217,7 @@ export async function applySeasonSurvivorClosure(
     return { closureApplied: true, winnerCount: aliveEntries.length, closureReason: "sov_tiebreaker" };
   }
 
-  const firstPlaceCount = Math.max(1, aliveEntries.length);
+  const firstPlaceCount = aliveEntries.length;
   const firstPrize = calcPrize({
     placeIndex: 0,
     coWinners: firstPlaceCount,

@@ -73,6 +73,41 @@ import {
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const NFL_PRESEASON_TOTAL_WEEKS = 4;
 
+type SurvivorClosureEntry = {
+  id: number;
+  userId: number;
+  status: "alive" | "eliminated";
+  eliminatedWeek: number | null;
+};
+
+async function hasSingleSurvivorClosureEvidence(
+  pool: typeof poolsTable.$inferSelect,
+  allEntries: SurvivorClosureEntry[],
+): Promise<boolean> {
+  if (allEntries.length < 2) return false;
+  if (!allEntries.some((entry) => entry.status === "eliminated" && entry.eliminatedWeek != null)) {
+    return false;
+  }
+
+  const startWeek = pool.startWeek ?? 1;
+  if (pool.currentWeek > startWeek) return true;
+
+  const [[gradedPick], [finalizedPeriod]] = await Promise.all([
+    db
+      .select({ id: picksTable.id })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, pool.id), ne(picksTable.result, "pending")))
+      .limit(1),
+    db
+      .select({ id: weekResultsTable.id })
+      .from(weekResultsTable)
+      .where(eq(weekResultsTable.poolId, pool.id))
+      .limit(1),
+  ]);
+
+  return gradedPick != null || finalizedPeriod != null;
+}
+
 // ---------------------------------------------------------------------------
 // Non-MLB: grade pending picks against live ESPN scores
 // ---------------------------------------------------------------------------
@@ -667,6 +702,13 @@ export async function processCompletedGames(): Promise<{
       .where(eq(entriesTable.poolId, pool.id));
 
     const totalEntries = allEntries.length;
+    if (!(await hasSingleSurvivorClosureEvidence(pool, allEntries))) {
+      logger.warn(
+        { poolId: pool.id, totalEntries },
+        "NFL Survivor auto-close skipped: one alive entry without sufficient gameplay evidence",
+      );
+      continue;
+    }
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
     // ── 1. Write winner (finish position 1) ────────────────────────────────
@@ -768,6 +810,13 @@ export async function processCompletedGames(): Promise<{
       .where(eq(entriesTable.poolId, pool.id));
 
     const totalEntries = allEntries.length;
+    if (!(await hasSingleSurvivorClosureEvidence(pool, allEntries))) {
+      logger.warn(
+        { poolId: pool.id, totalEntries },
+        "NHL Survivor auto-close skipped: one alive entry without sufficient gameplay evidence",
+      );
+      continue;
+    }
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
     const winnerPrize = calcPrize({
@@ -865,6 +914,13 @@ export async function processCompletedGames(): Promise<{
       .where(eq(entriesTable.poolId, pool.id));
 
     const totalEntries = allEntries.length;
+    if (!(await hasSingleSurvivorClosureEvidence(pool, allEntries))) {
+      logger.warn(
+        { poolId: pool.id, totalEntries },
+        "NBA Survivor auto-close skipped: one alive entry without sufficient gameplay evidence",
+      );
+      continue;
+    }
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
     const winnerPrize = calcPrize({
@@ -971,6 +1027,14 @@ export async function processCompletedGames(): Promise<{
 
     // ── Case A: exactly one survivor ─────────────────────────────────────────
     if (aliveEntries.length === 1) {
+      if (!(await hasSingleSurvivorClosureEvidence(pool, allEntries))) {
+        logger.warn(
+          { poolId: pool.id, totalEntries },
+          "ESL Survivor auto-close skipped: one alive entry without sufficient gameplay evidence",
+        );
+        continue;
+      }
+
       const winner = aliveEntries[0]!;
       const winnerPrize = calcPrize({
         prizeStructure: ps, prizeMode: pool.prizeMode, entryFee: pool.entryFee,
