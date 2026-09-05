@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable } from "@workspace/db";
+import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable, weekResultsTable, mlbBracketResultsTable, wcBracketResultsTable, groupStageResultsTable, nflConfidenceResultsTable, nflDivisionResultsTable } from "@workspace/db";
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
@@ -12,8 +12,11 @@ import {
   fetchNbaGamesByWeek,
   fetchSuperLeagueGamesForDate,
   getSuperLeagueWeekBoundsEt,
+  getMlbWeekBounds,
 } from "../lib/espn";
 import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { getNdpLockState } from "../lib/ndp-lock";
+import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
 
 const router = Router();
 
@@ -22,6 +25,76 @@ function generateInviteCode() {
 }
 
 type PoolRow = typeof poolsTable.$inferSelect;
+
+function datesInRange(start: string, end: string): string[] {
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const finish = new Date(`${end}T00:00:00Z`);
+  const dates: string[] = [];
+  while (cursor <= finish) {
+    dates.push(cursor.toISOString().slice(0, 10).replace(/-/g, ""));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+/** One policy adapter shared by public previews and the write-time join guard. */
+async function getPoolStartState(pool: PoolRow) {
+  const policyPool: PoolStartPool = {
+    id: pool.id, sport: pool.sport, poolType: pool.poolType, currentWeek: pool.currentWeek,
+    startWeek: pool.startWeek, season: pool.season, isPreseason: pool.isPreseason,
+    pickFrequency: pool.pickFrequency, sandboxMode: pool.sandboxMode, createdAt: pool.createdAt,
+  };
+  return resolvePoolStart(policyPool, {
+    now: () => new Date(),
+    persistedStarted: async (candidate) => {
+      // Pending picks/predictions are deliberately excluded: they can be made
+      // before kickoff. Only grading/progression records survive an outage.
+      const [[survivorPick], [weekResult], [mlbBracketResult], [wcBracketResult], [groupResult], [confidenceResult], [divisionResult], [entryEvidence]] = await Promise.all([
+        db.select({ n: count() }).from(picksTable).where(and(eq(picksTable.poolId, candidate.id), ne(picksTable.result, "pending"))),
+        db.select({ n: count() }).from(weekResultsTable).where(eq(weekResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(wcBracketResultsTable).where(eq(wcBracketResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(groupStageResultsTable).where(eq(groupStageResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(nflConfidenceResultsTable).where(eq(nflConfidenceResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(nflDivisionResultsTable).where(eq(nflDivisionResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, candidate.id), or(isNotNull(entriesTable.eliminatedWeek), eq(entriesTable.finalWinner, true), isNotNull(entriesTable.finishPosition)))),
+      ]);
+      return Number(survivorPick.n) > 0 || Number(weekResult.n) > 0 ||
+        Number(mlbBracketResult.n) > 0 || Number(wcBracketResult.n) > 0 ||
+        Number(groupResult.n) > 0 || Number(confidenceResult.n) > 0 ||
+        Number(divisionResult.n) > 0 ||
+        Number(entryEvidence.n) > 0 ||
+        candidate.currentWeek > (candidate.startWeek ?? 1);
+    },
+    sandboxStarted: async (candidate) => {
+      const [row] = await db.select({ n: count() }).from(sandboxGameScoresTable).where(and(
+        eq(sandboxGameScoresTable.poolId, candidate.id),
+        inArray(sandboxGameScoresTable.gameStatus, ["q1", "q2", "half", "q3", "q4", "in_progress", "final"]),
+      ));
+      return Number(row.n) > 0;
+    },
+    ndpStarted: async (candidate) => (await getNdpLockState(candidate.season, candidate.sandboxMode)).locked,
+    mlbWeeklyDeadline: (candidate) => getMlbWeekBounds(candidate.createdAt, candidate.currentWeek).deadline,
+    gamesFor: async (candidate, kind) => {
+      if (kind === "nfl") {
+        // A mid-season/season NFL pool opens at its configured first week.
+        const week = candidate.startWeek ?? candidate.currentWeek;
+        return fetchNflGamesByWeek(week, candidate.season, candidate.isPreseason ? 1 : 2);
+      }
+      if (kind === "superleague") {
+        const bounds = getSuperLeagueWeekBoundsEt(getTodayEtDate());
+        return (await Promise.all(datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate))).flat();
+      }
+      if (candidate.sport === "nhl") return fetchNhlGamesByWeek(candidate.createdAt, candidate.currentWeek);
+      if (candidate.sport === "nba") return fetchNbaGamesByWeek(candidate.createdAt, candidate.currentWeek);
+      if (candidate.sport === "mlb" && candidate.pickFrequency === "weekly") {
+        const bounds = getMlbWeekBounds(candidate.createdAt, candidate.currentWeek);
+        return (await Promise.all(bounds.espnDates.map((date) => fetchGamesForDate("mlb", date)))).flat();
+      }
+      return fetchGamesForDate(candidate.sport, getTodayEtDate().replace(/-/g, ""));
+    },
+  });
+}
 
 function formatPool(pool: PoolRow, memberCount: number, activeCount: number, commissionerName: string) {
   return {
@@ -353,6 +426,14 @@ router.post("/join", requireAuth, async (req, res) => {
     }
   }
 
+  // This is intentionally re-evaluated at write time rather than trusting a
+  // potentially stale public preview.
+  const startState = await getPoolStartState(pool);
+  if (startState.joinBlockedReason === "survivor_started") {
+    res.status(409).json({ error: "This Survivor pool has already started and cannot accept new members." });
+    return;
+  }
+
   await db.insert(entriesTable).values({
     poolId: pool.id,
     userId: req.user!.id,
@@ -382,6 +463,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     .select({ playerCount: count() })
     .from(entriesTable)
     .where(eq(entriesTable.poolId, pool.id));
+  const startState = await getPoolStartState(pool);
   res.json({
     id: pool.id,
     name: pool.name,
@@ -399,6 +481,8 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     season: pool.season ?? null,
     commissionerCut: pool.commissionerCut ?? 0,
     showCommissionerCut: pool.showCommissionerCut ?? false,
+    hasStarted: startState.hasStarted,
+    joinBlockedReason: startState.joinBlockedReason,
   });
 });
 

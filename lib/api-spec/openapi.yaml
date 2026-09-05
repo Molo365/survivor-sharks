@@ -320,7 +320,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Already a member
+          description: Already a member, pool full, or Survivor pool has already started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/invite/{inviteCode}/preview:
+    get:
+      operationId: getPoolInvitePreview
+      tags: [pools]
+      summary: Get public pool invite details and current start state
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invite preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolInvitePreview"
+        "404":
+          description: Pool not found
           content:
             application/json:
               schema:
@@ -2427,6 +2452,36 @@ components:
         tiebreakerPrediction:
           type: integer
           description: "Predicted total combined points for the final NFL game of the season (for pickem_season pools)"
+
+    PoolInvitePreview:
+      type: object
+      required: [id, name, sport, poolType, pickFrequency, playerCount, commissionerCut, showCommissionerCut, hasStarted, joinBlockedReason]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        sport: { type: string }
+        poolType: { type: string }
+        pickFrequency: { type: string, enum: [weekly, daily] }
+        prizePot: { type: ["number", "null"] }
+        prizeStructure:
+          type: ["array", "null"]
+          items: { $ref: "#/components/schemas/PrizeEntry" }
+        prizeMode: { type: string }
+        entryFee: { type: ["number", "null"] }
+        minEntries: { type: ["integer", "null"] }
+        maxEntries: { type: ["integer", "null"] }
+        playerCount: { type: integer }
+        description: { type: ["string", "null"] }
+        season: { type: ["integer", "null"] }
+        commissionerCut: { type: integer }
+        showCommissionerCut: { type: boolean }
+        hasStarted:
+          type: boolean
+          description: True only once the pool's authoritative schedule/deadline has started.
+        joinBlockedReason:
+          type: ["string", "null"]
+          enum: [survivor_started, null]
+          description: survivor_started only blocks Survivor variants; non-Survivor starts are informational.
 
     PoolPickEmStat:
       type: object

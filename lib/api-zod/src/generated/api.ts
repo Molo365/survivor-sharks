@@ -292,6 +292,38 @@ export const JoinPoolResponse = zod.object({
 
 
 /**
+ * @summary Get public pool invite details and current start state
+ */
+export const GetPoolInvitePreviewParams = zod.object({
+  "inviteCode": zod.coerce.string()
+})
+
+export const GetPoolInvitePreviewResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sport": zod.string(),
+  "poolType": zod.string(),
+  "pickFrequency": zod.enum(['weekly', 'daily']),
+  "prizePot": zod.number().nullish(),
+  "prizeStructure": zod.array(zod.object({
+  "place": zod.number().describe('Finishing position (1 = 1st place)'),
+  "amount": zod.number().describe('Prize amount in dollars')
+})).nullish(),
+  "prizeMode": zod.string().optional(),
+  "entryFee": zod.number().nullish(),
+  "minEntries": zod.number().nullish(),
+  "maxEntries": zod.number().nullish(),
+  "playerCount": zod.number(),
+  "description": zod.string().nullish(),
+  "season": zod.number().nullish(),
+  "commissionerCut": zod.number(),
+  "showCommissionerCut": zod.boolean(),
+  "hasStarted": zod.boolean().describe('True only once the pool\'s authoritative schedule\/deadline has started.'),
+  "joinBlockedReason": zod.union([zod.literal('survivor_started'),zod.literal(null)]).nullable().describe('survivor_started only blocks Survivor variants; non-Survivor starts are informational.')
+})
+
+
+/**
  * @summary List pools that ended more than 2 days ago (within the 30-day retention window)
  */
 export const ListPastPoolsResponseItem = zod.object({

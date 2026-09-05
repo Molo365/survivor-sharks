@@ -200,6 +200,58 @@ export interface JoinPoolInput {
   tiebreakerPrediction?: number;
 }
 
+export type PoolInvitePreviewPickFrequency = typeof PoolInvitePreviewPickFrequency[keyof typeof PoolInvitePreviewPickFrequency];
+
+
+export const PoolInvitePreviewPickFrequency = {
+  weekly: 'weekly',
+  daily: 'daily',
+} as const;
+
+/**
+ * survivor_started only blocks Survivor variants; non-Survivor starts are informational.
+ * @nullable
+ */
+export type PoolInvitePreviewJoinBlockedReason = typeof PoolInvitePreviewJoinBlockedReason[keyof typeof PoolInvitePreviewJoinBlockedReason] | null;
+
+
+export const PoolInvitePreviewJoinBlockedReason = {
+  survivor_started: 'survivor_started',
+} as const;
+
+export interface PoolInvitePreview {
+  id: number;
+  name: string;
+  sport: string;
+  poolType: string;
+  pickFrequency: PoolInvitePreviewPickFrequency;
+  /** @nullable */
+  prizePot?: number | null;
+  /** @nullable */
+  prizeStructure?: PrizeEntry[] | null;
+  prizeMode?: string;
+  /** @nullable */
+  entryFee?: number | null;
+  /** @nullable */
+  minEntries?: number | null;
+  /** @nullable */
+  maxEntries?: number | null;
+  playerCount: number;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  season?: number | null;
+  commissionerCut: number;
+  showCommissionerCut: boolean;
+  /** True only once the pool's authoritative schedule/deadline has started. */
+  hasStarted: boolean;
+  /**
+     * survivor_started only blocks Survivor variants; non-Survivor starts are informational.
+     * @nullable
+     */
+  joinBlockedReason: PoolInvitePreviewJoinBlockedReason;
+}
+
 export type PoolPickEmStatLastWinnersItem = {
   userId: number;
   username: string;

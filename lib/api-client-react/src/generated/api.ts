@@ -90,6 +90,7 @@ import type {
   Pool,
   PoolDetail,
   PoolInput,
+  PoolInvitePreview,
   PoolPickEmStat,
   PoolPickStatus,
   PoolSchedule,
@@ -1096,6 +1097,83 @@ export const useJoinPool = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getJoinPoolMutationOptions(options));
     }
+
+export const getGetPoolInvitePreviewUrl = (inviteCode: string,) => {
+
+
+
+
+  return `/api/pools/invite/${inviteCode}/preview`
+}
+
+/**
+ * @summary Get public pool invite details and current start state
+ */
+export const getPoolInvitePreview = async (inviteCode: string, options?: RequestInit): Promise<PoolInvitePreview> => {
+
+  return customFetch<PoolInvitePreview>(getGetPoolInvitePreviewUrl(inviteCode),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPoolInvitePreviewQueryKey = (inviteCode: string,) => {
+    return [
+    `/api/pools/invite/${inviteCode}/preview`
+    ] as const;
+    }
+
+
+export const getGetPoolInvitePreviewQueryOptions = <TData = Awaited<ReturnType<typeof getPoolInvitePreview>>, TError = ErrorType<ErrorResponse>>(inviteCode: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolInvitePreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPoolInvitePreviewQueryKey(inviteCode);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPoolInvitePreview>>> = ({ signal }) => getPoolInvitePreview(inviteCode, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(inviteCode), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPoolInvitePreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPoolInvitePreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getPoolInvitePreview>>>
+export type GetPoolInvitePreviewQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get public pool invite details and current start state
+ */
+
+export function useGetPoolInvitePreview<TData = Awaited<ReturnType<typeof getPoolInvitePreview>>, TError = ErrorType<ErrorResponse>>(
+ inviteCode: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPoolInvitePreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPoolInvitePreviewQueryOptions(inviteCode,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListPastPoolsUrl = () => {
 

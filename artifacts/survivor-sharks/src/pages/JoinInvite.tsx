@@ -2,35 +2,22 @@ import React, { useState, useEffect, useCallback } from "react";
 
 import { useParams, useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { useJoinPool } from "@workspace/api-client-react";
+import {
+  getGetPoolInvitePreviewQueryKey,
+  useGetPoolInvitePreview,
+  useJoinPool,
+} from "@workspace/api-client-react";
+import type { PoolInvitePreview } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Trophy, AlertCircle, LogIn, UserPlus, Target } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Users, AlertCircle, TriangleAlert, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 
-interface PoolPreview {
-  id: number;
-  name: string;
-  sport: string;
-  poolType: string;
-  pickFrequency: string;
-  prizePot: number | null;
-  prizeStructure: Array<{ place: number; amount: number }> | null;
-  prizeMode: "fixed" | "pct";
-  entryFee: number | null;
-  maxEntries: number | null;
-  minEntries: number | null;
-  playerCount: number;
-  description: string | null;
-  season: string | null;
-  commissionerCut?: number;
-  showCommissionerCut?: boolean;
-}
-
 const WC_KICKOFF = new Date("2026-06-11T16:00:00Z");
+const SURVIVOR_STARTED_MESSAGE =
+  "This Survivor pool has already started and cannot accept new members.";
 
 function useCountdown(target: Date) {
   const calc = useCallback(
@@ -107,32 +94,26 @@ export default function JoinInvite() {
   const joinPool = useJoinPool();
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [pool, setPool] = useState<PoolPreview | null>(null);
-  const [fetchLoading, setFetchLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [blockedInviteCode, setBlockedInviteCode] = useState<string | null>(null);
+  const invitePreviewQuery = useGetPoolInvitePreview(inviteCode, {
+    query: {
+      enabled: !!inviteCode,
+      queryKey: getGetPoolInvitePreviewQueryKey(inviteCode),
+    },
+  });
+  const pool: PoolInvitePreview | undefined = invitePreviewQuery.data;
+  const { isLoading: fetchLoading, error: fetchError } = invitePreviewQuery;
 
   const countdown = useCountdown(WC_KICKOFF);
   const isWc = pool?.sport === "worldcup";
   const sportMeta = SPORT_META[pool?.sport ?? ""] ?? { emoji: "🏆", label: pool?.sport ?? "Pool", color: "from-primary/20 to-primary/5" };
-
-  useEffect(() => {
-    if (!inviteCode) return;
-    setFetchLoading(true);
-    setFetchError(null);
-    fetch(`/api/pools/invite/${inviteCode}/preview`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error((body as any).error ?? "Pool not found");
-        }
-        return res.json() as Promise<PoolPreview>;
-      })
-      .then((data) => { setPool(data); setFetchLoading(false); })
-      .catch((err: Error) => { setFetchError(err.message); setFetchLoading(false); });
-  }, [inviteCode]);
+  const isJoinBlocked =
+    blockedInviteCode === inviteCode || pool?.joinBlockedReason === "survivor_started";
+  const prizeMode = pool?.prizeMode === "pct" ? "pct" : "fixed";
+  const fetchErrorMessage = fetchError?.data?.error ?? fetchError?.message ?? "Pool not found";
 
   function handleJoin() {
-    if (authLoading) return;
+    if (authLoading || isJoinBlocked) return;
 
     if (!user) {
       localStorage.setItem("pending_invite_code", inviteCode);
@@ -147,12 +128,21 @@ export default function JoinInvite() {
         },
       },
       {
-        onSuccess: (data: any) => {
+        onSuccess: (data) => {
           toast({ title: "You're in! 🎉", description: `Successfully joined ${pool?.name ?? "the pool"}.` });
           setLocation(`/pools/${data.id}`);
         },
-        onError: (err: any) => {
-          const msg: string = err?.data?.error ?? err?.message ?? "Failed to join pool";
+        onError: (err) => {
+          const msg = err.data?.error ?? err.message ?? "Failed to join pool";
+          if (msg.includes(SURVIVOR_STARTED_MESSAGE)) {
+            setBlockedInviteCode(inviteCode);
+            toast({
+              variant: "destructive",
+              title: "This pool can no longer be joined",
+              description: SURVIVOR_STARTED_MESSAGE,
+            });
+            return;
+          }
           if (msg.toLowerCase().includes("already a member")) {
             setLocation(`/pools/${pool!.id}`);
           } else {
@@ -230,7 +220,7 @@ export default function JoinInvite() {
             </div>
             <div>
               <h2 className="font-bebas text-3xl text-foreground tracking-wide mb-1">Invite Not Found</h2>
-              <p className="text-muted-foreground text-sm">{fetchError}</p>
+              <p className="text-muted-foreground text-sm">{fetchErrorMessage}</p>
               <p className="text-muted-foreground/60 text-xs mt-1">Code: <span className="font-mono text-primary/70">{inviteCode}</span></p>
             </div>
             <Link href="/">
@@ -311,7 +301,15 @@ export default function JoinInvite() {
 
               {/* CTA section */}
               <div className="w-full space-y-3">
-                {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
+                {isJoinBlocked ? (
+                  <div
+                    className="w-full rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-4 text-center text-destructive/90"
+                    data-testid="status-survivor-pool-started"
+                  >
+                    <TriangleAlert className="w-5 h-5 mx-auto mb-2" />
+                    <p className="font-semibold">This Survivor pool has already started and cannot accept new members.</p>
+                  </div>
+                ) : pool.maxEntries != null && pool.playerCount >= pool.maxEntries ? (
                   <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
                     This pool is full — no more spots available
                   </div>
@@ -360,16 +358,26 @@ export default function JoinInvite() {
               </div>
 
               {/* Progressive pool notice */}
-              {pool.prizeMode === "pct" && (
+              {prizeMode === "pct" && (
                 <p className="text-sm text-muted-foreground text-center">
                   🏆 Progressive Pool — prize pot grows with every player who joins
                 </p>
               )}
 
+              {pool.hasStarted && !isJoinBlocked && (
+                <div
+                  className="flex gap-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
+                  data-testid="status-pool-started-notice"
+                >
+                  <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+                  <p>This pool has already started — you'll be joining with a disadvantage compared to players who joined at the beginning. You can still join if you'd like.</p>
+                </div>
+              )}
+
               {/* Prize structure */}
               <PrizeDisplay
                 variant="join-invite"
-                prizeMode={pool.prizeMode}
+                prizeMode={prizeMode}
                 entryFee={pool.entryFee}
                 prizeStructure={pool.prizeStructure}
                 prizePot={pool.prizePot}
@@ -413,7 +421,15 @@ export default function JoinInvite() {
 
               {/* CTA */}
               <div className="w-full space-y-3">
-                {pool.maxEntries !== null && pool.playerCount >= pool.maxEntries ? (
+                {isJoinBlocked ? (
+                  <div
+                    className="w-full rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-4 text-center text-destructive/90"
+                    data-testid="status-survivor-pool-started"
+                  >
+                    <TriangleAlert className="w-5 h-5 mx-auto mb-2" />
+                    <p className="font-semibold">This Survivor pool has already started and cannot accept new members.</p>
+                  </div>
+                ) : pool.maxEntries != null && pool.playerCount >= pool.maxEntries ? (
                   <div className="w-full h-14 flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive/80 font-bebas text-xl tracking-widest">
                     This pool is full — no more spots available
                   </div>

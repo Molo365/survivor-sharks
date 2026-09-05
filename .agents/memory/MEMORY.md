@@ -19,3 +19,4 @@
 - [Drizzle migration drift](drizzle-migration-drift.md) — dev may be push-applied ahead of checked-in migration history; scope generated migrations before external production use.
 - [High Heat weekly closure](crazy-eights-weekly-closure.md) — MLB weekly Crazy 8s must not use the daily resolver or open-pool pick endpoints after closure.
 - [MLB postseason bracket data](mlb-postseason-bracket-data.md) — ESPN uses abbreviated round notes; confirm the field from seeded standings and map game series through the persisted feeder graph.
+- [Pool late-join policy](pool-late-join-policy.md) — Survivor start blocks joining; non-Survivor start only warns. Pending picks are never proof of start; preview and POST share one resolver.
