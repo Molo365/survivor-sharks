@@ -19,7 +19,7 @@
 
 import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
-import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql } from "drizzle-orm";
+import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql, desc } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import {
   fetchGames,
@@ -33,6 +33,7 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekendBounds,
+  getNbaWeekBounds,
   NBA_SANDBOX_ANCHOR,
   type EspnGame,
   getMlbWeekBounds,
@@ -40,6 +41,7 @@ import {
   fetchMlbWeekGames,
   fetchNhlGamesByWeek,
   fetchNbaGamesByWeek,
+  fetchLastRegularSeasonGameDate,
   fetchNflGamesByWeek,
   fetchNflWeek18TiebreakerStats,
   getTeamsWithWin,
@@ -73,12 +75,16 @@ import {
 } from "./nfl-auto-advance";
 import {
   aggregateSurvivorOutcomes,
+  buildTerminalSurvivorClosurePlan,
   classifyFollowingRegularSeasonSlate,
   decideSurvivorWipeout,
   isCompleteRegularSeasonSlate,
   resolveSuperLeagueSettlementBounds,
+  isFinalCalendarSurvivorPeriod,
+  shouldAdvanceLiveSurvivorPeriod,
   survivorStateEffect,
 } from "./survivor-week-settlement";
+import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const NFL_PRESEASON_TOTAL_WEEKS = 4;
@@ -125,17 +131,14 @@ async function hasSingleSurvivorClosureEvidence(
   return gradedPick != null || finalizedPeriod != null;
 }
 
-async function isCurrentSurvivorWeekVoided(poolId: number, week: number): Promise<boolean> {
+async function isLatestFinalizedSurvivorWeekVoided(poolId: number): Promise<boolean> {
   const [result] = await db
-    .select({ id: weekResultsTable.id })
+    .select({ isVoided: weekResultsTable.isVoided })
     .from(weekResultsTable)
-    .where(and(
-      eq(weekResultsTable.poolId, poolId),
-      eq(weekResultsTable.week, week),
-      eq(weekResultsTable.isVoided, true),
-    ))
+    .where(eq(weekResultsTable.poolId, poolId))
+    .orderBy(desc(weekResultsTable.week))
     .limit(1);
-  return result != null;
+  return result?.isVoided === true;
 }
 
 async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect): Promise<boolean> {
@@ -211,20 +214,60 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
     const allAliveAtSettlementLost = outcome.allAliveAtStartLost;
 
     let followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated" | undefined;
+    let terminalPeriodConfirmed: boolean | undefined;
     if (allAliveAtSettlementLost && (pool.sport === "nhl" || pool.sport === "nba")) {
-      const games = pool.sport === "nhl"
+      const [currentGames, followingGames] = await Promise.all([
+        pool.sport === "nhl"
+          ? fetchNhlGamesByWeek(pool.createdAt, week)
+          : fetchNbaGamesByWeek(pool.createdAt, week),
+        pool.sport === "nhl"
         ? await fetchNhlGamesByWeek(pool.createdAt, week + 1)
-        : await fetchNbaGamesByWeek(pool.createdAt, week + 1);
-      followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(games);
+        : await fetchNbaGamesByWeek(pool.createdAt, week + 1),
+      ]);
+      followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(followingGames);
+      if (followingRegularSeasonSlate !== "confirmed") {
+        const seasonYears = [...new Set(
+          currentGames
+            .filter(game => game.seasonType === 2 && game.seasonYear != null)
+            .map(game => game.seasonYear!),
+        )];
+        if (seasonYears.length === 1) {
+          const lastRegularSeasonGameDate = await fetchLastRegularSeasonGameDate(
+            pool.sport,
+            seasonYears[0],
+          );
+          const currentBounds = pool.sport === "nhl"
+            ? getNhlWeekBounds(pool.createdAt, week)
+            : getNbaWeekBounds(pool.createdAt, week);
+          const followingBounds = pool.sport === "nhl"
+            ? getNhlWeekBounds(pool.createdAt, week + 1)
+            : getNbaWeekBounds(pool.createdAt, week + 1);
+          terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
+            sport: pool.sport,
+            followingRegularSeasonSlate,
+            followingSlateHasRegularSeasonGame: followingGames.some(game => game.seasonType === 2),
+            lastRegularSeasonGameDate,
+            currentPeriodEnd: currentBounds.weekEnd,
+            followingPeriodEnd: followingBounds.weekEnd,
+          });
+        }
+      }
     }
     const wipeoutDecision = decideSurvivorWipeout({
       sport: pool.sport as "nfl" | "nhl" | "nba" | "superleague",
       week, allAliveAtStartLost: allAliveAtSettlementLost,
       followingRegularSeasonSlate,
+      terminalPeriodConfirmed,
     });
     if (wipeoutDecision === "manual-review") {
       logger.warn(
-        { poolId: pool.id, sport: pool.sport, week, followingRegularSeasonSlate },
+        {
+          poolId: pool.id,
+          sport: pool.sport,
+          week,
+          followingRegularSeasonSlate,
+          terminalPeriodConfirmed,
+        },
         "Live Survivor wipeout requires manual review; leaving picks and entries unsettled",
       );
       return { finalized: false, playersEliminated: 0 };
@@ -236,6 +279,40 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
     }).onConflictDoNothing().returning({ id: weekResultsTable.id });
     if (inserted.length === 0) return { finalized: false, playersEliminated: 0 };
     if (isVoided) return { finalized: true, playersEliminated: 0 };
+    if (wipeoutDecision === "co-winners") {
+      const [entryCount] = await tx.select({ totalEntries: count() })
+        .from(entriesTable)
+        .where(eq(entriesTable.poolId, pool.id));
+      const prizeAmount = calculateSeasonSurvivorCoWinnerPrize(
+        pool,
+        Number(entryCount?.totalEntries ?? 0),
+        alive.length,
+      );
+      const closurePlan = buildTerminalSurvivorClosurePlan(
+        alive.map(entry => entry.id),
+        prizeAmount,
+      );
+      await tx.update(entriesTable)
+        .set(closurePlan.entryValues)
+        .where(and(
+          eq(entriesTable.poolId, pool.id),
+          inArray(entriesTable.id, closurePlan.entryIds),
+        ));
+      await tx.update(poolsTable)
+        .set({ ...closurePlan.poolValues, endedAt: new Date() })
+        .where(and(eq(poolsTable.id, pool.id), eq(poolsTable.isActive, true)));
+      logger.info(
+        {
+          poolId: pool.id,
+          sport: pool.sport,
+          week,
+          winnerCount: alive.length,
+          prizeAmount,
+        },
+        "Terminal Survivor wipeout closed with tied co-winners",
+      );
+      return { finalized: true, playersEliminated: 0 };
+    }
 
     const maxStrikes = pool.sport === "nfl" ? 0 : 2;
     let playersEliminated = 0;
@@ -731,11 +808,30 @@ export async function processCompletedGames(): Promise<{
     eq(poolsTable.sandboxMode, false),
     inArray(poolsTable.sport, ["nfl", "nhl", "nba", "superleague"]),
   ));
+  const finalizedNonNflSurvivorPeriods: Array<{
+    poolId: number;
+    sport: "nhl" | "nba" | "superleague";
+    week: number;
+  }> = [];
   for (const pool of settlementPools) {
     if (pool.sport === "nfl" && pool.isPreseason) continue;
     const settled = await settleLiveSurvivorWeek(pool);
     playersEliminated += settled.playersEliminated;
     weeksFinalized += settled.finalized ? 1 : 0;
+    if (
+      (pool.sport === "nhl" || pool.sport === "nba" || pool.sport === "superleague") &&
+      shouldAdvanceLiveSurvivorPeriod({
+        sport: pool.sport,
+        finalized: settled.finalized,
+        poolActive: pool.isActive,
+      })
+    ) {
+      finalizedNonNflSurvivorPeriods.push({
+        poolId: pool.id,
+        sport: pool.sport,
+        week: pool.currentWeek,
+      });
+    }
   }
 
   // ── PASS 2: Idempotency — fix alive entries that have exceeded their loss cap ──
@@ -904,7 +1000,7 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nflSurvivorPools) {
-    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
         "NFL Survivor auto-close skipped: current week is voided",
@@ -1020,7 +1116,7 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nhlSurvivorPools) {
-    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
         "NHL Survivor auto-close skipped: current week is voided",
@@ -1131,7 +1227,7 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nbaSurvivorPools) {
-    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
         "NBA Survivor auto-close skipped: current week is voided",
@@ -1246,7 +1342,7 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of eslSurvivorPools) {
-    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
         "ESL Survivor auto-close skipped: current week is voided",
@@ -1423,6 +1519,34 @@ export async function processCompletedGames(): Promise<{
       { poolId: pool.id, champions: champions.length, topWins, totalEntries },
       "ESL Survivor auto-close: week 38 complete — ranked surviving players by total wins",
     );
+  }
+
+  // Advance non-NFL Survivor periods only after all same-cycle closure checks.
+  // This preserves the void marker as the latest period during closure and
+  // avoids advancing a pool that was just closed as a winner/co-winner result.
+  for (const period of finalizedNonNflSurvivorPeriods) {
+    const updated = await db.update(poolsTable)
+      .set({ currentWeek: period.week + 1 })
+      .where(and(
+        eq(poolsTable.id, period.poolId),
+        eq(poolsTable.currentWeek, period.week),
+        eq(poolsTable.sport, period.sport),
+        eq(poolsTable.poolType, "season"),
+        eq(poolsTable.isActive, true),
+        eq(poolsTable.sandboxMode, false),
+      ))
+      .returning({ currentWeek: poolsTable.currentWeek });
+    if (updated.length > 0) {
+      logger.info(
+        {
+          poolId: period.poolId,
+          sport: period.sport,
+          previousWeek: period.week,
+          nextWeek: updated[0].currentWeek,
+        },
+        "Live Survivor settled period advanced",
+      );
+    }
   }
 
   return { picksGraded, playersEliminated, weeksFinalized };

@@ -32,6 +32,24 @@ export interface SeasonSurvivorClosureResult {
   closureReason: string | null;
 }
 
+export function calculateSeasonSurvivorCoWinnerPrize(
+  pool: Pick<typeof poolsTable.$inferSelect,
+    "prizeStructure" | "prizeMode" | "entryFee" | "prizePot" | "maxEntries">,
+  totalEntries: number,
+  coWinners: number,
+): number | null {
+  return calcPrize({
+    placeIndex: 0,
+    coWinners,
+    prizeStructure: pool.prizeStructure as Array<{ place: number; amount: number }> | null,
+    prizeMode: pool.prizeMode,
+    entryFee: pool.entryFee,
+    prizePot: pool.prizePot,
+    totalEntries,
+    maxEntries: pool.maxEntries,
+  });
+}
+
 async function resolveSov(poolId: number): Promise<void> {
   const aliveEntries = await db
     .select({ id: entriesTable.id, userId: entriesTable.userId })
@@ -177,16 +195,11 @@ export async function applySeasonSurvivorClosure(
   const prizeStructure = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
   if (aliveEntries.length > 1) {
-    const firstPrize = calcPrize({
-      placeIndex: 0,
-      coWinners: aliveEntries.length,
-      prizeStructure,
-      prizeMode: pool.prizeMode,
-      entryFee: pool.entryFee,
-      prizePot: pool.prizePot,
+    const firstPrize = calculateSeasonSurvivorCoWinnerPrize(
+      pool,
       totalEntries,
-      maxEntries: pool.maxEntries,
-    });
+      aliveEntries.length,
+    );
 
     await db
       .update(entriesTable)

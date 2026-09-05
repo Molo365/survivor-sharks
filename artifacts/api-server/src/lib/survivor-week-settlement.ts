@@ -1,5 +1,5 @@
 export type SurvivorSport = "nfl" | "nhl" | "nba" | "superleague";
-export type SurvivorWipeoutDecision = "void" | "normal" | "manual-review";
+export type SurvivorWipeoutDecision = "void" | "normal" | "co-winners" | "manual-review";
 
 /** Pure policy used by the live settlement transaction and its tests. */
 export function decideSurvivorWipeout(options: {
@@ -8,13 +8,83 @@ export function decideSurvivorWipeout(options: {
   allAliveAtStartLost: boolean;
   /** NHL/NBA only: proof from the following week's fetched events. */
   followingRegularSeasonSlate?: "confirmed" | "unknown" | "contaminated";
+  /** NHL/NBA only: positive schedule proof that this is the final pickable period. */
+  terminalPeriodConfirmed?: boolean;
 }): SurvivorWipeoutDecision {
   if (!options.allAliveAtStartLost) return "normal";
-  if (options.sport === "nfl") return options.week < 18 ? "void" : "manual-review";
-  if (options.sport === "superleague") return options.week < 38 ? "void" : "manual-review";
+  if (options.sport === "nfl") {
+    if (options.week < 18) return "void";
+    return options.week === 18 ? "co-winners" : "manual-review";
+  }
+  if (options.sport === "superleague") {
+    if (options.week < 38) return "void";
+    return options.week === 38 ? "co-winners" : "manual-review";
+  }
   // Do not guess where a rolling calendar season ends. A next regular-season
   // slate is authoritative proof that this week is non-terminal.
-  return options.followingRegularSeasonSlate === "confirmed" ? "void" : "manual-review";
+  if (options.followingRegularSeasonSlate === "confirmed") return "void";
+  return options.terminalPeriodConfirmed ? "co-winners" : "manual-review";
+}
+
+export function buildTerminalSurvivorClosurePlan(
+  aliveEntryIds: number[],
+  prizeAmount: number | null,
+): {
+  entryIds: number[];
+  entryValues: {
+    finalWinner: true;
+    finishPosition: 1;
+    prizeAmount: number | null;
+  };
+  poolValues: {
+    isActive: false;
+    closureReason: "co_winners";
+  };
+} {
+  return {
+    entryIds: [...aliveEntryIds],
+    entryValues: { finalWinner: true, finishPosition: 1, prizeAmount },
+    poolValues: { isActive: false, closureReason: "co_winners" },
+  };
+}
+
+/**
+ * NHL/NBA terminal proof. The current period is the last pickable period when
+ * the next Survivor slate has no regular-season games and ESPN's complete team
+ * schedules show that the league's final regular-season game occurs no later
+ * than the end of that following calendar week.
+ */
+export function isFinalCalendarSurvivorPeriod(options: {
+  sport: "nhl" | "nba";
+  followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated";
+  followingSlateHasRegularSeasonGame: boolean;
+  lastRegularSeasonGameDate: string | null;
+  currentPeriodEnd: Date;
+  followingPeriodEnd: Date;
+}): boolean {
+  if (
+    options.followingRegularSeasonSlate === "confirmed" ||
+    options.followingSlateHasRegularSeasonGame ||
+    options.lastRegularSeasonGameDate == null
+  ) return false;
+  const lastGame = new Date(options.lastRegularSeasonGameDate).getTime();
+  if (!Number.isFinite(lastGame)) return false;
+  // NBA Survivor uses the full Mon-Sun period, so any regular-season game in
+  // the following week proves the current period is not terminal. NHL picks
+  // only the Sat-Sun slate; a final league game on the following Mon-Fri still
+  // means the current weekend was the last pickable Survivor slate.
+  const terminalBoundary = options.sport === "nba"
+    ? options.currentPeriodEnd
+    : options.followingPeriodEnd;
+  return lastGame <= terminalBoundary.getTime();
+}
+
+export function shouldAdvanceLiveSurvivorPeriod(options: {
+  sport: SurvivorSport;
+  finalized: boolean;
+  poolActive: boolean;
+}): boolean {
+  return options.finalized && options.poolActive && options.sport !== "nfl";
 }
 
 export function survivorStateEffect(options: {

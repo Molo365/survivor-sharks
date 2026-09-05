@@ -1,3 +1,5 @@
+import { ESPN_TEAMS } from "./teams-data";
+
 const ESPN_ENDPOINTS: Record<string, string> = {
   nfl: "https://site.api.espn.com/apis/site/v2/sports/football/nfl",
   mlb: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb",
@@ -613,6 +615,72 @@ export async function fetchNbaGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
   // NBA's ESPN API does not reliably tag games with the correct seasonType on
   // date-based endpoints, so we skip the filter and return all games for the week.
   return games;
+}
+
+type TeamScheduleEvent = {
+  date?: string;
+  season?: { year?: number };
+  seasonType?: { type?: number };
+};
+
+const regularSeasonEndCache = new Map<string, {
+  expiresAt: number;
+  lastGameDate: string;
+}>();
+
+/**
+ * Return the latest scheduled regular-season game for an NHL or NBA season.
+ *
+ * ESPN's league scoreboard does not return a complete season schedule, so this
+ * intentionally fetches every team's season schedule and accepts the result
+ * only when every request succeeds. The successful result is cached because
+ * the live settlement poll runs frequently while the schedule changes rarely.
+ */
+export async function fetchLastRegularSeasonGameDate(
+  sport: "nhl" | "nba",
+  seasonYear: number,
+): Promise<string | null> {
+  const cacheKey = `${sport}:${seasonYear}`;
+  const cached = regularSeasonEndCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.lastGameDate;
+
+  const base = ESPN_ENDPOINTS[sport];
+  const teams = ESPN_TEAMS[sport];
+  if (!base || teams.length === 0) return null;
+
+  try {
+    const schedules = await Promise.all(teams.map(async team => {
+      const response = await fetch(
+        `${base}/teams/${team.id}/schedule?season=${seasonYear}`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+      if (!response.ok) throw new Error(`ESPN ${sport} schedule ${response.status}`);
+      return response.json() as Promise<{ events?: TeamScheduleEvent[] }>;
+    }));
+
+    const dates = schedules.flatMap(schedule =>
+      (schedule.events ?? [])
+        .filter(event =>
+          event.seasonType?.type === 2 &&
+          (event.season?.year == null || event.season.year === seasonYear) &&
+          event.date != null &&
+          Number.isFinite(new Date(event.date).getTime())
+        )
+        .map(event => event.date!),
+    );
+    if (dates.length === 0) return null;
+
+    const lastGameDate = dates.reduce((latest, date) =>
+      new Date(date).getTime() > new Date(latest).getTime() ? date : latest
+    );
+    regularSeasonEndCache.set(cacheKey, {
+      expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+      lastGameDate,
+    });
+    return lastGameDate;
+  } catch {
+    return null;
+  }
 }
 
 /**
