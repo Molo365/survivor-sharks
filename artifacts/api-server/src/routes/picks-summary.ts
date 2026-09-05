@@ -22,6 +22,7 @@ import {
   getSuperLeagueWeekBoundsEt,
 } from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
+import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 
 const router = Router();
 
@@ -335,6 +336,21 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Crazy 8s (daily or weekly — respects pickFrequency) ──────────────
       if (poolType === "crazy_8s" || poolType === "crazy_eights") {
+        if (pool.sport === "mlb") {
+          const status = await getMlbHighHeatDailyStatus(pool.id, userId);
+          return {
+            ...base,
+            pickStatus: (!status.hasRequirement
+              ? "not_required"
+              : status.isComplete
+                ? "submitted"
+                : "pending") as PickStatus,
+            summary: status.hasRequirement
+              ? `${status.pickedCount}/${status.requiredPickCount} picks today`
+              : null,
+          };
+        }
+
         const isWeekly = pool.pickFrequency === "weekly";
         const [countRow] = await db
           .select({ cnt: count() })

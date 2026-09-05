@@ -29,6 +29,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
+import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 
 const router = Router();
 
@@ -1007,9 +1008,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         ]);
 
         // Fallback: if pool.currentWeek has no picks yet (off-season / new pool)
-        // show the most recent week that has picks.
+        // show the most recent week that has picks. This is intentionally not
+        // used for MLB High Heat status: its submission requirement is daily.
         let currentRows = initialCurrentRows;
-        if (currentRows.length === 0) {
+        if (currentRows.length === 0 && pool.sport !== "mlb") {
           const [latestWeekRow] = await db
             .select({ week: pickemPicksTable.week })
             .from(pickemPicksTable)
@@ -1039,6 +1041,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         const myIdx = currentRows.findIndex((r) => r.userId === userId);
         const myRow = myIdx >= 0 ? currentRows[myIdx] : null;
+        const highHeatStatus = pool.sport === "mlb"
+          ? await getMlbHighHeatDailyStatus(pool.id, userId)
+          : null;
 
         const topPrevPts = prevRows.length > 0 ? Number(prevRows[0].weeklyPoints) : 0;
         const tiedPrevRows = topPrevPts > 0
@@ -1069,8 +1074,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             rank: myRow ? myIdx + 1 : 0,
             isTied: myRow ? currentRows.filter(r => Number(r.weeklyPoints) === Number(myRow!.weeklyPoints)).length > 1 : false,
             correct: myRow ? Number(myRow.correctCount) : 0,
-            picked: myRow ? Number(myRow.picked) : 0,
-            hasPicks: myRow ? Number(myRow.picked) > 0 : false,
+            picked: highHeatStatus ? highHeatStatus.pickedCount : (myRow ? Number(myRow.picked) : 0),
+            hasPicks: highHeatStatus
+              ? highHeatStatus.isComplete
+              : (myRow ? Number(myRow.picked) > 0 : false),
             status: null,
             eliminatedWeek: null,
             score: myRow ? Number(myRow.weeklyPoints) : null,
