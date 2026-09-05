@@ -3,6 +3,7 @@ import {
   getTodayEtDate,
   formatDateEt,
   fetchGamesForDate,
+  fetchSuperLeagueGamesForDate,
   type EspnGame,
 } from "../lib/espn";
 
@@ -15,9 +16,10 @@ const SPORTS = [
   { sport: "nfl",       label: "NFL",      emoji: "🏈" },
   { sport: "worldcup", label: "World Cup", emoji: "⚽" },
   { sport: "mls",      label: "MLS",       emoji: "⚽" },
+  { sport: "superleague", label: "Super League", emoji: "⚽" },
 ] as const;
 
-type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup";
+type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup" | "mls" | "superleague";
 
 const EURO_SOCCER_SLUGS = new Set([
   "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
@@ -66,6 +68,9 @@ router.get("/today", async (_req, res) => {
           return merged;
         });
       }
+      if (sport === "superleague") {
+        return fetchSuperLeagueGamesForDate(todayEspnDate);
+      }
       return fetchGamesForDate(sport, todayEspnDate);
     }),
   );
@@ -83,7 +88,7 @@ router.get("/today", async (_req, res) => {
     const games = result.status === "fulfilled" ? result.value : [];
     if (games.length === 0) continue;
 
-    const sportKey: SportKey = meta.sport as SportKey;
+    const sportKey: SportKey = meta.sport;
 
     sports.push({ sport: sportKey, label: meta.label, emoji: meta.emoji, games });
   }
