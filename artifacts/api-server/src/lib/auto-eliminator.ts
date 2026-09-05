@@ -67,12 +67,28 @@ import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlo
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 import {
   evaluateNflAutoAdvanceSlate,
+  isCompleteNflSurvivorSlate,
   isNflGameFromRequestedSlate,
   isUnambiguousFinalNflGame,
 } from "./nfl-auto-advance";
+import {
+  aggregateSurvivorOutcomes,
+  classifyFollowingRegularSeasonSlate,
+  decideSurvivorWipeout,
+  isCompleteRegularSeasonSlate,
+  resolveSuperLeagueSettlementBounds,
+  survivorStateEffect,
+} from "./survivor-week-settlement";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const NFL_PRESEASON_TOTAL_WEEKS = 4;
+const LIVE_SURVIVOR_SPORTS = new Set(["nfl", "nhl", "nba", "superleague"]);
+
+function isDeferredLiveSurvivor(row: {
+  sport: string; poolType: string; sandboxMode: boolean;
+}): boolean {
+  return !row.sandboxMode && row.poolType === "season" && LIVE_SURVIVOR_SPORTS.has(row.sport);
+}
 
 type SurvivorClosureEntry = {
   id: number;
@@ -109,6 +125,139 @@ async function hasSingleSurvivorClosureEvidence(
   return gradedPick != null || finalizedPeriod != null;
 }
 
+async function isCurrentSurvivorWeekVoided(poolId: number, week: number): Promise<boolean> {
+  const [result] = await db
+    .select({ id: weekResultsTable.id })
+    .from(weekResultsTable)
+    .where(and(
+      eq(weekResultsTable.poolId, poolId),
+      eq(weekResultsTable.week, week),
+      eq(weekResultsTable.isVoided, true),
+    ))
+    .limit(1);
+  return result != null;
+}
+
+async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect): Promise<boolean> {
+  const anchor = pool.sport === "nhl"
+    ? pool.createdAt
+    : pool.sport === "nba" ? pool.createdAt : null;
+  if (pool.sport === "nfl") {
+    const expectedSeason = pool.season ?? new Date().getFullYear();
+    const games = await fetchNflGamesByWeek(pool.currentWeek, expectedSeason, 2);
+    return isCompleteNflSurvivorSlate(games, {
+      expectedSeason,
+      expectedSeasonType: 2,
+      expectedWeek: pool.currentWeek,
+    });
+  }
+  if (pool.sport === "nhl" || pool.sport === "nba") {
+    const games = pool.sport === "nhl"
+      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek)
+      : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
+    return isCompleteRegularSeasonSlate(games);
+  }
+  if (pool.sport !== "superleague") return false;
+
+  // A Super League week is defined by the actual submitted pick dates, rather
+  // than a calendar anchor. Do not settle until Tuesday after its Fri–Mon slate.
+  const picks = await db.select({ pickDate: picksTable.pickDate }).from(picksTable).where(and(
+    eq(picksTable.poolId, pool.id), eq(picksTable.week, pool.currentWeek),
+  ));
+  const todayEt = getTodayEtDate();
+  const bounds = resolveSuperLeagueSettlementBounds(picks.map(p => p.pickDate));
+  if (!bounds || todayEt <= bounds.weekEnd) return false;
+  const dates = [0, 1, 2, 3].map(offset => {
+    const base = new Date(`${bounds.weekStart}T12:00:00Z`);
+    base.setUTCDate(base.getUTCDate() + offset);
+    return formatDateEt(base);
+  });
+  const daily = await Promise.all(dates.map(fetchSuperLeagueGamesForDateWithStatus));
+  const games = daily.flatMap(day => day.games);
+  return daily.every(day => day.available) &&
+    games.length > 0 &&
+    games.every(game => game.isCompleted || game.isPostponed);
+}
+
+async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Promise<{
+  finalized: boolean; playersEliminated: number;
+}> {
+  const week = pool.currentWeek;
+  const [alreadyFinalized] = await db.select({ id: weekResultsTable.id }).from(weekResultsTable)
+    .where(and(eq(weekResultsTable.poolId, pool.id), eq(weekResultsTable.week, week))).limit(1);
+  if (alreadyFinalized || !(await isLiveSurvivorSlateComplete(pool))) return { finalized: false, playersEliminated: 0 };
+
+  return db.transaction(async (tx) => {
+    // The unique row is the commit marker: no entry mutation occurs until this
+    // transaction has rechecked both the marker and every pending pick.
+    const [existing] = await tx.select({ id: weekResultsTable.id }).from(weekResultsTable)
+      .where(and(eq(weekResultsTable.poolId, pool.id), eq(weekResultsTable.week, week))).limit(1);
+    if (existing) return { finalized: false, playersEliminated: 0 };
+    const [pending] = await tx.select({ id: picksTable.id }).from(picksTable).where(and(
+      eq(picksTable.poolId, pool.id), eq(picksTable.week, week), eq(picksTable.result, "pending"),
+    )).limit(1);
+    if (pending) return { finalized: false, playersEliminated: 0 };
+
+    const [weekPicks, alive] = await Promise.all([
+      tx.select({ entryId: picksTable.entryId, teamId: picksTable.teamId, result: picksTable.result })
+        .from(picksTable).where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, week))),
+      tx.select({ id: entriesTable.id, strikeCount: entriesTable.strikeCount })
+        .from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive"))),
+    ]);
+    const outcome = aggregateSurvivorOutcomes(
+      alive.map(entry => entry.id),
+      weekPicks,
+    );
+    const allAliveAtSettlementLost = outcome.allAliveAtStartLost;
+
+    let followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated" | undefined;
+    if (allAliveAtSettlementLost && (pool.sport === "nhl" || pool.sport === "nba")) {
+      const games = pool.sport === "nhl"
+        ? await fetchNhlGamesByWeek(pool.createdAt, week + 1)
+        : await fetchNbaGamesByWeek(pool.createdAt, week + 1);
+      followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(games);
+    }
+    const wipeoutDecision = decideSurvivorWipeout({
+      sport: pool.sport as "nfl" | "nhl" | "nba" | "superleague",
+      week, allAliveAtStartLost: allAliveAtSettlementLost,
+      followingRegularSeasonSlate,
+    });
+    if (wipeoutDecision === "manual-review") {
+      logger.warn(
+        { poolId: pool.id, sport: pool.sport, week, followingRegularSeasonSlate },
+        "Live Survivor wipeout requires manual review; leaving picks and entries unsettled",
+      );
+      return { finalized: false, playersEliminated: 0 };
+    }
+    const isVoided = wipeoutDecision === "void";
+    const losingTeamIds = [...new Set(weekPicks.filter(p => p.result === "loss").map(p => p.teamId))];
+    const inserted = await tx.insert(weekResultsTable).values({
+      poolId: pool.id, week, losingTeamIds, isVoided, processedBy: null,
+    }).onConflictDoNothing().returning({ id: weekResultsTable.id });
+    if (inserted.length === 0) return { finalized: false, playersEliminated: 0 };
+    if (isVoided) return { finalized: true, playersEliminated: 0 };
+
+    const maxStrikes = pool.sport === "nfl" ? 0 : 2;
+    let playersEliminated = 0;
+    for (const entry of alive) {
+      const pick = weekPicks.find(p => p.entryId === entry.id);
+      const effect = survivorStateEffect({
+        result: !pick ? "forfeit" : pick.result as "win" | "loss" | "push",
+        strikeCount: entry.strikeCount, maxStrikes,
+      });
+      if (effect === "strike") {
+        await tx.update(entriesTable).set({ strikeCount: entry.strikeCount + 1, streak: 0 })
+          .where(eq(entriesTable.id, entry.id));
+      } else if (effect === "eliminate") {
+        await tx.update(entriesTable).set({ status: "eliminated", eliminatedWeek: week, streak: 0 })
+          .where(eq(entriesTable.id, entry.id));
+        playersEliminated++;
+      }
+    }
+    return { finalized: true, playersEliminated };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Non-MLB: grade pending picks against live ESPN scores
 // ---------------------------------------------------------------------------
@@ -132,6 +281,7 @@ export async function processCompletedGames(): Promise<{
       teamId: picksTable.teamId,
       teamName: picksTable.teamName,
       week: picksTable.week,
+      pickDate: picksTable.pickDate,
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       poolCreatedAt: poolsTable.createdAt,
@@ -214,6 +364,24 @@ export async function processCompletedGames(): Promise<{
         );
       }));
     }
+
+    // ── Super League: retain the whole Fri–Mon slate for delayed grading ────
+    // Like NHL/NBA, Sunday's (or Monday's) final is absent from a later bare
+    // scoreboard response. The pick date defines this sport's weekly slate.
+    const superRows = pendingRows.filter(r => r.sport === "superleague");
+    const superPoolWeekKeys = [...new Set(superRows.map(r => `${r.poolId}:${r.week}`))];
+    const superGamesByPoolWeek = new Map<string, EspnGame[]>();
+    await Promise.all(superPoolWeekKeys.map(async key => {
+      const ref = superRows.find(r => `${r.poolId}:${r.week}` === key)!;
+      if (!ref.pickDate) return;
+      const bounds = getSuperLeagueWeekBoundsEt(ref.pickDate);
+      const games = (await Promise.all([0, 1, 2, 3].map(offset => {
+        const date = new Date(`${bounds.weekStart}T12:00:00Z`);
+        date.setUTCDate(date.getUTCDate() + offset);
+        return fetchSuperLeagueGamesForDate(formatDateEt(date));
+      }))).flat();
+      superGamesByPoolWeek.set(key, games);
+    }));
 
     // ── NFL (non-sandbox): fetch week-specific games per pool+week combo ────────
     // The bare scoreboard is week-agnostic. During the preseason, a completed
@@ -314,17 +482,25 @@ export async function processCompletedGames(): Promise<{
         }
       } else if (row.sport === "nhl") {
         game = (nhlGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
-          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) &&
+            (g.isCompleted || g.isPostponed),
         );
       } else if (row.sport === "nba") {
         game = (nbaGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
-          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && g.isCompleted,
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) &&
+            (g.isCompleted || g.isPostponed),
+        );
+      } else if (row.sport === "superleague") {
+        game = (superGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) &&
+            (g.isCompleted || g.isPostponed),
         );
       } else if (row.sport === "nfl") {
         // Non-sandbox NFL: use week-specific fetch so a prior week's completed
         // result cannot bleed into grading for a later week's pending pick.
         game = (nflGamesByPoolWeek.get(`${row.poolId}:${row.week}`) ?? []).find(
-          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) && isUnambiguousFinalNflGame(g),
+          g => (g.homeTeam.id === row.teamId || g.awayTeam.id === row.teamId) &&
+            (isUnambiguousFinalNflGame(g) || g.isPostponed),
         );
       } else {
         game = completedByTeam.get(row.teamId);
@@ -346,6 +522,23 @@ export async function processCompletedGames(): Promise<{
       );
 
       if (!game) continue; // game not final yet
+      if (game.isPostponed && isDeferredLiveSurvivor(row)) {
+        await db.update(picksTable).set({ result: "push" }).where(eq(picksTable.id, row.pickId));
+        picksGraded++;
+        affectedPoolWeeks.add(`${row.poolId}:${row.week}`);
+        logger.info(
+          {
+            poolId: row.poolId,
+            userId: row.userId,
+            teamId: row.teamId,
+            teamName: row.teamName,
+            week: row.week,
+            sport: row.sport,
+          },
+          "Auto-graded postponed Survivor selection as push",
+        );
+        continue;
+      }
       if (game.homeScore == null || game.awayScore == null) continue;
       if (game.homeScore === game.awayScore) {
         if (row.sport !== "superleague") continue; // tie — leave for commissioner
@@ -394,7 +587,7 @@ export async function processCompletedGames(): Promise<{
         "Auto-graded pick",
       );
 
-      if (result === "loss" && row.poolType !== "weekly") {
+      if (result === "loss" && row.poolType !== "weekly" && !isDeferredLiveSurvivor(row)) {
         // NHL and NBA Survivor Season use 3 lives (2 warning strikes before elimination).
         const maxStrikes = ((row.sport === "nhl" || row.sport === "nba" || row.sport === "superleague") && row.poolType === "season") ? 2 : 0;
 
@@ -485,6 +678,14 @@ export async function processCompletedGames(): Promise<{
 
       if (existing) continue;
 
+      // Live season Survivor entry state is deliberately deferred to the
+      // pool-week settlement below. Grading may happen game-by-game, but a
+      // wipeout decision cannot be made safely until the complete slate is in.
+      const [deferredPool] = await db
+        .select({ sport: poolsTable.sport, poolType: poolsTable.poolType, sandboxMode: poolsTable.sandboxMode })
+        .from(poolsTable).where(eq(poolsTable.id, pId)).limit(1);
+      if (deferredPool && isDeferredLiveSurvivor(deferredPool)) continue;
+
       const [stillPending] = await db
         .select({ id: picksTable.id })
         .from(picksTable)
@@ -520,6 +721,23 @@ export async function processCompletedGames(): Promise<{
     }
   }
 
+  // ── Live Survivor pool-week settlement ───────────────────────────────────
+  // This is intentionally after pick grading and before pass 2.  In particular,
+  // pass 2 must never see a graded but unfinalized Survivor week and apply a
+  // loss before its all-player wipeout decision is known.
+  const settlementPools = await db.select().from(poolsTable).where(and(
+    eq(poolsTable.poolType, "season"),
+    eq(poolsTable.isActive, true),
+    eq(poolsTable.sandboxMode, false),
+    inArray(poolsTable.sport, ["nfl", "nhl", "nba", "superleague"]),
+  ));
+  for (const pool of settlementPools) {
+    if (pool.sport === "nfl" && pool.isPreseason) continue;
+    const settled = await settleLiveSurvivorWeek(pool);
+    playersEliminated += settled.playersEliminated;
+    weeksFinalized += settled.finalized ? 1 : 0;
+  }
+
   // ── PASS 2: Idempotency — fix alive entries that have exceeded their loss cap ──
   // Catches: Pass 1 failures (grade succeeded but entry UPDATE missed), server
   // restarts, any prior missed elimination. Safe to run every cycle — entry
@@ -531,8 +749,8 @@ export async function processCompletedGames(): Promise<{
   // Algorithm: two flat queries + in-memory walk.
   //   Query 1 — fetch all alive entries in eligible (non-mlb, non-weekly,
   //             isActive) pools.
-  //   Query 2 — fetch all graded (non-pending) picks for those pools, excluding
-  //             picks from voided weeks, ordered (poolId, userId, week ASC).
+  //   Query 2 — fetch picks from finalized, non-void weeks only, ordered
+  //             (poolId, userId, week ASC).
   //   Walk    — for each player, accumulate a running loss count in week order.
   //             The FIRST week where lossCount > maxStrikes is violatingWeek.
   //   Outcome — violatingWeek found → eliminate with eliminatedWeek = violatingWeek.
@@ -576,7 +794,7 @@ export async function processCompletedGames(): Promise<{
         teamName: picksTable.teamName,
       })
       .from(picksTable)
-      .leftJoin(
+      .innerJoin(
         weekResultsTable,
         and(
           eq(weekResultsTable.poolId, picksTable.poolId),
@@ -587,7 +805,7 @@ export async function processCompletedGames(): Promise<{
         and(
           inArray(picksTable.poolId, candidatePoolIds),
           ne(picksTable.result, "pending"),
-          or(isNull(weekResultsTable.id), eq(weekResultsTable.isVoided, false)),
+            eq(weekResultsTable.isVoided, false),
         ),
       )
       .orderBy(picksTable.poolId, picksTable.userId, picksTable.week);
@@ -601,7 +819,12 @@ export async function processCompletedGames(): Promise<{
 
     for (const candidate of pass2Candidates) {
       const maxStrikes =
-        (candidate.sport === "nhl" || candidate.sport === "nba" || candidate.sport === "superleague") && candidate.poolType === "season" ? 2 : 0;
+        (candidate.sport === "nhl" ||
+          candidate.sport === "nba" ||
+          candidate.sport === "superleague") &&
+        candidate.poolType === "season"
+          ? 2
+          : 0;
       const picks =
         picksByPlayer.get(`${candidate.poolId}:${candidate.userId}`) ?? [];
 
@@ -681,6 +904,13 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nflSurvivorPools) {
+    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "NFL Survivor auto-close skipped: current week is voided",
+      );
+      continue;
+    }
     const aliveEntries = await db
       .select({ id: entriesTable.id, userId: entriesTable.userId })
       .from(entriesTable)
@@ -790,6 +1020,13 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nhlSurvivorPools) {
+    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "NHL Survivor auto-close skipped: current week is voided",
+      );
+      continue;
+    }
     const aliveEntries = await db
       .select({ id: entriesTable.id, userId: entriesTable.userId })
       .from(entriesTable)
@@ -894,6 +1131,13 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nbaSurvivorPools) {
+    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "NBA Survivor auto-close skipped: current week is voided",
+      );
+      continue;
+    }
     const aliveEntries = await db
       .select({ id: entriesTable.id, userId: entriesTable.userId })
       .from(entriesTable)
@@ -1002,6 +1246,13 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of eslSurvivorPools) {
+    if (await isCurrentSurvivorWeekVoided(pool.id, pool.currentWeek)) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "ESL Survivor auto-close skipped: current week is voided",
+      );
+      continue;
+    }
     const aliveEntries = await db
       .select({ id: entriesTable.id, userId: entriesTable.userId })
       .from(entriesTable)
@@ -5203,22 +5454,35 @@ export async function advanceCompletedNflPools(): Promise<number> {
         expectedSeason,
         seasonType,
       );
-      const decision = evaluateNflAutoAdvanceSlate({
-        games,
-        currentWeek: pool.currentWeek,
-        expectedSeason,
-        expectedSeasonType: seasonType,
-        terminalWeek,
-      });
-      if (!decision.canAdvance) {
-        if (decision.reason !== "terminal-week") {
+      const survivorCanAdvance =
+        pool.poolType === "season" &&
+        pool.currentWeek < terminalWeek &&
+        isCompleteNflSurvivorSlate(games, {
+          expectedSeason,
+          expectedSeasonType: seasonType,
+          expectedWeek: pool.currentWeek,
+        });
+      const standardDecision = pool.poolType === "season"
+        ? null
+        : evaluateNflAutoAdvanceSlate({
+            games,
+            currentWeek: pool.currentWeek,
+            expectedSeason,
+            expectedSeasonType: seasonType,
+            terminalWeek,
+          });
+      if (!survivorCanAdvance && standardDecision?.canAdvance !== true) {
+        const isTerminal = pool.currentWeek >= terminalWeek;
+        if (!isTerminal) {
           logger.info(
             {
               poolId: pool.id,
               week: pool.currentWeek,
               season: expectedSeason,
               seasonType,
-              reason: decision.reason,
+              reason: standardDecision && !standardDecision.canAdvance
+                ? standardDecision.reason
+                : "incomplete-survivor-slate",
             },
             "NFL auto-advance: skipping — ESPN slate is not safely complete",
           );
@@ -5244,6 +5508,24 @@ export async function advanceCompletedNflPools(): Promise<number> {
           "NFL auto-advance: skipping — grading still has pending picks",
         );
         continue;
+      }
+
+      if (pool.poolType === "season") {
+        const [finalizedWeek] = await db
+          .select({ id: weekResultsTable.id })
+          .from(weekResultsTable)
+          .where(and(
+            eq(weekResultsTable.poolId, pool.id),
+            eq(weekResultsTable.week, pool.currentWeek),
+          ))
+          .limit(1);
+        if (!finalizedWeek) {
+          logger.info(
+            { poolId: pool.id, week: pool.currentWeek },
+            "NFL Survivor auto-advance: skipping — week settlement is not finalized",
+          );
+          continue;
+        }
       }
 
       // Compare-and-set keeps this idempotent if a slow scheduler poll overlaps

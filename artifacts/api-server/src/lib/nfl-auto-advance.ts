@@ -86,6 +86,21 @@ export function isUnambiguousFinalNflGame(game: NflSlateGame): boolean {
 }
 
 /**
+ * Survivor-only slate completion permits postponed events because selected
+ * postponed teams are graded as pushes. Other NFL products retain the stricter
+ * all-unambiguous-finals predicate.
+ */
+export function isCompleteNflSurvivorSlate(
+  games: NflSlateGame[],
+  expected: ExpectedNflSlate,
+): boolean {
+  return games.length > 0 && games.every(game =>
+    isNflGameFromRequestedSlate(game, expected) &&
+    (isUnambiguousFinalNflGame(game) || game.isPostponed)
+  );
+}
+
+/**
  * Fail-closed validation for the manually settled NFL preseason week.
  * Unlike auto-advance, this intentionally permits the current week to be the
  * terminal week because the caller is explicitly closing the pool.

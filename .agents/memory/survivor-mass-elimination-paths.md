@@ -1,10 +1,10 @@
 ---
 name: Survivor mass-elimination paths
-description: Live auto-elimination and manual/sandbox Survivor grading do not share the same all-alive-loss handling.
+description: Safe live Survivor wipeout settlement requires full-slate grading before any entry mutation.
 ---
 
-The manual/sandbox Survivor grading routes explicitly void a pre-terminal season when every genuinely-alive player loses, but the live auto-eliminator uses separate per-sport closure blocks that generally only react to exactly one alive entry. NFL, NHL, and Super League can therefore reach zero alive entries without a live void record; MLB uses separate revival logic.
+Live Season Survivor grading must defer strikes and eliminations until the authoritative full sport/week slate is complete. A non-terminal wipeout is decided against the entries alive before settlement; losses and established-slate forfeits void the week, while pushes do not. A voided current week must block every automatic winner/closure path.
 
-**Why:** A shared season closure helper handles winner/SOV settlement but is called after route-level void decisions and does not itself detect an all-player wipeout.
+**Why:** Applying entry changes game-by-game destroys the week-start state and can leave a pool active with zero survivors. Inferring a forfeited week without pick/slate evidence can also settle the wrong period.
 
-**How to apply:** When changing Survivor elimination behavior, trace both `processCompletedGames`/MLB batch loops and the manual/sandbox grading routes; do not assume the route void rule covers live polling.
+**How to apply:** Grade picks first, resolve postponed selections as pushes, fail closed until the whole slate is known, settle once with a durable period marker, exclude voids from repair passes, and require manual review for ambiguous terminal wipeouts. MLB keeps its separate revival semantics.

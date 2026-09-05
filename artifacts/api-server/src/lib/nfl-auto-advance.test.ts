@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   evaluateNflAutoAdvanceSlate,
+  isCompleteNflSurvivorSlate,
   isNflGameFromRequestedSlate,
   isUnambiguousFinalNflGame,
   validateNflPreseasonPool,
@@ -138,6 +139,32 @@ test("grading predicates reject wrong slates and ambiguous completion", () => {
     ),
     false,
   );
+});
+
+test("Survivor slate accepts exact postponed events", () => {
+  const expected = {
+    expectedSeason: 2026,
+    expectedSeasonType: 2 as const,
+    expectedWeek: 1,
+  };
+  assert.equal(isCompleteNflSurvivorSlate([
+    finalGame(),
+    finalGame({ status: "postponed", isCompleted: false, isPostponed: true }),
+  ], expected), true);
+});
+
+test("Survivor slate rejects mismatched and unfinished non-postponed events", () => {
+  const expected = {
+    expectedSeason: 2026,
+    expectedSeasonType: 2 as const,
+    expectedWeek: 1,
+  };
+  assert.equal(isCompleteNflSurvivorSlate([
+    finalGame({ weekNumber: 2 }),
+  ], expected), false);
+  assert.equal(isCompleteNflSurvivorSlate([
+    finalGame({ status: "in_progress", isCompleted: false, isPostponed: false }),
+  ], expected), false);
 });
 
 function preseasonGame(overrides: Partial<Parameters<typeof validateNflPreseasonSlate>[0][number]> = {}) {
