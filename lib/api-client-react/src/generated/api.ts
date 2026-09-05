@@ -62,6 +62,8 @@ import type {
   NdpDivisionResult,
   NdpDivisionWithPick,
   NdpLeaderboardResponse,
+  NdpLockState,
+  NdpLockedError,
   NdpMyTiebreaker,
   NdpPick,
   NdpPicksInput,
@@ -4916,6 +4918,83 @@ export function useGetWcBracketTree<TData = Awaited<ReturnType<typeof getWcBrack
 
 
 
+export const getGetNdpLockStateUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/ndp/lock-state`
+}
+
+/**
+ * @summary Get the server-authoritative NFL Division Predictor pick lock
+ */
+export const getNdpLockState = async (poolId: number, options?: RequestInit): Promise<NdpLockState> => {
+
+  return customFetch<NdpLockState>(getGetNdpLockStateUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNdpLockStateQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/ndp/lock-state`
+    ] as const;
+    }
+
+
+export const getGetNdpLockStateQueryOptions = <TData = Awaited<ReturnType<typeof getNdpLockState>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLockState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNdpLockStateQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNdpLockState>>> = ({ signal }) => getNdpLockState(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNdpLockState>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNdpLockStateQueryResult = NonNullable<Awaited<ReturnType<typeof getNdpLockState>>>
+export type GetNdpLockStateQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the server-authoritative NFL Division Predictor pick lock
+ */
+
+export function useGetNdpLockState<TData = Awaited<ReturnType<typeof getNdpLockState>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNdpLockState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNdpLockStateQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetNdpDivisionsUrl = (poolId: number,) => {
 
 
@@ -5020,7 +5099,7 @@ export const submitNdpPicks = async (poolId: number,
 
 
 
-export const getSubmitNdpPicksMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getSubmitNdpPicksMutationOptions = <TError = ErrorType<ErrorResponse | NdpLockedError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext> => {
 
@@ -5049,12 +5128,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SubmitNdpPicksMutationResult = NonNullable<Awaited<ReturnType<typeof submitNdpPicks>>>
     export type SubmitNdpPicksMutationBody = BodyType<NdpPicksInput>
-    export type SubmitNdpPicksMutationError = ErrorType<ErrorResponse>
+    export type SubmitNdpPicksMutationError = ErrorType<ErrorResponse | NdpLockedError>
 
     /**
  * @summary Upsert NFL division predictor picks (all divisions submitted at once)
  */
-export const useSubmitNdpPicks = <TError = ErrorType<ErrorResponse>,
+export const useSubmitNdpPicks = <TError = ErrorType<ErrorResponse | NdpLockedError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitNdpPicks>>, TError,{poolId: number;data: BodyType<NdpPicksInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof submitNdpPicks>>,

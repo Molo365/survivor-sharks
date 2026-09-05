@@ -1595,6 +1595,43 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ── NFL Division Predictor ───────────────────────────────────────────────
+  /pools/{poolId}/ndp/lock-state:
+    get:
+      operationId: getNdpLockState
+      tags: [ndp]
+      summary: Get the server-authoritative NFL Division Predictor pick lock
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current NDP lock state for this pool's configured season
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdpLockState"
+        "400":
+          description: Pool is not an NFL Division Predictor pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Lock state cannot be determined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/ndp/divisions:
     get:
       operationId: getNdpDivisions
@@ -1654,6 +1691,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: Picks are locked because the regular season has started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdpLockedError"
         "404":
           description: Pool not found
           content:
@@ -3973,6 +4016,37 @@ components:
           type: string
         pos4Team:
           type: string
+
+    NdpLockState:
+      type: object
+      required: [poolId, season, lockAt, locked, source]
+      properties:
+        poolId:
+          type: integer
+        season:
+          type: integer
+        lockAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null only for explicitly unlocked sandbox pools.
+        locked:
+          type: boolean
+        source:
+          type: string
+          enum: [espn, cache, fallback, sandbox]
+
+    NdpLockedError:
+      type: object
+      required: [error, lockAt, locked]
+      properties:
+        error:
+          type: string
+        lockAt:
+          type: string
+          format: date-time
+        locked:
+          type: boolean
 
     NdpDivisionWithPick:
       type: object

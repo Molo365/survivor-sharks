@@ -1459,6 +1459,31 @@ export interface NdpPick {
   pos4Team: string;
 }
 
+export type NdpLockStateSource = typeof NdpLockStateSource[keyof typeof NdpLockStateSource];
+
+
+export const NdpLockStateSource = {
+  espn: 'espn',
+  cache: 'cache',
+  fallback: 'fallback',
+  sandbox: 'sandbox',
+} as const;
+
+export interface NdpLockState {
+  poolId: number;
+  season: number;
+  /** Null only for explicitly unlocked sandbox pools. */
+  lockAt: string | null;
+  locked: boolean;
+  source: NdpLockStateSource;
+}
+
+export interface NdpLockedError {
+  error: string;
+  lockAt: string;
+  locked: boolean;
+}
+
 export interface NdpDivisionResult {
   divisionName: string;
   pos1Team: string;

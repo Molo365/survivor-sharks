@@ -13,6 +13,8 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { NFL_DIVISIONS, NFL_DIVISION_MAP } from "../lib/nfl-divisions";
 import { closePredictorPool, scorePositions } from "../lib/closePredictorPool";
 import { fetchNflDivisionStandings } from "../lib/espn";
+import { getNdpLockState } from "../lib/ndp-lock";
+import { SubmitNdpPicksBody } from "@workspace/api-zod";
 import type { Logger } from "pino";
 
 const router = Router({ mergeParams: true });
@@ -176,6 +178,23 @@ router.get("/divisions", requireAuth, async (req, res) => {
   res.json(divisions);
 });
 
+// GET /api/pools/:poolId/ndp/lock-state
+router.get("/lock-state", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nfl_division_predictor") {
+    res.status(400).json({ error: "This pool is not an NFL Division Predictor pool" }); return;
+  }
+  try {
+    const state = await getNdpLockState(pool.season, pool.sandboxMode);
+    res.json({ poolId, season: pool.season, lockAt: state.lockAt?.toISOString() ?? null, locked: state.locked, source: state.source });
+  } catch (err) {
+    req.log.error({ err, poolId, season: pool.season }, "Unable to resolve NDP lock state");
+    res.status(503).json({ error: "NDP lock state is unavailable" });
+  }
+});
+
 // POST /api/pools/:poolId/ndp/picks
 router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
@@ -188,17 +207,28 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  const { picks, tb1Guess, tb2Guess } = req.body as {
-    picks: Array<{
-      divisionName: string;
-      pos1Team: string;
-      pos2Team: string;
-      pos3Team: string;
-      pos4Team: string;
-    }>;
-    tb1Guess?: number | null;
-    tb2Guess?: number | null;
-  };
+  const parsedBody = SubmitNdpPicksBody.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: "Invalid NDP picks payload" });
+    return;
+  }
+  const { picks, tb1Guess, tb2Guess } = parsedBody.data;
+
+  try {
+    const lockState = await getNdpLockState(pool.season, pool.sandboxMode);
+    if (lockState.locked) {
+      res.status(423).json({
+        error: "Picks Locked — Season has begun",
+        lockAt: lockState.lockAt!.toISOString(),
+        locked: true,
+      });
+      return;
+    }
+  } catch (err) {
+    req.log.error({ err, poolId, season: pool.season }, "Unable to resolve NDP lock before pick write");
+    res.status(503).json({ error: "NDP lock state is unavailable" });
+    return;
+  }
 
   if (!Array.isArray(picks) || picks.length === 0) {
     res.status(400).json({ error: "picks array is required" });

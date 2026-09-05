@@ -2003,6 +2003,22 @@ export const GetWcBracketTreeResponse = zod.array(GetWcBracketTreeResponseItem)
 
 
 /**
+ * @summary Get the server-authoritative NFL Division Predictor pick lock
+ */
+export const GetNdpLockStateParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNdpLockStateResponse = zod.object({
+  "poolId": zod.number(),
+  "season": zod.number(),
+  "lockAt": zod.coerce.date().nullable().describe('Null only for explicitly unlocked sandbox pools.'),
+  "locked": zod.boolean(),
+  "source": zod.enum(['espn', 'cache', 'fallback', 'sandbox'])
+})
+
+
+/**
  * @summary Get NFL division definitions with team info and the user's existing picks
  */
 export const GetNdpDivisionsParams = zod.object({

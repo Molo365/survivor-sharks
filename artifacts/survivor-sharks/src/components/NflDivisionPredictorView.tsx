@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import {
   useGetNdpDivisions,
+  getGetNdpDivisionsQueryKey,
   useSubmitNdpPicks,
   useGetNdpLeaderboard,
   getGetNdpLeaderboardQueryKey,
@@ -12,6 +13,9 @@ import {
   getGetNdpMyTiebreakerQueryKey,
   getGetPickEmDashboardStatsQueryKey,
   useGetNdpLiveStandings,
+  useGetNdpLockState,
+  getGetNdpLockStateQueryKey,
+  ApiError,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
@@ -92,9 +96,6 @@ const RANK_STYLES = [
   { icon: "🥈", bg: "bg-slate-400/10 border-slate-400/30 text-slate-300" },
   { icon: "🥉", bg: "bg-orange-600/10 border-orange-600/30 text-orange-400" },
 ];
-
-// NFL season starts early September 2026 — picks lock then
-const PICKS_LOCK_DATE = new Date("2026-09-04T17:00:00Z");
 
 // ── Player picks modal ────────────────────────────────────────────────────────
 
@@ -840,7 +841,16 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: divisions, isLoading } = useGetNdpDivisions(poolId);
+  const { data: divisions, isLoading } = useGetNdpDivisions(poolId, {
+    query: { queryKey: getGetNdpDivisionsQueryKey(poolId) },
+  });
+  const {
+    data: lockState,
+    isLoading: isLockStateLoading,
+    isError: isLockStateError,
+  } = useGetNdpLockState(poolId, {
+    query: { queryKey: getGetNdpLockStateQueryKey(poolId) },
+  });
   const submitPicks = useSubmitNdpPicks();
   const { data: myTiebreaker } = useGetNdpMyTiebreaker(poolId);
 
@@ -851,6 +861,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   const [showTbDialog, setShowTbDialog] = useState(false);
   const [tbGuess1, setTbGuess1] = useState("");
   const [tbGuess2, setTbGuess2] = useState("");
+  const [lockRejected, setLockRejected] = useState(false);
 
   useEffect(() => {
     if (!divisions || initialised) return;
@@ -878,6 +889,10 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     setInitialised(true);
   }, [divisions, initialised]);
 
+  useEffect(() => {
+    if (lockState) setLockRejected(lockState.locked);
+  }, [lockState]);
+
   function moveTeam(divisionName: string, fromIdx: number, toIdx: number) {
     setOrders((prev) => {
       const order = [...(prev[divisionName] ?? [])] as TeamOrder;
@@ -896,7 +911,9 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     setConfirmed((prev) => new Set([...prev, divisionName]));
   }
 
-  const picksLocked = new Date() >= PICKS_LOCK_DATE;
+  const lockStateUnavailable = isLockStateLoading || isLockStateError || !lockState;
+  const picksLocked = lockRejected || lockState?.locked === true;
+  const canEditPicks = !lockStateUnavailable && !picksLocked;
   const confirmedCount = confirmed.size;
   const totalDivisions = divisions?.length ?? 8;
   const allConfirmed = confirmedCount === totalDivisions;
@@ -910,9 +927,14 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   });
 
   // Tiebreaker: AFC East / NFC East combined wins. Prompt fires on first-ever picks submission.
-  const needsTb = !picksLocked && myTiebreaker?.tb1Guess == null;
+  const needsTb = canEditPicks && myTiebreaker?.tb1Guess == null;
+
+  useEffect(() => {
+    if (picksLocked) setShowTbDialog(false);
+  }, [picksLocked]);
 
   function doFinalSubmit(tb1Guess?: number, tb2Guess?: number) {
+    if (!canEditPicks) return;
     const picks = Object.entries(orders).map(([divisionName, order]) => ({
       divisionName,
       pos1Team: order[0],
@@ -933,11 +955,21 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         onSuccess: () => {
           toast({ title: "Picks locked in! 🏈", description: "All 8 division predictions have been saved." });
           setSavedOrders({ ...orders });
-          queryClient.invalidateQueries({ queryKey: ["getNdpDivisions", poolId] });
+          queryClient.invalidateQueries({ queryKey: getGetNdpDivisionsQueryKey(poolId) });
           queryClient.invalidateQueries({ queryKey: getGetNdpMyTiebreakerQueryKey(poolId) });
           void invalidatePoolQueries(queryClient, poolId);
         },
-        onError: () => {
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 423) {
+            setLockRejected(true);
+            setShowTbDialog(false);
+            void queryClient.invalidateQueries({ queryKey: getGetNdpLockStateQueryKey(poolId) });
+            toast({
+              title: "Picks Locked — Season has begun",
+              description: "The NFL season has kicked off. All division predictions are now final.",
+            });
+            return;
+          }
           toast({ title: "Submission failed", description: "Something went wrong. Please try again.", variant: "destructive" });
         },
       },
@@ -945,7 +977,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
   }
 
   function handleSubmit() {
-    if (!allConfirmed) return;
+    if (!canEditPicks || !allConfirmed) return;
     if (needsTb) {
       setTbGuess1("");
       setTbGuess2("");
@@ -1036,7 +1068,21 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         </DialogContent>
       </Dialog>
 
-      {picksLocked ? (
+      {lockStateUnavailable ? (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+          <ShieldAlert className="w-5 h-5 text-amber-200 shrink-0" />
+          <div>
+            <p className="font-semibold text-sm text-amber-200 leading-snug">
+              {isLockStateError ? "Pick availability unavailable" : "Checking pick availability"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isLockStateError
+                ? "We couldn't confirm whether picks are locked. Please try again shortly."
+                : "Picks will be available once their lock status is confirmed."}
+            </p>
+          </div>
+        </div>
+      ) : picksLocked ? (
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
           <span className="text-lg leading-none">🔒</span>
           <div>
@@ -1165,7 +1211,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                           {pts}
                         </span>
                       )}
-                      {!actual && !isConfirmed && !picksLocked && (
+                      {!actual && !isConfirmed && canEditPicks && (
                         <div className="flex flex-col gap-0.5 shrink-0">
                           <button
                             type="button"
@@ -1196,7 +1242,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
                 })}
               </div>
 
-              {!picksLocked && (
+              {canEditPicks && (
                 <div className="mt-auto pt-1">
                   {isConfirmed ? (
                     <button
@@ -1225,7 +1271,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
         })}
       </div>
 
-      {!picksLocked && (hasPendingChanges || (allConfirmed && needsTb)) && (
+      {canEditPicks && (hasPendingChanges || (allConfirmed && needsTb)) && (
         <div className="sticky bottom-4 flex justify-center pt-2">
           <div className="flex flex-col sm:flex-row items-center gap-3 rounded-2xl border px-6 py-4 shadow-xl backdrop-blur-sm bg-yellow-500/10 border-yellow-500/40 shadow-yellow-500/10">
             <div className="text-center sm:text-left">
