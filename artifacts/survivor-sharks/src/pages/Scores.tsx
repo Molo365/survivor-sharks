@@ -22,6 +22,7 @@ interface EspnTeam {
 interface EspnGame {
   id: string;
   date: string;
+  leagueSlug?: string;
   status: "scheduled" | "in_progress" | "final" | "postponed" | "suspended";
   homeTeam: EspnTeam;
   awayTeam: EspnTeam;
@@ -346,7 +347,7 @@ function SportSectionCard({
           <GameCard
             key={game.id}
             game={game}
-            onClick={() => onSelectGame(game, section.sport)}
+            onClick={() => onSelectGame(game, game.leagueSlug ?? section.sport)}
           />
         ))}
       </div>
