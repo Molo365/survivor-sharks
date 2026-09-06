@@ -75,6 +75,11 @@ async function isStillEligible(pool: typeof poolsTable.$inferSelect, userId: num
 }
 
 export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution | null> {
+  if (pool.poolType === "pickem_season") {
+    const games = await resolveNflSelectableGames(pool);
+    const timing = reminderTimingFromGames({ kind: "pickem", season: pool.season, week: pool.currentWeek, games });
+    return timing && { ...timing, context: { nflGameIds: new Set(games.map((game) => game.id)) } };
+  }
   if (pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly") {
     const games = await resolveNflSelectableGames(pool);
     const timing = reminderTimingFromGames({ kind: "confidence", season: pool.season, week: pool.currentWeek, games });

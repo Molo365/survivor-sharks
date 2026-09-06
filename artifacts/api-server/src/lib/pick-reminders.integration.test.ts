@@ -4,7 +4,7 @@ import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, poolsTable, usersTable } from "@workspace/db";
 import { getTodayEtDate } from "./espn";
-import { runPickReminders, type ReminderResolution } from "./pick-reminders";
+import { resolveReminderDeadline, runPickReminders, type ReminderResolution } from "./pick-reminders";
 
 const suffix = `reminder-it-${crypto.randomUUID()}`;
 const now = new Date("2025-09-06T17:00:00Z");
@@ -24,7 +24,7 @@ test("development DB reminder orchestration claims sandbox fixture pools once", 
     userIds.push(...users.map((user) => user.id));
     const target = users[0]!, complete = users[1]!, eliminated = users[4]!;
     const fixtures = [
-      ["pickem", "daily", "mlb"], ["pickem", "weekly", "nfl"], ["season", "weekly", "nfl"],
+      ["pickem", "daily", "mlb"], ["pickem", "weekly", "nfl"], ["pickem_season", "weekly", "nfl"], ["season", "weekly", "nfl"],
       ["nfl_confidence", "weekly", "nfl"], ["nfl_confidence_weekly", "weekly", "nfl"], ["nba_ats", "weekly", "nba"],
     ] as const;
     const pools = await db.insert(poolsTable).values(fixtures.map(([poolType, pickFrequency, sport], index) => ({
@@ -48,6 +48,7 @@ test("development DB reminder orchestration claims sandbox fixture pools once", 
     const resolver = async (pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution> => {
       const gameId = `fixture-${pool.id}`;
       if (pool.poolType === "season") return { deadline, periodKey: "2025-week-1", context: {} };
+      if (pool.poolType === "pickem_season") return { deadline, periodKey: "2025-week-1", context: { nflGameIds: new Set([gameId]) } };
       if (pool.poolType.includes("confidence")) return { deadline, periodKey: "2025-week-1", context: { nflGameIds: new Set([gameId]) } };
       const period = pool.pickFrequency === "daily"
         ? { kind: "date" as const, date: today, games: [], gameIds: new Set([gameId]), confidenceRequired: false }
@@ -58,13 +59,17 @@ test("development DB reminder orchestration claims sandbox fixture pools once", 
       if (poolName.includes("nba_ats")) throw new Error("intentional fake provider failure");
       return "fake-provider-id";
     };
+    const pickemSeasonPool = pools.find((pool) => pool.poolType === "pickem_season")!;
+    const resolved = await resolveReminderDeadline(pickemSeasonPool);
+    assert.ok(resolved);
+    assert.equal(resolved.context.nflGameIds?.size, 16);
     const first = await runPickReminders({ now, poolIds, includeSandbox: true, resolver, sender: sender as never });
-    assert.deepEqual(first, { claimed: 6, sent: 5, failed: 1 });
+    assert.deepEqual(first, { claimed: 7, sent: 6, failed: 1 });
     const second = await runPickReminders({ now, poolIds, includeSandbox: true, resolver, sender: sender as never });
     assert.deepEqual(second, { claimed: 0, sent: 0, failed: 0 });
     const rows = await db.select().from(pickRemindersTable).where(inArray(pickRemindersTable.poolId, poolIds));
-    assert.equal(rows.length, 6);
-    assert.equal(rows.filter((row) => row.status === "sent" && row.providerMessageId === "fake-provider-id").length, 5);
+    assert.equal(rows.length, 7);
+    assert.equal(rows.filter((row) => row.status === "sent" && row.providerMessageId === "fake-provider-id").length, 6);
     assert.equal(rows.filter((row) => row.status === "failed").length, 1);
     assert.equal(rows.some((row) => row.userId !== target.id), false);
   } finally {

@@ -19,7 +19,7 @@ export function isReminderEligiblePool(
   includeSandbox = false,
 ): boolean {
   return pool.isActive && pool.isRecurring && (includeSandbox || !pool.sandboxMode) && new Set([
-    "pickem", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly",
+    "pickem", "pickem_season", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly",
   ]).has(pool.poolType);
 }
 

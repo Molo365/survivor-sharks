@@ -23,7 +23,7 @@ test("period keys distinguish daily dates, calendar ranges, and NFL reset cycles
 test("only scoped active recurring pools and incomplete eligible members are selected", () => {
   // These cover daily/weekly Pick-Em, survivor, both confidence variants, and NBA ATS;
   // sandbox mode does not change scope or eligibility decisions.
-  for (const poolType of ["pickem", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "nba_ats"]) {
+  for (const poolType of ["pickem", "pickem_season", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "nba_ats"]) {
     assert.equal(isReminderEligiblePool({ poolType, isActive: true, isRecurring: true, sandboxMode: false }), true);
   }
   assert.equal(isReminderEligiblePool({ poolType: "mlb_bracket", isActive: true, isRecurring: true }), false);
