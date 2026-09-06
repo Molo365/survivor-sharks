@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
-import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
+import { SportLogo } from "@/components/SportLogo";
+import { SPORT_LABELS } from "@/lib/sport-branding";
 
 interface MyStanding {
   rank: number;

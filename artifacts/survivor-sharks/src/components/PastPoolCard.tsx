@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Trophy, Users, Calendar, Clock } from "lucide-react";
-import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
+import { SportLogo } from "@/components/SportLogo";
+import { SPORT_LABELS } from "@/lib/sport-branding";
 
 function formatEndedDate(iso: string): string {
   const d = new Date(iso);

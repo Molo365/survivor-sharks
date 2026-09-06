@@ -20,7 +20,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { KeyRound, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
+import { SportLogo } from "@/components/SportLogo";
+import { SPORT_LABELS } from "@/lib/sport-branding";
 
 const POOL_TYPE_LABELS: Record<string, string> = {
   season: "Survivor",

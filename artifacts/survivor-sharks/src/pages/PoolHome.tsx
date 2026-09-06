@@ -41,7 +41,8 @@ import { WcBracketView } from "@/components/WcBracketView";
 import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
-import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
+import { SportLogo } from "@/components/SportLogo";
+import { SPORT_LABELS } from "@/lib/sport-branding";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 
 export default function PoolHome() {

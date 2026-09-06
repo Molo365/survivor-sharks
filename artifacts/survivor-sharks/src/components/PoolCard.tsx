@@ -5,7 +5,8 @@ import { Pool, PoolPickEmStat } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { cn } from "@/lib/utils";
-import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
+import { SportLogo } from "@/components/SportLogo";
+import { SPORT_LABELS } from "@/lib/sport-branding";
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
