@@ -15,8 +15,8 @@ const SPORTS = [
   { sport: "nhl",       label: "NHL",      emoji: "🏒" },
   { sport: "nfl",       label: "NFL",      emoji: "🏈" },
   { sport: "worldcup", label: "World Cup", emoji: "⚽" },
-  { sport: "mls",      label: "MLS",       emoji: "⚽" },
   { sport: "superleague", label: "Super League", emoji: "⚽" },
+  { sport: "mls",      label: "MLS",       emoji: "⚽" },
 ] as const;
 
 type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup" | "mls" | "superleague";
