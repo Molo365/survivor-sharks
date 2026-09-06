@@ -2360,7 +2360,7 @@ components:
           type: string
         sport:
           type: string
-          enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl, mls, superleague]
+          enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl, mls, superleague, championsleague]
         poolType:
           type: string
           enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
@@ -3389,6 +3389,19 @@ components:
         userPickOption:
           type: ["string", "null"]
           description: User's 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made
+        phaseSlug:
+          type: ["string", "null"]
+          enum: [league-phase, knockout-round-playoffs, round-of-16, quarterfinals, semifinals, final, null]
+          description: Normalized UEFA Champions League phase slug, null for other sports
+        phaseLabel:
+          type: ["string", "null"]
+          description: Display phase label supplied from ESPN metadata
+        legNumber:
+          type: ["integer", "null"]
+          description: Knockout leg number; always null for a final
+        legLabel:
+          type: ["string", "null"]
+          description: Knockout leg display label; always null for a final
         leagueSlug:
           type: ["string", "null"]
           description: "ESPN league slug for European soccer games (e.g. 'eng.1', 'esp.1'); null for other sports"

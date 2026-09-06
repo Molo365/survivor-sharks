@@ -23,3 +23,4 @@
 - [MLB High Heat status](mlb-high-heat-status.md) — active High Heat completeness is daily and ET-slate-scoped; weekly rows remain for scoring only.
 - [Survivor mass-elimination paths](survivor-mass-elimination-paths.md) — live wipeouts settle only after full slates; calendar terminals require complete schedule proof and atomic co-winner closure.
 - [MLS weekly start boundaries](mls-weekly-start-boundaries.md) — MLS Pick-Em shares Mon–Sun date math with MLB, but must never enter the MLB High Heat classifier.
+- [Champions League Pick-Em semantics](champions-league-pickem.md) — group by ESPN competition phase/matchday/leg; each event is an independent 3-way pick graded from regulation only.

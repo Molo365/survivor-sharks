@@ -79,6 +79,12 @@ const SPORTS: ReadonlyArray<SportEntry> = [
     sublabel: "Super League",
     logoImg: '/European-SuperLeague.jpg',
   },
+  {
+    id: PoolInputSport.championsleague,
+    label: "UCL",
+    sublabel: "Champions League",
+    logoImg: '/Soccer-Logo.png',
+  },
 ];
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
@@ -89,6 +95,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
   superleague: ["season", "pickem"],
+  [PoolInputSport.championsleague]: ["pickem"],
 };
 
 const POOL_TYPES = [
@@ -485,6 +492,7 @@ export default function CreatePool() {
     if (selectedSport === PoolInputSport.nba && (selectedType === "nba_ats" || selectedType === "crazy_8s")) return true;
     if (selectedSport === PoolInputSport.mls && selectedType === "pickem") return true;
     if (selectedSport === PoolInputSport.superleague && selectedType === "pickem") return true;
+    if (selectedSport === PoolInputSport.championsleague && selectedType === "pickem") return true;
     return false;
   })();
 
@@ -500,6 +508,7 @@ export default function CreatePool() {
     if (selectedSport === PoolInputSport.nba) return "sport=nba";
     if (selectedSport === PoolInputSport.mls) return "sport=mls";
     if (selectedSport === PoolInputSport.superleague) return "sport=superleague";
+    if (selectedSport === PoolInputSport.championsleague) return "sport=championsleague";
     return null;
   })();
 

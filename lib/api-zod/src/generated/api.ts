@@ -228,7 +228,7 @@ export const createPoolBodyPrizeModeDefault = `fixed`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
-  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls', 'superleague']),
+  "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls', 'superleague', 'championsleague']),
   "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "initialPeriodStart": zod.coerce.date().optional().describe('MLB weekly Pick-Em only: Monday calendar date for the pool\'s first period'),
@@ -1302,6 +1302,10 @@ export const GetPickEmGamesResponse = zod.object({
 }).nullish(),
   "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
   "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made'),
+  "phaseSlug": zod.union([zod.literal('league-phase'),zod.literal('knockout-round-playoffs'),zod.literal('round-of-16'),zod.literal('quarterfinals'),zod.literal('semifinals'),zod.literal('final'),zod.literal(null)]).nullish().describe('Normalized UEFA Champions League phase slug, null for other sports'),
+  "phaseLabel": zod.string().nullish().describe('Display phase label supplied from ESPN metadata'),
+  "legNumber": zod.number().nullish().describe('Knockout leg number; always null for a final'),
+  "legLabel": zod.string().nullish().describe('Knockout leg display label; always null for a final'),
   "leagueSlug": zod.string().nullish().describe('ESPN league slug for European soccer games (e.g. \'eng.1\', \'esp.1\'); null for other sports')
 }))
 })
@@ -1367,6 +1371,10 @@ export const GetPickEmWeekGamesResponse = zod.object({
 }).nullish(),
   "pickOptions": zod.array(zod.string()).nullish().describe('Available pick outcomes for this game — null for MLB, [home_win, draw, away_win] for World Cup'),
   "userPickOption": zod.string().nullish().describe('User\'s 3-way pick outcome for WC games (home_win, draw, away_win); null for MLB or if no pick made'),
+  "phaseSlug": zod.union([zod.literal('league-phase'),zod.literal('knockout-round-playoffs'),zod.literal('round-of-16'),zod.literal('quarterfinals'),zod.literal('semifinals'),zod.literal('final'),zod.literal(null)]).nullish().describe('Normalized UEFA Champions League phase slug, null for other sports'),
+  "phaseLabel": zod.string().nullish().describe('Display phase label supplied from ESPN metadata'),
+  "legNumber": zod.number().nullish().describe('Knockout leg number; always null for a final'),
+  "legLabel": zod.string().nullish().describe('Knockout leg display label; always null for a final'),
   "leagueSlug": zod.string().nullish().describe('ESPN league slug for European soccer games (e.g. \'eng.1\', \'esp.1\'); null for other sports')
 }))
 }))

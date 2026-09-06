@@ -15,6 +15,7 @@ import {
   fetchNhlGamesByWeek,
   fetchNflGamesByWeek,
   fetchSuperLeagueGamesForDate,
+  fetchCurrentChampionsLeagueSlate,
   getNbaWeekendBounds,
   getSuperLeagueWeekBoundsEt,
   getTodayEtDate,
@@ -175,6 +176,21 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
       (date) => fetchSuperLeagueGamesForDate(date.replace(/-/g, "")),
     );
     return { kind: "range", start: weekStart, end: weekEnd, games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
+  }
+
+  if (sport === "championsleague") {
+    const slate = await fetchCurrentChampionsLeagueSlate();
+    if (!slate || slate.dates.length === 0) {
+      return { kind: "range", start: todayEt, end: todayEt, games: [], gameIds: new Set(), confidenceRequired: false };
+    }
+    return {
+      kind: "range",
+      start: slate.dates[0]!,
+      end: slate.dates[slate.dates.length - 1]!,
+      games: selectableGames(slate.games),
+      gameIds: selectableGameIds(slate.games),
+      confidenceRequired: false,
+    };
   }
 
   return null;

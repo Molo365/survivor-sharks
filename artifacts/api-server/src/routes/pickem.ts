@@ -20,6 +20,7 @@ import {
   getTodayEtDate,
   formatDateEt,
   getSuperLeagueWeekBoundsEt,
+  fetchCurrentChampionsLeagueSlate,
   type EspnGame,
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
@@ -32,6 +33,10 @@ import {
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { getMlsConfiguredPeriod, getMlsWeeklyInitialPeriodStart, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
+import {
+  championsLeagueRegulationOutcome,
+  isThreeWayPickOption,
+} from "../lib/champions-league-pickem";
 
 const router = Router({ mergeParams: true });
 
@@ -80,7 +85,8 @@ router.get("/games", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
-  const is3way = isWc || isIntl || isMls;
+  const isChampionsLeague = sport === "championsleague";
+  const is3way = isWc || isIntl || isMls || isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEt = getTodayEtDate();
 
@@ -413,8 +419,9 @@ router.get("/week-games", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if ((pool.sport !== "mls" && pool.sport !== "superleague") || pool.pickFrequency !== "weekly") {
-    res.status(400).json({ error: "This endpoint is only for MLS or Super League weekly pick-em pools" });
+  const periodSport = pool.sport as string;
+  if ((periodSport !== "mls" && periodSport !== "superleague" && periodSport !== "championsleague") || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "This endpoint is only for MLS, Super League, or Champions League weekly pick-em pools" });
     return;
   }
 
@@ -426,7 +433,10 @@ router.get("/week-games", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const { weekStart, weekEnd } = pool.sport === "superleague"
+  const championsLeagueSlate = periodSport === "championsleague"
+    ? await fetchCurrentChampionsLeagueSlate()
+    : null;
+  const { weekStart, weekEnd } = periodSport === "superleague"
     ? getSuperLeagueConfiguredPeriod(pool)
     : pool.sport === "mls"
       ? getMlsConfiguredPeriod(pool)
@@ -441,7 +451,14 @@ router.get("/week-games", requireAuth, async (req, res) => {
   }
 
   // Fetch the sport's complete active window in parallel; empty days are excluded.
-  const weekDays = pool.sport === "superleague"
+  const weekDays = periodSport === "championsleague"
+    ? (championsLeagueSlate?.dates ?? []).map((date) => ({
+        date,
+        games: (championsLeagueSlate?.games ?? []).filter((game) =>
+          new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(game.date)) === date,
+        ),
+      }))
+    : periodSport === "superleague"
     ? await fetchSlWeekDays(weekStart)
     : await fetchMlsWeekDays(weekStart);
 
@@ -452,8 +469,10 @@ router.get("/week-games", requireAuth, async (req, res) => {
     .where(and(
       eq(pickemPicksTable.poolId, poolId),
       eq(pickemPicksTable.userId, userId),
-      gte(pickemPicksTable.gameDate, weekStart),
-      lte(pickemPicksTable.gameDate, weekEnd),
+      periodSport === "championsleague"
+        ? inArray(pickemPicksTable.gameDate, championsLeagueSlate?.dates ?? [""])
+        : gte(pickemPicksTable.gameDate, weekStart),
+      periodSport === "championsleague" ? undefined : lte(pickemPicksTable.gameDate, weekEnd),
     ));
   const pickMap = new Map(weekPicks.map((p) => [p.gameId, p]));
 
@@ -506,13 +525,25 @@ router.get("/week-games", requireAuth, async (req, res) => {
           awayPitcher: null as null,
           pickOptions: WC_PICK_OPTIONS.map((id) => id) as string[],
           userPickOption: existing?.pickedTeamId ?? null,
+          phaseSlug: g.phaseSlug ?? null,
+          phaseLabel: g.phaseLabel ?? null,
+          legNumber: g.legNumber ?? null,
+          legLabel: g.legLabel ?? null,
         };
       }),
     };
   });
 
   const poolClosed = !pool.isActive && !pool.isRecurring;
-  res.json({ weekStart, weekEnd, days, poolClosed });
+  res.json({
+    weekStart: championsLeagueSlate?.dates[0] ?? weekStart,
+    weekEnd: championsLeagueSlate?.dates.at(-1) ?? weekEnd,
+    phase: championsLeagueSlate
+      ? { slug: championsLeagueSlate.phaseSlug, label: championsLeagueSlate.phaseLabel, legNumber: championsLeagueSlate.legNumber ?? null, legLabel: championsLeagueSlate.legLabel ?? null }
+      : null,
+    days,
+    poolClosed,
+  });
 });
 
 // GET /api/pools/:poolId/pickem/wc-schedule
@@ -634,7 +665,8 @@ router.post("/picks", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
-  const is3way = isWc || isIntl || isMls;
+  const isChampionsLeague = sport === "championsleague";
+  const is3way = isWc || isIntl || isMls || isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -697,6 +729,9 @@ router.post("/picks", requireAuth, async (req, res) => {
   } else if (isIntl) {
     const games = await fetchIntlGamesForDate(todayEspn);
     for (const g of games) gameMap.set(g.id, { date: g.date });
+  } else if (isChampionsLeague) {
+    const slate = await fetchCurrentChampionsLeagueSlate();
+    for (const g of slate?.games ?? []) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nhl" && pool.pickFrequency === "weekly") {
     // Sandbox: validate against the same anchor-week day the client loaded games for.
     // Use the submitted date if present; fall back to real-world today only as a
@@ -777,7 +812,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     } else if (!pool.sandboxMode && isGameLocked(game.date)) {
       // Sandbox mode: never lock picks regardless of game start time
       lockedGameIds.push(pick.gameId);
-    } else if (is3way && !WC_PICK_OPTIONS.includes(pick.pickedTeamId as WcPickOption)) {
+    } else if (is3way && !isThreeWayPickOption(pick.pickedTeamId)) {
       invalidPickIds.push(pick.gameId);
     }
   }
@@ -2114,7 +2149,8 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const isMls = sport === "mls" || sport === "superleague";
-  const is3way = isWc || isIntl || isMls;
+  const isChampionsLeague = sport === "championsleague";
+  const is3way = isWc || isIntl || isMls || isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEt = getTodayEtDate();
 
@@ -2161,6 +2197,10 @@ router.post("/process-results", requireAuth, async (req, res) => {
   const seenIds = new Set<string>();
   const finalGames = gamesByDate.flat().filter((g) => {
     if (!g.isCompleted || g.homeScore == null || g.awayScore == null) return false;
+    // ESPN's soccer final can include extra time. A Champions League pick is
+    // regulation-only, and an ET match without regulation linescores stays
+    // pending rather than being silently graded against an incorrect score.
+    if (isChampionsLeague && championsLeagueRegulationOutcome(g) == null) return false;
     if (seenIds.has(g.id)) return false;
     seenIds.add(g.id);
     return true;
@@ -2213,7 +2253,9 @@ router.post("/process-results", requireAuth, async (req, res) => {
       let result: "correct" | "incorrect";
 
       if (is3way) {
-        const outcome = wcOutcome(game.homeScore, game.awayScore);
+        const outcome = isChampionsLeague
+          ? championsLeagueRegulationOutcome(game)!
+          : wcOutcome(game.homeScore, game.awayScore);
         result = pick.pickedTeamId === outcome ? "correct" : "incorrect";
       } else {
         const winningTeamId = game.homeScore > game.awayScore ? game.homeTeam.id : game.awayTeam.id;

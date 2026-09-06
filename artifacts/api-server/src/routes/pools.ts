@@ -13,6 +13,7 @@ import {
   fetchSuperLeagueGamesForDate,
   getSuperLeagueWeekBoundsEt,
   getMlbWeekBounds,
+  fetchCurrentChampionsLeagueSlate,
 } from "../lib/espn";
 import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
@@ -354,7 +355,7 @@ router.post("/", requireAuth, async (req, res) => {
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
-    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl" | "mls" | "superleague",
+    sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl" | "mls" | "superleague" | "championsleague",
     poolType: resolvedPoolType,
     startWeek: startWeek ?? null,
     initialPeriodStart: resolvedInitialPeriodStart,
@@ -537,6 +538,12 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
     if (sport === "nba") {
       const games = await fetchNbaGamesByWeek(now, 1);
       res.json({ count: games.length });
+      return;
+    }
+
+    if (sport === "championsleague") {
+      const slate = await fetchCurrentChampionsLeagueSlate(now);
+      res.json({ count: slate?.games.length ?? 0 });
       return;
     }
 

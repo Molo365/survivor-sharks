@@ -2275,13 +2275,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [settingsName, setSettingsName] = useState(poolName);
   const [settingsDesc, setSettingsDesc] = useState(poolDescription ?? "");
   const isWc = sport === "worldcup";
-  const is3way = sport === "worldcup" || sport === "intl" || sport === "mls" || sport === "superleague";
+  const is3way = sport === "worldcup" || sport === "intl" || sport === "mls" || sport === "superleague" || sport === "championsleague";
   const isWeekly = pickFrequency === "weekly" && !is3way;
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
   const isNhlWeekly = isNhl && isWeekly;
-  const isMlsWeekly = (sport === "mls" || sport === "superleague") && pickFrequency === "weekly";
+  // The existing combined weekly slate UI is also used for a UEFA competition
+  // period: dates come from ESPN phase/matchday metadata, not a calendar week.
+  const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -3443,7 +3445,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">
-                    This Week
+                    {sport === "championsleague"
+                      ? `${(mlsWeekData as any)?.phase?.label ?? "Champions League"}${(mlsWeekData as any)?.phase?.legLabel ? ` - ${(mlsWeekData as any).phase.legLabel}` : ""}`
+                      : "This Week"}
                     {mlsWeekData?.weekStart && mlsWeekData.weekEnd && (
                       <span className="ml-2 font-sans text-sm font-normal text-muted-foreground/70 tracking-normal">
                         {new Date(mlsWeekData.weekStart + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
@@ -3491,12 +3495,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     </span>
                   </div>
                   {day.games.map((game) => (
-                    <WcGameCard
-                      key={game.id}
-                      game={game}
-                      pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                      onPick={(opt) => togglePick(game.id, opt)}
-                    />
+                    <Fragment key={game.id}>
+                      {sport === "championsleague" && (game as any).phaseLabel && (
+                        <p className="text-xs font-semibold uppercase tracking-wider text-primary/70">
+                          {(game as any).phaseLabel}{(game as any).legLabel ? ` - ${(game as any).legLabel}` : ""}
+                        </p>
+                      )}
+                      <WcGameCard
+                        game={game}
+                        pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
+                        onPick={(opt) => togglePick(game.id, opt)}
+                      />
+                    </Fragment>
                   ))}
                 </div>
               ))}

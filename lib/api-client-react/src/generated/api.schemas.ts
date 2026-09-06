@@ -84,6 +84,7 @@ export const PoolInputSport = {
   intl: 'intl',
   mls: 'mls',
   superleague: 'superleague',
+  championsleague: 'championsleague',
 } as const;
 
 export type PoolInputPoolType = typeof PoolInputPoolType[keyof typeof PoolInputPoolType];
@@ -939,6 +940,22 @@ export type PickEmGameLiveBaseRunners = {
   onThird: boolean;
 } | null;
 
+/**
+ * Normalized UEFA Champions League phase slug, null for other sports
+ * @nullable
+ */
+export type PickEmGamePhaseSlug = typeof PickEmGamePhaseSlug[keyof typeof PickEmGamePhaseSlug] | null;
+
+
+export const PickEmGamePhaseSlug = {
+  'league-phase': 'league-phase',
+  'knockout-round-playoffs': 'knockout-round-playoffs',
+  'round-of-16': 'round-of-16',
+  quarterfinals: 'quarterfinals',
+  semifinals: 'semifinals',
+  final: 'final',
+} as const;
+
 export interface PickEmGame {
   id: string;
   startTime: string;
@@ -996,6 +1013,26 @@ export interface PickEmGame {
      * @nullable
      */
   userPickOption?: string | null;
+  /**
+     * Normalized UEFA Champions League phase slug, null for other sports
+     * @nullable
+     */
+  phaseSlug?: PickEmGamePhaseSlug;
+  /**
+     * Display phase label supplied from ESPN metadata
+     * @nullable
+     */
+  phaseLabel?: string | null;
+  /**
+     * Knockout leg number; always null for a final
+     * @nullable
+     */
+  legNumber?: number | null;
+  /**
+     * Knockout leg display label; always null for a final
+     * @nullable
+     */
+  legLabel?: string | null;
   /**
      * ESPN league slug for European soccer games (e.g. 'eng.1', 'esp.1'); null for other sports
      * @nullable

@@ -8,6 +8,7 @@ const ESPN_ENDPOINTS: Record<string, string> = {
   fifa: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
   worldcup: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world",
   mls: "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1",
+  championsleague: "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions",
   // intl intentionally omitted — use fetchIntlGamesForDate() which merges multiple leagues
   // Super League domestic leagues (used by fetchSuperLeagueGamesForDate)
   "eng.1": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1",
@@ -109,6 +110,66 @@ export interface EspnGame {
   awayLinescores: { value: number; period: number }[];
   /** Which ESPN league slug this game belongs to (e.g. "eng.1", "esp.1"). Only set for Super League games. */
   leagueSlug?: string;
+  /** Normalized UEFA Champions League phase metadata. */
+  phaseSlug?: ChampionsLeaguePhase;
+  phaseLabel?: string;
+  /** Knockout leg only. The final intentionally has neither value. */
+  legNumber?: number;
+  legLabel?: string;
+  /** ESPN's league-phase matchday, when present (not derived from week.number). */
+  matchday?: number;
+  /** The score at the end of regulation. Null when ESPN cannot provide it safely. */
+  regulationHomeScore?: number | null;
+  regulationAwayScore?: number | null;
+}
+
+export const CHAMPIONS_LEAGUE_PHASES = [
+  "league-phase",
+  "knockout-round-playoffs",
+  "round-of-16",
+  "quarterfinals",
+  "semifinals",
+  "final",
+] as const;
+export type ChampionsLeaguePhase = (typeof CHAMPIONS_LEAGUE_PHASES)[number];
+
+const CHAMPIONS_LEAGUE_PHASE_LABELS: Record<ChampionsLeaguePhase, string> = {
+  "league-phase": "League Phase",
+  "knockout-round-playoffs": "Knockout Round Playoffs",
+  "round-of-16": "Round of 16",
+  quarterfinals: "Quarterfinals",
+  semifinals: "Semifinals",
+  final: "Final",
+};
+
+export function normalizeChampionsLeagueMetadata(
+  headline: string | null | undefined,
+): Pick<EspnGame, "phaseSlug" | "phaseLabel" | "legNumber" | "legLabel" | "matchday"> {
+  const text = headline ?? "";
+  const lower = text.toLowerCase().replace(/[–—]/g, "-");
+  const phaseSlug: ChampionsLeaguePhase | undefined =
+    /league\s*phase/.test(lower) ? "league-phase"
+      : /knockout\s*(round\s*)?playoffs?/.test(lower) ? "knockout-round-playoffs"
+      : /round\s*of\s*16/.test(lower) ? "round-of-16"
+      : /quarter[\s-]*final/.test(lower) ? "quarterfinals"
+      : /semi[\s-]*final/.test(lower) ? "semifinals"
+      : /\bfinal\b/.test(lower) ? "final"
+      : undefined;
+  if (!phaseSlug) return {};
+  // The final is a one-off event. Never surface an ESPN "Leg 1" artifact there.
+  if (phaseSlug === "final") {
+    return { phaseSlug, phaseLabel: CHAMPIONS_LEAGUE_PHASE_LABELS[phaseSlug] };
+  }
+  const legMatch = lower.match(/\b(?:leg\s*)?([12])(?:st|nd)?\s*leg\b|\bleg\s*([12])\b/);
+  const legNumber = legMatch ? Number(legMatch[1] ?? legMatch[2]) : undefined;
+  return {
+    phaseSlug,
+    phaseLabel: CHAMPIONS_LEAGUE_PHASE_LABELS[phaseSlug],
+    ...(legNumber ? { legNumber, legLabel: legNumber === 1 ? "1st Leg" : "2nd Leg" } : {}),
+    ...(phaseSlug === "league-phase" && text.match(/matchday\s*(\d+)/i)
+      ? { matchday: Number(text.match(/matchday\s*(\d+)/i)![1]) }
+      : {}),
+  };
 }
 
 type EspnProbable = {
@@ -155,8 +216,39 @@ type EspnEvent = {
     };
     situation?: EspnSituation;
     notes?: { type?: string; headline?: string }[];
+    leg?: { value?: number; displayValue?: string };
+    series?: { title?: string; totalCompetitions?: number };
   }[];
 };
+
+/**
+ * ESPN's soccer scoreboard score is the final match score and can include extra
+ * time. Linescores are the only scoreboard-level regulation breakdown. Never
+ * substitute the final score when an extra-time match lacks two regulation rows.
+ */
+export function regulationScoreFromEspn(
+  home: Pick<EspnCompetitor, "score" | "linescores"> | undefined,
+  away: Pick<EspnCompetitor, "score" | "linescores"> | undefined,
+  statusDetail?: string,
+): { homeScore: number | null; awayScore: number | null } {
+  const finalHome = home?.score == null ? null : Number.parseInt(home.score, 10);
+  const finalAway = away?.score == null ? null : Number.parseInt(away.score, 10);
+  const isExtraTime = /\b(extra time|aet|after extra|penalt)/i.test(statusDetail ?? "");
+  const regulation = (linescores: EspnCompetitor["linescores"] | undefined): number | null => {
+    const periods = (linescores ?? []).filter((line) => line.period === 1 || line.period === 2);
+    if (periods.length < 2 || periods.some((line) => !Number.isFinite(line.value))) return null;
+    return periods.reduce((total, line) => total + line.value, 0);
+  };
+  const homeRegulation = regulation(home?.linescores);
+  const awayRegulation = regulation(away?.linescores);
+  if (homeRegulation != null && awayRegulation != null) {
+    return { homeScore: homeRegulation, awayScore: awayRegulation };
+  }
+  // When regulation matches the final we can safely use it only for ordinary
+  // 90-minute finals. Extra-time/penalty finals deliberately remain ungradeable.
+  if (!isExtraTime) return { homeScore: finalHome ?? null, awayScore: finalAway ?? null };
+  return { homeScore: null, awayScore: null };
+}
 
 function extractStartingPitcher(probable: EspnProbable | undefined): EspnStartingPitcher | null {
   if (!probable?.athlete?.fullName) return null;
@@ -182,7 +274,7 @@ function extractStartingPitcher(probable: EspnProbable | undefined): EspnStartin
   };
 }
 
-function parseGame(event: EspnEvent): EspnGame {
+export function parseGame(event: EspnEvent): EspnGame {
   const comp = event.competitions?.[0];
   const home = comp?.competitors?.find(c => c.homeAway === "home");
   const away = comp?.competitors?.find(c => c.homeAway === "away");
@@ -217,6 +309,22 @@ function parseGame(event: EspnEvent): EspnGame {
   const noteHeadline = comp?.notes?.[0]?.headline ?? null;
   const groupMatch = noteHeadline?.match(/Group\s+[A-L]/i);
   const groupLabel = groupMatch ? groupMatch[0].replace(/\s+/g, " ") : null;
+  const championsLeague = normalizeChampionsLeagueMetadata(
+    [event.season?.slug, noteHeadline, comp?.series?.title, comp?.leg?.displayValue]
+      .filter(Boolean)
+      .join(" - "),
+  );
+  const directLegNumber = event.season?.slug === "final" ? undefined : comp?.leg?.value;
+  const championsLeagueWithDirectLeg = {
+    ...championsLeague,
+    ...(directLegNumber === 1 || directLegNumber === 2
+      ? {
+          legNumber: directLegNumber,
+          legLabel: directLegNumber === 1 ? "1st Leg" : "2nd Leg",
+        }
+      : {}),
+  };
+  const regulation = regulationScoreFromEspn(home, away, `${statusName} ${comp?.status?.type?.shortDetail ?? ""}`);
 
   return {
     id: event.id,
@@ -250,6 +358,9 @@ function parseGame(event: EspnEvent): EspnGame {
     weekNumber: event.week?.number,
     homeLinescores: home?.linescores ?? [],
     awayLinescores: away?.linescores ?? [],
+    ...championsLeagueWithDirectLeg,
+    regulationHomeScore: regulation.homeScore,
+    regulationAwayScore: regulation.awayScore,
   };
 }
 
@@ -813,6 +924,56 @@ async function fetchGamesForDateChecked(
 
 export async function fetchGamesForDate(sport: string, dateStr: string, seasonType = 2): Promise<EspnGame[]> {
   return (await fetchGamesForDateChecked(sport, dateStr, seasonType)) ?? [];
+}
+
+export interface ChampionsLeagueSlate {
+  phaseSlug: ChampionsLeaguePhase;
+  phaseLabel: string;
+  matchday?: number;
+  legNumber?: number;
+  legLabel?: string;
+  /** Inclusive ET dates represented by this competition period. */
+  dates: string[];
+  games: EspnGame[];
+}
+
+function eventEtDate(date: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(date));
+}
+
+/**
+ * Resolve one Champions League competition period from ESPN's phase metadata,
+ * rather than week.number or an arbitrary calendar week. ESPN accepts a date
+ * range on scoreboard; the window covers the current and next UEFA midweek.
+ */
+export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
+  const dateAtOffset = (days: number) => {
+    const d = new Date(now.getTime() + days * 86_400_000);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(d).replace(/-/g, "");
+  };
+  const games = await fetchGamesForDate("championsleague", `${dateAtOffset(-2)}-${dateAtOffset(21)}`, 2);
+  const eligible = games.filter((game) => game.phaseSlug);
+  if (eligible.length === 0) return null;
+  const future = eligible.filter((game) => new Date(game.date).getTime() >= now.getTime() - 24 * 60 * 60 * 1000);
+  const seed = (future.length ? future : eligible)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]!;
+  const gamesInPeriod = eligible
+    .filter((game) => game.phaseSlug === seed.phaseSlug
+      && game.matchday === seed.matchday
+      && game.legNumber === seed.legNumber)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return {
+    phaseSlug: seed.phaseSlug!,
+    phaseLabel: seed.phaseLabel!,
+    ...(seed.matchday != null ? { matchday: seed.matchday } : {}),
+    ...(seed.legNumber != null ? { legNumber: seed.legNumber, legLabel: seed.legLabel } : {}),
+    dates: [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))],
+    games: gamesInPeriod,
+  };
 }
 
 /**
