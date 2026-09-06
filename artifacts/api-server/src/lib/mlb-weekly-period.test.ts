@@ -31,3 +31,16 @@ describe("MLB weekly Pick-Em initial period", () => {
     assert.equal(resolveMlbWeeklyStartDate("2026-09-21", sunday), "2026-08-31");
   });
 });
+
+describe("MLB weekly High Heat initial period", () => {
+  const highHeatPool = { ...basePool, poolType: "crazy_8s" };
+
+  it("uses the same pre-start gate as weekly Pick-Em", () => {
+    assert.equal(isMlbWeeklyPreStart(highHeatPool, new Date("2026-09-13T23:59:59-04:00")), true);
+    assert.equal(isMlbWeeklyPreStart(highHeatPool, new Date("2026-09-14T00:00:00-04:00")), false);
+  });
+
+  it("does not apply the gate to a daily High Heat pool", () => {
+    assert.equal(isMlbWeeklyPreStart({ ...highHeatPool, pickFrequency: "daily" }, new Date("2026-09-13T12:00:00-04:00")), false);
+  });
+});

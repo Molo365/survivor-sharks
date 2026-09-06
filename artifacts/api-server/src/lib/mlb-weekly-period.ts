@@ -21,6 +21,14 @@ export function isMlbWeeklyPickem(pool: MlbWeeklyPool): boolean {
   return pool.sport === "mlb" && pool.poolType === "pickem" && pool.pickFrequency === "weekly";
 }
 
+export function isMlbWeeklyHighHeat(pool: MlbWeeklyPool): boolean {
+  return pool.sport === "mlb" && pool.poolType === "crazy_8s" && pool.pickFrequency === "weekly";
+}
+
+export function isMlbWeeklyPool(pool: MlbWeeklyPool): boolean {
+  return isMlbWeeklyPickem(pool) || isMlbWeeklyHighHeat(pool);
+}
+
 export function getMlbWeeklyInitialPeriodStart(pool: MlbWeeklyPool): string {
   if (pool.initialPeriodStart) return pool.initialPeriodStart;
   return getWeekBoundsEt(etDateString(pool.createdAt)).weekStart;
@@ -31,7 +39,7 @@ export function getMlbWeeklyAnchor(pool: MlbWeeklyPool): Date {
 }
 
 export function isMlbWeeklyPreStart(pool: MlbWeeklyPool, now = new Date()): boolean {
-  return isMlbWeeklyPickem(pool) && etDateString(now) < getMlbWeeklyInitialPeriodStart(pool);
+  return isMlbWeeklyPool(pool) && etDateString(now) < getMlbWeeklyInitialPeriodStart(pool);
 }
 
 export function resolveMlbWeeklyStartDate(

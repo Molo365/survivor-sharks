@@ -48,6 +48,7 @@ import {
   getWeekBoundsEt,
   getSuperLeagueWeekBoundsEt,
 } from "./espn";
+import { isMlbWeeklyPreStart } from "./mlb-weekly-period";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
   fetchTodayWcGames,
@@ -5096,6 +5097,8 @@ async function resolveCrazyEightsPeriod(
   periodDates: string[],
   periodGames: EspnGame[],
 ): Promise<void> {
+  if (isMlbWeeklyPreStart(pool)) return;
+
   // A weekly MLB High Heat pool must be resolved against the entire Mon–Sun
   // period. This guard prevents any caller from accidentally closing it from
   // a single day's grading pass.
@@ -5384,6 +5387,8 @@ export async function processCrazyEightsResults(): Promise<{
       : [];
 
     for (const pool of mlbPools) {
+      if (isMlbWeeklyPreStart(pool)) continue;
+
       const dailyDates = [yesterdayEt, todayEt];
       picksGraded += await gradeMlbCrazyEightsPicks(pool, [...yesterdayGames, ...todayGames], dailyDates);
 

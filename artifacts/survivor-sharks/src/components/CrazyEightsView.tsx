@@ -72,6 +72,8 @@ interface SlateResponse {
   sunDate?: string;
   tiebreakerGame?: TiebreakerGame | null;
   sandboxMode?: boolean;
+  poolNotStarted?: boolean;
+  startsAt?: string;
 }
 
 interface SubmittedPick {
@@ -98,6 +100,8 @@ interface SubmittedPicksResponse {
   tiebreakerPoints?: number | null;
   tiebreakerThrees?: number | null;
   tiebreakerGame: TiebreakerGame | null;
+  poolNotStarted?: boolean;
+  startsAt?: string;
 }
 
 interface YesterdayWinnerResponse {
@@ -987,6 +991,23 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActi
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-20 w-full rounded-lg" />
         ))}
+      </div>
+    );
+  }
+
+  if (slateData?.poolNotStarted && slateData.startsAt) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <Clock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+        <p className="font-bebas text-2xl tracking-wide text-foreground">
+          Starts {new Intl.DateTimeFormat("en-US", {
+            timeZone: "UTC",
+            weekday: "long",
+            month: "short",
+            day: "numeric",
+          }).format(new Date(`${slateData.startsAt}T12:00:00Z`))}
+        </p>
+        <p className="text-sm mt-1">This pool is open for invites. Daily High Heat picks will open automatically when the scoring week begins.</p>
       </div>
     );
   }

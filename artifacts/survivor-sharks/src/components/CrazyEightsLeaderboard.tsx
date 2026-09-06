@@ -53,6 +53,8 @@ interface WeeklyLeaderboardResponse {
   weekLabel: string;
   isCurrentWeek: boolean;
   players: WeeklyPlayer[];
+  poolNotStarted?: boolean;
+  startsAt?: string;
 }
 
 interface TiebreakerPlayer {
@@ -70,6 +72,8 @@ interface TiebreakerSummary {
   actualStat1?: number | null;
   actualStat2?: number | null;
   tiedPlayers?: TiebreakerPlayer[];
+  poolNotStarted?: boolean;
+  startsAt?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

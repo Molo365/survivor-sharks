@@ -367,13 +367,15 @@ export default function CreatePool() {
   const mlbThisWeek = useMemo(() => getMlbWeekOption(0), []);
   const mlbNextWeek = useMemo(() => getMlbWeekOption(1), []);
   const isMlbWeeklyPickem = selectedSport === PoolInputSport.mlb && selectedType === "pickem" && watchedFreq === "weekly";
+  const isMlbWeeklyHighHeat = selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s" && watchedFreq === "weekly";
+  const isMlbWeeklyStartable = isMlbWeeklyPickem || isMlbWeeklyHighHeat;
 
   useEffect(() => {
-    if (isMlbWeeklyPickem && !form.getValues("initialPeriodStart")) {
+    if (isMlbWeeklyStartable && !form.getValues("initialPeriodStart")) {
       form.setValue("initialPeriodStart", mlbThisWeek.start);
     }
-    if (!isMlbWeeklyPickem) form.setValue("initialPeriodStart", undefined);
-  }, [isMlbWeeklyPickem, mlbThisWeek.start]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isMlbWeeklyStartable) form.setValue("initialPeriodStart", undefined);
+  }, [isMlbWeeklyStartable, mlbThisWeek.start]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
 
@@ -732,7 +734,7 @@ export default function CreatePool() {
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
           ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
-          ...(isMlbWeeklyPickem && { initialPeriodStart: values.initialPeriodStart ?? mlbThisWeek.start }),
+          ...(isMlbWeeklyStartable && { initialPeriodStart: values.initialPeriodStart ?? mlbThisWeek.start }),
           ...(values.sport === PoolInputSport.nfl && (values.poolType === "season" || values.poolType === "nfl_confidence" || values.poolType === "pickem_season") && { isPreseason: values.isPreseason }),
         } as any,
       },
@@ -1209,7 +1211,7 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {isMlbWeeklyPickem && (
+                      {isMlbWeeklyStartable && (
                         <FormField
                           control={form.control}
                           name="initialPeriodStart"
@@ -1220,7 +1222,7 @@ export default function CreatePool() {
                                 <div className="flex-1">
                                   <FormLabel className="font-bebas text-lg tracking-wide">Starting Period</FormLabel>
                                   <FormDescription className="text-xs mt-0.5">
-                                    Choose the first Monday–Sunday slate players can pick.
+                                    Choose the first Monday–Sunday scoring period players can pick.
                                   </FormDescription>
                                   <FormControl>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">

@@ -300,7 +300,7 @@ router.post("/", requireAuth, async (req, res) => {
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
   const resolvedInitialPeriodStart =
-    sport === "mlb" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
+    sport === "mlb" && (resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s") && resolvedPickFrequency === "weekly"
       ? resolveMlbWeeklyStartDate(initialPeriodStart)
       : null;
 

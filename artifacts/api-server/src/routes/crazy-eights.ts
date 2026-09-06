@@ -8,6 +8,7 @@ import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
+import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 
 const router = Router({ mergeParams: true });
 
@@ -127,6 +128,11 @@ router.get("/slate", requireAuth, async (req, res) => {
 
   if (pool.sport === "mlb" && !pool.isActive) {
     res.status(410).json({ error: "This High Heat pool has ended", poolEnded: true });
+    return;
+  }
+  if (isMlbWeeklyPreStart(pool)) {
+    const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({ sport: "mlb", gameDate: startsAt, poolNotStarted: true, startsAt, games: [], tiebreakerGame: null });
     return;
   }
 
@@ -265,6 +271,11 @@ router.get("/grid", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlbWeeklyPreStart(pool)) {
+    const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({ date: startsAt, dateLabel: startsAt, poolNotStarted: true, startsAt, games: [], players: [] });
+    return;
+  }
 
   if (pool.sport === "nhl") {
     // date = Saturday anchor; derive Sunday = Saturday + 1
@@ -537,6 +548,11 @@ router.get("/picks", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlbWeeklyPreStart(pool)) {
+    const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({ poolNotStarted: true, startsAt, picks: [], tiebreakerGame: null });
+    return;
+  }
 
   if (pool.sport === "nhl") {
     const isSandbox = (pool as any).sandboxMode as boolean;
@@ -768,6 +784,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) {
     res.status(403).json({ error: "You are not a member of this pool" });
+    return;
+  }
+  if (isMlbWeeklyPreStart(pool)) {
+    res.status(409).json({
+      error: `This High Heat pool starts on ${getMlbWeeklyInitialPeriodStart(pool)}. Picks are not open yet.`,
+    });
     return;
   }
 
@@ -1209,10 +1231,16 @@ router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const weekOf = String(req.query.weekOf || getTodayEtDate());
-  const { weekStart, weekEnd, weekLabel } = getWeekBoundsFromDate(weekOf);
   const todayEt = getTodayEtDate();
+  const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+  const poolNotStarted = isMlbWeeklyPreStart(pool);
+  const weekOf = String(req.query.weekOf || (poolNotStarted ? startsAt : todayEt));
+  const { weekStart, weekEnd, weekLabel } = getWeekBoundsFromDate(weekOf);
   const isCurrentWeek = todayEt >= weekStart && todayEt <= weekEnd;
+  if (poolNotStarted) {
+    res.json({ poolNotStarted: true, startsAt, weekStart, weekEnd, weekLabel, isCurrentWeek: false, players: [] });
+    return;
+  }
 
   const picks = await db
     .select({
@@ -1425,6 +1453,10 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
   const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId))).limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlbWeeklyPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getMlbWeeklyInitialPeriodStart(pool), hadTiebreaker: false });
+    return;
+  }
 
   // Pool still active → no tiebreaker summary yet
   if (pool.isActive) { res.json({ hadTiebreaker: false }); return; }
