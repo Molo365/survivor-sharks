@@ -943,19 +943,10 @@ function eventEtDate(date: string): string {
   }).format(new Date(date));
 }
 
-/**
- * Resolve one Champions League competition period from ESPN's phase metadata,
- * rather than week.number or an arbitrary calendar week. ESPN accepts a date
- * range on scoreboard; the window covers the current and next UEFA midweek.
- */
-export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
-  const dateAtOffset = (days: number) => {
-    const d = new Date(now.getTime() + days * 86_400_000);
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(d).replace(/-/g, "");
-  };
-  const games = await fetchGamesForDate("championsleague", `${dateAtOffset(-2)}-${dateAtOffset(21)}`, 2);
+export function resolveCurrentChampionsLeagueSlate(
+  games: EspnGame[],
+  now = new Date(),
+): ChampionsLeagueSlate | null {
   const eligible = games.filter((game) => game.phaseSlug);
   if (eligible.length === 0) return null;
   const future = eligible.filter((game) => new Date(game.date).getTime() >= now.getTime() - 24 * 60 * 60 * 1000);
@@ -974,6 +965,36 @@ export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promis
     dates: [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))],
     games: gamesInPeriod,
   };
+}
+
+/**
+ * Resolve one Champions League competition period from ESPN's phase metadata,
+ * rather than week.number or an arbitrary calendar week. ESPN accepts a date
+ * range on scoreboard; the window covers the current and next UEFA midweek.
+ */
+export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
+  const dateAtOffset = (days: number) => {
+    const d = new Date(now.getTime() + days * 86_400_000);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(d).replace(/-/g, "");
+  };
+  const rangeStart = dateAtOffset(-2);
+  const rangeEnd = dateAtOffset(21);
+  let games = await fetchGamesForDate("championsleague", `${rangeStart}-${rangeEnd}`, 2);
+
+  // ESPN occasionally returns an empty range response even though the season
+  // feed already contains scheduled fixtures. Retry once through the season
+  // feed and retain only events inside the same display window.
+  if (games.length === 0) {
+    const seasonGames = await fetchGamesForDate("championsleague", String(now.getUTCFullYear()), 2);
+    games = seasonGames.filter((game) => {
+      const eventDate = eventEtDate(game.date).replace(/-/g, "");
+      return eventDate >= rangeStart && eventDate <= rangeEnd;
+    });
+  }
+
+  return resolveCurrentChampionsLeagueSlate(games, now);
 }
 
 /**

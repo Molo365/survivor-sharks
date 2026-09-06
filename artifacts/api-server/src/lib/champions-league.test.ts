@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   normalizeChampionsLeagueMetadata,
   regulationScoreFromEspn,
+  resolveCurrentChampionsLeagueSlate,
 } from "./espn";
 import {
   championsLeagueRegulationOutcome,
@@ -33,6 +34,29 @@ describe("Champions League ESPN normalization", () => {
       normalizeChampionsLeagueMetadata("UEFA Champions League - Final - 1st Leg"),
       { phaseSlug: "final", phaseLabel: "Final" },
     );
+  });
+
+  it("keeps ESPN's current league-phase schedule visible when matchday metadata is absent", () => {
+    const games = [
+      {
+        id: "match-1",
+        date: "2026-09-08T16:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+      },
+      {
+        id: "match-2",
+        date: "2026-09-10T19:00:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+      },
+    ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
+
+    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2026-09-06T16:00:00Z"));
+    assert.equal(slate?.phaseSlug, "league-phase");
+    assert.equal(slate?.matchday, undefined);
+    assert.deepEqual(slate?.dates, ["2026-09-08", "2026-09-10"]);
+    assert.equal(slate?.games.length, 2);
   });
 
   it("grades an extra-time match from its two regulation periods only", () => {

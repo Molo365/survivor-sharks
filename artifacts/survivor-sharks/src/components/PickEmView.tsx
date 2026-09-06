@@ -3094,7 +3094,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   </p>
                   <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
                     {is3way
-                      ? sport === "mls"
+                      ? sport === "championsleague"
+                        ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. Most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
+                        : sport === "mls"
                         ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                         : sport === "superleague"
                         ? "Welcome to Super League Pick-Ems! Pick Home Win, Draw, or Away Win for this weekend's matches across Europe's top leagues. You can change any pick until that match kicks off. Most correct picks each week wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
@@ -3348,8 +3350,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : mlsWeeklyEmpty ? (
             <div className="text-center py-16 text-muted-foreground">
-              <p className="text-lg font-medium">No games scheduled this week</p>
-              <p className="text-sm mt-1 text-muted-foreground/60">Check back when the schedule is posted.</p>
+              <p className="text-lg font-medium">
+                {sport === "championsleague" ? "No Champions League matches available" : "No games scheduled this week"}
+              </p>
+              <p className="text-sm mt-1 text-muted-foreground/60">
+                {sport === "championsleague"
+                  ? "Check back when ESPN posts the next competition period."
+                  : "Check back when the schedule is posted."}
+              </p>
             </div>
           ) : mlsWeeklyPoolClosed ? (
             <div className="space-y-5">
