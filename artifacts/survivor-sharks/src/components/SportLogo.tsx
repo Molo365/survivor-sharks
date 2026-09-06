@@ -11,10 +11,12 @@ export function SportLogo({
   if (!src) return null;
 
   return (
-    <img
-      src={src}
-      alt={`${SPORT_LABELS[sport] ?? sport} logo`}
-      className={`${className} object-contain ${sport === "championsleague" ? "brightness-0 invert" : ""}`}
-    />
+    <span className={`${className} inline-flex items-center justify-center rounded-md bg-primary p-0.5`}>
+      <img
+        src={src}
+        alt={`${SPORT_LABELS[sport] ?? sport} logo`}
+        className={`h-full w-full object-contain ${sport === "championsleague" ? "brightness-0 invert" : ""}`}
+      />
+    </span>
   );
 }

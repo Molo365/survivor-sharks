@@ -881,15 +881,18 @@ export default function CreatePool() {
                                 className={cn(
                                   "flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                   isSelected
-                                    ? "border-primary/60 bg-primary/8 ring-2 ring-primary/30 ring-offset-1 ring-offset-background"
-                                    : "border-border/40 bg-card/50 hover:border-primary/30 hover:bg-primary/5",
+                                     ? "border-primary-foreground/80 bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-1 ring-offset-background"
+                                     : "border-primary/40 bg-primary text-primary-foreground hover:border-primary-foreground/70 hover:bg-primary/90",
                                 )}
                               >
-                                <div className="w-12 h-12 flex items-center justify-center">
+                                <div className="w-12 h-12 rounded-lg bg-primary/80 p-1 flex items-center justify-center">
                                   <img
                                     src={sport.logoImg}
                                     alt={sport.label}
-                                    className="w-12 h-12 object-contain"
+                                    className={cn(
+                                      "w-12 h-12 object-contain",
+                                      sport.id === PoolInputSport.championsleague && "brightness-0 invert",
+                                    )}
                                     onError={(e) => {
                                       const fallback = (sport as { logoFallback?: string }).logoFallback;
                                       if (fallback && e.currentTarget.src !== fallback) {
@@ -901,11 +904,11 @@ export default function CreatePool() {
                                 <div className="text-center leading-tight">
                                   <div className={cn(
                                     "font-bebas text-base tracking-wide leading-none",
-                                    isSelected ? "text-primary" : "text-foreground",
+                                    "text-primary-foreground",
                                   )}>
                                     {sport.label}
                                   </div>
-                                  <div className="text-[10px] text-muted-foreground/60 mt-0.5">{sport.sublabel}</div>
+                                  <div className="text-[10px] text-primary-foreground/75 mt-0.5">{sport.sublabel}</div>
                                 </div>
                               </button>
                             );
