@@ -24,6 +24,7 @@ import {
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
+import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 
 const router = Router();
 
@@ -155,7 +156,7 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
-        if (isSuperLeaguePreStart(pool)) {
+        if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool)) {
           return { ...base, pickStatus: "pending" as PickStatus, summary: null };
         }
         const isDaily = pool.pickFrequency === "daily";

@@ -24,6 +24,7 @@ import {
   type EspnGame,
 } from "../lib/espn";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
+import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import {
   getSandboxGamesForWeek,
   replayRowToPickEmShape,
@@ -94,6 +95,7 @@ async function fetchGamesForDates(
 export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promise<PickemPeriod | null> {
   const sport = pool.sport as string;
   const todayEt = getTodayEtDate();
+  if (isMlsWeeklyPreStart(pool)) return null;
   if (isSuperLeaguePreStart(pool)) return null;
 
   if (pool.pickFrequency === "daily") {
@@ -280,7 +282,7 @@ router.get("/", requireAuth, async (req, res) => {
     })));
     return;
   }
-  if (isSuperLeaguePreStart(pool)) {
+  if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool)) {
     res.json(members.map((member) => ({
       userId: member.userId,
       pickStatus: "not_required" as const,

@@ -391,8 +391,9 @@ export default function CreatePool() {
   const isMlbWeeklyPickem = selectedSport === PoolInputSport.mlb && selectedType === "pickem" && watchedFreq === "weekly";
   const isMlbWeeklyHighHeat = selectedSport === PoolInputSport.mlb && selectedType === "crazy_8s" && watchedFreq === "weekly";
   const isMlbWeeklyStartable = isMlbWeeklyPickem || isMlbWeeklyHighHeat;
+  const isMlsWeeklyPickem = selectedSport === PoolInputSport.mls && selectedType === "pickem" && watchedFreq === "weekly";
   const isSuperLeagueWeeklyPickem = selectedSport === PoolInputSport.superleague && selectedType === "pickem" && watchedFreq === "weekly";
-  const isStartPeriodPool = isMlbWeeklyStartable || isSuperLeagueWeeklyPickem;
+  const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem;
   const thisPeriod = isSuperLeagueWeeklyPickem ? superLeagueThisPeriod : mlbThisWeek;
   const nextPeriod = isSuperLeagueWeeklyPickem ? superLeagueNextPeriod : mlbNextWeek;
 

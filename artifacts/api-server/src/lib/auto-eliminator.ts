@@ -49,6 +49,7 @@ import {
   getSuperLeagueWeekBoundsEt,
 } from "./espn";
 import { isMlbWeeklyPreStart } from "./mlb-weekly-period";
+import { isMlsWeeklyPreStart } from "./mls-weekly-period";
 import { isSuperLeaguePreStart } from "./superleague-period";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
@@ -2618,6 +2619,7 @@ export async function processPickEmResults(): Promise<{
     const mlsPostponedIds = allMlsGames.filter((g) => g.isPostponed).map((g) => g.id);
 
     for (const pool of mlsPools) {
+      if (isMlsWeeklyPreStart(pool)) continue;
       for (const [gameId, outcome] of outcomeByMlsGameId) {
         const gamePicks = await db
           .select()
@@ -4130,6 +4132,7 @@ export async function processPickEmResults(): Promise<{
 
   for (const pool of soccerPickemWeeklyPools) {
     try {
+      if (isMlsWeeklyPreStart(pool)) continue;
       if (isSuperLeaguePreStart(pool)) continue;
       const sportLabel = pool.sport === "superleague" ? "Super League" : "MLS";
       logger.info({ poolId: pool.id, week: pool.currentWeek }, `${sportLabel} Pick-Ems Weekly auto-closure: checking pool`);

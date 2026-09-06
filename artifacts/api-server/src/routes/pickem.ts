@@ -30,6 +30,7 @@ import {
   type WcPhase,
 } from "../lib/wc";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
+import { getMlsConfiguredPeriod, getMlsWeeklyInitialPeriodStart, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
 
 const router = Router({ mergeParams: true });
@@ -90,6 +91,20 @@ router.get("/games", requireAuth, async (req, res) => {
 
   if (isMlbWeeklyPreStart(pool)) {
     const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({
+      date: startsAt,
+      label: startsAt,
+      deadlinePassed: true,
+      poolNotStarted: true,
+      startsAt,
+      sport,
+      phase: null,
+      games: [],
+    });
+    return;
+  }
+  if (isMlsWeeklyPreStart(pool)) {
+    const startsAt = getMlsWeeklyInitialPeriodStart(pool);
     res.json({
       date: startsAt,
       label: startsAt,
@@ -413,7 +428,13 @@ router.get("/week-games", requireAuth, async (req, res) => {
   const todayEt = getTodayEtDate();
   const { weekStart, weekEnd } = pool.sport === "superleague"
     ? getSuperLeagueConfiguredPeriod(pool)
-    : getWeekBoundsEt(todayEt);
+    : pool.sport === "mls"
+      ? getMlsConfiguredPeriod(pool)
+      : getWeekBoundsEt(todayEt);
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: weekStart, weekStart, weekEnd, days: [] });
+    return;
+  }
   if (isSuperLeaguePreStart(pool)) {
     res.json({ poolNotStarted: true, startsAt: weekStart, weekStart, weekEnd, days: [] });
     return;
@@ -593,6 +614,12 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (isMlbWeeklyPreStart(pool)) {
     res.status(409).json({
       error: `This pool starts on ${getMlbWeeklyInitialPeriodStart(pool)}. Picks are not open yet.`,
+    });
+    return;
+  }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.status(409).json({
+      error: `This pool starts on ${getMlsWeeklyInitialPeriodStart(pool)}. Picks are not open yet.`,
     });
     return;
   }
@@ -871,6 +898,10 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, requestingUserId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getMlsWeeklyInitialPeriodStart(pool), picks: [] });
+    return;
+  }
   if (isSuperLeaguePreStart(pool)) {
     res.json({ poolNotStarted: true, startsAt: getSuperLeagueInitialPeriodStart(pool), picks: [] });
     return;
@@ -1001,6 +1032,10 @@ router.get("/daily-results", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getMlsWeeklyInitialPeriodStart(pool), hasResults: false, players: [] });
+    return;
+  }
   if (isSuperLeaguePreStart(pool)) {
     res.json({ poolNotStarted: true, startsAt: getSuperLeagueInitialPeriodStart(pool), hasResults: false, players: [] });
     return;
@@ -1137,6 +1172,10 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getMlsWeeklyInitialPeriodStart(pool), date, hasResults: false, winners: [] });
+    return;
+  }
 
   const rows = await db
     .select({
@@ -1225,6 +1264,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({
+      poolNotStarted: true,
+      startsAt: getMlsWeeklyInitialPeriodStart(pool),
+      weekStart: null,
+      weekEnd: null,
+      players: [],
+    });
+    return;
+  }
   if (isSuperLeaguePreStart(pool)) {
     res.json({
       poolNotStarted: true,
@@ -1556,6 +1605,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlsWeeklyPreStart(pool)) {
+    res.json({
+      poolNotStarted: true,
+      startsAt: getMlsWeeklyInitialPeriodStart(pool),
+      week: pool.currentWeek,
+      weekStart: null,
+      weekEnd: null,
+      entries: [],
+    });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";

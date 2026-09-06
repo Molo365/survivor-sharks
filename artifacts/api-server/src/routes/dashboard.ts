@@ -29,6 +29,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
+import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 
@@ -1410,11 +1411,17 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       }
 
       const isSuperLeagueWeekly = isWeekly && pool.sport === "superleague";
+      const isMlsWeekly = isWeekly && pool.sport === "mls";
       const superLeagueCurrentBounds = getSuperLeagueConfiguredPeriod(pool);
       const superLeaguePrevBounds = getSuperLeagueWeekBoundsEt(
         offsetDateStr(superLeagueCurrentBounds.weekStart, -7),
       );
-      const weeklyCurrentBounds = isSuperLeagueWeekly ? superLeagueCurrentBounds : currentWeekBounds;
+      const mlsCurrentBounds = getMlsConfiguredPeriod(pool);
+      const weeklyCurrentBounds = isSuperLeagueWeekly
+        ? superLeagueCurrentBounds
+        : isMlsWeekly
+          ? mlsCurrentBounds
+          : currentWeekBounds;
       const weeklyPrevBounds = isSuperLeagueWeekly ? superLeaguePrevBounds : prevWeekBounds;
       const currentStart = isWc
         ? WC_PHASES[currentWcPhase].start
@@ -1428,7 +1435,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         : todayEt;
       const prevStart = isWeekly ? weeklyPrevBounds.weekStart : yesterdayEt;
       const prevEnd = isWeekly ? weeklyPrevBounds.weekEnd : yesterdayEt;
-      if (isSuperLeaguePreStart(pool)) {
+      if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool)) {
         return {
           poolId: pool.id,
           isActive: pool.isActive,
@@ -1439,7 +1446,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           lastWinners: [],
           myStanding: { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null, prizeWon: null },
           poolNotStarted: true,
-          startsAt: superLeagueCurrentBounds.weekStart,
+          startsAt: weeklyCurrentBounds.weekStart,
         };
       }
 

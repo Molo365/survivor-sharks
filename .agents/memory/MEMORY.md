@@ -22,3 +22,4 @@
 - [Pool late-join policy](pool-late-join-policy.md) — Survivor start blocks joining; non-Survivor start only warns. Pending picks are never proof of start; preview and POST share one resolver.
 - [MLB High Heat status](mlb-high-heat-status.md) — active High Heat completeness is daily and ET-slate-scoped; weekly rows remain for scoring only.
 - [Survivor mass-elimination paths](survivor-mass-elimination-paths.md) — live wipeouts settle only after full slates; calendar terminals require complete schedule proof and atomic co-winner closure.
+- [MLS weekly start boundaries](mls-weekly-start-boundaries.md) — MLS Pick-Em shares Mon–Sun date math with MLB, but must never enter the MLB High Heat classifier.

@@ -2298,7 +2298,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   });
   const isSandbox = poolDetail?.sandboxMode === true;
   const isNbaAts = (poolDetail?.poolType as string) === "nba_ats";
-  const mlbWeeklyStartsAt = isMlb && isWeekly ? poolDetail?.initialPeriodStart : null;
+  const weeklyStartsAt = (isMlb || sport === "mls") && isWeekly ? poolDetail?.initialPeriodStart : null;
 
   const todayEt = getTodayEt();
   const [selectedDate, setSelectedDate] = useState<string>(() => todayEt);
@@ -3772,7 +3772,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
             </div>
-          ) : (slate as any)?.poolNotStarted && mlbWeeklyStartsAt ? (
+          ) : (slate as any)?.poolNotStarted && weeklyStartsAt ? (
             <div className="text-center py-16 text-muted-foreground">
               <Clock className="w-12 h-12 mx-auto mb-4 opacity-40" />
               <p className="font-bebas text-2xl tracking-wide text-foreground">
@@ -3781,7 +3781,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekday: "long",
                   month: "short",
                   day: "numeric",
-                }).format(new Date(`${mlbWeeklyStartsAt}T12:00:00Z`))}
+                }).format(new Date(`${weeklyStartsAt}T12:00:00Z`))}
               </p>
               <p className="text-sm mt-1">This pool is open for invites. Picks will open automatically when the week begins.</p>
             </div>
