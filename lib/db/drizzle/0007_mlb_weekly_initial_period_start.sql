@@ -1,1 +1,1 @@
-ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;
+ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;ALTER TABLE "pools" ADD COLUMN "initial_period_start" date;
