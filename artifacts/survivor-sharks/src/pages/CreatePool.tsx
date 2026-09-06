@@ -926,7 +926,16 @@ export default function CreatePool() {
                   </>
                 ) : (
                   <div className="flex items-center gap-3 pl-11">
-                    {sportMeta && <img src={sportMeta.logoImg} alt={sportMeta.label} className="w-8 h-8 object-contain" />}
+                    {sportMeta && (
+                      <img
+                        src={sportMeta.logoImg}
+                        alt={sportMeta.label}
+                        className={cn(
+                          "w-8 h-8 object-contain",
+                          sportMeta.id === PoolInputSport.championsleague && "brightness-0 invert",
+                        )}
+                      />
+                    )}
                     <span className="text-foreground font-semibold">
                       {sportMeta?.label}{sportMeta ? ` — ${sportMeta.sublabel}` : ""}
                     </span>
