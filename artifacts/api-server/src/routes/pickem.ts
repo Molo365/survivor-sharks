@@ -29,6 +29,7 @@ import {
   WC_PHASES,
   type WcPhase,
 } from "../lib/wc";
+import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 
 const router = Router({ mergeParams: true });
 
@@ -85,6 +86,21 @@ router.get("/games", requireAuth, async (req, res) => {
   const rawDate = typeof req.query.date === "string" ? req.query.date : null;
   const requestedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayEt;
   const espnDate = requestedDate.replace(/-/g, "");
+
+  if (isMlbWeeklyPreStart(pool)) {
+    const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({
+      date: startsAt,
+      label: startsAt,
+      deadlinePassed: true,
+      poolNotStarted: true,
+      startsAt,
+      sport,
+      phase: null,
+      games: [],
+    });
+    return;
+  }
 
   let allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
@@ -555,6 +571,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isMlbWeeklyPreStart(pool)) {
+    res.status(409).json({
+      error: `This pool starts on ${getMlbWeeklyInitialPeriodStart(pool)}. Picks are not open yet.`,
+    });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";

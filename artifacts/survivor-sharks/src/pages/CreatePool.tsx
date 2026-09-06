@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
@@ -293,7 +293,32 @@ const formSchema = z.object({
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
   startWeek: z.coerce.number().int().min(1).max(18).optional(),
+  initialPeriodStart: z.string().optional(),
 });
+
+function getMlbWeekOption(offsetWeeks: number) {
+  const todayEt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const today = new Date(`${todayEt}T12:00:00Z`);
+  const mondayOffset = (today.getUTCDay() + 6) % 7;
+  const start = new Date(today);
+  start.setUTCDate(start.getUTCDate() - mondayOffset + offsetWeeks * 7);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const label = (date: Date) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+  return {
+    start: start.toISOString().slice(0, 10),
+    label: `${label(start)}–${label(end)}`,
+  };
+}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -339,6 +364,16 @@ export default function CreatePool() {
   const watchedFreq = form.watch("pickFrequency");
   const watchedStartWeek = form.watch("startWeek");
   const watchedSeason = form.watch("season");
+  const mlbThisWeek = useMemo(() => getMlbWeekOption(0), []);
+  const mlbNextWeek = useMemo(() => getMlbWeekOption(1), []);
+  const isMlbWeeklyPickem = selectedSport === PoolInputSport.mlb && selectedType === "pickem" && watchedFreq === "weekly";
+
+  useEffect(() => {
+    if (isMlbWeeklyPickem && !form.getValues("initialPeriodStart")) {
+      form.setValue("initialPeriodStart", mlbThisWeek.start);
+    }
+    if (!isMlbWeeklyPickem) form.setValue("initialPeriodStart", undefined);
+  }, [isMlbWeeklyPickem, mlbThisWeek.start]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
 
@@ -697,6 +732,7 @@ export default function CreatePool() {
             (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
           ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
+          ...(isMlbWeeklyPickem && { initialPeriodStart: values.initialPeriodStart ?? mlbThisWeek.start }),
           ...(values.sport === PoolInputSport.nfl && (values.poolType === "season" || values.poolType === "nfl_confidence" || values.poolType === "pickem_season") && { isPreseason: values.isPreseason }),
         } as any,
       },
@@ -1168,6 +1204,50 @@ export default function CreatePool() {
                                 </div>
                               </div>
                               <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {isMlbWeeklyPickem && (
+                        <FormField
+                          control={form.control}
+                          name="initialPeriodStart"
+                          render={({ field }) => (
+                            <FormItem className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                              <div className="flex items-start gap-3">
+                                <Calendar className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                  <FormLabel className="font-bebas text-lg tracking-wide">Starting Period</FormLabel>
+                                  <FormDescription className="text-xs mt-0.5">
+                                    Choose the first Monday–Sunday slate players can pick.
+                                  </FormDescription>
+                                  <FormControl>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                      {[
+                                        { value: mlbThisWeek.start, title: "Start this week", range: mlbThisWeek.label },
+                                        { value: mlbNextWeek.start, title: "Start next week", range: mlbNextWeek.label },
+                                      ].map((option) => (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          onClick={() => field.onChange(option.value)}
+                                          className={cn(
+                                            "rounded-lg border-2 p-3 text-left transition-all",
+                                            field.value === option.value
+                                              ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30"
+                                              : "border-border/40 bg-card/50 hover:border-primary/30",
+                                          )}
+                                        >
+                                          <span className="block font-bebas text-base tracking-wide">{option.title}</span>
+                                          <span className="text-xs text-muted-foreground">{option.range}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </div>
+                              </div>
                             </FormItem>
                           )}
                         />

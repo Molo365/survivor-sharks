@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, real, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, real, jsonb, pgEnum, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -13,6 +13,7 @@ export const poolsTable = pgTable("pools", {
   sport: sportEnum("sport").notNull().default("nfl"),
   poolType: poolTypeEnum("pool_type_col").notNull().default("season"),
   startWeek: integer("start_week"),
+  initialPeriodStart: date("initial_period_start", { mode: "string" }),
   description: text("description"),
   inviteCode: text("invite_code").notNull().unique(),
   currentWeek: integer("current_week").notNull().default(1),

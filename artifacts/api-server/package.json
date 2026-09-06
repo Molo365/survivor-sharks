@@ -13,7 +13,8 @@
     "test:pool-start": "esbuild src/lib/pool-start.test.ts --bundle --platform=node --format=esm --outfile=/tmp/pool-start.test.mjs && node --test /tmp/pool-start.test.mjs",
     "test:pick-reminders": "esbuild src/lib/pick-reminders.test.ts --bundle --platform=node --format=esm --outfile=/tmp/pick-reminders.test.mjs && node --test /tmp/pick-reminders.test.mjs",
     "test:survivor-week-settlement": "esbuild src/lib/survivor-week-settlement.test.ts --bundle --platform=node --format=esm --outfile=/tmp/survivor-week-settlement.test.mjs && node --test /tmp/survivor-week-settlement.test.mjs",
-    "test:pick-reminders-integration": "esbuild src/lib/pick-reminders.integration.test.ts --bundle --platform=node --format=cjs --external:pino --external:pino-pretty --outfile=.pick-reminders.integration.test.cjs || exit $?; node --test .pick-reminders.integration.test.cjs; status=$?; rm -f .pick-reminders.integration.test.cjs; exit $status"
+    "test:pick-reminders-integration": "esbuild src/lib/pick-reminders.integration.test.ts --bundle --platform=node --format=cjs --external:pino --external:pino-pretty --outfile=.pick-reminders.integration.test.cjs || exit $?; node --test .pick-reminders.integration.test.cjs; status=$?; rm -f .pick-reminders.integration.test.cjs; exit $status",
+    "test:mlb-weekly-period": "esbuild src/lib/mlb-weekly-period.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mlb-weekly-period.test.mjs && node --test /tmp/mlb-weekly-period.test.mjs"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",

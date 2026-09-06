@@ -2368,6 +2368,10 @@ components:
         startWeek:
           type: integer
           description: Starting week for mid_season pools (required when poolType is mid_season)
+        initialPeriodStart:
+          type: string
+          format: date
+          description: "MLB weekly Pick-Em only: Monday calendar date for the pool's first period"
         description:
           type: string
         maxEntries:
@@ -2577,6 +2581,9 @@ components:
           enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         startWeek:
           type: ["integer", "null"]
+        initialPeriodStart:
+          type: ["string", "null"]
+          format: date
         description:
           type: ["string", "null"]
         inviteCode:
@@ -2651,6 +2658,9 @@ components:
           enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         startWeek:
           type: ["integer", "null"]
+        initialPeriodStart:
+          type: ["string", "null"]
+          format: date
         description:
           type: ["string", "null"]
         inviteCode:
@@ -3396,6 +3406,13 @@ components:
         poolClosed:
           type: boolean
           description: "True when the pool is a non-recurring MLB Daily pool that has already finished — UI should show read-only results, not a picks interface"
+        poolNotStarted:
+          type: boolean
+          description: "True when an MLB weekly Pick-Em pool is waiting for its configured initial period"
+        startsAt:
+          type: string
+          format: date
+          description: "Configured initial period start date when poolNotStarted is true"
         isRecurring:
           type: boolean
           description: "Whether this pool auto-advances to new days (MLB Daily only)"

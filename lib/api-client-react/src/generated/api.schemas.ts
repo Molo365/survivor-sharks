@@ -130,6 +130,8 @@ export interface PoolInput {
   poolType?: PoolInputPoolType;
   /** Starting week for mid_season pools (required when poolType is mid_season) */
   startWeek?: number;
+  /** MLB weekly Pick-Em only: Monday calendar date for the pool's first period */
+  initialPeriodStart?: string;
   description?: string;
   maxEntries?: number;
   /** Minimum players required; pool auto-cancels if not met when week 1 results are processed */
@@ -330,6 +332,8 @@ export interface Pool {
   /** @nullable */
   startWeek?: number | null;
   /** @nullable */
+  initialPeriodStart?: string | null;
+  /** @nullable */
   description?: string | null;
   inviteCode: string;
   currentWeek: number;
@@ -431,6 +435,8 @@ export interface PoolDetail {
   poolType: PoolDetailPoolType;
   /** @nullable */
   startWeek?: number | null;
+  /** @nullable */
+  initialPeriodStart?: string | null;
   /** @nullable */
   description?: string | null;
   inviteCode: string;
@@ -1003,6 +1009,10 @@ export interface PickEmSlate {
   deadlinePassed: boolean;
   /** True when the pool is a non-recurring MLB Daily pool that has already finished — UI should show read-only results, not a picks interface */
   poolClosed?: boolean;
+  /** True when an MLB weekly Pick-Em pool is waiting for its configured initial period */
+  poolNotStarted?: boolean;
+  /** Configured initial period start date when poolNotStarted is true */
+  startsAt?: string;
   /** Whether this pool auto-advances to new days (MLB Daily only) */
   isRecurring?: boolean;
   /** Sport for this slate (mlb, worldcup, etc.) */

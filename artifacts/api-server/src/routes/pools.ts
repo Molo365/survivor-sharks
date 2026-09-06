@@ -17,6 +17,7 @@ import {
 import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
+import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 
 const router = Router();
 
@@ -103,6 +104,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     sport: pool.sport,
     poolType: pool.poolType,
     startWeek: pool.startWeek ?? null,
+    initialPeriodStart: pool.initialPeriodStart ?? null,
     description: pool.description,
     inviteCode: pool.inviteCode,
     currentWeek: pool.currentWeek,
@@ -268,7 +270,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode, isPreseason } = req.body;
+  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, initialPeriodStart, doubleElimination, pickFrequency, isRecurring, sandboxMode, isPreseason } = req.body;
   const prizeMode = "pct" as const;
 
   if (!name || !sport) {
@@ -297,6 +299,10 @@ router.post("/", requireAuth, async (req, res) => {
 
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
+  const resolvedInitialPeriodStart =
+    sport === "mlb" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
+      ? resolveMlbWeeklyStartDate(initialPeriodStart)
+      : null;
 
   // commissionerCut: integer 0–15, default 0.
   const rawCut = req.body.commissionerCut ?? 0;
@@ -345,6 +351,7 @@ router.post("/", requireAuth, async (req, res) => {
     sport: sport as "nfl" | "mlb" | "nba" | "nhl" | "fifa" | "worldcup" | "intl" | "mls" | "superleague",
     poolType: resolvedPoolType,
     startWeek: startWeek ?? null,
+    initialPeriodStart: resolvedInitialPeriodStart,
     description: description ?? null,
     inviteCode,
     currentWeek: currentWeek ?? (
@@ -601,6 +608,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     sport: pool.sport,
     poolType: pool.poolType,
     startWeek: pool.startWeek ?? null,
+    initialPeriodStart: pool.initialPeriodStart ?? null,
     description: pool.description,
     inviteCode: pool.inviteCode,
     currentWeek: pool.currentWeek,
