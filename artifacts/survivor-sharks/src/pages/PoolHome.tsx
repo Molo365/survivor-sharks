@@ -41,6 +41,7 @@ import { WcBracketView } from "@/components/WcBracketView";
 import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
+import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 
 export default function PoolHome() {
@@ -186,7 +187,10 @@ export default function PoolHome() {
                   </div>
                 ) : null}
                 <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
-                  <span className="bg-muted/50 px-2 py-1 rounded text-foreground">{pool.sport}</span>
+                  <span className="inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded text-foreground">
+                    <SportLogo sport={pool.sport} className="h-4 w-4 rounded-sm" />
+                    {SPORT_LABELS[pool.sport] ?? pool.sport}
+                  </span>
                   {pool.poolType === "season" && (
                     <span className="flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded">
                       <Trophy className="w-3 h-3" /> Survivor

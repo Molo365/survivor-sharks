@@ -5,6 +5,7 @@ import { Pool, PoolPickEmStat } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { cn } from "@/lib/utils";
+import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -81,8 +82,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
               </Badge>
             </div>
           </div>
-          <div className="text-[11px] text-muted-foreground/70 font-medium uppercase tracking-widest mt-0.5">
-            {pool.sport} • Season {pool.season}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 font-medium uppercase tracking-widest mt-0.5">
+            <SportLogo sport={pool.sport} className="h-5 w-5 rounded-sm" />
+            <span>{SPORT_LABELS[pool.sport] ?? pool.sport} • Season {pool.season}</span>
           </div>
           {POOL_TYPE_LABELS[pt] && (
             <span className="inline-flex items-center text-[10px] font-bold tracking-widest uppercase bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded w-fit mt-0.5">

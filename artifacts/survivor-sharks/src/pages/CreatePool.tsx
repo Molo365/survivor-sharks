@@ -83,7 +83,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
     id: PoolInputSport.championsleague,
     label: "UCL",
     sublabel: "Champions League",
-    logoImg: '/Soccer-Logo.png',
+    logoImg: '/UEFA-Champions-League-Logo.png',
   },
 ];
 

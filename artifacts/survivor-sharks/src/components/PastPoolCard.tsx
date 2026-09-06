@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Trophy, Users, Calendar, Clock } from "lucide-react";
+import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
 
 function formatEndedDate(iso: string): string {
   const d = new Date(iso);
@@ -18,8 +19,9 @@ export function PastPoolCard({ pool }: { pool: PastPool }) {
             <CardTitle className="font-bebas text-2xl truncate text-foreground/80">{pool.name}</CardTitle>
             <Badge variant="secondary">Ended</Badge>
           </div>
-          <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">
-            {pool.sport} • Season {pool.season}
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium uppercase tracking-wider">
+            <SportLogo sport={pool.sport} className="h-5 w-5 rounded-sm" />
+            <span>{SPORT_LABELS[pool.sport] ?? pool.sport} • Season {pool.season}</span>
           </div>
         </CardHeader>
         <CardContent className="pb-4 flex-grow space-y-2">

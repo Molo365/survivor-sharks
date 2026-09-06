@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
 
 interface MyStanding {
   rank: number;
@@ -25,32 +26,13 @@ interface PoolStats {
   myStanding: MyStanding;
 }
 
-const SPORT_LABEL: Record<string, string> = {
-  nfl: "NFL",
-  mlb: "MLB",
-  nba: "NBA",
-  nhl: "NHL",
-  fifa: "Soccer",
-  worldcup: "Soccer",
-};
-
-const SPORT_EMOJI: Record<string, string> = {
-  nfl: "🏈",
-  mlb: "⚾",
-  nba: "🏀",
-  nhl: "🏒",
-  fifa: "⚽",
-  worldcup: "⚽",
-};
-
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
 
 function SportBadge({ sport }: { sport: string }) {
-  const label = SPORT_LABEL[sport] ?? sport.toUpperCase();
-  const emoji = SPORT_EMOJI[sport] ?? "🏆";
+  const label = SPORT_LABELS[sport] ?? sport.toUpperCase();
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-widest uppercase px-2 py-0.5 rounded-full bg-white/[0.06] text-muted-foreground border border-border/20">
-      {emoji} {label}
+      <SportLogo sport={sport} className="h-4 w-4 rounded-sm" /> {label}
     </span>
   );
 }

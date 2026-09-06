@@ -20,16 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { KeyRound, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const SPORT_LABELS: Record<string, string> = {
-  nfl: "NFL",
-  mlb: "MLB",
-  nba: "NBA",
-  nhl: "NHL",
-  fifa: "FIFA",
-  worldcup: "World Cup",
-  intl: "INTL",
-};
+import { SportLogo, SPORT_LABELS } from "@/components/SportLogo";
 
 const POOL_TYPE_LABELS: Record<string, string> = {
   season: "Survivor",
@@ -64,8 +55,9 @@ function SportBadge({ sport }: { sport: string }) {
   return (
     <Badge
       variant="outline"
-      className="text-[10px] font-bebas tracking-wide px-1.5 py-0 border-primary/30 text-primary/70"
+      className="inline-flex items-center gap-1 text-[10px] font-bebas tracking-wide px-1.5 py-0 border-primary/30 text-primary/70"
     >
+      <SportLogo sport={sport} className="h-3.5 w-3.5 rounded-sm" />
       {SPORT_LABELS[sport] ?? sport.toUpperCase()}
     </Badge>
   );
