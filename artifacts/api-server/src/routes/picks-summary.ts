@@ -23,6 +23,7 @@ import {
 } from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
+import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 
 const router = Router();
 
@@ -60,6 +61,7 @@ router.get("/summary", requireAuth, async (req, res) => {
       pickFrequency: poolsTable.pickFrequency,
       isActive: poolsTable.isActive,
       sandboxMode: poolsTable.sandboxMode,
+      initialPeriodStart: poolsTable.initialPeriodStart,
     })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
@@ -153,6 +155,9 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Pickem / Confidence / Pick-Em Season ──────────────────────────────
       if (PICKEM_TYPES.has(poolType)) {
+        if (isSuperLeaguePreStart(pool)) {
+          return { ...base, pickStatus: "pending" as PickStatus, summary: null };
+        }
         const isDaily = pool.pickFrequency === "daily";
         // MLS weekly pools use Mon–Sun; Super League uses its dedicated Fri–Mon
         // window, mirroring the /week-games endpoint.
@@ -167,7 +172,7 @@ router.get("/summary", requireAuth, async (req, res) => {
         // For MLS/Super League weekly: restrict to their sport-specific current window.
         // For all other weekly/season pools: restrict to the current week number.
         const weeklyBounds = pool.sport === "superleague"
-          ? getSuperLeagueWeekBoundsEt(todayEt)
+          ? getSuperLeagueConfiguredPeriod(pool)
           : { weekStart, weekEnd };
         const dateFilter = isDaily
           ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)

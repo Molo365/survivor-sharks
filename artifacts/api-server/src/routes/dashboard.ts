@@ -28,6 +28,7 @@ import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
+import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 
@@ -147,6 +148,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       pickFrequency: poolsTable.pickFrequency,
       sandboxMode: poolsTable.sandboxMode,
       createdAt: poolsTable.createdAt,
+      initialPeriodStart: poolsTable.initialPeriodStart,
     })
     .from(poolsTable)
     .where(and(
@@ -1408,7 +1410,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       }
 
       const isSuperLeagueWeekly = isWeekly && pool.sport === "superleague";
-      const superLeagueCurrentBounds = getSuperLeagueWeekBoundsEt(todayEt);
+      const superLeagueCurrentBounds = getSuperLeagueConfiguredPeriod(pool);
       const superLeaguePrevBounds = getSuperLeagueWeekBoundsEt(
         offsetDateStr(superLeagueCurrentBounds.weekStart, -7),
       );
@@ -1426,6 +1428,20 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         : todayEt;
       const prevStart = isWeekly ? weeklyPrevBounds.weekStart : yesterdayEt;
       const prevEnd = isWeekly ? weeklyPrevBounds.weekEnd : yesterdayEt;
+      if (isSuperLeaguePreStart(pool)) {
+        return {
+          poolId: pool.id,
+          isActive: pool.isActive,
+          poolName: pool.name,
+          poolType,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
+          lastWinners: [],
+          myStanding: { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null, prizeWon: null },
+          poolNotStarted: true,
+          startsAt: superLeagueCurrentBounds.weekStart,
+        };
+      }
 
       const currentWhere = and(
         eq(pickemPicksTable.poolId, pool.id),

@@ -23,6 +23,7 @@ import {
   NHL_SANDBOX_ANCHOR,
   type EspnGame,
 } from "../lib/espn";
+import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import {
   getSandboxGamesForWeek,
   replayRowToPickEmShape,
@@ -93,6 +94,7 @@ async function fetchGamesForDates(
 export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect): Promise<PickemPeriod | null> {
   const sport = pool.sport as string;
   const todayEt = getTodayEtDate();
+  if (isSuperLeaguePreStart(pool)) return null;
 
   if (pool.pickFrequency === "daily") {
     const games = await fetchGamesForDate("mlb", todayEt.replace(/-/g, ""));
@@ -164,7 +166,7 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   }
 
   if (sport === "superleague") {
-    const { weekStart, weekEnd } = getSuperLeagueWeekBoundsEt(todayEt);
+    const { weekStart, weekEnd } = getSuperLeagueConfiguredPeriod(pool);
     const games = await fetchGamesForDates(
       "superleague",
       datesFromRange(weekStart, weekEnd),
@@ -270,6 +272,15 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   if (!pool.isActive) {
+    res.json(members.map((member) => ({
+      userId: member.userId,
+      pickStatus: "not_required" as const,
+      submittedCount: 0,
+      requiredCount: 0,
+    })));
+    return;
+  }
+  if (isSuperLeaguePreStart(pool)) {
     res.json(members.map((member) => ({
       userId: member.userId,
       pickStatus: "not_required" as const,

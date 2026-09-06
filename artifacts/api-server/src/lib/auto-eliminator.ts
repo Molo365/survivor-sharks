@@ -49,6 +49,7 @@ import {
   getSuperLeagueWeekBoundsEt,
 } from "./espn";
 import { isMlbWeeklyPreStart } from "./mlb-weekly-period";
+import { isSuperLeaguePreStart } from "./superleague-period";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import {
   fetchTodayWcGames,
@@ -2694,6 +2695,7 @@ export async function processPickEmResults(): Promise<{
     const slPostponedIds = allSlGames.filter((g) => g.isPostponed).map((g) => g.id);
 
     for (const pool of superleaguePools) {
+      if (isSuperLeaguePreStart(pool)) continue;
       for (const [gameId, outcome] of outcomeBySlGameId) {
         const gamePicks = await db
           .select()
@@ -4128,6 +4130,7 @@ export async function processPickEmResults(): Promise<{
 
   for (const pool of soccerPickemWeeklyPools) {
     try {
+      if (isSuperLeaguePreStart(pool)) continue;
       const sportLabel = pool.sport === "superleague" ? "Super League" : "MLS";
       logger.info({ poolId: pool.id, week: pool.currentWeek }, `${sportLabel} Pick-Ems Weekly auto-closure: checking pool`);
 
@@ -4444,6 +4447,7 @@ export async function processPickEmResults(): Promise<{
 
   for (const pool of slRecurringWeeklyPools) {
     try {
+      if (isSuperLeaguePreStart(pool)) continue;
       // Find the latest gameDate stored under the current week number.
       const [latestRow] = await db
         .select({ maxDate: max(pickemPicksTable.gameDate) })

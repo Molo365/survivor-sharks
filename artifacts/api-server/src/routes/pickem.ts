@@ -30,6 +30,7 @@ import {
   type WcPhase,
 } from "../lib/wc";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
+import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
 
 const router = Router({ mergeParams: true });
 
@@ -89,6 +90,20 @@ router.get("/games", requireAuth, async (req, res) => {
 
   if (isMlbWeeklyPreStart(pool)) {
     const startsAt = getMlbWeeklyInitialPeriodStart(pool);
+    res.json({
+      date: startsAt,
+      label: startsAt,
+      deadlinePassed: true,
+      poolNotStarted: true,
+      startsAt,
+      sport,
+      phase: null,
+      games: [],
+    });
+    return;
+  }
+  if (isSuperLeaguePreStart(pool)) {
+    const startsAt = getSuperLeagueInitialPeriodStart(pool);
     res.json({
       date: startsAt,
       label: startsAt,
@@ -397,8 +412,12 @@ router.get("/week-games", requireAuth, async (req, res) => {
 
   const todayEt = getTodayEtDate();
   const { weekStart, weekEnd } = pool.sport === "superleague"
-    ? getSuperLeagueWeekBoundsEt(todayEt)
+    ? getSuperLeagueConfiguredPeriod(pool)
     : getWeekBoundsEt(todayEt);
+  if (isSuperLeaguePreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: weekStart, weekStart, weekEnd, days: [] });
+    return;
+  }
 
   // Fetch the sport's complete active window in parallel; empty days are excluded.
   const weekDays = pool.sport === "superleague"
@@ -577,6 +596,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     });
     return;
   }
+  if (isSuperLeaguePreStart(pool)) {
+    res.status(409).json({
+      error: `This pool starts on ${getSuperLeagueInitialPeriodStart(pool)}. Picks are not open yet.`,
+    });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
@@ -587,7 +612,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
   const superLeagueBounds = sport === "superleague" && pool.pickFrequency === "weekly"
-    ? getSuperLeagueWeekBoundsEt(todayEt)
+    ? getSuperLeagueConfiguredPeriod(pool)
     : null;
 
   if (superLeagueBounds) {
@@ -846,6 +871,10 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, requestingUserId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isSuperLeaguePreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getSuperLeagueInitialPeriodStart(pool), picks: [] });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isIntl = sport === "intl";
@@ -972,6 +1001,10 @@ router.get("/daily-results", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isSuperLeaguePreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getSuperLeagueInitialPeriodStart(pool), hasResults: false, players: [] });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isIntl = sport === "intl";
@@ -1192,6 +1225,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+  if (isSuperLeaguePreStart(pool)) {
+    res.json({
+      poolNotStarted: true,
+      startsAt: getSuperLeagueInitialPeriodStart(pool),
+      weekStart: null,
+      weekEnd: null,
+      players: [],
+    });
+    return;
+  }
 
   // Optional ?week=N param: 1-indexed completed week number. Defaults to the
   // immediately prior calendar/weekend week when omitted (backward-compatible).

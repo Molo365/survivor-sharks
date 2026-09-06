@@ -18,6 +18,7 @@ import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../l
 import { getNdpLockState } from "../lib/ndp-lock";
 import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
+import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 
 const router = Router();
 
@@ -302,6 +303,8 @@ router.post("/", requireAuth, async (req, res) => {
   const resolvedInitialPeriodStart =
     sport === "mlb" && (resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s") && resolvedPickFrequency === "weekly"
       ? resolveMlbWeeklyStartDate(initialPeriodStart)
+      : sport === "superleague" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
+        ? resolveSuperLeagueStartDate(initialPeriodStart)
       : null;
 
   // commissionerCut: integer 0–15, default 0.
