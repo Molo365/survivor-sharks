@@ -18,6 +18,15 @@ describe("Champions League ESPN normalization", () => {
     );
   });
 
+  it("recognizes ESPN's hyphenated competition phase slugs", () => {
+    assert.equal(normalizeChampionsLeagueMetadata("league-phase").phaseSlug, "league-phase");
+    assert.equal(
+      normalizeChampionsLeagueMetadata("knockout-round-playoffs").phaseSlug,
+      "knockout-round-playoffs",
+    );
+    assert.equal(normalizeChampionsLeagueMetadata("round-of-16").phaseSlug, "round-of-16");
+  });
+
   it("labels both knockout legs without treating them as aggregate picks", () => {
     assert.deepEqual(
       normalizeChampionsLeagueMetadata("UEFA Champions League - Quarterfinals - 1st Leg"),

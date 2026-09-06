@@ -148,9 +148,9 @@ export function normalizeChampionsLeagueMetadata(
   const text = headline ?? "";
   const lower = text.toLowerCase().replace(/[–—]/g, "-");
   const phaseSlug: ChampionsLeaguePhase | undefined =
-    /league\s*phase/.test(lower) ? "league-phase"
-      : /knockout\s*(round\s*)?playoffs?/.test(lower) ? "knockout-round-playoffs"
-      : /round\s*of\s*16/.test(lower) ? "round-of-16"
+    /league[\s-]*phase/.test(lower) ? "league-phase"
+      : /knockout[\s-]*(round[\s-]*)?playoffs?/.test(lower) ? "knockout-round-playoffs"
+      : /round[\s-]*of[\s-]*16/.test(lower) ? "round-of-16"
       : /quarter[\s-]*final/.test(lower) ? "quarterfinals"
       : /semi[\s-]*final/.test(lower) ? "semifinals"
       : /\bfinal\b/.test(lower) ? "final"

@@ -3095,7 +3095,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
                     {is3way
                       ? sport === "championsleague"
-                        ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. Most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
+                        ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. The player with the most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
                         : sport === "mls"
                         ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                         : sport === "superleague"
