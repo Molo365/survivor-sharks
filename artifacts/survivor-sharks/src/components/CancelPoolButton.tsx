@@ -24,6 +24,8 @@ interface CancelPoolButtonProps {
   poolId: number;
 }
 
+const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
+
 export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
   const { user } = useAuth();
   const [, navigate] = useLocation();
@@ -41,6 +43,7 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
   if (pool.commissionerId !== user.id && user.role !== "admin") return null;
   if (!pool.isActive) return null;
   if (pool.isRecurring) return null;
+  if (SEASON_LONG_POOL_TYPES.has(pool.poolType as string)) return null;
 
   const nameMatches = confirmName.trim() === pool.name.trim();
 

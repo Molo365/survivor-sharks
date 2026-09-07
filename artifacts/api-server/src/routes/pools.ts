@@ -23,6 +23,8 @@ import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 
 const router = Router();
+const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
+const SEASON_LONG_CANCEL_ERROR = "Season-long pools cannot be cancelled early. They must run to the natural end of the season.";
 
 function generateInviteCode() {
   return nanoid(8).toUpperCase();
@@ -707,6 +709,11 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
 
   if (!pool.isActive) {
     res.status(409).json({ error: "Pool is already inactive." });
+    return;
+  }
+
+  if (SEASON_LONG_POOL_TYPES.has(pool.poolType)) {
+    res.status(409).json({ error: SEASON_LONG_CANCEL_ERROR });
     return;
   }
 

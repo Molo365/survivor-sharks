@@ -15,6 +15,8 @@ import { validateNflPreseasonPool, validateNflPreseasonSlate } from "../lib/nfl-
 import { getMaintenanceState, updateMaintenanceState } from "../lib/maintenance";
 
 const router = Router();
+const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
+const SEASON_LONG_CANCEL_ERROR = "Season-long pools cannot be cancelled early. They must run to the natural end of the season.";
 
 router.use(requireAdminAuth);
 
@@ -1206,6 +1208,10 @@ router.patch("/pools/:poolId/cancel", async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
   if (!pool.isActive) { res.status(409).json({ error: "Pool is already inactive." }); return; }
+  if (SEASON_LONG_POOL_TYPES.has(pool.poolType)) {
+    res.status(409).json({ error: SEASON_LONG_CANCEL_ERROR });
+    return;
+  }
 
   await db
     .update(poolsTable)
