@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ShieldCheck, Wrench } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Wrench } from "lucide-react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -103,14 +103,6 @@ export function MaintenanceGate({ children }: { children: ReactNode }) {
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             {status.message || DEFAULT_MESSAGE}
           </p>
-          <Link
-            href="/super-admin"
-            data-testid="link-maintenance-admin-login"
-            className="mt-8 inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-5 py-2 text-sm font-semibold tracking-wide text-primary transition-colors hover:border-primary/70 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          >
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            Super Admin sign in
-          </Link>
         </section>
       </main>
     );
