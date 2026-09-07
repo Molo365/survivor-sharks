@@ -7,6 +7,7 @@ import { sessionMiddleware } from "./lib/session";
 import router from "./routes";
 import adminHtmlRouter from "./routes/admin-html";
 import { logger } from "./lib/logger";
+import { maintenanceGuard } from "./middlewares/maintenance";
 
 const app: Express = express();
 
@@ -31,6 +32,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 app.use(loadUser);
+app.use(maintenanceGuard);
 
 app.use("/api", router);
 app.use("/api/admin-html", adminHtmlRouter);

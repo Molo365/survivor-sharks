@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import App from "./App";
 import "./index.css";
+import { MAINTENANCE_EVENT } from "@/components/MaintenanceGate";
 
 setAuthTokenGetter(() => localStorage.getItem("auth_token"));
 
@@ -14,6 +15,17 @@ window.fetch = async function (...args: Parameters<typeof fetch>): Promise<Respo
   const refreshed = response.headers.get("x-refresh-token");
   if (refreshed) {
     localStorage.setItem("auth_token", refreshed);
+  }
+  if (response.status === 503) {
+    const data = await response.clone().json().catch(() => null) as {
+      code?: string;
+      message?: string | null;
+    } | null;
+    if (data?.code === "MAINTENANCE_MODE") {
+      window.dispatchEvent(new CustomEvent(MAINTENANCE_EVENT, {
+        detail: { enabled: true, message: data.message ?? null },
+      }));
+    }
   }
   return response;
 };

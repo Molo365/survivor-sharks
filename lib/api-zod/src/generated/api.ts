@@ -17,6 +17,16 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the site maintenance state
+ */
+export const GetMaintenanceStatusResponse = zod.object({
+  "enabled": zod.boolean(),
+  "message": zod.string().nullable(),
+  "canBypass": zod.boolean()
+})
+
+
+/**
  * @summary Register a new user
  */
 export const registerUserBodyUsernameMin = 3;

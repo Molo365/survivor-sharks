@@ -30,8 +30,19 @@ import usersRouter from "./users";
 import replayRouter from "./replay";
 import finalResultsRouter from "./final-results";
 import pickStatusRouter from "./pick-status";
+import { getMaintenanceState } from "../lib/maintenance";
 
 const router: IRouter = Router();
+
+router.get("/maintenance-status", async (req, res) => {
+  const state = await getMaintenanceState();
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    enabled: state.enabled,
+    message: state.message,
+    canBypass: req.user?.role === "admin",
+  });
+});
 
 // GET /api/config — public feature flags (no auth required)
 router.get("/config", (_req, res) => {

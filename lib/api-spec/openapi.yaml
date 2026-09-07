@@ -47,6 +47,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /maintenance-status:
+    get:
+      operationId: getMaintenanceStatus
+      tags: [health]
+      summary: Get the site maintenance state
+      responses:
+        "200":
+          description: Current maintenance state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceStatus"
+
   # ── Auth ──────────────────────────────────────────────────────────────────
   /auth/register:
     post:
@@ -2250,6 +2263,17 @@ paths:
 
 components:
   schemas:
+    MaintenanceStatus:
+      type: object
+      required: [enabled, message, canBypass]
+      properties:
+        enabled:
+          type: boolean
+        message:
+          type: [string, "null"]
+        canBypass:
+          type: boolean
+
     HealthStatus:
       type: object
       required: [status]

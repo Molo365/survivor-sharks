@@ -29,6 +29,7 @@ import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
 import Profile from "@/pages/Profile";
 import PastPools from "@/pages/PastPools";
+import { MaintenanceGate } from "@/components/MaintenanceGate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -173,11 +174,13 @@ function App() {
         <AdminAuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AuthProvider>
-              <DesktopSidebar />
-              <div className="pb-16 md:pb-0 md:pl-20">
-                <Router />
-              </div>
-              <BottomNav />
+              <MaintenanceGate>
+                <DesktopSidebar />
+                <div className="pb-16 md:pb-0 md:pl-20">
+                  <Router />
+                </div>
+                <BottomNav />
+              </MaintenanceGate>
             </AuthProvider>
           </WouterRouter>
         </AdminAuthProvider>

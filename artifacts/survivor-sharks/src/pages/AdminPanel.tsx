@@ -15,12 +15,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock, Network } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock, Network, Wrench } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -46,6 +48,7 @@ interface PoolRow { id: number; name: string; sport: string; poolType: string; i
 interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
 interface AgentRow { id: number; username: string; displayName: string | null; playerCount: number; createdAt: string }
 interface PlayerRow { id: number; username: string; displayName: string | null; poolCount: number; createdAt: string }
+interface MaintenanceData { enabled: boolean; message: string | null }
 
 interface PoolDetailMember {
   userId: number;
@@ -1117,6 +1120,12 @@ export default function AdminPanel() {
     refetchInterval: 30000,
   });
 
+  const { data: maintenance } = useQuery<MaintenanceData>({
+    queryKey: ["admin-maintenance"],
+    queryFn: () => adminFetch("/maintenance"),
+    refetchInterval: 20000,
+  });
+
   const { data: pools, isLoading: loadingPools } = useQuery<PoolRow[]>({
     queryKey: ["admin-pools"],
     queryFn: () => adminFetch("/pools"),
@@ -1159,6 +1168,27 @@ export default function AdminPanel() {
   const [resetPwUser, setResetPwUser] = useState<{ id: number; username: string } | null>(null);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [agentDetail, setAgentDetail] = useState<AgentRow | null>(null);
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
+
+  useEffect(() => {
+    setMaintenanceMessage(maintenance?.message ?? "");
+  }, [maintenance?.message]);
+
+  const updateMaintenance = useMutation({
+    mutationFn: (data: MaintenanceData) => adminFetch("/maintenance", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }) as Promise<MaintenanceData>,
+    onSuccess: (data) => {
+      qc.setQueryData(["admin-maintenance"], data);
+      setMaintenanceMessage(data.message ?? "");
+      toast({
+        title: data.enabled ? "Maintenance mode enabled" : "Maintenance mode disabled",
+        description: data.enabled ? "Non-admin users are now locked out." : "The site is open to everyone.",
+      });
+    },
+    onError: () => toast({ variant: "destructive", title: "Failed to update maintenance mode" }),
+  });
 
   const handleWipe = async () => {
     setWiping(true);
@@ -1220,6 +1250,58 @@ export default function AdminPanel() {
             <StatCard label="Total Users" value={stats?.totalUsers} icon={<Users className="w-5 h-5 text-primary" />} />
             <StatCard label="Total Pools" value={stats?.totalPools} icon={<LayoutGrid className="w-5 h-5 text-primary" />} />
             <StatCard label="Picks Today" value={stats?.picksToday} icon={<BarChart3 className="w-5 h-5 text-primary" />} />
+          </div>
+        </section>
+
+        <section>
+          <h2 className="font-bebas text-2xl tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+            <Wrench className="w-5 h-5" /> MAINTENANCE MODE
+          </h2>
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label htmlFor="maintenance-toggle" className="text-base font-semibold">
+                  Lock the site for maintenance
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  All non-admin users will see the maintenance page. Your Super Admin access remains available.
+                </p>
+              </div>
+              <Switch
+                id="maintenance-toggle"
+                checked={maintenance?.enabled ?? false}
+                disabled={!maintenance || updateMaintenance.isPending}
+                onCheckedChange={(enabled) => updateMaintenance.mutate({
+                  enabled,
+                  message: maintenanceMessage.trim() || null,
+                })}
+                aria-label="Toggle maintenance mode"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="maintenance-message">Optional message</Label>
+              <Textarea
+                id="maintenance-message"
+                value={maintenanceMessage}
+                maxLength={240}
+                onChange={(event) => setMaintenanceMessage(event.target.value)}
+                placeholder="Back by 5 AM"
+              />
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">{maintenanceMessage.length}/240</span>
+                <Button
+                  size="sm"
+                  disabled={!maintenance || updateMaintenance.isPending}
+                  onClick={() => updateMaintenance.mutate({
+                    enabled: maintenance?.enabled ?? false,
+                    message: maintenanceMessage.trim() || null,
+                  })}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save message
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
 

@@ -5,6 +5,13 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+export interface MaintenanceStatus {
+  enabled: boolean;
+  /** @nullable */
+  message: string | null;
+  canBypass: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }

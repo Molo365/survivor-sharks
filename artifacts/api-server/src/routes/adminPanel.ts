@@ -12,10 +12,39 @@ import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure } from "../li
 import { applySeasonSurvivorClosure } from "../lib/season-survivor-closure";
 import { gradeNflPreseasonPoolWeek } from "../lib/nfl-preseason-closure";
 import { validateNflPreseasonPool, validateNflPreseasonSlate } from "../lib/nfl-auto-advance";
+import { getMaintenanceState, updateMaintenanceState } from "../lib/maintenance";
 
 const router = Router();
 
 router.use(requireAdminAuth);
+
+router.get("/maintenance", async (_req, res) => {
+  const state = await getMaintenanceState(true);
+  res.setHeader("Cache-Control", "no-store");
+  res.json(state);
+});
+
+router.patch("/maintenance", async (req, res) => {
+  const { enabled, message } = req.body as { enabled?: unknown; message?: unknown };
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+  if (message !== null && message !== undefined && typeof message !== "string") {
+    res.status(400).json({ error: "message must be a string or null" });
+    return;
+  }
+  if (typeof message === "string" && message.trim().length > 240) {
+    res.status(400).json({ error: "message must be 240 characters or fewer" });
+    return;
+  }
+
+  const state = await updateMaintenanceState(
+    enabled,
+    typeof message === "string" ? message : null,
+  );
+  res.json(state);
+});
 
 // GET /api/admin-panel/environment
 router.get("/environment", (_req, res) => {
