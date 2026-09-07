@@ -37,7 +37,7 @@ const forgotSchema = z.object({
 
 export default function Login() {
   const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const loginUser = useLoginUser();
@@ -57,8 +57,12 @@ export default function Login() {
   });
 
   const pendingCode = localStorage.getItem("pending_invite_code");
+  const normalizedLocation = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+  const isSuperAdminLogin =
+    normalizedLocation === "/super-admin" ||
+    normalizedLocation.endsWith("/super-admin");
 
-  if (!isLoading && user && !pendingCode) {
+  if (!isLoading && user && !pendingCode && !isSuperAdminLogin) {
     return <Redirect to="/dashboard" />;
   }
 
