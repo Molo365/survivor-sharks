@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, Target, Trophy, Tv, User } from "lucide-react";
+import { Home, MessageSquare, Target, Trophy, Tv, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { label: "Standings", icon: Trophy, href: "/standings" },
   { label: "Scores",    icon: Tv,     href: "/scores"    },
   { label: "Profile",   icon: User,   href: "/profile"   },
+  { label: "Contact",   icon: MessageSquare, href: "/feedback" },
 ] as const;
 
 const HIDDEN_PREFIXES = ["/", "/login", "/register", "/reset-password", "/join/", "/admin"];
@@ -36,6 +37,7 @@ export function DesktopSidebar() {
               "flex flex-col items-center justify-center gap-1 py-4 w-full text-xs font-medium uppercase tracking-[0.12em] transition-colors",
               active ? "text-primary" : "text-amber-400/70 hover:text-amber-400",
             )}
+            data-testid={href === "/feedback" ? "nav-feedback" : undefined}
           >
             <Icon
               className={cn("w-6 h-6", active && "drop-shadow-[0_0_6px_rgba(30,144,255,0.6)]")}

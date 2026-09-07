@@ -140,3 +140,49 @@ export async function sendEmailVerificationEmail(toEmail: string, verificationUr
 
   console.log(`\n====== EMAIL VERIFICATION LINK (no email provider configured) ======\nTo: ${toEmail}\nURL: ${verificationUrl}\n====================================================================\n`);
 }
+
+export async function sendPlayerFeedbackEmail(
+  toEmail: string,
+  username: string,
+  senderEmail: string,
+  message: string,
+): Promise<void> {
+  const transport = createTransport();
+  const safeUsername = escapeHtml(username);
+  const safeSenderEmail = escapeHtml(senderEmail);
+  const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br />");
+  const subject = `Survivor Sharks feedback from ${username}`;
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px;border:1px solid rgba(30,144,255,0.2)">
+      <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff;margin-bottom:8px">SURVIVOR SHARKS</h1>
+      <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px">Player feedback</p>
+      <p><strong>From:</strong> ${safeUsername} &lt;${safeSenderEmail}&gt;</p>
+      <div style="margin-top:24px;padding:20px;background:#111827;border-radius:8px;line-height:1.6;white-space:normal">${safeMessage}</div>
+    </div>
+  `;
+
+  if (resend) {
+    const { error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to: toEmail,
+      subject,
+      html,
+      replyTo: senderEmail,
+    });
+    if (error) throw new Error(`Resend feedback email failed: ${error.message}`);
+    return;
+  }
+
+  if (transport) {
+    await transport.sendMail({
+      from: SMTP_FROM,
+      to: toEmail,
+      subject,
+      html,
+      replyTo: senderEmail,
+    });
+    return;
+  }
+
+  console.log(`\n====== PLAYER FEEDBACK (no email provider configured) ======\nTo: ${toEmail}\nFrom: ${username} <${senderEmail}>\nMessage: ${message}\n============================================================\n`);
+}

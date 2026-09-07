@@ -29,6 +29,7 @@ import Standings from "@/pages/Standings";
 import Scores from "@/pages/Scores";
 import Profile from "@/pages/Profile";
 import PastPools from "@/pages/PastPools";
+import Feedback from "@/pages/Feedback";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
 
 const queryClient = new QueryClient({
@@ -158,6 +159,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={Profile} />}
+      </Route>
+      <Route path="/feedback">
+        {() => <ProtectedRoute component={Feedback} />}
       </Route>
       <Route path="/past-pools">
         {() => <ProtectedRoute component={PastPools} />}

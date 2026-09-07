@@ -32,6 +32,8 @@ tags:
     description: Admin / commissioner operations
   - name: users
     description: User profile and balance
+  - name: feedback
+    description: Authenticated player feedback
 
 paths:
   /healthz:
@@ -253,6 +255,49 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /feedback:
+    post:
+      operationId: sendFeedback
+      tags: [feedback]
+      summary: Send feedback to the Survivor Sharks team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackInput"
+      responses:
+        "200":
+          description: Feedback accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Feedback cooldown active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Feedback email delivery is not configured
           content:
             application/json:
               schema:
@@ -2295,6 +2340,24 @@ components:
       required: [error]
       properties:
         error:
+          type: string
+
+    FeedbackInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 5000
+
+    FeedbackResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
           type: string
 
     # ── Auth Schemas ──────────────────────────────────────────────────────────

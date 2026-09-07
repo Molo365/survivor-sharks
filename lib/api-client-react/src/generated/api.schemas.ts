@@ -25,6 +25,19 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface FeedbackInput {
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  message: string;
+}
+
+export interface FeedbackResponse {
+  success: boolean;
+  message: string;
+}
+
 export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
 
 

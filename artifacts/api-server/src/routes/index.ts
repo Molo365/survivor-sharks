@@ -31,6 +31,7 @@ import replayRouter from "./replay";
 import finalResultsRouter from "./final-results";
 import pickStatusRouter from "./pick-status";
 import { getMaintenanceState } from "../lib/maintenance";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -98,5 +99,6 @@ router.use("/admin-auth", adminAuthRouter);
 router.use("/admin-panel", adminPanelRouter);
 router.use("/agent", agentRouter);
 router.use("/users", usersRouter);
+router.use("/feedback", feedbackRouter);
 
 export default router;

@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, Trophy, Wallet, User, History } from "lucide-react";
+import { KeyRound, MessageSquare, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SportLogo } from "@/components/SportLogo";
 import { SPORT_LABELS } from "@/lib/sport-branding";
@@ -338,6 +338,21 @@ export default function Profile() {
             )}
           </div>
         </div>
+
+        <Link
+          href="/feedback"
+          className="flex items-center justify-between gap-4 rounded-xl border border-border/40 bg-card/60 p-4 transition-colors hover:border-primary/50"
+          data-testid="profile-feedback-link"
+        >
+          <div className="flex items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div>
+              <p className="font-medium text-sm">Contact &amp; Feedback</p>
+              <p className="text-xs text-muted-foreground">Send a question, bug report, or idea</p>
+            </div>
+          </div>
+          <span className="text-xs font-medium text-primary">Open</span>
+        </Link>
 
         {/* ── Tabs ── */}
         <Tabs defaultValue="balance" className="space-y-6">

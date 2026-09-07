@@ -31,6 +31,8 @@ import type {
   Elimination,
   EmailVerificationResponse,
   ErrorResponse,
+  FeedbackInput,
+  FeedbackResponse,
   FinalResults,
   Game,
   GetDailyScheduleParams,
@@ -878,6 +880,77 @@ export const useUpdateReminderPreferences = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateReminderPreferencesMutationOptions(options));
+    }
+
+export const getSendFeedbackUrl = () => {
+
+
+
+
+  return `/api/feedback`
+}
+
+/**
+ * @summary Send feedback to the Survivor Sharks team
+ */
+export const sendFeedback = async (feedbackInput: FeedbackInput, options?: RequestInit): Promise<FeedbackResponse> => {
+
+  return customFetch<FeedbackResponse>(getSendFeedbackUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      feedbackInput,)
+  }
+);}
+
+
+
+
+export const getSendFeedbackMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext> => {
+
+const mutationKey = ['sendFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendFeedback>>, {data: BodyType<FeedbackInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendFeedback(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof sendFeedback>>>
+    export type SendFeedbackMutationBody = BodyType<FeedbackInput>
+    export type SendFeedbackMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Send feedback to the Survivor Sharks team
+ */
+export const useSendFeedback = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendFeedback>>,
+        TError,
+        {data: BodyType<FeedbackInput>},
+        TContext
+      > => {
+      return useMutation(getSendFeedbackMutationOptions(options));
     }
 
 export const getGetPickEmDashboardStatsUrl = () => {

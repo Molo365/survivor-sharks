@@ -154,6 +154,23 @@ export const UpdateReminderPreferencesResponse = zod.object({
 
 
 /**
+ * @summary Send feedback to the Survivor Sharks team
+ */
+export const sendFeedbackBodyMessageMax = 5000;
+
+
+
+export const SendFeedbackBody = zod.object({
+  "message": zod.string().min(1).max(sendFeedbackBodyMessageMax)
+})
+
+export const SendFeedbackResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Pick-em stats for all user's pools (for dashboard cards)
  */
 export const GetPickEmDashboardStatsResponseItem = zod.object({
