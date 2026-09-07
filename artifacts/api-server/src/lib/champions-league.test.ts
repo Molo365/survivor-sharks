@@ -68,6 +68,44 @@ describe("Champions League ESPN normalization", () => {
     assert.equal(slate?.games.length, 2);
   });
 
+  it("matches simulated picks across every resolved fixture date, not the current calendar week", () => {
+    const games = [
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `sep-08-${index + 1}`,
+        date: `2026-09-08T${String(16 + (index % 4)).padStart(2, "0")}:45:00Z`,
+        phaseSlug: "league-phase" as const,
+        phaseLabel: "League Phase",
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `sep-09-${index + 1}`,
+        date: `2026-09-09T${String(16 + (index % 4)).padStart(2, "0")}:45:00Z`,
+        phaseSlug: "league-phase" as const,
+        phaseLabel: "League Phase",
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `sep-10-${index + 1}`,
+        date: `2026-09-10T${String(16 + (index % 4)).padStart(2, "0")}:45:00Z`,
+        phaseSlug: "league-phase" as const,
+        phaseLabel: "League Phase",
+      })),
+    ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
+
+    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2026-09-06T16:00:00Z"));
+    assert.ok(slate);
+
+    const simulatedPicks = slate.games.map((game) => ({
+      gameId: game.id,
+      gameDate: game.date.slice(0, 10),
+    }));
+    const periodPicks = simulatedPicks.filter((pick) => slate.dates.includes(pick.gameDate));
+    const currentCalendarWeekPicks = simulatedPicks.filter(
+      (pick) => pick.gameDate >= "2026-08-31" && pick.gameDate <= "2026-09-06",
+    );
+
+    assert.equal(periodPicks.length, 18);
+    assert.equal(currentCalendarWeekPicks.length, 0);
+  });
+
   it("grades an extra-time match from its two regulation periods only", () => {
     const home = { score: "3", linescores: [{ period: 1, value: 1 }, { period: 2, value: 0 }, { period: 3, value: 2 }] };
     const away = { score: "1", linescores: [{ period: 1, value: 0 }, { period: 2, value: 1 }, { period: 3, value: 0 }] };

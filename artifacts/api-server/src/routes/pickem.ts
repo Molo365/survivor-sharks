@@ -1655,10 +1655,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
-  const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl;
+  const isChampionsLeague = sport === "championsleague";
+  const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl && !isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
+  const championsLeagueSlate = isChampionsLeague
+    ? await fetchCurrentChampionsLeagueSlate()
+    : null;
+  const championsLeagueDates = championsLeagueSlate?.dates ?? [];
 
   // For WC: resolve which phase to show — default to group_stage
   const phaseParam = req.query.phase as string | undefined;
@@ -1755,6 +1760,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       )
     : isIntl
     ? eq(pickemPicksTable.poolId, poolId)
+    : isChampionsLeague
+    ? and(
+        eq(pickemPicksTable.poolId, poolId),
+        inArray(pickemPicksTable.gameDate, championsLeagueDates.length > 0 ? championsLeagueDates : [""]),
+      )
     : isWeekly
     ? and(
         eq(pickemPicksTable.poolId, poolId),
@@ -1770,6 +1780,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
+    : isChampionsLeague ? Promise.resolve(championsLeagueSlate?.games ?? [] as EspnGame[])
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
     : (isAts && isWeekly && weekBounds)
       ? (() => {
@@ -2073,7 +2084,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
-  // Build game list — WC uses full schedule for the active phase; others use today's ESPN games
+  // Build game list — WC and Champions League use their full active period; other
+  // sports use today's ESPN games (or their existing weekly/sandbox branch).
   const wcRange = isWc ? WC_PHASES[wcPhase] : null;
   const formattedGames = isWc && wcSchedule
     ? wcSchedule
@@ -2088,6 +2100,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
             homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
           }))
         )
+    : isChampionsLeague
+    ? espnGames.map((g) => ({
+        id: g.id,
+        startTime: g.date,
+        status: g.status,
+        group: g.phaseLabel ?? null,
+        isTiebreakerGame: false,
+        awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
+        homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
+        leagueSlug: g.leagueSlug ?? null,
+      }))
     : espnGames.map((g, idx) => ({
         id: g.id,
         startTime: g.date,
@@ -2118,8 +2141,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     poolId,
     week: pool.currentWeek,
     isWeekly: isWeekly || undefined,
-    weekStart: weekBounds?.weekStart ?? null,
-    weekEnd: weekBounds?.weekEnd ?? null,
+    weekStart: championsLeagueDates[0] ?? weekBounds?.weekStart ?? null,
+    weekEnd: championsLeagueDates.at(-1) ?? weekBounds?.weekEnd ?? null,
     phase,
     games: formattedGames,
     entries,
