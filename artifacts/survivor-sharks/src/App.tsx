@@ -106,6 +106,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
+      <Route path="/super-admin" component={Login} />
       <Route path="/register" component={Register} />
 
       <Route path="/dashboard">
