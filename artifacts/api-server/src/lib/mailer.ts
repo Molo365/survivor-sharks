@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
+import { randomUUID } from "node:crypto";
 
 function createTransport() {
   const host = process.env.SMTP_HOST;
@@ -26,6 +27,100 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]!);
+}
+
+export interface PickConfirmationItem {
+  selection: string;
+  matchup?: string | null;
+  gameTime?: string | null;
+}
+
+export interface PicksConfirmationEmailInput {
+  toEmail: string;
+  username: string;
+  poolName: string;
+  confirmationNumber: string;
+  submittedAt: Date;
+  picks: PickConfirmationItem[];
+}
+
+export function createPickConfirmationNumber(): string {
+  return randomUUID();
+}
+
+function formatConfirmationDate(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+export function buildPicksConfirmationEmail(input: PicksConfirmationEmailInput): {
+  subject: string;
+  html: string;
+} {
+  const safeUsername = escapeHtml(input.username);
+  const safePoolName = escapeHtml(input.poolName);
+  const safeConfirmationNumber = escapeHtml(input.confirmationNumber);
+  const safeSubmittedAt = escapeHtml(formatConfirmationDate(input.submittedAt));
+  const pickRows = input.picks.map((pick) => {
+    const safeSelection = escapeHtml(pick.selection);
+    const safeMatchup = pick.matchup ? escapeHtml(pick.matchup) : null;
+    const safeGameTime = pick.gameTime ? escapeHtml(formatConfirmationDate(pick.gameTime)) : null;
+    return `
+      <div style="padding:16px;background:#111827;border:1px solid rgba(30,144,255,0.18);border-radius:8px">
+        <div style="font-weight:bold;color:#f8fafc">${safeSelection}</div>
+        ${safeMatchup ? `<div style="margin-top:5px;color:#cbd5e1;font-size:14px">${safeMatchup}</div>` : ""}
+        ${safeGameTime ? `<div style="margin-top:5px;color:#64748b;font-size:12px">${safeGameTime}</div>` : ""}
+      </div>`;
+  }).join("");
+  const subject = `Your picks are confirmed for ${input.poolName}`;
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px;border:1px solid rgba(30,144,255,0.2)">
+      <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff;margin-bottom:8px">SURVIVOR SHARKS</h1>
+      <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px">Picks confirmed</p>
+      <p>Hi ${safeUsername}, your latest picks for <strong>${safePoolName}</strong> were recorded.</p>
+      <div style="margin:22px 0;display:grid;gap:10px">${pickRows}</div>
+      <div style="padding-top:18px;border-top:1px solid rgba(148,163,184,0.18);font-size:12px;color:#94a3b8;line-height:1.7">
+        <div><strong>Submitted:</strong> ${safeSubmittedAt}</div>
+        <div><strong>Confirmation:</strong> ${safeConfirmationNumber}</div>
+      </div>
+      <p style="margin-top:22px;font-size:12px;color:#64748b">A new confirmation is generated whenever your picks are saved or changed.</p>
+    </div>`;
+  return { subject, html };
+}
+
+export async function sendPicksConfirmationEmail(input: PicksConfirmationEmailInput): Promise<string | null> {
+  const transport = createTransport();
+  const { subject, html } = buildPicksConfirmationEmail(input);
+  if (resend) {
+    const { data, error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to: input.toEmail,
+      subject,
+      html,
+    });
+    if (error) throw new Error(`Resend picks confirmation email failed: ${error.message}`);
+    return data?.id ?? null;
+  }
+  if (transport) {
+    const result = await transport.sendMail({
+      from: SMTP_FROM,
+      to: input.toEmail,
+      subject,
+      html,
+    });
+    return result.messageId ?? null;
+  }
+  console.log(`\n====== PICKS CONFIRMATION (no email provider configured) ======\nTo: ${input.toEmail}\nPool: ${input.poolName}\nConfirmation: ${input.confirmationNumber}\nPicks: ${input.picks.map((pick) => pick.selection).join(", ")}\n================================================================\n`);
+  return null;
 }
 
 export async function sendPickReminderEmail(

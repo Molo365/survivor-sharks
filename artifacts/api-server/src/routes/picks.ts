@@ -14,11 +14,14 @@ import {
   fetchNhlGamesByWeek,
   NHL_SANDBOX_ANCHOR,
   fetchNbaGamesByWeek,
+  fetchNflGamesByWeek,
   NBA_SANDBOX_ANCHOR,
   SUPER_LEAGUE_TEAM_IDS,
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
-import { getSandboxGamesForWeek } from "../lib/nfl2025Schedule";
+import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import { createPickConfirmationNumber, sendPicksConfirmationEmail } from "../lib/mailer";
+import { buildTeamPickConfirmationItems, sendPicksConfirmationSafely } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -257,6 +260,69 @@ router.post("/", requireAuth, async (req, res) => {
       result: "pending",
     }).returning();
     pick = inserted;
+  }
+
+  if (pool.sport === "nfl" && pool.poolType === "season") {
+    const confirmationNumber = createPickConfirmationNumber();
+    const submittedAt = new Date();
+    void (async () => {
+      let games;
+      if (pool.sandboxMode) {
+        const replayRows = await db
+          .select()
+          .from(sandboxGameScoresTable)
+          .where(and(
+            eq(sandboxGameScoresTable.poolId, poolId),
+            eq(sandboxGameScoresTable.week, week),
+            isNotNull(sandboxGameScoresTable.gameStatus),
+          ));
+        games = replayRows.length > 0
+          ? replayRows.map((row) => ({
+              id: row.gameId,
+              date: row.replayKickoff?.toISOString() ?? "",
+              awayTeam: {
+                id: row.awayTeam ?? "",
+                displayName: NFL_TEAM_INFO[row.awayTeam ?? ""]?.displayName ?? row.awayTeam ?? "Away team",
+              },
+              homeTeam: {
+                id: row.homeTeam ?? "",
+                displayName: NFL_TEAM_INFO[row.homeTeam ?? ""]?.displayName ?? row.homeTeam ?? "Home team",
+              },
+            }))
+          : getSandboxGamesForWeek(week).map((game) => ({
+              id: game.id,
+              date: game.gameTime,
+              awayTeam: {
+                id: game.awayTeamId,
+                displayName: NFL_TEAM_INFO[game.awayAbbr]?.displayName ?? game.awayAbbr,
+              },
+              homeTeam: {
+                id: game.homeTeamId,
+                displayName: NFL_TEAM_INFO[game.homeAbbr]?.displayName ?? game.homeAbbr,
+              },
+            }));
+      } else {
+        games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      }
+      const game = games.find((candidate) =>
+        candidate.homeTeam.id === teamId || candidate.awayTeam.id === teamId
+      );
+      await sendPicksConfirmationSafely({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: pool.name,
+        confirmationNumber,
+        submittedAt,
+        picks: buildTeamPickConfirmationItems(
+          [{ gameId: game?.id ?? "", pickedTeamId: teamId, pickedTeamName: teamName }],
+          game ? [game] : [],
+        ),
+      }, (error) => {
+        req.log.error({ err: error, poolId, userId, confirmationNumber }, "NFL Survivor pick confirmation email failed");
+      });
+    })().catch((error) => {
+      req.log.error({ err: error, poolId, userId, confirmationNumber }, "NFL Survivor pick confirmation email failed");
+    });
   }
 
   res.status(201).json(formatPick(pick, req.user!.username));
