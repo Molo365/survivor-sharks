@@ -2668,22 +2668,37 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   // MLS weekly combined submit: iterates each day-group, submits open picks per day.
   async function handleMlsWeeklySubmit() {
-    let totalSaved = 0;
-    for (const day of mlsWeeklyDays) {
-      const dayGameIds = new Set(day.games.map((g) => g.id));
-      const dayPicks = Array.from(localPicks.entries())
-        .map(([gameId, pickValue]) => {
-          if (!dayGameIds.has(gameId)) return null;
-          const game = day.games.find((g) => g.id === gameId);
-          if (!game || game.deadlinePassed) return null;
-          const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
-          return { gameId, pickedTeamId: pickValue, pickedTeamName: label, gameDate: day.date };
-        })
-        .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
+    const daySubmissions = mlsWeeklyDays
+      .map((day) => {
+        const dayGameIds = new Set(day.games.map((g) => g.id));
+        const dayPicks = Array.from(localPicks.entries())
+          .map(([gameId, pickValue]) => {
+            if (!dayGameIds.has(gameId)) return null;
+            const game = day.games.find((g) => g.id === gameId);
+            if (!game || game.deadlinePassed) return null;
+            const label = WC_PICK_LABELS[pickValue as WcPickOption] ?? pickValue;
+            return { gameId, pickedTeamId: pickValue, pickedTeamName: label, gameDate: day.date };
+          })
+          .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
 
-      if (dayPicks.length === 0) continue;
+        return dayPicks.length > 0 ? { date: day.date, picks: dayPicks } : null;
+      })
+      .filter((submission): submission is {
+        date: string;
+        picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
+      } => submission !== null);
+
+    let totalSaved = 0;
+    for (const [index, submission] of daySubmissions.entries()) {
       try {
-        const res = await submitPicks.mutateAsync({ poolId, data: { picks: dayPicks, date: day.date } });
+        const res = await submitPicks.mutateAsync({
+          poolId,
+          data: {
+            picks: submission.picks,
+            date: submission.date,
+            skipConfirmationEmail: index < daySubmissions.length - 1,
+          },
+        });
         totalSaved += res.saved;
       } catch {
         toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });

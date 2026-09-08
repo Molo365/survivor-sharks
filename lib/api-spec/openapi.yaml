@@ -3672,6 +3672,9 @@ components:
         date:
           type: string
           description: "The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games"
+        skipConfirmationEmail:
+          type: boolean
+          description: "Weekly MLS, Super League, or Champions League Pick-Em only: suppress the confirmation email for this intermediate date-group submission"
 
     PickEmPicksResult:
       type: object

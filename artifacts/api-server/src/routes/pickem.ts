@@ -624,13 +624,22 @@ router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const { picks, tiebreakerRuns, tiebreakerStrikeouts, tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes, date: submittedDate } = req.body as {
+  const {
+    picks,
+    tiebreakerRuns,
+    tiebreakerStrikeouts,
+    tiebreakerShotsOnGoal,
+    tiebreakerPenaltyMinutes,
+    date: submittedDate,
+    skipConfirmationEmail,
+  } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
     tiebreakerRuns?: number;
     tiebreakerStrikeouts?: number;
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
     date?: string;
+    skipConfirmationEmail?: boolean;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -942,7 +951,9 @@ router.post("/picks", requireAuth, async (req, res) => {
     });
   }
   });
-  if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
+  if (sharedConfirmation && !skipConfirmationEmail) {
+    deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
+  }
 
   res.status(201).json({ saved, skipped: 0 });
 });
