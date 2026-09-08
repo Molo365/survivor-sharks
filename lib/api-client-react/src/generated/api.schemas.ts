@@ -650,6 +650,10 @@ export interface LeaderboardEntry {
 export interface Leaderboard {
   poolId: number;
   currentWeek: number;
+  /** Week represented by this response; equals currentWeek for the live view */
+  viewWeek?: number;
+  /** Whether this response is a reconstructed completed-week snapshot */
+  isHistorical?: boolean;
   /** Whether this pool uses double elimination mode */
   doubleElimination?: boolean;
   /** Lives in this pool (1 = single elim, 2 = double elim, 3 = NHL 3-life Survivor) */
@@ -2211,6 +2215,13 @@ export type GetDailyScheduleParams = {
  * ET date as YYYY-MM-DD. Defaults to today.
  */
 date?: string;
+};
+
+export type GetLeaderboardParams = {
+/**
+ * NFL Survivor only: completed week to reconstruct standings for. Omit for the live/current standings.
+ */
+week?: number;
 };
 
 export type GetPickEmGamesParams = {

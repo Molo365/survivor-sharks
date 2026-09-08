@@ -18,6 +18,23 @@ router.get("/", requireAuth, async (req, res) => {
     return;
   }
 
+  const requestedWeekParam = req.query.week;
+  let historicalWeek: number | null = null;
+  if (requestedWeekParam !== undefined) {
+    const parsedWeek = Number(String(requestedWeekParam));
+    if (!Number.isInteger(parsedWeek) || parsedWeek < 1 || parsedWeek > pool.currentWeek) {
+      res.status(400).json({ error: `week must be an integer between 1 and ${pool.currentWeek}` });
+      return;
+    }
+    if (pool.sport !== "nfl" || pool.poolType !== "season") {
+      res.status(400).json({ error: "Historical standings are only available for NFL Survivor pools" });
+      return;
+    }
+    // The current week must continue through the live path below so pick
+    // visibility and pending results retain their existing behavior.
+    if (parsedWeek < pool.currentWeek) historicalWeek = parsedWeek;
+  }
+
   const [members, weekResultRows] = await Promise.all([
     db.select({
       userId: entriesTable.userId,
@@ -53,6 +70,85 @@ router.get("/", requireAuth, async (req, res) => {
 
   const prizeStructure = (pool.prizeStructure as Array<{ place: number; amount: number }> | null) ?? null;
   const memberCount = members.length;
+
+  if (historicalWeek !== null) {
+    const historicalPicks = await db.select().from(picksTable)
+      .where(eq(picksTable.poolId, poolId));
+
+    const picksByUser = new Map<number, typeof historicalPicks>();
+    for (const pick of historicalPicks) {
+      const userPicks = picksByUser.get(pick.userId);
+      if (userPicks) userPicks.push(pick);
+      else picksByUser.set(pick.userId, [pick]);
+    }
+
+    const snapshotEntries = members.map((member) => {
+      const memberPicks = picksByUser.get(member.userId) ?? [];
+      const weekPick = memberPicks.find((pick) => pick.week === historicalWeek);
+      const eliminatedByWeek = member.eliminatedWeek != null && member.eliminatedWeek <= historicalWeek;
+      const weeksAlive = eliminatedByWeek
+        ? Math.min(member.eliminatedWeek ?? historicalWeek, historicalWeek)
+        : historicalWeek;
+
+      let historicalStreak = 0;
+      for (let week = 1; week <= historicalWeek; week++) {
+        const pick = memberPicks.find((candidate) => candidate.week === week);
+        if (pick?.result === "win") historicalStreak++;
+        else if (pick?.result === "loss") historicalStreak = 0;
+      }
+
+      return {
+        userId: member.userId,
+        username: member.username,
+        displayName: member.displayName,
+        status: eliminatedByWeek ? "eliminated" as const : "active" as const,
+        weeksAlive,
+        eliminatedWeek: member.eliminatedWeek,
+        lastPickTeam: weekPick?.teamName ?? null,
+        lastPickResult: weekPick?.result ?? null,
+        streak: historicalStreak,
+        strikeCount: member.strikeCount,
+        hasWonThisWeek: weekPick?.result === "win",
+        prizeWon: null,
+        sovTotal: null,
+        sovBreakdown: [],
+      };
+    });
+
+    const snapshotActive = snapshotEntries
+      .filter((entry) => entry.status === "active")
+      .sort((a, b) => b.weeksAlive - a.weeksAlive)
+      .map((entry, index, sorted) => ({
+        rank: sorted.filter((candidate) => candidate.weeksAlive > entry.weeksAlive).length + 1,
+        ...entry,
+      }));
+
+    const snapshotEliminated = snapshotEntries
+      .filter((entry) => entry.status === "eliminated")
+      .sort((a, b) => (b.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0))
+      .map((entry, index) => ({
+        rank: snapshotActive.length + index + 1,
+        ...entry,
+      }));
+
+    res.json({
+      poolId,
+      currentWeek: pool.currentWeek,
+      viewWeek: historicalWeek,
+      isHistorical: true,
+      doubleElimination: pool.doubleElimination,
+      maxLives: pool.doubleElimination ? 2 : 1,
+      deadlinePassed: false,
+      prizeStructure,
+      sovTiebreaker: false,
+      coWinners: false,
+      coWinnerPrizeEach: null,
+      voidedWeeks: voidedWeeks.filter((week) => week <= historicalWeek),
+      active: snapshotActive,
+      eliminated: snapshotEliminated,
+    });
+    return;
+  }
 
   // For NFL pools: build teamId -> kickoff Date map for the current week so
   // lastPickTeam reveals at kickoff (same logic as grid.ts). Only pending picks
@@ -262,6 +358,8 @@ router.get("/", requireAuth, async (req, res) => {
   res.json({
     poolId,
     currentWeek: pool.currentWeek,
+    viewWeek: pool.currentWeek,
+    isHistorical: false,
     doubleElimination: pool.doubleElimination,
     maxLives,
     pickFrequency: pool.pickFrequency,

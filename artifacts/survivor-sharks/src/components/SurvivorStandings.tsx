@@ -33,7 +33,7 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
   const { user } = useAuth();
   const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
 
-  const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
+  const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, undefined, {
     query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
   });
 
@@ -297,8 +297,8 @@ export function SurvivorStandings({ poolId }: { poolId: number }) {
 
                       {/* This week's pick */}
                       <div className="shrink-0 text-right min-w-0 max-w-[150px]">
-                        <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider mb-0.5">
-                          Wk {currentWeek} pick
+                          <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider mb-0.5">
+                            Wk {currentWeek} pick
                         </div>
                         {hasPick ? (
                           <span

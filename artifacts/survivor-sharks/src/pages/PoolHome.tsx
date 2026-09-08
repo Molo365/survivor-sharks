@@ -576,7 +576,7 @@ export default function PoolHome() {
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
-                  <Leaderboard poolId={pool.id} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} prizeMode={(pool as any).prizeMode ?? "fixed"} entryFee={pool.entryFee} />
+                  <Leaderboard poolId={pool.id} sport={pool.sport} poolType={pool.poolType} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} prizeMode={(pool as any).prizeMode ?? "fixed"} entryFee={pool.entryFee} />
                 </TabsContent>
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                   <SurvivorGrid poolId={pool.id} poolName={pool.name} />

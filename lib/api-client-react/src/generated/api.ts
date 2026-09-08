@@ -36,6 +36,7 @@ import type {
   FinalResults,
   Game,
   GetDailyScheduleParams,
+  GetLeaderboardParams,
   GetNflPickEmSeasonGamesParams,
   GetNflPickEmSeasonWeekResultsParams,
   GetPickEmDailyPicksParams,
@@ -2014,20 +2015,29 @@ export function useGetSurvivorGrid<TData = Awaited<ReturnType<typeof getSurvivor
 
 
 
-export const getGetLeaderboardUrl = (poolId: number,) => {
+export const getGetLeaderboardUrl = (poolId: number,
+    params?: GetLeaderboardParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/pools/${poolId}/leaderboard`
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/leaderboard?${stringifiedParams}` : `/api/pools/${poolId}/leaderboard`
 }
 
 /**
  * @summary Get pool leaderboard with active and eliminated players
  */
-export const getLeaderboard = async (poolId: number, options?: RequestInit): Promise<Leaderboard> => {
+export const getLeaderboard = async (poolId: number,
+    params?: GetLeaderboardParams, options?: RequestInit): Promise<Leaderboard> => {
 
-  return customFetch<Leaderboard>(getGetLeaderboardUrl(poolId),
+  return customFetch<Leaderboard>(getGetLeaderboardUrl(poolId,params),
   {
     ...options,
     method: 'GET'
@@ -2040,23 +2050,25 @@ export const getLeaderboard = async (poolId: number, options?: RequestInit): Pro
 
 
 
-export const getGetLeaderboardQueryKey = (poolId: number,) => {
+export const getGetLeaderboardQueryKey = (poolId: number,
+    params?: GetLeaderboardParams,) => {
     return [
-    `/api/pools/${poolId}/leaderboard`
+    `/api/pools/${poolId}/leaderboard`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetLeaderboardQueryKey(poolId);
+  const queryKey =  queryOptions?.queryKey ?? getGetLeaderboardQueryKey(poolId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaderboard>>> = ({ signal }) => getLeaderboard(poolId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaderboard>>> = ({ signal }) => getLeaderboard(poolId,params, { signal, ...requestOptions });
 
 
 
@@ -2074,11 +2086,12 @@ export type GetLeaderboardQueryError = ErrorType<unknown>
  */
 
 export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<unknown>>(
- poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ poolId: number,
+    params?: GetLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetLeaderboardQueryOptions(poolId,options)
+  const queryOptions = getGetLeaderboardQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

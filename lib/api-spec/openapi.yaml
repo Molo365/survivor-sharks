@@ -630,6 +630,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: week
+          in: query
+          required: false
+          description: "NFL Survivor only: completed week to reconstruct standings for. Omit for the live/current standings."
+          schema:
+            type: integer
       responses:
         "200":
           description: Leaderboard
@@ -2994,6 +3000,12 @@ components:
           type: integer
         currentWeek:
           type: integer
+        viewWeek:
+          type: integer
+          description: Week represented by this response; equals currentWeek for the live view
+        isHistorical:
+          type: boolean
+          description: Whether this response is a reconstructed completed-week snapshot
         doubleElimination:
           type: boolean
           description: Whether this pool uses double elimination mode

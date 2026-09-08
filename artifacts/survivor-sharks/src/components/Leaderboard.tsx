@@ -1,6 +1,6 @@
 import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, Swords, Info } from "lucide-react";
+import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Swords, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -10,15 +10,21 @@ import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
-export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, prizeMode, entryFee }: { poolId: number; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number; prizeMode?: "fixed" | "pct"; entryFee?: number | null }) {
+export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries, totalMembers, prizeMode, entryFee }: { poolId: number; sport?: string; poolType?: string; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number; prizeMode?: "fixed" | "pct"; entryFee?: number | null }) {
   const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const isNflSurvivor = sport === "nfl" && poolType === "season";
+  const selectedWeekParam = isNflSurvivor ? (selectedWeek ?? undefined) : undefined;
 
-  const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, {
-    query: { enabled: !!poolId, queryKey: getGetLeaderboardQueryKey(poolId) },
+  const { data: leaderboard, isLoading } = useGetLeaderboard(poolId, selectedWeekParam === undefined ? undefined : { week: selectedWeekParam }, {
+    query: {
+      enabled: !!poolId,
+      queryKey: getGetLeaderboardQueryKey(poolId, selectedWeekParam === undefined ? undefined : { week: selectedWeekParam }),
+    },
   });
   const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
     query: {
-      enabled: !!poolId,
+      enabled: !!poolId && selectedWeekParam === undefined,
       queryKey: getGetPoolPickStatusQueryKey(poolId),
       refetchInterval: 30_000,
     },
@@ -32,6 +38,9 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
   const maxLives = leaderboard.maxLives ?? (isDoubleElim ? 2 : 1);
   const isDeadlinePassed = leaderboard.deadlinePassed ?? false;
   const isDaily = pickFrequency === "daily" || (leaderboard as any).pickFrequency === "daily";
+  const currentWeek = leaderboard.currentWeek ?? 1;
+  const viewWeek = leaderboard.viewWeek ?? currentWeek;
+  const isHistorical = leaderboard.isHistorical ?? false;
   const unitLabel = isDaily ? "day" : "week";
   const prizeStructure = (leaderboard as any).prizeStructure as Array<{ place: number; amount: number }> | null ?? null;
   const sovTiebreaker = (leaderboard as any).sovTiebreaker as boolean ?? false;
@@ -41,6 +50,43 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
 
   return (
     <div className="space-y-10">
+      {isNflSurvivor && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-card/50 px-3 py-2.5">
+          <button
+            type="button"
+            aria-label="View previous week standings"
+            disabled={viewWeek <= 1}
+            onClick={() => setSelectedWeek(Math.max(1, viewWeek - 1))}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Standings as of
+            </p>
+            <p className="font-bebas text-xl tracking-wide text-foreground">
+              Week {viewWeek}
+            </p>
+            <p className={cn(
+              "text-[10px] uppercase tracking-wider",
+              isHistorical ? "text-primary/70" : "text-emerald-400/70",
+            )}>
+              {isHistorical ? "Historical snapshot" : "Live standings"}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="View next week standings"
+            disabled={viewWeek >= currentWeek}
+            onClick={() => setSelectedWeek(viewWeek + 1 >= currentWeek ? null : viewWeek + 1)}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {isDeadlinePassed && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border border-border/50 rounded-lg text-sm text-muted-foreground">
           <Clock className="w-4 h-4 shrink-0" />
@@ -234,7 +280,9 @@ export function Leaderboard({ poolId, pickFrequency, maxEntries, totalMembers, p
                 <div className="flex items-center gap-3 ml-13 sm:ml-0 flex-wrap">
                   {entry.lastPickTeam && (
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
-                      <span className="uppercase text-xs tracking-wider">Pick:</span>
+                       <span className="uppercase text-xs tracking-wider">
+                         {isHistorical ? `Wk ${viewWeek} pick:` : "Pick:"}
+                       </span>
                       <span
                         className={cn(
                           "font-medium text-foreground bg-muted/30 px-2 py-1 rounded flex items-center gap-1",
