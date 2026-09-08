@@ -7,11 +7,11 @@ import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn"
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "../lib/pickem-season-closure";
 import {
-  createPickConfirmationNumber,
-} from "../lib/mailer";
-import {
   buildTeamPickConfirmationItems,
-  sendPicksConfirmationSafely,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+  type PickConfirmationTransaction,
   type ConfirmationGame,
 } from "../lib/pick-confirmation";
 
@@ -21,45 +21,37 @@ function isGameLocked(startIso: string): boolean {
   return new Date(startIso).getTime() <= Date.now();
 }
 
-function queueNflPickEmSeasonConfirmation(
-  req: { log: { error: (context: unknown, message: string) => void } },
+async function persistNflPickEmSeasonConfirmation(
+  tx: PickConfirmationTransaction,
   pool: typeof poolsTable.$inferSelect,
   user: NonNullable<Express.Request["user"]>,
   week: number,
-  picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
   games: ConfirmationGame[],
-): void {
-  const confirmationNumber = createPickConfirmationNumber();
-  void (async () => {
-    const currentPicks = await db
-      .select({
-        gameId: pickemPicksTable.gameId,
-        pickedTeamId: pickemPicksTable.pickedTeamId,
-        pickedTeamName: pickemPicksTable.pickedTeamName,
-      })
-      .from(pickemPicksTable)
-      .where(and(
-        eq(pickemPicksTable.poolId, pool.id),
-        eq(pickemPicksTable.userId, user.id),
-        eq(pickemPicksTable.week, week),
-      ));
-    const resolvedPicks = currentPicks.map((pick) => ({
-      ...pick,
-      pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId,
-    }));
-    await sendPicksConfirmationSafely({
-      toEmail: user.email,
-      username: user.username,
-      poolName: pool.name,
-      confirmationNumber,
-      submittedAt: new Date(),
-      picks: buildTeamPickConfirmationItems(resolvedPicks, games),
-    }, (error) => {
-      req.log.error({ err: error, poolId: pool.id, userId: user.id, confirmationNumber }, "NFL Pick-Em Season confirmation email failed");
-    });
-  })().catch((error) => {
-    req.log.error({ err: error, poolId: pool.id, userId: user.id, confirmationNumber }, "NFL Pick-Em Season confirmation email failed");
+): Promise<ReturnType<typeof makePickConfirmation>> {
+  // Query through the active transaction after upserts. This retains the
+  // complete period on partial resubmissions without a post-commit race.
+  const currentPicks = await tx.select({
+    gameId: pickemPicksTable.gameId,
+    pickedTeamId: pickemPicksTable.pickedTeamId,
+    pickedTeamName: pickemPicksTable.pickedTeamName,
+  }).from(pickemPicksTable).where(and(
+    eq(pickemPicksTable.poolId, pool.id),
+    eq(pickemPicksTable.userId, user.id),
+    eq(pickemPicksTable.week, week),
+  ));
+  const confirmation = makePickConfirmation({
+    toEmail: user.email,
+    username: user.username,
+    poolName: pool.name,
+    picks: buildTeamPickConfirmationItems(
+      currentPicks.map((pick) => ({ ...pick, pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId })),
+      games,
+    ),
   });
+  await insertPickConfirmation(tx, confirmation, {
+    userId: user.id, poolId: pool.id, poolType: String(pool.poolType), sport: String(pool.sport), periodKey: `week:${week}`,
+  });
+  return confirmation;
 }
 
 // GET /api/pools/:poolId/pickem-season/games?week=N
@@ -304,6 +296,14 @@ router.post("/picks", requireAuth, async (req, res) => {
       if (lockedIds.length > 0) {
         res.status(400).json({ error: "Some games have already locked." }); return;
       }
+      const confirmationGames: ConfirmationGame[] = replayRows.map((row) => {
+        const awayInfo = NFL_TEAM_INFO[row.awayTeam ?? ""];
+        const homeInfo = NFL_TEAM_INFO[row.homeTeam ?? ""];
+        return { id: row.gameId, date: row.replayKickoff?.toISOString() ?? "",
+          awayTeam: { id: awayInfo?.id ?? row.awayTeam ?? "", displayName: awayInfo?.displayName ?? row.awayTeam ?? "Away team" },
+          homeTeam: { id: homeInfo?.id ?? row.homeTeam ?? "", displayName: homeInfo?.displayName ?? row.homeTeam ?? "Home team" } };
+      });
+      const confirmation = await db.transaction(async (tx) => {
       // Save picks using ESPN game IDs
       for (const pick of picks) {
         const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
@@ -314,7 +314,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         const pickedTeamName = pickedIsHome
           ? (homeInfo?.displayName ?? r.homeTeam ?? "")
           : (awayInfo?.displayName ?? r.awayTeam ?? "");
-        await db.insert(pickemPicksTable).values({
+        await tx.insert(pickemPicksTable).values({
           poolId,
           userId,
           week: numWeek,
@@ -328,29 +328,9 @@ router.post("/picks", requireAuth, async (req, res) => {
           set: { pickedTeamId: resolvedTeamId, pickedTeamName, result: "pending" },
         });
       }
-      queueNflPickEmSeasonConfirmation(
-        req,
-        pool,
-        req.user!,
-        numWeek,
-        picks,
-        replayRows.map((row) => {
-          const awayInfo = NFL_TEAM_INFO[row.awayTeam ?? ""];
-          const homeInfo = NFL_TEAM_INFO[row.homeTeam ?? ""];
-          return {
-            id: row.gameId,
-            date: row.replayKickoff?.toISOString() ?? "",
-            awayTeam: {
-              id: awayInfo?.id ?? row.awayTeam ?? "",
-              displayName: awayInfo?.displayName ?? row.awayTeam ?? "Away team",
-            },
-            homeTeam: {
-              id: homeInfo?.id ?? row.homeTeam ?? "",
-              displayName: homeInfo?.displayName ?? row.homeTeam ?? "Home team",
-            },
-          };
-        }),
-      );
+      return persistNflPickEmSeasonConfirmation(tx, pool, req.user!, numWeek, confirmationGames);
+      });
+      deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
       res.json({ saved: picks.length, skipped: 0 });
       return;
     }
@@ -364,10 +344,11 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
     const sandboxGameMap = new Map(sandboxGames.map(g => [g.id, g]));
     let saved = 0;
+    const confirmation = await db.transaction(async (tx) => {
     for (const pick of picks) {
       const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
       const g = sandboxGameMap.get(pick.gameId)!;
-      await db.insert(pickemPicksTable).values({
+      await tx.insert(pickemPicksTable).values({
         poolId, userId, gameId: pick.gameId,
         gameDate: g.gameTime.slice(0, 10),
         week: numWeek, pickedTeamId: resolvedTeamId,
@@ -382,16 +363,11 @@ router.post("/picks", requireAuth, async (req, res) => {
     if (numWeek === NFL_TOTAL_WEEKS &&
         typeof tiebreakerPassingYards === "number" && isFinite(tiebreakerPassingYards) &&
         typeof tiebreakerRushingYards === "number" && isFinite(tiebreakerRushingYards)) {
-      await db.update(entriesTable)
+      await tx.update(entriesTable)
         .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards), tiebreakerRushingYards: Math.round(tiebreakerRushingYards) } as any)
         .where(eq(entriesTable.id, entry.id));
     }
-    queueNflPickEmSeasonConfirmation(
-      req,
-      pool,
-      req.user!,
-      numWeek,
-      picks,
+    const persisted = await persistNflPickEmSeasonConfirmation(tx, pool, req.user!, numWeek,
       sandboxGames.map((game) => ({
         id: game.id,
         date: game.gameTime,
@@ -403,8 +379,10 @@ router.post("/picks", requireAuth, async (req, res) => {
           id: game.homeTeamId,
           displayName: NFL_TEAM_INFO[game.homeAbbr]?.displayName ?? game.homeAbbr,
         },
-      })),
-    );
+      })));
+    return persisted;
+    });
+    deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
     res.status(201).json({ saved, skipped: 0 });
     return;
   }
@@ -461,10 +439,11 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   let saved = 0;
+  const confirmation = await db.transaction(async (tx) => {
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId)!;
     const gameDate = game.date.slice(0, 10);
-    await db
+    await tx
       .insert(pickemPicksTable)
       .values({
         poolId,
@@ -492,12 +471,15 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // Persist tiebreaker guesses for Week 18 (season champion resolution)
   if (numWeek === NFL_TOTAL_WEEKS) {
-    await db.update(entriesTable)
+    await tx.update(entriesTable)
       .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards as number), tiebreakerRushingYards: Math.round(tiebreakerRushingYards as number) } as any)
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
-  queueNflPickEmSeasonConfirmation(req, pool, req.user!, numWeek, picks, games);
+  const persisted = await persistNflPickEmSeasonConfirmation(tx, pool, req.user!, numWeek, games);
+  return persisted;
+  });
+  deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
 
   res.status(201).json({ saved, skipped: 0 });
 });

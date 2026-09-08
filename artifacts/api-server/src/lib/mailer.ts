@@ -119,8 +119,7 @@ export async function sendPicksConfirmationEmail(input: PicksConfirmationEmailIn
     });
     return result.messageId ?? null;
   }
-  console.log(`\n====== PICKS CONFIRMATION (no email provider configured) ======\nTo: ${input.toEmail}\nPool: ${input.poolName}\nConfirmation: ${input.confirmationNumber}\nPicks: ${input.picks.map((pick) => pick.selection).join(", ")}\n================================================================\n`);
-  return null;
+  throw new Error("No email provider configured for pick confirmations");
 }
 
 export async function sendPickReminderEmail(

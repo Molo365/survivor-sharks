@@ -9,6 +9,9 @@ import {
   buildTeamPickConfirmationItems,
   buildThreeWayPickConfirmationItems,
   isSharedPickConfirmationSport,
+  confirmationDeliveryState,
+  failedConfirmationDeliveryState,
+  makePickConfirmation,
   sendPicksConfirmationSafely,
 } from "./pick-confirmation";
 
@@ -108,4 +111,27 @@ test("email provider failure is contained and reported without rejecting", async
     throw expected;
   }));
   assert.equal(reported, expected);
+});
+
+test("delivery terminal states preserve failed confirmations without affecting pick work", () => {
+  assert.deepEqual(confirmationDeliveryState("provider-123"), {
+    deliveryStatus: "sent", providerMessageId: "provider-123", failureReason: null,
+  });
+  assert.deepEqual(failedConfirmationDeliveryState(new Error("provider unavailable")), {
+    deliveryStatus: "failed", providerMessageId: null, failureReason: "provider unavailable",
+  });
+});
+
+test("resaves create independent immutable receipt snapshots", () => {
+  const first = makePickConfirmation({
+    toEmail: "player@example.com", username: "Player", poolName: "Pool",
+    picks: [{ selection: "First team" }],
+  });
+  const second = makePickConfirmation({
+    toEmail: "player@example.com", username: "Player", poolName: "Pool",
+    picks: [{ selection: "Changed team" }],
+  });
+  assert.notEqual(first.confirmationNumber, second.confirmationNumber);
+  assert.deepEqual(first.email.picks, [{ selection: "First team" }]);
+  assert.deepEqual(second.email.picks, [{ selection: "Changed team" }]);
 });

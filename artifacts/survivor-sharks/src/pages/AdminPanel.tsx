@@ -15,7 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock, Network, Wrench } from "lucide-react";
+import { Trash2, Shield, LogOut, Users, LayoutGrid, BarChart3, AlertTriangle, ListOrdered, Save, CheckCircle2, RefreshCw, Copy, Ban, ChevronRight, UserPlus, Lock, Network, Wrench, Search, Clock, XCircle, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -1100,6 +1100,145 @@ function StatCard({ label, value, icon }: { label: string; value: number | undef
   );
 }
 
+interface PickConfirmationData {
+  id: number;
+  confirmationId: string;
+  submittedAt: string;
+  recipientEmail: string;
+  deliveryStatus: 'pending'|'sent'|'failed';
+  providerMessageId: string | null;
+  failureReason: string | null;
+  periodKey: string;
+  sport: string;
+  poolType: string;
+  picksSnapshot: Array<{selection: string; matchup?: string | null; gameTime?: string | null}>;
+  username: string;
+  displayName: string | null;
+  poolId: number;
+  poolName: string;
+}
+
+function PickConfirmationsSection() {
+  const adminFetch = useAdminFetch();
+  const [search, setSearch] = useState("");
+  const [queryVal, setQueryVal] = useState("");
+
+  const { data, isLoading, error } = useQuery<PickConfirmationData[]>({
+    queryKey: ["admin-pick-confirmations", queryVal],
+    queryFn: () => adminFetch(`/pick-confirmations?search=${encodeURIComponent(queryVal)}`),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-3 items-center">
+        <Input
+          placeholder="Search by UUID, username, pool name or ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if(e.key === 'Enter') setQueryVal(search); }}
+          className="max-w-md bg-background"
+          data-testid="input-confirmation-search"
+        />
+        <Button onClick={() => setQueryVal(search)} data-testid="button-confirmation-search" className="gap-2">
+          <Search className="w-4 h-4" />
+          Search
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border/50 hover:bg-transparent">
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-32">Submission</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-40">Confirmation ID</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-48">User & Pool</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Period</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground min-w-[200px]">Picks</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-32 text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+               Array.from({ length: 5 }).map((_, i) => (
+                 <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-12 w-full" /></TableCell></TableRow>
+               ))
+            ) : error ? (
+               <TableRow><TableCell colSpan={6} className="text-center py-12 text-destructive">Failed to load confirmations</TableCell></TableRow>
+            ) : !data?.length ? (
+               <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No pick confirmations found</TableCell></TableRow>
+            ) : data.map(item => (
+              <TableRow key={item.id} className="border-border/40 hover:bg-primary/5 transition-colors items-start" data-testid={`row-confirmation-${item.id}`}>
+                <TableCell className="align-top py-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-sm text-foreground" data-testid={`text-submission-date-${item.id}`}>{new Date(item.submittedAt).toLocaleDateString()}</span>
+                    <span className="text-xs text-muted-foreground" data-testid={`text-submission-time-${item.id}`}>{new Date(item.submittedAt).toLocaleTimeString()}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="align-top py-4">
+                  <div className="font-mono text-[10px] bg-muted/50 p-1.5 rounded truncate w-full text-muted-foreground" title={item.confirmationId} data-testid={`text-confirmation-id-${item.id}`}>
+                    {item.confirmationId}
+                  </div>
+                </TableCell>
+                <TableCell className="align-top py-4">
+                  <div className="flex flex-col gap-1.5">
+                    <div>
+                      <div className="font-medium text-sm text-foreground" data-testid={`text-username-${item.id}`}>{item.username}</div>
+                      {item.displayName && <div className="text-xs text-muted-foreground" data-testid={`text-display-name-${item.id}`}>{item.displayName}</div>}
+                    </div>
+                    <div className="text-xs font-semibold text-primary" data-testid={`text-pool-name-${item.id}`}>
+                      {item.poolName} <span className="font-mono text-[10px] text-muted-foreground">(#{item.poolId})</span>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="align-top py-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium text-foreground" data-testid={`text-period-${item.id}`}>{item.periodKey}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground" data-testid={`text-sport-${item.id}`}>{item.sport}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground" data-testid={`text-pool-type-${item.id}`}>{fmtPoolType(item.poolType)}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="align-top py-4">
+                  <div className="space-y-2">
+                    {item.picksSnapshot.map((pick, i) => (
+                      <div key={i} className="bg-background border border-border/40 rounded px-2 py-1.5 text-xs" data-testid={`card-pick-${item.id}-${i}`}>
+                        <div className="font-bold text-foreground" data-testid={`text-pick-selection-${item.id}-${i}`}>{pick.selection}</div>
+                        {(pick.matchup || pick.gameTime) && (
+                          <div className="text-[10px] text-muted-foreground flex flex-wrap gap-1.5 items-center mt-0.5">
+                            {pick.matchup && <span data-testid={`text-pick-matchup-${item.id}-${i}`}>{pick.matchup}</span>}
+                            {pick.matchup && pick.gameTime && <span>&middot;</span>}
+                            {pick.gameTime && <span data-testid={`text-pick-time-${item.id}-${i}`}>{pick.gameTime}</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="align-top py-4 text-right">
+                  <div className="flex flex-col items-end gap-1.5">
+                    {item.deliveryStatus === 'pending' && <Badge variant="outline" className="text-yellow-500 border-yellow-500/30 gap-1 bg-yellow-500/10" data-testid={`status-delivery-${item.id}`}><Clock className="w-3 h-3" /> Pending</Badge>}
+                    {item.deliveryStatus === 'sent' && <Badge variant="outline" className="text-emerald-500 border-emerald-500/30 gap-1 bg-emerald-500/10" data-testid={`status-delivery-${item.id}`} title={item.providerMessageId ? `Provider ID: ${item.providerMessageId}` : undefined}><CheckCircle2 className="w-3 h-3" /> Sent</Badge>}
+                    {item.deliveryStatus === 'failed' && <Badge variant="outline" className="text-destructive border-destructive/30 gap-1 bg-destructive/10" data-testid={`status-delivery-${item.id}`} title={item.providerMessageId ? `Provider ID: ${item.providerMessageId}` : undefined}><XCircle className="w-3 h-3" /> Failed</Badge>}
+
+                    <span className="text-[10px] text-muted-foreground truncate w-32 text-right" title={item.recipientEmail} data-testid={`text-recipient-${item.id}`}>
+                      {item.recipientEmail}
+                    </span>
+
+                    {item.failureReason && (
+                      <span className="text-[9px] text-destructive text-right w-full leading-tight" data-testid={`text-failure-reason-${item.id}`}>
+                        {item.failureReason}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const { logout } = useAdminAuth();
   const [, setLocation] = useLocation();
@@ -1377,6 +1516,9 @@ export default function AdminPanel() {
               <TabsTrigger value="wc-groups" className="font-bebas tracking-wider text-sm gap-2">
                 <ListOrdered className="w-4 h-4" /> WC Group Results
               </TabsTrigger>
+              <TabsTrigger value="pick-confirmations" className="font-bebas tracking-wider text-sm gap-2" data-testid="tab-pick-confirmations">
+                <Mail className="w-4 h-4" /> Pick Confirmations
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="pools">
@@ -1581,6 +1723,10 @@ export default function AdminPanel() {
 
             <TabsContent value="wc-groups">
               <GspResultsSection />
+            </TabsContent>
+
+            <TabsContent value="pick-confirmations">
+              <PickConfirmationsSection />
             </TabsContent>
           </Tabs>
         </section>

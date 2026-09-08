@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, pool as pgPool } from "@workspace/db";
-import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable, groupStagePredictorPicksTable } from "@workspace/db";
+import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, groupStageResultsTable, groupStagePredictorPicksTable, pickConfirmationsTable } from "@workspace/db";
 import { eq, count, gte, sql, and, or } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
@@ -70,6 +70,46 @@ router.get("/stats", async (_req, res) => {
     totalPools: Number(totalPools),
     picksToday: Number(picksToday),
   });
+});
+
+// GET /api/admin-panel/pick-confirmations?search=...
+// The router-wide requireAdminAuth above protects this troubleshooting lookup.
+router.get("/pick-confirmations", async (req, res) => {
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const numericPoolId = /^\d+$/.test(search) ? Number(search) : null;
+  const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+  const rows = await db
+    .select({
+      id: pickConfirmationsTable.id,
+      confirmationId: pickConfirmationsTable.confirmationId,
+      submittedAt: pickConfirmationsTable.submittedAt,
+      recipientEmail: pickConfirmationsTable.recipientEmail,
+      deliveryStatus: pickConfirmationsTable.deliveryStatus,
+      providerMessageId: pickConfirmationsTable.providerMessageId,
+      failureReason: pickConfirmationsTable.failureReason,
+      periodKey: pickConfirmationsTable.periodKey,
+      sport: pickConfirmationsTable.sport,
+      poolType: pickConfirmationsTable.poolType,
+      picksSnapshot: pickConfirmationsTable.picksSnapshot,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      poolId: poolsTable.id,
+      poolName: poolsTable.name,
+    })
+    .from(pickConfirmationsTable)
+    .innerJoin(usersTable, eq(pickConfirmationsTable.userId, usersTable.id))
+    .innerJoin(poolsTable, eq(pickConfirmationsTable.poolId, poolsTable.id))
+    .where(search
+      ? or(
+          sql`${pickConfirmationsTable.confirmationId}::text ILIKE ${pattern}`,
+          sql`${usersTable.username} ILIKE ${pattern}`,
+          sql`${poolsTable.name} ILIKE ${pattern}`,
+          ...(numericPoolId === null ? [] : [eq(pickConfirmationsTable.poolId, numericPoolId)]),
+        )
+      : undefined)
+    .orderBy(sql`${pickConfirmationsTable.submittedAt} DESC`)
+    .limit(100);
+  res.json(rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() })));
 });
 
 // GET /api/admin-panel/pools

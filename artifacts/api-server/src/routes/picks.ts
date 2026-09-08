@@ -20,8 +20,7 @@ import {
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
-import { createPickConfirmationNumber, sendPicksConfirmationEmail } from "../lib/mailer";
-import { buildTeamPickConfirmationItems, sendPicksConfirmationSafely } from "../lib/pick-confirmation";
+import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -240,90 +239,60 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
-  // Upsert pick for this week
-  let pick: typeof picksTable.$inferSelect;
-
-  if (existingPick) {
-    const [updated] = await db.update(picksTable).set({
-      teamId, teamName, teamLogoUrl, result: "pending",
-    }).where(eq(picksTable.id, existingPick.id)).returning();
-    pick = updated;
-  } else {
-    const [inserted] = await db.insert(picksTable).values({
-      entryId: entry.id,
-      poolId,
-      userId,
-      teamId,
-      teamName,
-      teamLogoUrl,
-      week,
-      result: "pending",
-    }).returning();
-    pick = inserted;
-  }
-
+  // Resolve the exact schedule source before opening the write transaction so
+  // the immutable receipt retains matchup and kickoff details.
+  let survivorGames: Array<{ id: string; date: string; homeTeam: { id: string; displayName: string }; awayTeam: { id: string; displayName: string } }> = [];
   if (pool.sport === "nfl" && pool.poolType === "season") {
-    const confirmationNumber = createPickConfirmationNumber();
-    const submittedAt = new Date();
-    void (async () => {
-      let games;
-      if (pool.sandboxMode) {
-        const replayRows = await db
-          .select()
-          .from(sandboxGameScoresTable)
-          .where(and(
-            eq(sandboxGameScoresTable.poolId, poolId),
-            eq(sandboxGameScoresTable.week, week),
-            isNotNull(sandboxGameScoresTable.gameStatus),
-          ));
-        games = replayRows.length > 0
-          ? replayRows.map((row) => ({
-              id: row.gameId,
-              date: row.replayKickoff?.toISOString() ?? "",
-              awayTeam: {
-                id: row.awayTeam ?? "",
-                displayName: NFL_TEAM_INFO[row.awayTeam ?? ""]?.displayName ?? row.awayTeam ?? "Away team",
-              },
-              homeTeam: {
-                id: row.homeTeam ?? "",
-                displayName: NFL_TEAM_INFO[row.homeTeam ?? ""]?.displayName ?? row.homeTeam ?? "Home team",
-              },
-            }))
-          : getSandboxGamesForWeek(week).map((game) => ({
-              id: game.id,
-              date: game.gameTime,
-              awayTeam: {
-                id: game.awayTeamId,
-                displayName: NFL_TEAM_INFO[game.awayAbbr]?.displayName ?? game.awayAbbr,
-              },
-              homeTeam: {
-                id: game.homeTeamId,
-                displayName: NFL_TEAM_INFO[game.homeAbbr]?.displayName ?? game.homeAbbr,
-              },
-            }));
-      } else {
-        games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
-      }
-      const game = games.find((candidate) =>
-        candidate.homeTeam.id === teamId || candidate.awayTeam.id === teamId
-      );
-      await sendPicksConfirmationSafely({
+    if (pool.sandboxMode) {
+      const replayRows = await db.select().from(sandboxGameScoresTable).where(and(
+        eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week), isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+      survivorGames = replayRows.length
+        ? replayRows.map((row) => ({
+            id: row.gameId, date: row.replayKickoff?.toISOString() ?? "",
+            awayTeam: { id: row.awayTeam ?? "", displayName: NFL_TEAM_INFO[row.awayTeam ?? ""]?.displayName ?? row.awayTeam ?? "Away team" },
+            homeTeam: { id: row.homeTeam ?? "", displayName: NFL_TEAM_INFO[row.homeTeam ?? ""]?.displayName ?? row.homeTeam ?? "Home team" },
+          }))
+        : getSandboxGamesForWeek(week).map((game) => ({
+            id: game.id, date: game.gameTime,
+            awayTeam: { id: game.awayTeamId, displayName: NFL_TEAM_INFO[game.awayAbbr]?.displayName ?? game.awayAbbr },
+            homeTeam: { id: game.homeTeamId, displayName: NFL_TEAM_INFO[game.homeAbbr]?.displayName ?? game.homeAbbr },
+          }));
+    } else {
+      survivorGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    }
+  }
+  const survivorGame = survivorGames.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId);
+  // Capture this receipt before the write; it is deliberately not reconstructed
+  // from mutable pick rows after commit.
+  const survivorConfirmation = pool.sport === "nfl" && pool.poolType === "season"
+    ? makePickConfirmation({
         toEmail: req.user!.email,
         username: req.user!.username,
         poolName: pool.name,
-        confirmationNumber,
-        submittedAt,
         picks: buildTeamPickConfirmationItems(
-          [{ gameId: game?.id ?? "", pickedTeamId: teamId, pickedTeamName: teamName }],
-          game ? [game] : [],
+          [{ gameId: survivorGame?.id ?? "", pickedTeamId: teamId, pickedTeamName: teamName }],
+          survivorGame ? [survivorGame] : [],
         ),
-      }, (error) => {
-        req.log.error({ err: error, poolId, userId, confirmationNumber }, "NFL Survivor pick confirmation email failed");
+      })
+    : null;
+
+  // Upsert pick and append its receipt atomically.
+  let pick!: typeof picksTable.$inferSelect;
+  await db.transaction(async (tx) => {
+    if (existingPick) {
+      [pick] = await tx.update(picksTable).set({ teamId, teamName, teamLogoUrl, result: "pending" })
+        .where(eq(picksTable.id, existingPick.id)).returning();
+    } else {
+      [pick] = await tx.insert(picksTable).values({ entryId: entry.id, poolId, userId, teamId, teamName, teamLogoUrl, week, result: "pending" }).returning();
+    }
+    if (survivorConfirmation) {
+      await insertPickConfirmation(tx, survivorConfirmation, {
+        userId, poolId, poolType: String(pool.poolType), sport: String(pool.sport), periodKey: `week:${week}`,
       });
-    })().catch((error) => {
-      req.log.error({ err: error, poolId, userId, confirmationNumber }, "NFL Survivor pick confirmation email failed");
-    });
-  }
+    }
+  });
+  if (survivorConfirmation) deliverPickConfirmation(survivorConfirmation, { poolId, userId, sport: pool.sport });
 
   res.status(201).json(formatPick(pick, req.user!.username));
 });

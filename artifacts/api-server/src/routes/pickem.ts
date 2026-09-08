@@ -38,12 +38,11 @@ import {
   isThreeWayPickOption,
 } from "../lib/champions-league-pickem";
 import {
-  createPickConfirmationNumber,
-} from "../lib/mailer";
-import {
   buildThreeWayPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
   isSharedPickConfirmationSport,
-  sendPicksConfirmationSafely,
+  makePickConfirmation,
 } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
@@ -848,8 +847,21 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
+  // Load every Super League game in the period before the write transaction;
+  // a partial resave must retain a complete-slate receipt without network I/O
+  // after commit.
+  if (sport === "superleague" && superLeagueBounds) {
+    const days = await Promise.all(Array.from({ length: 4 }, (_, index) => {
+      const date = new Date(`${superLeagueBounds.weekStart}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + index);
+      return fetchSuperLeagueGamesForDate(date.toISOString().slice(0, 10).replace(/-/g, ""));
+    }));
+    for (const day of days) for (const game of day) confirmationGameMap.set(game.id, game);
+  }
+  let sharedConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
   let saved = 0;
 
+  await db.transaction(async (tx) => {
   for (const pick of picks) {
     const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
     const pickedTeamName = is3way
@@ -862,7 +874,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     // For all other sports: fall back to today.
     const gameDate = (is3way || isAts) && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
 
-    await db
+    await tx
       .insert(pickemPicksTable)
       .values({
         poolId,
@@ -889,7 +901,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   // For MLB pools: save tiebreaker guesses onto the entry row when provided
   const isMlb = sport === "mlb";
   if (isMlb && typeof tiebreakerRuns === "number" && typeof tiebreakerStrikeouts === "number") {
-    await db
+    await tx
       .update(entriesTable)
       .set({ tiebreakerRuns, tiebreakerStrikeouts })
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
@@ -898,63 +910,39 @@ router.post("/picks", requireAuth, async (req, res) => {
   // For NHL weekly pools: save tiebreaker guesses onto the entry row when provided
   const isNhl = sport === "nhl";
   if (isNhl && pool.pickFrequency === "weekly" && typeof tiebreakerShotsOnGoal === "number" && typeof tiebreakerPenaltyMinutes === "number") {
-    await db
+    await tx
       .update(entriesTable)
       .set({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes })
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
   if (isSharedPickConfirmationSport(sport)) {
-    const confirmationNumber = createPickConfirmationNumber();
-    void (async () => {
-      const currentPicks = await db
-        .select({
-          gameId: pickemPicksTable.gameId,
-          pickedTeamId: pickemPicksTable.pickedTeamId,
-          pickedTeamName: pickemPicksTable.pickedTeamName,
-          gameDate: pickemPicksTable.gameDate,
-        })
-        .from(pickemPicksTable)
-        .where(and(
-          eq(pickemPicksTable.poolId, poolId),
-          eq(pickemPicksTable.userId, userId),
-          eq(pickemPicksTable.week, pool.currentWeek),
-        ));
-      const relevantPicks = sport === "superleague" && superLeagueBounds
-        ? currentPicks.filter((pick) =>
-            pick.gameDate >= superLeagueBounds.weekStart &&
-            pick.gameDate <= superLeagueBounds.weekEnd
-          )
-        : currentPicks.filter((pick) =>
-            confirmationGameMap.size === 0 || confirmationGameMap.has(pick.gameId)
-          );
-      if (sport === "superleague") {
-        const missingDates = [...new Set(
-          relevantPicks
-            .filter((pick) => !confirmationGameMap.has(pick.gameId))
-            .map((pick) => pick.gameDate),
-        )];
-        const missingGameDays = await Promise.all(
-          missingDates.map((date) => fetchSuperLeagueGamesForDate(date.replace(/-/g, ""))),
-        );
-        for (const dayGames of missingGameDays) {
-          for (const game of dayGames) confirmationGameMap.set(game.id, game);
-        }
-      }
-      await sendPicksConfirmationSafely({
-        toEmail: req.user!.email,
-        username: req.user!.username,
-        poolName: pool.name,
-        confirmationNumber,
-        submittedAt: new Date(),
-        picks: buildThreeWayPickConfirmationItems(relevantPicks, [...confirmationGameMap.values()]),
-      }, (error) => {
-        req.log.error({ err: error, poolId, userId, confirmationNumber, sport }, "Pick-Em confirmation email failed");
-      });
-    })().catch((error) => {
-      req.log.error({ err: error, poolId, userId, confirmationNumber, sport }, "Pick-Em confirmation email failed");
+    const currentPicks = await tx.select({
+      gameId: pickemPicksTable.gameId,
+      pickedTeamId: pickemPicksTable.pickedTeamId,
+      pickedTeamName: pickemPicksTable.pickedTeamName,
+      gameDate: pickemPicksTable.gameDate,
+    }).from(pickemPicksTable).where(and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.userId, userId),
+      eq(pickemPicksTable.week, pool.currentWeek),
+    ));
+    const periodPicks = sport === "superleague" && superLeagueBounds
+      ? currentPicks.filter((pick) => pick.gameDate >= superLeagueBounds.weekStart && pick.gameDate <= superLeagueBounds.weekEnd)
+      : currentPicks.filter((pick) => confirmationGameMap.has(pick.gameId));
+    sharedConfirmation = makePickConfirmation({
+      toEmail: req.user!.email,
+      username: req.user!.username,
+      poolName: pool.name,
+      picks: buildThreeWayPickConfirmationItems(periodPicks, [...confirmationGameMap.values()]),
+    });
+    await insertPickConfirmation(tx, sharedConfirmation, {
+      userId, poolId, poolType: String(pool.poolType), sport,
+      periodKey: superLeagueBounds ? `${superLeagueBounds.weekStart}:${superLeagueBounds.weekEnd}` : (submittedDate ?? picks[0]?.gameDate ?? todayEt),
     });
   }
+  });
+  if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
 
   res.status(201).json({ saved, skipped: 0 });
 });

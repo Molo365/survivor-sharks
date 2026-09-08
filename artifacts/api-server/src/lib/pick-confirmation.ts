@@ -1,8 +1,14 @@
 import {
+  createPickConfirmationNumber,
   sendPicksConfirmationEmail,
   type PickConfirmationItem,
   type PicksConfirmationEmailInput,
 } from "./mailer";
+import { db, pickConfirmationsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { logger } from "./logger";
+
+export type PickConfirmationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ConfirmationGame {
   id: string;
@@ -15,6 +21,96 @@ export interface SubmittedConfirmationPick {
   gameId: string;
   pickedTeamId: string;
   pickedTeamName: string;
+}
+
+export interface PersistedPickConfirmation {
+  confirmationNumber: string;
+  submittedAt: Date;
+  email: PicksConfirmationEmailInput;
+}
+
+export function makePickConfirmation(input: Omit<PicksConfirmationEmailInput, "confirmationNumber" | "submittedAt">): PersistedPickConfirmation {
+  const submittedAt = new Date();
+  return {
+    confirmationNumber: createPickConfirmationNumber(),
+    submittedAt,
+    email: { ...input, confirmationNumber: "", submittedAt },
+  };
+}
+
+export function confirmationDeliveryState(providerMessageId: string | null): {
+  deliveryStatus: "sent"; providerMessageId: string | null; failureReason: null;
+} {
+  return { deliveryStatus: "sent", providerMessageId, failureReason: null };
+}
+
+export function failedConfirmationDeliveryState(error: unknown): {
+  deliveryStatus: "failed"; providerMessageId: null; failureReason: string;
+} {
+  return {
+    deliveryStatus: "failed",
+    providerMessageId: null,
+    failureReason: error instanceof Error ? error.message : String(error),
+  };
+}
+
+/** Must be called using the transaction which writes the associated picks. */
+export async function insertPickConfirmation(
+  tx: PickConfirmationTransaction,
+  data: PersistedPickConfirmation,
+  context: { userId: number; poolId: number; poolType: string; sport: string; periodKey: string },
+): Promise<void> {
+  await tx.insert(pickConfirmationsTable).values({
+    confirmationId: data.confirmationNumber,
+    userId: context.userId,
+    poolId: context.poolId,
+    poolType: context.poolType,
+    sport: context.sport,
+    periodKey: context.periodKey,
+    submittedAt: data.submittedAt,
+    recipientEmail: data.email.toEmail,
+    picksSnapshot: data.email.picks,
+  });
+}
+
+/** Queue only after the surrounding transaction commits; it never reads mutable picks. */
+export function deliverPickConfirmation(
+  data: PersistedPickConfirmation,
+  context: Record<string, unknown>,
+  sender: (input: PicksConfirmationEmailInput) => Promise<string | null> = sendPicksConfirmationEmail,
+): void {
+  void (async () => {
+    let providerMessageId: string | null;
+    try {
+      providerMessageId = await sender({ ...data.email, confirmationNumber: data.confirmationNumber });
+    } catch (error) {
+      try {
+        await db.update(pickConfirmationsTable).set(failedConfirmationDeliveryState(error))
+          .where(eq(pickConfirmationsTable.confirmationId, data.confirmationNumber));
+      } catch (statusError) {
+        logger.error(
+          { err: statusError, deliveryError: error, ...context, confirmationNumber: data.confirmationNumber },
+          "Pick confirmation delivery and status update failed",
+        );
+        return;
+      }
+      logger.error(
+        { err: error, ...context, confirmationNumber: data.confirmationNumber },
+        "Pick confirmation email failed",
+      );
+      return;
+    }
+
+    try {
+      await db.update(pickConfirmationsTable).set(confirmationDeliveryState(providerMessageId))
+        .where(eq(pickConfirmationsTable.confirmationId, data.confirmationNumber));
+    } catch (statusError) {
+      logger.error(
+        { err: statusError, ...context, confirmationNumber: data.confirmationNumber, providerMessageId },
+        "Pick confirmation was sent but its delivery status update failed",
+      );
+    }
+  })();
 }
 
 export function isSharedPickConfirmationSport(sport: string): boolean {
