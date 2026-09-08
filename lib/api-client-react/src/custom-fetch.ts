@@ -367,7 +367,7 @@ export async function customFetch<T = unknown>(
     // NOTE: "/" is matched with exact equality only; startsWith("/") would match
     // every pathname and prevent the redirect from ever firing.
     if (typeof window !== "undefined") {
-      const PUBLIC_EXACT = new Set(["/login", "/register", "/reset-password", "/pools/join", "/"]);
+      const PUBLIC_EXACT = new Set(["/login", "/register", "/auth/continue", "/reset-password", "/pools/join", "/"]);
       const PUBLIC_PREFIXES = ["/join/"];
       const pathname = window.location.pathname;
       const isPublicPath =

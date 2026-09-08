@@ -30,6 +30,7 @@ import Scores from "@/pages/Scores";
 import Profile from "@/pages/Profile";
 import PastPools from "@/pages/PastPools";
 import Feedback from "@/pages/Feedback";
+import AuthInviteContinuation from "@/pages/AuthInviteContinuation";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
 
 const queryClient = new QueryClient({
@@ -109,6 +110,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/super-admin" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/auth/continue" component={AuthInviteContinuation} />
 
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}

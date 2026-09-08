@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRegisterUser, useJoinPool, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useRegisterUser, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useLocation, Link, Redirect } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
 
 const formSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(20),
@@ -31,14 +32,14 @@ export default function Register() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const registerUser = useRegisterUser();
-  const joinPool = useJoinPool();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: { username: "", displayName: "", email: "", password: "" },
   });
 
-  const pendingCode = localStorage.getItem("pending_invite_code");
+  const [location] = useLocation();
+  const pendingCode = getPendingInviteCode(location);
 
   if (!isLoading && user && !pendingCode) {
     return <Redirect to="/dashboard" />;
@@ -56,32 +57,9 @@ export default function Register() {
             queryClient.setQueryData(getGetMeQueryKey(), data.user);
           }
 
-          const pendingCode = localStorage.getItem("pending_invite_code");
+          const pendingCode = getPendingInviteCode(location);
           if (pendingCode) {
-            localStorage.removeItem("pending_invite_code");
-            joinPool.mutate(
-              { data: { inviteCode: pendingCode } },
-              {
-                onSuccess: (pool: any) => {
-                  toast({ title: "You're in! 🎉", description: `Successfully joined the pool.` });
-                  setLocation(`/pools/${pool.id}`);
-                },
-                onError: (err: any) => {
-                  const msg: string = err?.data?.error ?? err?.message ?? "";
-                  if (msg.toLowerCase().includes("already a member")) {
-                    fetch(`/api/pools/invite/${pendingCode}/preview`)
-                      .then(r => r.json())
-                      .then((data: any) => { setLocation(`/pools/${data.id}`); })
-                      .catch(() => { setLocation("/dashboard"); });
-                  } else if (msg.toLowerCase().includes("pool is full")) {
-                    toast({ variant: "destructive", title: "Pool is full", description: "That pool is now full — you weren't able to join." });
-                    setLocation("/dashboard");
-                  } else {
-                    setLocation("/dashboard");
-                  }
-                },
-              },
-            );
+            setLocation(continuationPath(pendingCode));
           } else {
             setLocation("/dashboard");
           }
@@ -173,7 +151,7 @@ export default function Register() {
         <CardFooter className="flex justify-center border-t border-border/50 pt-6">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-login">
+            <Link href={pendingCode ? `/login?invite=${encodeURIComponent(pendingCode)}` : "/login"} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-login">
               Sign in
             </Link>
           </p>

@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Users, AlertCircle, TriangleAlert, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
+import { authPath } from "@/lib/pending-invite";
 
 const WC_KICKOFF = new Date("2026-06-11T16:00:00Z");
 const SURVIVOR_STARTED_MESSAGE =
@@ -116,8 +117,7 @@ export default function JoinInvite() {
     if (authLoading || isJoinBlocked) return;
 
     if (!user) {
-      localStorage.setItem("pending_invite_code", inviteCode);
-      setLocation("/register");
+      setLocation(authPath("/register", inviteCode));
       return;
     }
 
@@ -185,8 +185,7 @@ export default function JoinInvite() {
               size="sm"
               className="text-muted-foreground hover:text-foreground"
               onClick={() => {
-                localStorage.setItem("pending_invite_code", inviteCode);
-                setLocation("/login");
+                setLocation(authPath("/login", inviteCode));
               }}
             >
               <LogIn className="w-3.5 h-3.5 mr-1.5" />
@@ -452,8 +451,7 @@ export default function JoinInvite() {
                     <button
                       className="w-full text-sm text-muted-foreground hover:text-foreground text-center transition-colors"
                       onClick={() => {
-                        localStorage.setItem("pending_invite_code", inviteCode);
-                        setLocation("/login");
+                        setLocation(authPath("/login", inviteCode));
                       }}
                     >
                       Sign in instead
