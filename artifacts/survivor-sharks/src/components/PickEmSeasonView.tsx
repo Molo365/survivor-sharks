@@ -1542,7 +1542,12 @@ export function PickEmSeasonView({
   // OR at least one game has a graded result (defence against future-season IDs).
   const allGamesLocked =
     !!slate && slate.games.length > 0 && openGames.length === 0;
-  const hasGradedResult = slate?.games.some((g) => g.userPickResult !== null) ?? false;
+  const hasGradedResult = slate?.games.some(
+    (g) =>
+      g.userPickResult === "correct" ||
+      g.userPickResult === "incorrect" ||
+      g.userPickResult === "push",
+  ) ?? false;
   const weekIsLocked = allGamesLocked || hasGradedResult;
   const hasAnySubmittedPick =
     slate?.games.some((g) => g.userPickTeamId !== null) ?? false;
