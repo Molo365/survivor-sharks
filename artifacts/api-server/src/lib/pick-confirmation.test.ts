@@ -87,10 +87,11 @@ test("football and three-way submissions normalize accurate matchup details", ()
   );
 });
 
-test("shared Pick-Em confirmation scope excludes all non-requested sports", () => {
+test("shared Pick-Em confirmation scope includes weekly soccer sports only", () => {
+  assert.equal(isSharedPickConfirmationSport("mls"), true);
   assert.equal(isSharedPickConfirmationSport("superleague"), true);
   assert.equal(isSharedPickConfirmationSport("championsleague"), true);
-  for (const sport of ["mlb", "mls", "nhl", "nba", "nfl", "worldcup"]) {
+  for (const sport of ["mlb", "nhl", "nba", "nfl", "worldcup"]) {
     assert.equal(isSharedPickConfirmationSport(sport), false);
   }
 });

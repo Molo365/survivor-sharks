@@ -2668,10 +2668,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   // MLS weekly combined submit: iterates each day-group, submits open picks per day.
   async function handleMlsWeeklySubmit() {
-    const daySubmissions = mlsWeeklyDays
-      .map((day) => {
+    const picks = mlsWeeklyDays.flatMap((day) => {
         const dayGameIds = new Set(day.games.map((g) => g.id));
-        const dayPicks = Array.from(localPicks.entries())
+        return Array.from(localPicks.entries())
           .map(([gameId, pickValue]) => {
             if (!dayGameIds.has(gameId)) return null;
             const game = day.games.find((g) => g.id === gameId);
@@ -2680,37 +2679,19 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             return { gameId, pickedTeamId: pickValue, pickedTeamName: label, gameDate: day.date };
           })
           .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
+      });
 
-        return dayPicks.length > 0 ? { date: day.date, picks: dayPicks } : null;
-      })
-      .filter((submission): submission is {
-        date: string;
-        picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate: string }>;
-      } => submission !== null);
-
-    let totalSaved = 0;
-    for (const [index, submission] of daySubmissions.entries()) {
-      try {
-        const res = await submitPicks.mutateAsync({
-          poolId,
-          data: {
-            picks: submission.picks,
-            date: submission.date,
-            skipConfirmationEmail: index < daySubmissions.length - 1,
-          },
-        });
-        totalSaved += res.saved;
-      } catch {
-        toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
-        return;
-      }
-    }
-    if (totalSaved === 0) {
+    if (picks.length === 0) {
       toast({ title: "No open picks to submit", description: "All games may have already started." });
       return;
     }
-    toast({ title: "Picks saved!", description: `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved.` });
-    void invalidatePoolQueries(queryClient, poolId);
+    try {
+      const result = await submitPicks.mutateAsync({ poolId, data: { picks } });
+      toast({ title: "Picks saved!", description: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved.` });
+      void invalidatePoolQueries(queryClient, poolId);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+    }
   }
 
   // NBA ATS weekend submit: each game carries its own ET calendar date (etDate from server).

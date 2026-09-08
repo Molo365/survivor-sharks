@@ -1194,8 +1194,6 @@ export interface PickEmPickInput {
   tiebreakerPenaltyMinutes?: number;
   /** The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games */
   date?: string;
-  /** Weekly MLS, Super League, or Champions League Pick-Em only: suppress the confirmation email for this intermediate date-group submission */
-  skipConfirmationEmail?: boolean;
 }
 
 export interface PickEmPicksResult {

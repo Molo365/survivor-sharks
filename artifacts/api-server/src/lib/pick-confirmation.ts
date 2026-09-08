@@ -114,7 +114,7 @@ export function deliverPickConfirmation(
 }
 
 export function isSharedPickConfirmationSport(sport: string): boolean {
-  return sport === "superleague" || sport === "championsleague";
+  return sport === "mls" || sport === "superleague" || sport === "championsleague";
 }
 
 export function buildTeamPickConfirmationItems(

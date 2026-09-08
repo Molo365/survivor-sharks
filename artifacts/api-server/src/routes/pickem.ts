@@ -19,6 +19,7 @@ import {
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
+  formatDateEtDash,
   getSuperLeagueWeekBoundsEt,
   fetchCurrentChampionsLeagueSlate,
   type EspnGame,
@@ -631,7 +632,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerShotsOnGoal,
     tiebreakerPenaltyMinutes,
     date: submittedDate,
-    skipConfirmationEmail,
   } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
     tiebreakerRuns?: number;
@@ -639,7 +639,6 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
     date?: string;
-    skipConfirmationEmail?: boolean;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -684,27 +683,18 @@ router.post("/picks", requireAuth, async (req, res) => {
   const isChampionsLeague = sport === "championsleague";
   const is3way = isWc || isIntl || isMls || isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
+  const isWeeklySoccer = (isMls || isChampionsLeague) && pool.pickFrequency === "weekly";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
   const superLeagueBounds = sport === "superleague" && pool.pickFrequency === "weekly"
     ? getSuperLeagueConfiguredPeriod(pool)
     : null;
+  const mlsBounds = sport === "mls" && pool.pickFrequency === "weekly"
+    ? getMlsConfiguredPeriod(pool)
+    : null;
+  const soccerPeriodBounds = superLeagueBounds ?? mlsBounds;
 
   if (superLeagueBounds) {
-    if (!submittedDate || !/^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
-      res.status(400).json({ error: "Super League weekly picks require a valid Friday–Monday slate date." });
-      return;
-    }
-    if (submittedDate < superLeagueBounds.weekStart || submittedDate > superLeagueBounds.weekEnd) {
-      res.status(400).json({
-        error: `Super League picks must be within the active ${superLeagueBounds.weekStart} through ${superLeagueBounds.weekEnd} slate.`,
-      });
-      return;
-    }
-    if (picks.some((pick) => pick.gameDate !== submittedDate)) {
-      res.status(400).json({ error: "Each Super League pick must use the submitted slate date." });
-      return;
-    }
     if (pool.isRecurring) {
       const [latestCurrentWeekPick] = await db
         .select({ gameDate: pickemPicksTable.gameDate })
@@ -725,6 +715,28 @@ router.post("/picks", requireAuth, async (req, res) => {
           });
           return;
         }
+      }
+    }
+  }
+  if (isWeeklySoccer) {
+    const missingOrInvalidDates = picks
+      .filter((pick) => !pick.gameDate || !/^\d{4}-\d{2}-\d{2}$/.test(pick.gameDate))
+      .map((pick) => pick.gameId);
+    if (missingOrInvalidDates.length > 0) {
+      res.status(400).json({
+        error: `Weekly soccer picks require a valid gameDate for every game: ${missingOrInvalidDates.join(", ")}`,
+      });
+      return;
+    }
+    if (soccerPeriodBounds) {
+      const outsidePeriod = picks
+        .filter((pick) => pick.gameDate! < soccerPeriodBounds.weekStart || pick.gameDate! > soccerPeriodBounds.weekEnd)
+        .map((pick) => pick.gameId);
+      if (outsidePeriod.length > 0) {
+        res.status(400).json({
+          error: `Picks must be within the active ${soccerPeriodBounds.weekStart} through ${soccerPeriodBounds.weekEnd} slate: ${outsidePeriod.join(", ")}`,
+        });
+        return;
       }
     }
   }
@@ -794,16 +806,18 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
     // If no gameDate supplied on picks, gameMap stays empty → picks rejected as "unknown games"
-  } else if ((isMls) && pool.pickFrequency === "weekly" && !pool.sandboxMode && submittedDate && /^\d{4}-\d{2}-\d{2}$/.test(submittedDate)) {
-    // Live MLS/Super League weekly: validate against the specific day the client submitted,
-    // not just today. Super League's date is already constrained to its Friday–Monday slate.
-    // Super League has no ESPN_ENDPOINTS key so must use its dedicated fetcher (YYYY-MM-DD).
-    const games = sport === "superleague"
-      ? await fetchSuperLeagueGamesForDate(submittedDate.replace(/-/g, ""))
-      : await fetchGamesForDate(sport, submittedDate.replace(/-/g, ""));
-    for (const g of games) {
-      gameMap.set(g.id, { date: g.date });
-      if (sport === "superleague") confirmationGameMap.set(g.id, g);
+  } else if (isMls && pool.pickFrequency === "weekly") {
+    // Load the complete active period once. Submitted picks are validated against
+    // their own dates below, while prior persisted picks retain full receipt metadata
+    // when a user later resaves only part of the week.
+    const dateGroups = sport === "superleague"
+      ? await fetchSlWeekDays(superLeagueBounds!.weekStart)
+      : await fetchMlsWeekDays(mlsBounds!.weekStart);
+    for (const { games } of dateGroups) {
+      for (const game of games) {
+        gameMap.set(game.id, { date: game.date });
+        if (isSharedPickConfirmationSport(sport)) confirmationGameMap.set(game.id, game);
+      }
     }
   } else if (isAts) {
     // NBA ATS: validate against the full Fri/Sat/Sun weekend slate for this week
@@ -830,11 +844,14 @@ router.post("/picks", requireAuth, async (req, res) => {
   const lockedGameIds: string[] = [];
   const unknownGameIds: string[] = [];
   const invalidPickIds: string[] = [];
+  const mismatchedGameDateIds: string[] = [];
 
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId);
     if (!game) {
       unknownGameIds.push(pick.gameId);
+    } else if (isWeeklySoccer && formatDateEtDash(new Date(game.date)) !== pick.gameDate) {
+      mismatchedGameDateIds.push(pick.gameId);
     } else if (!pool.sandboxMode && isGameLocked(game.date)) {
       // Sandbox mode: never lock picks regardless of game start time
       lockedGameIds.push(pick.gameId);
@@ -851,22 +868,15 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(400).json({ error: `Games already locked: ${lockedGameIds.join(", ")}` });
     return;
   }
+  if (mismatchedGameDateIds.length > 0) {
+    res.status(400).json({ error: `Game date does not match the scheduled ET date: ${mismatchedGameDateIds.join(", ")}` });
+    return;
+  }
   if (invalidPickIds.length > 0) {
     res.status(400).json({ error: `Invalid pick option — must be home_win, draw, or away_win` });
     return;
   }
 
-  // Load every Super League game in the period before the write transaction;
-  // a partial resave must retain a complete-slate receipt without network I/O
-  // after commit.
-  if (sport === "superleague" && superLeagueBounds) {
-    const days = await Promise.all(Array.from({ length: 4 }, (_, index) => {
-      const date = new Date(`${superLeagueBounds.weekStart}T12:00:00Z`);
-      date.setUTCDate(date.getUTCDate() + index);
-      return fetchSuperLeagueGamesForDate(date.toISOString().slice(0, 10).replace(/-/g, ""));
-    }));
-    for (const day of days) for (const game of day) confirmationGameMap.set(game.id, game);
-  }
   let sharedConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
   let saved = 0;
 
@@ -938,6 +948,8 @@ router.post("/picks", requireAuth, async (req, res) => {
     ));
     const periodPicks = sport === "superleague" && superLeagueBounds
       ? currentPicks.filter((pick) => pick.gameDate >= superLeagueBounds.weekStart && pick.gameDate <= superLeagueBounds.weekEnd)
+      : sport === "mls" && mlsBounds
+        ? currentPicks.filter((pick) => pick.gameDate >= mlsBounds.weekStart && pick.gameDate <= mlsBounds.weekEnd)
       : currentPicks.filter((pick) => confirmationGameMap.has(pick.gameId));
     sharedConfirmation = makePickConfirmation({
       toEmail: req.user!.email,
@@ -947,13 +959,13 @@ router.post("/picks", requireAuth, async (req, res) => {
     });
     await insertPickConfirmation(tx, sharedConfirmation, {
       userId, poolId, poolType: String(pool.poolType), sport,
-      periodKey: superLeagueBounds ? `${superLeagueBounds.weekStart}:${superLeagueBounds.weekEnd}` : (submittedDate ?? picks[0]?.gameDate ?? todayEt),
+      periodKey: soccerPeriodBounds
+        ? `${soccerPeriodBounds.weekStart}:${soccerPeriodBounds.weekEnd}`
+        : (submittedDate ?? picks[0]?.gameDate ?? todayEt),
     });
   }
   });
-  if (sharedConfirmation && !skipConfirmationEmail) {
-    deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
-  }
+  if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
 
   res.status(201).json({ saved, skipped: 0 });
 });
