@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { getSportLogo } from "@/lib/sport-branding";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -329,8 +330,17 @@ function SportSectionCard({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <span className="text-base font-bold text-foreground">
-          {section.emoji} {section.label}
+        <span className="flex items-center gap-2 text-base font-bold text-foreground">
+          {getSportLogo(section.sport) ? (
+            <img
+              src={getSportLogo(section.sport)!}
+              alt=""
+              className="h-6 w-6 object-contain"
+            />
+          ) : (
+            <span aria-hidden="true">{section.emoji}</span>
+          )}
+          {section.label}
         </span>
         <div className="flex-1 h-px bg-border/20" />
         {SPORTS_WITH_STANDINGS.has(section.sport) && onStandingsClick && (

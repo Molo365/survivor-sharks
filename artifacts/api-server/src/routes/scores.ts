@@ -10,18 +10,20 @@ import {
 const router = Router();
 
 const SPORTS = [
+  { sport: "nfl",      label: "NFL",      emoji: "🏈" },
   { sport: "mlb",       label: "MLB",      emoji: "⚾" },
   { sport: "nba",       label: "NBA",      emoji: "🏀" },
   { sport: "nhl",       label: "NHL",      emoji: "🏒" },
-  { sport: "nfl",       label: "NFL",      emoji: "🏈" },
   { sport: "worldcup", label: "World Cup", emoji: "⚽" },
   { sport: "superleague", label: "Super League", emoji: "⚽" },
+  { sport: "championsleague", label: "Champions League", emoji: "⚽" },
   { sport: "mls",      label: "MLS",       emoji: "⚽" },
 ] as const;
 
-type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup" | "mls" | "superleague";
+type SportKey = "nfl" | "mlb" | "nba" | "nhl" | "worldcup" | "mls" | "superleague" | "championsleague";
 
 const EURO_SOCCER_SLUGS = new Set([
+  "championsleague",
   "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
   "tur.1", "por.1", "sco.1", "ksa.1",
 ]);
@@ -34,6 +36,7 @@ const ESPN_SPORT_PATHS: Record<string, string> = {
   soccer:   "soccer/fifa.world",
   worldcup: "soccer/fifa.world",
   mls:      "soccer/usa.1",
+  championsleague: "soccer/uefa.champions",
   "eng.1":  "soccer/eng.1",
   "esp.1":  "soccer/esp.1",
   "ita.1":  "soccer/ita.1",
@@ -71,6 +74,9 @@ router.get("/today", async (_req, res) => {
       if (sport === "superleague") {
         return fetchSuperLeagueGamesForDate(todayEspnDate);
       }
+      if (sport === "championsleague") {
+        return fetchGamesForDate(sport, todayEspnDate);
+      }
       return fetchGamesForDate(sport, todayEspnDate);
     }),
   );
@@ -96,14 +102,14 @@ router.get("/today", async (_req, res) => {
   res.json({ date: todayEt, sports });
 });
 
-// GET /api/scores/game/:gameId?sport=mlb|nfl|nba|nhl|soccer — public, no auth required
+// GET /api/scores/game/:gameId?sport=mlb|nfl|nba|nhl|soccer|championsleague — public, no auth required
 router.get("/game/:gameId", async (req, res) => {
   const gameId = String(req.params.gameId);
   const sport = String(req.query.sport ?? "");
   const espnPath = ESPN_SPORT_PATHS[sport];
 
   if (!espnPath) {
-    res.status(400).json({ error: "Unknown sport. Use mlb, nfl, nba, nhl, or soccer." });
+    res.status(400).json({ error: "Unknown sport. Use mlb, nfl, nba, nhl, soccer, or championsleague." });
     return;
   }
 
