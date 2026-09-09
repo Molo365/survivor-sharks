@@ -88,6 +88,7 @@ import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
+import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 
 const NFL_TOTAL_WEEKS = 18;
@@ -1943,6 +1944,7 @@ export function PickEmSeasonView({
             className="m-0 focus-visible:outline-none"
           >
             <div className="space-y-3">
+              <PickVisibilityNotice kind="pickem-season" />
               <div className="flex items-center justify-between">
                 <h3 className="font-bebas text-2xl tracking-wide">
                   Season Standings
@@ -1967,20 +1969,23 @@ export function PickEmSeasonView({
 
           {/* ── Weekly Grid ── */}
           <TabsContent value="grid" className="m-0 focus-visible:outline-none">
-            {lbLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-14 w-full rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <WeeklyGrid
-                poolId={poolId}
-                entries={entries}
-                currentWeek={currentWeek}
-                currentUserId={user?.id ?? null}
-              />
-            )}
+            <div className="space-y-3">
+              <PickVisibilityNotice kind="pickem-season" />
+              {lbLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                <WeeklyGrid
+                  poolId={poolId}
+                  entries={entries}
+                  currentWeek={currentWeek}
+                  currentUserId={user?.id ?? null}
+                />
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">

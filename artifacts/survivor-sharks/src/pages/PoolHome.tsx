@@ -42,6 +42,7 @@ import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView"
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { SportLogo } from "@/components/SportLogo";
+import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 
@@ -68,6 +69,9 @@ export default function PoolHome() {
   const isWcBracket = (pool?.poolType as string) === "wc_bracket";
   const isMlbBracket = (pool?.poolType as string) === "mlb_bracket";
   const isNbaAts = (pool?.poolType as string) === "nba_ats";
+  const isNflSurvivor =
+    pool?.sport === "nfl" &&
+    ["season", "weekly", "mid_season"].includes(pool.poolType);
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -576,9 +580,11 @@ export default function PoolHome() {
                   )}
                 </TabsContent>
                 <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                  {isNflSurvivor && <PickVisibilityNotice kind="survivor" />}
                   <Leaderboard poolId={pool.id} sport={pool.sport} poolType={pool.poolType} pickFrequency={(pool as any).pickFrequency} maxEntries={pool.maxEntries ?? undefined} totalMembers={pool.totalMembers} prizeMode={(pool as any).prizeMode ?? "fixed"} entryFee={pool.entryFee} />
                 </TabsContent>
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                  {isNflSurvivor && <PickVisibilityNotice kind="survivor" />}
                   <SurvivorGrid poolId={pool.id} poolName={pool.name} />
                 </TabsContent>
                 {isCommissioner && (
