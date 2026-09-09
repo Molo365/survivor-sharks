@@ -5,7 +5,7 @@ import { poolsTable, usersTable, entriesTable, picksTable, pickemPicksTable, gro
 import { eq, count, gte, sql, and, or } from "drizzle-orm";
 import { requireAdminAuth } from "../middlewares/adminAuth";
 import { processCompletedGames } from "../lib/auto-eliminator";
-import { fetchGamesForDate, fetchIntlGamesForDate, fetchNflGamesByWeek, type EspnGame } from "../lib/espn";
+import { fetchGamesForDate, fetchIntlGamesForDate, fetchNflGamesByWeek, fetchSuperLeagueGamesForDate, type EspnGame } from "../lib/espn";
 import { fetchWcStandings } from "../lib/wc";
 import { closePredictorPool, GSP_GROUP_COUNT } from "../lib/closePredictorPool";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure } from "../lib/pickem-season-closure";
@@ -13,6 +13,10 @@ import { applySeasonSurvivorClosure } from "../lib/season-survivor-closure";
 import { gradeNflPreseasonPoolWeek } from "../lib/nfl-preseason-closure";
 import { validateNflPreseasonPool, validateNflPreseasonSlate } from "../lib/nfl-auto-advance";
 import { getMaintenanceState, updateMaintenanceState } from "../lib/maintenance";
+import {
+  isThreeWayPickEmSport,
+  threeWayPickEmOutcome,
+} from "../lib/pickem-grading";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -829,8 +833,7 @@ router.post("/pickem/process-results", async (req, res) => {
 
   const sport = pool.sport as string;
   const isIntl = sport === "intl";
-  const isWc = sport === "worldcup";
-  const is3way = isWc || isIntl;
+  const is3way = isThreeWayPickEmSport(sport);
 
   // If a date is given, scope to that date; otherwise find all dates with pending picks.
   let pendingDates: string[];
@@ -847,7 +850,11 @@ router.post("/pickem/process-results", async (req, res) => {
   const gamesByDate = await Promise.all(
     pendingDates.map((dateStr) => {
       const espnDate = dateStr.replace(/-/g, "");
-      return isIntl ? fetchIntlGamesForDate(espnDate) : fetchGamesForDate(sport, espnDate);
+      return isIntl
+        ? fetchIntlGamesForDate(espnDate)
+        : sport === "superleague"
+          ? fetchSuperLeagueGamesForDate(espnDate)
+          : fetchGamesForDate(sport, espnDate);
     }),
   );
 
@@ -869,7 +876,8 @@ router.post("/pickem/process-results", async (req, res) => {
     for (const pick of gamePicks) {
       let result: "correct" | "incorrect";
       if (is3way) {
-        const outcome = game.homeScore! > game.awayScore! ? "home_win" : game.awayScore! > game.homeScore! ? "away_win" : "draw";
+        const outcome = threeWayPickEmOutcome(sport, game);
+        if (!outcome) continue;
         result = pick.pickedTeamId === outcome ? "correct" : "incorrect";
       } else {
         const winningTeamId = game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;

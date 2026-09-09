@@ -88,6 +88,10 @@ import {
   survivorStateEffect,
 } from "./survivor-week-settlement";
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
+import {
+  isThreeWayPickEmSport,
+  threeWayPickEmOutcome,
+} from "./pickem-grading";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const NFL_PRESEASON_TOTAL_WEEKS = 4;
@@ -2223,10 +2227,7 @@ export async function processPickEmResults(): Promise<{
         }
 
         // worldcup is skipped above, so only the remaining 3-way sports need this check
-        const is3way =
-          sport === "mls" ||
-          sport === "intl" ||
-          sport === "superleague";
+        const is3way = isThreeWayPickEmSport(sport);
 
         const completedGames = games.filter(
           (g) => g.isCompleted && g.homeScore != null && g.awayScore != null,
@@ -2253,8 +2254,8 @@ export async function processPickEmResults(): Promise<{
           type Outcome3 = "home_win" | "draw" | "away_win";
           const outcomeMap = new Map<string, Outcome3>();
           for (const g of completedGames) {
-            const h = g.homeScore!, a = g.awayScore!;
-            outcomeMap.set(g.id, h > a ? "home_win" : a > h ? "away_win" : "draw");
+            const outcome = threeWayPickEmOutcome(sport, g);
+            if (outcome) outcomeMap.set(g.id, outcome);
           }
           for (const { poolId } of affectedPools) {
             for (const [gameId, outcome] of outcomeMap) {
@@ -2338,6 +2339,7 @@ export async function processPickEmResults(): Promise<{
   const intlPools = pickemPools.filter((p) => p.sport === "intl");
   const mlsPools = pickemPools.filter((p) => p.sport === "mls");
   const superleaguePools = pickemPools.filter((p) => p.sport === "superleague");
+  const championsLeaguePools = pickemPools.filter((p) => p.sport === "championsleague");
 
   // ── MLB grading ───────────────────────────────────────────────────────────
 
@@ -2742,6 +2744,61 @@ export async function processPickEmResults(): Promise<{
           .returning({ id: pickemPicksTable.id });
         if (updated.length > 0) {
           logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em superleague: marked picks as postponed");
+        }
+      }
+    }
+  }
+
+  // ── Champions League grading (regulation-time three-way outcome) ─────────
+
+  if (championsLeaguePools.length > 0) {
+    const [todayGames, yesterdayGames] = await Promise.all([
+      fetchGamesForDate("championsleague", todayEspn),
+      fetchGamesForDate("championsleague", yesterdayEspn),
+    ]);
+    const allGames = [...todayGames, ...yesterdayGames];
+    const outcomeByGameId = new Map<string, "home_win" | "draw" | "away_win">();
+
+    for (const game of allGames) {
+      const outcome = threeWayPickEmOutcome("championsleague", game);
+      if (!outcome) continue;
+      outcomeByGameId.set(game.id, outcome);
+      logger.info(
+        {
+          gameId: game.id,
+          outcome,
+          regulationScore: `${game.awayTeam.abbreviation} ${game.regulationAwayScore} - ${game.regulationHomeScore} ${game.homeTeam.abbreviation}`,
+        },
+        "Pick-Em championsleague: completed game found",
+      );
+    }
+
+    for (const pool of championsLeaguePools) {
+      for (const [gameId, outcome] of outcomeByGameId) {
+        const gamePicks = await db
+          .select()
+          .from(pickemPicksTable)
+          .where(
+            and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.gameId, gameId),
+              inArray(pickemPicksTable.gameDate, datesToCheck),
+              eq(pickemPicksTable.result, "pending"),
+            ),
+          );
+
+        for (const pick of gamePicks) {
+          const result: "correct" | "incorrect" =
+            pick.pickedTeamId === outcome ? "correct" : "incorrect";
+          await db
+            .update(pickemPicksTable)
+            .set({ result, updatedAt: new Date() })
+            .where(eq(pickemPicksTable.id, pick.id));
+          picksGraded++;
+          logger.info(
+            { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, outcome, result },
+            "Auto-graded championsleague pickem pick",
+          );
         }
       }
     }
