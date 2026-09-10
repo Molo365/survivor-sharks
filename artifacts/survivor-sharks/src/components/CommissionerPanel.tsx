@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
+import { BroadcastEmailDialog, isBroadcastEmailSupported } from "@/components/BroadcastEmailDialog";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -274,6 +275,10 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
           </div>
         </CardContent>
       </Card>
+
+      {isBroadcastEmailSupported(pool.sport, pool.poolType) && (
+        <BroadcastEmailDialog poolId={pool.id} sport={pool.sport} poolType={pool.poolType} />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Settings */}

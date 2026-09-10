@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
+import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -722,6 +723,8 @@ export function NflConfidenceWeeklyCommissionerPanel({
 
   return (
     <div className="space-y-6">
+      <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="nfl_confidence_weekly" />
+
       <Card className="border-border/40">
         <CardHeader>
           <CardTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">

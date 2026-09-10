@@ -47,6 +47,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 
 interface Props {
   poolId: number;
@@ -725,6 +726,8 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
 
   return (
     <div className="pt-4 max-w-xl space-y-6">
+      <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="nfl_division_predictor" />
+
       {isSuperAdmin && (
         <div className="rounded-xl border border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)] p-5 space-y-4">
           <div className="flex items-center justify-between">

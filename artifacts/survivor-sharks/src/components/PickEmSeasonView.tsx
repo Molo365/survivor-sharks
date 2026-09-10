@@ -90,6 +90,7 @@ import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
+import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -2002,6 +2003,8 @@ export function PickEmSeasonView({
                     Manage picks, grade results, and control pool settings.
                   </p>
                 </div>
+
+                <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="pickem_season" />
 
                 {/* Invite code */}
                 <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">
