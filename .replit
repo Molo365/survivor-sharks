@@ -29,3 +29,6 @@ packages = ["git"]
 [userenv.shared]
 ADMIN_PANEL_USER = "admin"
 ADMIN_PANEL_PASS = "sharks2026"
+
+[userenv.development]
+APP_URL = "https://1787abbe-61dc-4350-9b3b-149599768c69-00-1pjv0r3ajkfxp.picard.replit.dev"

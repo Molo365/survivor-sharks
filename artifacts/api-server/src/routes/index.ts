@@ -32,6 +32,7 @@ import finalResultsRouter from "./final-results";
 import pickStatusRouter from "./pick-status";
 import { getMaintenanceState } from "../lib/maintenance";
 import feedbackRouter from "./feedback";
+import broadcastRouter from "./broadcast";
 
 const router: IRouter = Router();
 
@@ -90,6 +91,7 @@ router.use("/pools/:poolId/mlb-bracket", mlbBracketRouter);
 router.use("/pools/:poolId/replay", replayRouter);
 router.use("/pools/:poolId/final-results", finalResultsRouter);
 router.use("/pools/:poolId/pick-status", pickStatusRouter);
+router.use("/pools/:poolId/broadcast-email", broadcastRouter);
 router.use("/scores", scoresRouter);
 router.use("/picks", picksSummaryRouter);
 router.use("/dashboard", dashboardRouter);

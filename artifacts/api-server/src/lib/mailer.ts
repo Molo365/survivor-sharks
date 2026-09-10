@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
+import type { BroadcastStandingsSnapshot } from "./broadcast-standings";
 
 function createTransport() {
   const host = process.env.SMTP_HOST;
@@ -22,11 +23,140 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const RESEND_FROM = "Survivor Sharks <noreply@survivorsharks.com>";
 const SMTP_FROM = process.env.SMTP_FROM ?? RESEND_FROM;
+export const BROADCAST_EMAIL_SUBJECT = "Pool update from your commissioner";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]!);
+}
+
+export interface BroadcastEmailContent {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+export function buildBroadcastEmail(
+  poolName: string,
+  commissionerMessage: string,
+  standingsSnapshot: BroadcastStandingsSnapshot,
+  poolUrl: string,
+): BroadcastEmailContent {
+  const safePoolName = escapeHtml(poolName);
+  const safeMessage = escapeHtml(commissionerMessage).replace(/\r?\n/g, "<br />");
+  const safePoolUrl = escapeHtml(poolUrl);
+  const safeTitle = escapeHtml(standingsSnapshot.summary.title);
+  const safeAsOf = escapeHtml(standingsSnapshot.summary.asOf);
+
+  const standingsRows = standingsSnapshot.rows.map((row) => {
+    const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
+      ? ""
+      : `<div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.secondaryLabel)}: ${escapeHtml(String(row.secondaryValue))}</div>`;
+    return `
+      <tr>
+        <td style="padding:10px;border-bottom:1px solid #263244;color:#94a3b8;text-align:center">${row.rank}</td>
+        <td style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc">${escapeHtml(row.displayName)}</td>
+        <td style="padding:10px;border-bottom:1px solid #263244;color:#cbd5e1">${escapeHtml(row.status)}</td>
+        <td style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc;text-align:right">
+          <strong>${escapeHtml(String(row.primaryValue))}</strong>
+          <div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.primaryLabel)}</div>
+          ${secondary}
+        </td>
+      </tr>`;
+  }).join("");
+
+  const standingsHtml = standingsRows
+    ? `<table role="table" style="width:100%;border-collapse:collapse;background:#111827;border-radius:8px;overflow:hidden">
+        <thead>
+          <tr>
+            <th style="padding:10px;text-align:center;color:#94a3b8;font-size:12px">RANK</th>
+            <th style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">PLAYER</th>
+            <th style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">STATUS</th>
+            <th style="padding:10px;text-align:right;color:#94a3b8;font-size:12px">RESULT</th>
+          </tr>
+        </thead>
+        <tbody>${standingsRows}</tbody>
+      </table>`
+    : `<p style="padding:18px;background:#111827;border-radius:8px;color:#94a3b8">No standings are available yet.</p>`;
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:680px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px;border:1px solid rgba(30,144,255,0.2)">
+      <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff;margin-bottom:8px">SURVIVOR SHARKS</h1>
+      <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px">Commissioner update</p>
+      <h2 style="color:#f8fafc;margin-bottom:16px">${safePoolName}</h2>
+      <div style="padding:20px;background:#111827;border-radius:8px;line-height:1.6">${safeMessage}</div>
+      <h2 style="color:#f8fafc;margin:30px 0 4px">${safeTitle}</h2>
+      <p style="color:#64748b;font-size:12px;margin:0 0 14px">As of ${safeAsOf}</p>
+      ${standingsHtml}
+      <a href="${safePoolUrl}" style="display:inline-block;margin-top:28px;padding:14px 32px;background:#1e90ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">VIEW POOL</a>
+      <p style="margin-top:18px;font-size:11px;color:#64748b;word-break:break-all">${safePoolUrl}</p>
+    </div>`;
+
+  const textRows = standingsSnapshot.rows.length > 0
+    ? standingsSnapshot.rows.map((row) => {
+        const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
+          ? ""
+          : `; ${row.secondaryLabel}: ${row.secondaryValue}`;
+        return `${row.rank}. ${row.displayName} — ${row.status} — ${row.primaryLabel}: ${row.primaryValue}${secondary}`;
+      }).join("\n")
+    : "No standings are available yet.";
+
+  const text = [
+    poolName,
+    "",
+    commissionerMessage,
+    "",
+    standingsSnapshot.summary.title,
+    `As of ${standingsSnapshot.summary.asOf}`,
+    "",
+    textRows,
+    "",
+    `View the pool: ${poolUrl}`,
+  ].join("\n");
+
+  return { subject: BROADCAST_EMAIL_SUBJECT, html, text };
+}
+
+export async function sendBroadcastEmail(
+  to: string,
+  poolName: string,
+  commissionerMessage: string,
+  standingsSnapshot: BroadcastStandingsSnapshot,
+  poolUrl: string,
+): Promise<string | null> {
+  const transport = createTransport();
+  const { subject, html, text } = buildBroadcastEmail(
+    poolName,
+    commissionerMessage,
+    standingsSnapshot,
+    poolUrl,
+  );
+
+  if (resend) {
+    const { data, error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
+    if (error) throw new Error(`Resend broadcast email failed: ${error.message}`);
+    return data?.id ?? null;
+  }
+
+  if (transport) {
+    const result = await transport.sendMail({
+      from: SMTP_FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
+    return result.messageId ?? null;
+  }
+
+  throw new Error("No email provider configured for commissioner broadcasts");
 }
 
 export interface PickConfirmationItem {
