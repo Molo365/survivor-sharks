@@ -1538,18 +1538,13 @@ export function PickEmSeasonView({
   }
 
   const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
+  const openPickedCount = openGames.filter((g) => localPicks.has(g.id)).length;
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
-  // "Locked" = all games in the current slate have passed their deadline,
-  // OR at least one game has a graded result (defence against future-season IDs).
+  // The week is globally locked only after every game has passed its deadline.
+  // Individual games continue to lock independently at their own kickoff.
   const allGamesLocked =
     !!slate && slate.games.length > 0 && openGames.length === 0;
-  const hasGradedResult = slate?.games.some(
-    (g) =>
-      g.userPickResult === "correct" ||
-      g.userPickResult === "incorrect" ||
-      g.userPickResult === "push",
-  ) ?? false;
-  const weekIsLocked = allGamesLocked || hasGradedResult;
+  const weekIsLocked = allGamesLocked;
   const hasAnySubmittedPick =
     slate?.games.some((g) => g.userPickTeamId !== null) ?? false;
   const entries = leaderboard?.entries ?? [];
@@ -1820,7 +1815,7 @@ export function PickEmSeasonView({
                         {openGames.length > 0 && (
                           <>
                             {" "}
-                            · {localPicks.size} of {openGames.length} picked
+                            · {openPickedCount} of {openGames.length} open games picked
                           </>
                         )}
                       </p>

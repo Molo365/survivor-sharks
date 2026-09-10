@@ -1032,7 +1032,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
       picks: data.picks.map(p => {
         const startTime = gameStartMap.get(p.gameId);
         const isLocked = startTime
-          ? new Date(startTime).getTime() - 5 * 60 * 1000 <= Date.now()
+          ? isGameLocked(startTime)
           : false;
         if (!isLocked) {
           return {
