@@ -5,7 +5,7 @@ import { eq, and, sql, gte, lte, inArray, count } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
-import { requireAuth } from "../middlewares/auth";
+import { requireAdmin, requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
   fetchSuperLeagueGamesForDate,
@@ -2535,17 +2535,12 @@ router.post("/process-results", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/pickem/simulate-grading — sandbox grading for NHL Weekly Pick'em
-router.post("/simulate-grading", requireAuth, async (req, res) => {
+router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
-  }
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
   const isPickemNhlWeekly = pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
   const isNbaAts = (pool.poolType as string) === "nba_ats";

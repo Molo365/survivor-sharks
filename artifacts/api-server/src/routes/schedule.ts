@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
+import { poolsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAdmin, requireAuth } from "../middlewares/auth";
 import {
   getMlbWeekBounds,
   fetchMlbWeekGames,
@@ -644,18 +644,12 @@ router.get("/daily", requireAuth, async (req, res) => {
   });
 });
 
-// PATCH /api/pools/:poolId/schedule/sandbox-week — set sandbox week (admin/commissioner only)
-router.patch("/sandbox-week", requireAuth, async (req, res) => {
+// PATCH /api/pools/:poolId/schedule/sandbox-week — set sandbox week (admin only)
+router.patch("/sandbox-week", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
-  }
 
   // Clamp week to a sport-appropriate maximum:
   // NFL has 18 regular-season weeks; NHL regular season spans ~26 weeks;

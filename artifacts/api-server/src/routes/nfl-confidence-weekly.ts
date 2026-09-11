@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
-import { requireAuth, requireCommissioner } from "../middlewares/auth";
+import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
 import { calcPrize } from "../lib/prizeCalc";
@@ -487,7 +487,7 @@ router.get("/grid", requireAuth, async (req, res) => {
 });
 
 // PATCH /api/pools/:poolId/nfl-confidence-weekly/sandbox-week
-router.patch("/sandbox-week", requireAuth, requireCommissioner, async (req, res) => {
+router.patch("/sandbox-week", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const { week } = req.body as { week: number };
 
@@ -514,7 +514,7 @@ router.patch("/sandbox-week", requireAuth, requireCommissioner, async (req, res)
 });
 
 // POST /api/pools/:poolId/nfl-confidence-weekly/simulate-grading
-router.post("/simulate-grading", requireAuth, requireCommissioner, async (req, res) => {
+router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const { week: weekParam } = req.body as { week?: number };
 
