@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, real, jsonb, pgEnum, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, real, numeric, jsonb, pgEnum, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -34,6 +34,9 @@ export const poolsTable = pgTable("pools", {
   sandboxMode: boolean("sandbox_mode").notNull().default(false),
   sandboxWeek: integer("sandbox_week").notNull().default(1),
   isPreseason: boolean("is_preseason").notNull().default(false),
+  weeklyBonusEnabled: boolean("weekly_bonus_enabled").notNull().default(false),
+  weeklyBonusAmount: numeric("weekly_bonus_amount", { precision: 10, scale: 2 }),
+  weeklyBonusMinPlayers: integer("weekly_bonus_min_players"),
   ndpTb1GameId: text("ndp_tb1_game_id"),
   ndpTb2GameId: text("ndp_tb2_game_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

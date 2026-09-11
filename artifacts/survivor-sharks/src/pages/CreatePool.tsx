@@ -310,6 +310,9 @@ const formSchema = z.object({
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
+  weeklyBonusEnabled: z.boolean().default(false),
+  weeklyBonusAmount: z.coerce.number().positive().optional().or(z.literal("").transform(() => undefined)),
+  weeklyBonusMinPlayers: z.coerce.number().int().min(1).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
   startWeek: z.coerce.number().int().min(1).max(18).optional(),
   initialPeriodStart: z.string().optional(),
@@ -391,6 +394,7 @@ export default function CreatePool() {
       poolType: undefined,
       pickFrequency: "weekly",
       description: "",
+      weeklyBonusEnabled: false,
       season: new Date().getFullYear(),
     },
   });
@@ -399,11 +403,23 @@ export default function CreatePool() {
   const selectedType = form.watch("poolType");
   const watchedName = form.watch("name");
   const watchedEntryFee = form.watch("entryFee");
+  const watchedWeeklyBonusEnabled = form.watch("weeklyBonusEnabled");
+  const watchedWeeklyBonusAmount = form.watch("weeklyBonusAmount");
+  const watchedWeeklyBonusMinPlayers = form.watch("weeklyBonusMinPlayers");
   const watchedMaxEntries = form.watch("maxEntries");
   const watchedFreq = form.watch("pickFrequency");
   const watchedStartWeek = form.watch("startWeek");
   const watchedSeason = form.watch("season");
   const watchedPreseason = form.watch("isPreseason");
+  const isWeeklyBonusEligible =
+    selectedSport === PoolInputSport.nfl &&
+    (selectedType === "pickem_season" || selectedType === "nfl_confidence");
+  const weeklyBonusAmount = Number(watchedWeeklyBonusAmount) || 0;
+  const weeklyBonusMinPlayers = Number(watchedWeeklyBonusMinPlayers) || 0;
+  const weeklyBonusWeeks = 18;
+  const weeklyBonusReserved = weeklyBonusAmount * weeklyBonusWeeks;
+  const weeklyBonusThresholdPot = (Number(watchedEntryFee) || 0) * weeklyBonusMinPlayers;
+  const weeklyBonusSeasonEndRemaining = weeklyBonusThresholdPot - weeklyBonusReserved;
   const mlbThisWeek = useMemo(() => getMlbWeekOption(0), []);
   const mlbNextWeek = useMemo(() => getMlbWeekOption(1), []);
   const superLeagueThisPeriod = useMemo(() => getSuperLeaguePeriodOption(0), []);
@@ -423,6 +439,14 @@ export default function CreatePool() {
     }
     if (!isStartPeriodPool) form.setValue("initialPeriodStart", undefined);
   }, [isStartPeriodPool, thisPeriod.start]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isWeeklyBonusEligible && form.getValues("weeklyBonusEnabled")) {
+      form.setValue("weeklyBonusEnabled", false);
+      form.setValue("weeklyBonusAmount", undefined);
+      form.setValue("weeklyBonusMinPlayers", undefined);
+    }
+  }, [form, isWeeklyBonusEligible]);
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
 
@@ -771,6 +795,25 @@ export default function CreatePool() {
     // Round entry fee to nearest whole dollar — prevents spinner float drift
     const cleanEntryFee =
       values.entryFee != null ? Math.round(values.entryFee) : undefined;
+    const weeklyBonusIsEnabled = isWeeklyBonusEligible && values.weeklyBonusEnabled === true;
+    const cleanWeeklyBonusAmount = weeklyBonusIsEnabled ? Number(values.weeklyBonusAmount) : undefined;
+    const cleanWeeklyBonusMinPlayers = weeklyBonusIsEnabled ? Number(values.weeklyBonusMinPlayers) : undefined;
+    if (weeklyBonusIsEnabled && (!Number.isFinite(cleanWeeklyBonusAmount) || cleanWeeklyBonusAmount <= 0)) {
+      toast({
+        variant: "destructive",
+        title: "Weekly prize amount required",
+        description: "Enter a weekly prize amount greater than $0.",
+      });
+      return;
+    }
+    if (weeklyBonusIsEnabled && (!Number.isInteger(cleanWeeklyBonusMinPlayers) || cleanWeeklyBonusMinPlayers < 1)) {
+      toast({
+        variant: "destructive",
+        title: "Minimum player count required",
+        description: "Enter a whole-number threshold of at least 1 player.",
+      });
+      return;
+    }
 
     createPool.mutate(
       {
@@ -780,6 +823,11 @@ export default function CreatePool() {
           commissionerCut,
           showCommissionerCut,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
+          ...(isWeeklyBonusEligible && {
+            weeklyBonusEnabled: weeklyBonusIsEnabled,
+            weeklyBonusAmount: weeklyBonusIsEnabled ? cleanWeeklyBonusAmount : null,
+            weeklyBonusMinPlayers: weeklyBonusIsEnabled ? cleanWeeklyBonusMinPlayers : null,
+          }),
           ...(prizeStructure.length > 0 && { prizeStructure }),
           ...((values.poolType === "nfl_confidence" || values.poolType === "nfl_confidence_weekly" || values.poolType === "pickem_season" || values.poolType === "nba_ats" ||
             values.poolType === "mlb_bracket" ||

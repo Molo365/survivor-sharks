@@ -283,7 +283,14 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const { name, sport, description, maxEntries, minEntries, entryFee, prizeStructure, currentWeek, season, poolType, startWeek, initialPeriodStart, doubleElimination, pickFrequency, isRecurring, sandboxMode, isPreseason } = req.body;
+  const {
+    name, sport, description, maxEntries, minEntries, entryFee, prizeStructure,
+    currentWeek, season, poolType, startWeek, initialPeriodStart, doubleElimination,
+    pickFrequency, isRecurring, sandboxMode, isPreseason,
+    weeklyBonusEnabled: requestedWeeklyBonusEnabled,
+    weeklyBonusAmount: requestedWeeklyBonusAmount,
+    weeklyBonusMinPlayers: requestedWeeklyBonusMinPlayers,
+  } = req.body;
   const prizeMode = "pct" as const;
 
   if (!name || !sport) {
@@ -292,6 +299,28 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  const weeklyBonusEligible =
+    sport === "nfl" && (resolvedPoolType === "pickem_season" || resolvedPoolType === "nfl_confidence");
+  const hasWeeklyBonusSettings =
+    requestedWeeklyBonusEnabled === true ||
+    requestedWeeklyBonusAmount !== undefined && requestedWeeklyBonusAmount !== null && requestedWeeklyBonusAmount !== "" ||
+    requestedWeeklyBonusMinPlayers !== undefined && requestedWeeklyBonusMinPlayers !== null && requestedWeeklyBonusMinPlayers !== "";
+  if (!weeklyBonusEligible && hasWeeklyBonusSettings) {
+    res.status(400).json({ error: "Weekly bonus prizes are only available for NFL Pick-Em Season and NFL Confidence Season pools" });
+    return;
+  }
+
+  const weeklyBonusEnabled = weeklyBonusEligible && requestedWeeklyBonusEnabled === true;
+  const weeklyBonusAmount = weeklyBonusEnabled ? Number(requestedWeeklyBonusAmount) : null;
+  const weeklyBonusMinPlayers = weeklyBonusEnabled ? Number(requestedWeeklyBonusMinPlayers) : null;
+  if (weeklyBonusEnabled && (!Number.isFinite(weeklyBonusAmount) || weeklyBonusAmount <= 0)) {
+    res.status(400).json({ error: "Weekly prize amount must be greater than $0" });
+    return;
+  }
+  if (weeklyBonusEnabled && (!Number.isInteger(weeklyBonusMinPlayers) || weeklyBonusMinPlayers < 1)) {
+    res.status(400).json({ error: "Minimum players required must be a whole number of at least 1" });
+    return;
+  }
   if (resolvedPoolType === "mlb_bracket") {
     if (sport !== "mlb") {
       res.status(400).json({ error: "MLB Postseason Bracket pools require MLB" });
@@ -406,6 +435,9 @@ router.post("/", requireAuth, async (req, res) => {
       (sport === "nfl" && (resolvedPoolType === "season" || resolvedPoolType === "nfl_confidence" || resolvedPoolType === "pickem_season")) ||
       (sport === "nhl" && (resolvedPoolType === "season" || resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s"))
     ) ? isPreseason === true : false,
+    weeklyBonusEnabled,
+    weeklyBonusAmount: weeklyBonusEnabled ? weeklyBonusAmount!.toFixed(2) : null,
+    weeklyBonusMinPlayers: weeklyBonusEnabled ? weeklyBonusMinPlayers : null,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
