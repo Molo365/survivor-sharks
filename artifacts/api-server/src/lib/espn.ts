@@ -624,6 +624,32 @@ export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: numbe
   return games.filter(g => g.seasonType === seasonType);
 }
 
+export async function fetchNhlGamesByWeekWithStatus(
+  poolCreatedAt: Date,
+  weekNumber: number,
+  seasonType = 2,
+): Promise<{ games: EspnGame[]; available: boolean }> {
+  const { espnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
+  const results = await Promise.all(
+    espnDates.map(date => fetchGamesForDateChecked("nhl", date, seasonType, true)),
+  );
+  if (results.some(dayGames => dayGames === null)) {
+    return { games: [], available: false };
+  }
+
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of results as EspnGame[][]) {
+    for (const game of dayGames) {
+      if (game.seasonType === seasonType && !seen.has(game.id)) {
+        seen.add(game.id);
+        games.push(game);
+      }
+    }
+  }
+  return { games, available: true };
+}
+
 // ---------------------------------------------------------------------------
 // NBA week utilities (mirrors NHL — Mon-Sun calendar anchored to pool.createdAt)
 // ---------------------------------------------------------------------------
@@ -734,25 +760,27 @@ type TeamScheduleEvent = {
   seasonType?: { type?: number };
 };
 
-const regularSeasonEndCache = new Map<string, {
+const seasonTypeEndCache = new Map<string, {
   expiresAt: number;
   lastGameDate: string;
 }>();
 
 /**
- * Return the latest scheduled regular-season game for an NHL or NBA season.
+ * Return the latest scheduled game of the requested season type for an NHL or
+ * NBA season.
  *
  * ESPN's league scoreboard does not return a complete season schedule, so this
  * intentionally fetches every team's season schedule and accepts the result
  * only when every request succeeds. The successful result is cached because
  * the live settlement poll runs frequently while the schedule changes rarely.
  */
-export async function fetchLastRegularSeasonGameDate(
+export async function fetchLastSeasonTypeGameDate(
   sport: "nhl" | "nba",
   seasonYear: number,
+  seasonType: number,
 ): Promise<string | null> {
-  const cacheKey = `${sport}:${seasonYear}`;
-  const cached = regularSeasonEndCache.get(cacheKey);
+  const cacheKey = `${sport}:${seasonYear}:${seasonType}`;
+  const cached = seasonTypeEndCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.lastGameDate;
 
   const base = ESPN_ENDPOINTS[sport];
@@ -769,10 +797,17 @@ export async function fetchLastRegularSeasonGameDate(
       return response.json() as Promise<{ events?: TeamScheduleEvent[] }>;
     }));
 
+    // The preseason terminal-week proof must fail closed when ESPN returns a
+    // successful but incomplete payload for any team. Keep the established
+    // regular-season behavior unchanged.
+    if (seasonType !== 2 && schedules.some(schedule => !Array.isArray(schedule.events))) {
+      return null;
+    }
+
     const dates = schedules.flatMap(schedule =>
       (schedule.events ?? [])
         .filter(event =>
-          event.seasonType?.type === 2 &&
+          event.seasonType?.type === seasonType &&
           (event.season?.year == null || event.season.year === seasonYear) &&
           event.date != null &&
           Number.isFinite(new Date(event.date).getTime())
@@ -784,7 +819,7 @@ export async function fetchLastRegularSeasonGameDate(
     const lastGameDate = dates.reduce((latest, date) =>
       new Date(date).getTime() > new Date(latest).getTime() ? date : latest
     );
-    regularSeasonEndCache.set(cacheKey, {
+    seasonTypeEndCache.set(cacheKey, {
       expiresAt: Date.now() + 6 * 60 * 60 * 1000,
       lastGameDate,
     });
@@ -792,6 +827,13 @@ export async function fetchLastRegularSeasonGameDate(
   } catch {
     return null;
   }
+}
+
+export async function fetchLastRegularSeasonGameDate(
+  sport: "nhl" | "nba",
+  seasonYear: number,
+): Promise<string | null> {
+  return fetchLastSeasonTypeGameDate(sport, seasonYear, 2);
 }
 
 /**
@@ -907,6 +949,7 @@ async function fetchGamesForDateChecked(
   sport: string,
   dateStr: string,
   seasonType = 2,
+  requireEventsArray = false,
 ): Promise<EspnGame[] | null> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return null;
@@ -916,6 +959,7 @@ async function fetchGamesForDateChecked(
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json() as { events?: EspnEvent[] };
+    if (requireEventsArray && !Array.isArray(data.events)) return null;
     return (data.events ?? []).map(parseGame);
   } catch {
     return null;

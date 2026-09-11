@@ -57,12 +57,14 @@ export function buildTerminalSurvivorClosurePlan(
 export function isFinalCalendarSurvivorPeriod(options: {
   sport: "nhl" | "nba";
   followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated";
+  followingSlateAvailable?: boolean;
   followingSlateHasRegularSeasonGame: boolean;
   lastRegularSeasonGameDate: string | null;
   currentPeriodEnd: Date;
   followingPeriodEnd: Date;
 }): boolean {
   if (
+    options.followingSlateAvailable === false ||
     options.followingRegularSeasonSlate === "confirmed" ||
     options.followingSlateHasRegularSeasonGame ||
     options.lastRegularSeasonGameDate == null
@@ -120,17 +122,17 @@ export function isCompleteRegularSeasonSlate(games: Array<{
   seasonType?: number;
   isCompleted: boolean;
   isPostponed: boolean;
-}>): boolean {
+}>, expectedSeasonType = 2): boolean {
   return games.length > 0 && games.every(game =>
-    game.seasonType === 2 && (game.isCompleted || game.isPostponed)
+    game.seasonType === expectedSeasonType && (game.isCompleted || game.isPostponed)
   );
 }
 
 export function classifyFollowingRegularSeasonSlate(games: Array<{
   seasonType?: number;
-}>): "confirmed" | "unknown" | "contaminated" {
+}>, expectedSeasonType = 2): "confirmed" | "unknown" | "contaminated" {
   if (games.length === 0) return "unknown";
-  return games.every(game => game.seasonType === 2) ? "confirmed" : "contaminated";
+  return games.every(game => game.seasonType === expectedSeasonType) ? "confirmed" : "contaminated";
 }
 
 function addDays(date: string, days: number): string {

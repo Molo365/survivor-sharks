@@ -12,6 +12,7 @@ import {
   survivorStateEffect,
 } from "./survivor-week-settlement";
 import { calcPrize } from "./prizeCalc";
+import { fetchNhlGamesByWeekWithStatus } from "./espn";
 
 for (const sport of ["nfl", "nhl", "nba", "superleague"] as const) {
   test(`${sport}: nonterminal wipeout voids`, () => {
@@ -106,6 +107,87 @@ test("NHL and NBA terminal proof requires a complete season-end date", () => {
     currentPeriodEnd: new Date("2026-04-12T23:59:59Z"),
     followingPeriodEnd,
   }), false);
+});
+
+test("NHL preseason slate completion requires season type 1 without changing the regular-season default", () => {
+  const completedPreseason = [{ seasonType: 1, isCompleted: true, isPostponed: false }];
+  const completedRegularSeason = [{ seasonType: 2, isCompleted: true, isPostponed: false }];
+
+  assert.equal(isCompleteRegularSeasonSlate(completedPreseason, 1), true);
+  assert.equal(isCompleteRegularSeasonSlate(completedPreseason), false);
+  assert.equal(isCompleteRegularSeasonSlate(completedRegularSeason), true);
+  assert.equal(isCompleteRegularSeasonSlate(completedRegularSeason, 1), false);
+});
+
+test("NHL preseason following-slate classification uses the requested season type", () => {
+  assert.equal(classifyFollowingRegularSeasonSlate([{ seasonType: 1 }], 1), "confirmed");
+  assert.equal(classifyFollowingRegularSeasonSlate([{ seasonType: 2 }], 1), "contaminated");
+  assert.equal(classifyFollowingRegularSeasonSlate([], 1), "unknown");
+});
+
+test("NHL preseason wipeouts void before the terminal period and split at the terminal period", () => {
+  assert.equal(decideSurvivorWipeout({
+    sport: "nhl",
+    week: 1,
+    allAliveAtStartLost: true,
+    followingRegularSeasonSlate: classifyFollowingRegularSeasonSlate([{ seasonType: 1 }], 1),
+    terminalPeriodConfirmed: false,
+  }), "void");
+
+  const terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
+    sport: "nhl",
+    followingRegularSeasonSlate: classifyFollowingRegularSeasonSlate([], 1),
+    followingSlateHasRegularSeasonGame: false,
+    lastRegularSeasonGameDate: "2026-10-03T23:00:00Z",
+    currentPeriodEnd: new Date("2026-10-04T23:59:59Z"),
+    followingPeriodEnd: new Date("2026-10-11T23:59:59Z"),
+  });
+  assert.equal(terminalPeriodConfirmed, true);
+  assert.equal(decideSurvivorWipeout({
+    sport: "nhl",
+    week: 3,
+    allAliveAtStartLost: true,
+    followingRegularSeasonSlate: "unknown",
+    terminalPeriodConfirmed,
+  }), "co-winners");
+});
+
+test("NHL preseason terminal proof fails closed when the following slate is unavailable", () => {
+  const terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
+    sport: "nhl",
+    followingRegularSeasonSlate: "unknown",
+    followingSlateAvailable: false,
+    followingSlateHasRegularSeasonGame: false,
+    lastRegularSeasonGameDate: "2026-10-10T23:00:00Z",
+    currentPeriodEnd: new Date("2026-10-04T23:59:59Z"),
+    followingPeriodEnd: new Date("2026-10-11T23:59:59Z"),
+  });
+  assert.equal(terminalPeriodConfirmed, false);
+  assert.equal(decideSurvivorWipeout({
+    sport: "nhl",
+    week: 2,
+    allAliveAtStartLost: true,
+    followingRegularSeasonSlate: "unknown",
+    terminalPeriodConfirmed,
+  }), "manual-review");
+});
+
+test("NHL checked week fetch rejects an HTTP 200 response without an events array", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({}), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+  try {
+    const slate = await fetchNhlGamesByWeekWithStatus(
+      new Date("2026-09-21T12:00:00Z"),
+      1,
+      1,
+    );
+    assert.deepEqual(slate, { games: [], available: false });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("settled active non-NFL Survivor periods advance toward terminal periods", () => {

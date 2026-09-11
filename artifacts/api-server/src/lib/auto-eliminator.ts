@@ -40,7 +40,9 @@ import {
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
   fetchNhlGamesByWeek,
+  fetchNhlGamesByWeekWithStatus,
   fetchNbaGamesByWeek,
+  fetchLastSeasonTypeGameDate,
   fetchLastRegularSeasonGameDate,
   fetchNflGamesByWeek,
   fetchNflWeek18TiebreakerStats,
@@ -162,10 +164,15 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
     });
   }
   if (pool.sport === "nhl" || pool.sport === "nba") {
+    const expectedSeasonType = pool.sport === "nhl" && pool.isPreseason ? 1 : 2;
+    if (pool.sport === "nhl" && pool.isPreseason) {
+      const slate = await fetchNhlGamesByWeekWithStatus(anchor!, pool.currentWeek, expectedSeasonType);
+      return slate.available && isCompleteRegularSeasonSlate(slate.games, expectedSeasonType);
+    }
     const games = pool.sport === "nhl"
-      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek, pool.isPreseason ? 1 : 2)
+      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek, expectedSeasonType)
       : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
-    return isCompleteRegularSeasonSlate(games);
+    return isCompleteRegularSeasonSlate(games, expectedSeasonType);
   }
   if (pool.sport !== "superleague") return false;
 
@@ -223,26 +230,42 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
     let followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated" | undefined;
     let terminalPeriodConfirmed: boolean | undefined;
     if (allAliveAtSettlementLost && (pool.sport === "nhl" || pool.sport === "nba")) {
-      const [currentGames, followingGames] = await Promise.all([
-        pool.sport === "nhl"
-          ? fetchNhlGamesByWeek(pool.createdAt, week)
-          : fetchNbaGamesByWeek(pool.createdAt, week),
-        pool.sport === "nhl"
-        ? await fetchNhlGamesByWeek(pool.createdAt, week + 1)
-        : await fetchNbaGamesByWeek(pool.createdAt, week + 1),
-      ]);
-      followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(followingGames);
-      if (followingRegularSeasonSlate !== "confirmed") {
+      const expectedSeasonType = pool.sport === "nhl" && pool.isPreseason ? 1 : 2;
+      let followingSlateAvailable = true;
+      let currentGames: EspnGame[];
+      let followingGames: EspnGame[];
+      if (pool.sport === "nhl" && pool.isPreseason) {
+        const [currentSlate, followingSlate] = await Promise.all([
+          fetchNhlGamesByWeekWithStatus(pool.createdAt, week, expectedSeasonType),
+          fetchNhlGamesByWeekWithStatus(pool.createdAt, week + 1, expectedSeasonType),
+        ]);
+        currentGames = currentSlate.games;
+        followingGames = followingSlate.games;
+        followingSlateAvailable = currentSlate.available && followingSlate.available;
+      } else {
+        [currentGames, followingGames] = await Promise.all([
+          pool.sport === "nhl"
+            ? fetchNhlGamesByWeek(pool.createdAt, week, expectedSeasonType)
+            : fetchNbaGamesByWeek(pool.createdAt, week),
+          pool.sport === "nhl"
+            ? fetchNhlGamesByWeek(pool.createdAt, week + 1, expectedSeasonType)
+            : fetchNbaGamesByWeek(pool.createdAt, week + 1),
+        ]);
+      }
+      followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(
+        followingGames,
+        expectedSeasonType,
+      );
+      if (followingSlateAvailable && followingRegularSeasonSlate !== "confirmed") {
         const seasonYears = [...new Set(
           currentGames
-            .filter(game => game.seasonType === 2 && game.seasonYear != null)
+            .filter(game => game.seasonType === expectedSeasonType && game.seasonYear != null)
             .map(game => game.seasonYear!),
         )];
         if (seasonYears.length === 1) {
-          const lastRegularSeasonGameDate = await fetchLastRegularSeasonGameDate(
-            pool.sport,
-            seasonYears[0],
-          );
+          const lastRegularSeasonGameDate = expectedSeasonType === 2
+            ? await fetchLastRegularSeasonGameDate(pool.sport, seasonYears[0])
+            : await fetchLastSeasonTypeGameDate(pool.sport, seasonYears[0], expectedSeasonType);
           const currentBounds = pool.sport === "nhl"
             ? getNhlWeekBounds(pool.createdAt, week)
             : getNbaWeekBounds(pool.createdAt, week);
@@ -252,7 +275,10 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
           terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
             sport: pool.sport,
             followingRegularSeasonSlate,
-            followingSlateHasRegularSeasonGame: followingGames.some(game => game.seasonType === 2),
+            followingSlateAvailable,
+            followingSlateHasRegularSeasonGame: followingGames.some(
+              game => game.seasonType === expectedSeasonType,
+            ),
             lastRegularSeasonGameDate,
             currentPeriodEnd: currentBounds.weekEnd,
             followingPeriodEnd: followingBounds.weekEnd,
