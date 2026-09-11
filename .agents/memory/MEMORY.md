@@ -24,3 +24,4 @@
 - [Survivor mass-elimination paths](survivor-mass-elimination-paths.md) — live wipeouts settle only after full slates; calendar terminals require complete schedule proof and atomic co-winner closure.
 - [MLS weekly start boundaries](mls-weekly-start-boundaries.md) — MLS Pick-Em shares Mon–Sun date math with MLB, but must never enter the MLB High Heat classifier.
 - [Champions League Pick-Em semantics](champions-league-pickem.md) — group by ESPN competition phase/matchday/leg; each event is an independent 3-way pick graded from regulation only.
+- [NHL readiness gaps](nhl-readiness-gaps.md) — unit tests pass, but NHL confidence and recurring Hit The Ice lifecycle need product-level decisions and live ESPN validation.
