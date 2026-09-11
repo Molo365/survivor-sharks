@@ -59,7 +59,7 @@ router.post("/", requireAuth, requireCommissioner, async (req, res) => {
 
   if (!isSupportedBroadcastPool(pool)) {
     res.status(400).json({
-      error: "Commissioner broadcasts currently support NFL Survivor, NFL Pick-Em Season, NFL Confidence Season, NFL Confidence Weekly, and NFL Division Predictor pools only",
+      error: "Commissioner broadcasts are not available for this pool type",
     });
     return;
   }

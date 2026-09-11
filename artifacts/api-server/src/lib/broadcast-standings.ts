@@ -4,6 +4,8 @@ import {
   nflConfidenceResultsTable,
   nflDivisionPredictorPicksTable,
   nflDivisionResultsTable,
+  nhlDivisionPredictorPicksTable,
+  nhlDivisionResultsTable,
   pickemPicksTable,
   pickemSeasonWeekGameCountsTable,
   poolsTable,
@@ -12,6 +14,7 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { NFL_DIVISIONS } from "./nfl-divisions";
 import { scorePositions } from "./closePredictorPool";
+import { scoreNhlDivisionPositions } from "./nhl-scoring";
 
 export type BroadcastStatus = "Active" | "Eliminated" | "Winner" | "Final" | "Pending";
 export type BroadcastRow = {
@@ -45,7 +48,10 @@ export function isSupportedNflBroadcastPool(pool: Pick<BroadcastPool, "sport" | 
     ["pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor"].includes(String(pool.poolType))
   );
 }
-export const isSupportedBroadcastPool = isSupportedNflBroadcastPool;
+export function isSupportedBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
+  return isSupportedNflBroadcastPool(pool)
+    || (pool.sport === "nhl" && String(pool.poolType) === "nhl_division_predictor");
+}
 
 function name(displayName: string | null, username: string): string {
   return displayName?.trim() || username;
@@ -235,9 +241,45 @@ async function ndp(pool: BroadcastPool): Promise<BroadcastStandings> {
       status: statusFor(pool, r.m.finalWinner), primaryValue: r.score, primaryLabel: "Points", secondaryValue: 96, secondaryLabel: "Maximum" })) };
 }
 
+async function nhlNdp(pool: BroadcastPool): Promise<BroadcastStandings> {
+  const [actuals, members, picks] = await Promise.all([
+    db.select().from(nhlDivisionResultsTable).where(eq(nhlDivisionResultsTable.poolId, pool.id)),
+    db.select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName, finalWinner: entriesTable.finalWinner })
+      .from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, pool.id)),
+    db.select().from(nhlDivisionPredictorPicksTable).where(eq(nhlDivisionPredictorPicksTable.poolId, pool.id)),
+  ]);
+  const actual = new Map(actuals.map((result) => [result.divisionName, result]));
+  const byUser = new Map<number, typeof picks>();
+  for (const pick of picks) byUser.set(pick.userId, [...(byUser.get(pick.userId) ?? []), pick]);
+  const positions = (value: typeof picks[number] | typeof actuals[number]) => [
+    value.pos1Team, value.pos2Team, value.pos3Team, value.pos4Team,
+    value.pos5Team, value.pos6Team, value.pos7Team, value.pos8Team,
+  ];
+  const ranked = rankRows(members.map((member) => ({
+    m: member,
+    score: (byUser.get(member.userId) ?? []).reduce((total, pick) => {
+      const result = actual.get(pick.divisionName);
+      return total + (result ? scoreNhlDivisionPositions(positions(result), positions(pick)) : 0);
+    }, 0),
+  })));
+  return {
+    summary: { title: "NHL Division Predictor standings", asOf: new Date().toISOString() },
+    rows: ranked.map((entry) => ({
+      rank: entry.rank,
+      displayName: name(entry.m.displayName, entry.m.username),
+      status: statusFor(pool, entry.m.finalWinner),
+      primaryValue: entry.score,
+      primaryLabel: "Points",
+      secondaryValue: 96,
+      secondaryLabel: "Maximum",
+    })),
+  };
+}
+
 export async function getBroadcastStandings(pool: BroadcastPool): Promise<BroadcastStandings> {
-  if (pool.sport !== "nfl") throw new UnsupportedBroadcastPoolError(`Broadcast standings support NFL only (received ${pool.sport}).`);
   const type = String(pool.poolType);
+  if (pool.sport === "nhl" && type === "nhl_division_predictor") return nhlNdp(pool);
+  if (pool.sport !== "nfl") throw new UnsupportedBroadcastPoolError(`Unsupported broadcast sport: ${pool.sport}.`);
   if (!isSupportedNflBroadcastPool(pool)) throw new UnsupportedBroadcastPoolError(`Unsupported NFL broadcast pool type: ${type}.`);
   if (SURVIVOR_TYPES.has(type)) return survivor(pool);
   if (type === "pickem_season") return pickem(pool);

@@ -15,5 +15,17 @@ for (const division of NHL_DIVISION_MAP.values()) {
   }
 }
 export function nhlTeamPresentation(team: TeamRecord) {
-  return { name: team.name, abbr: team.abbreviation, logoUrl: getTeamLogoUrl("nhl", team) };
+  const espnLogoSlugs: Partial<Record<string, string>> = {
+    LAK: "la",
+    SJS: "sj",
+    TBL: "tb",
+  };
+  const logoSlug = espnLogoSlugs[team.abbreviation];
+  return {
+    name: team.name,
+    abbr: team.abbreviation,
+    logoUrl: logoSlug
+      ? `https://a.espncdn.com/i/teamlogos/nhl/500/${logoSlug}.png`
+      : getTeamLogoUrl("nhl", team),
+  };
 }

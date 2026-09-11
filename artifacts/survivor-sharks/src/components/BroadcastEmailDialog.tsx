@@ -18,10 +18,11 @@ const SUPPORTED_BROADCAST_POOL_TYPES = new Set([
   "nfl_confidence",
   "nfl_confidence_weekly",
   "nfl_division_predictor",
+  "nhl_division_predictor",
 ]);
 
 export function isBroadcastEmailSupported(sport: string | null | undefined, poolType: string | null | undefined): boolean {
-  return sport === "nfl" && !!poolType && SUPPORTED_BROADCAST_POOL_TYPES.has(poolType);
+  return (sport === "nfl" || sport === "nhl") && !!poolType && SUPPORTED_BROADCAST_POOL_TYPES.has(poolType);
 }
 
 interface BroadcastEmailDialogProps {

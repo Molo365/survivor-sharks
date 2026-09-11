@@ -20,6 +20,7 @@ import { InjuriesTab } from "@/components/InjuriesTab";
 import { PickEmView } from "@/components/PickEmView";
 import { GroupStagePredictorView } from "@/components/GroupStagePredictorView";
 import { NflDivisionPredictorView } from "@/components/NflDivisionPredictorView";
+import { NhlDivisionPredictorView } from "@/components/NhlDivisionPredictorView";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
@@ -61,6 +62,7 @@ export default function PoolHome() {
   const isPickEm = (pool?.poolType as string) === "pickem";
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
   const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
+  const isNhlNdp = (pool?.poolType as string) === "nhl_division_predictor";
   const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
@@ -236,6 +238,11 @@ export default function PoolHome() {
                       <ListOrdered className="w-3 h-3" /> Division Predictor
                     </span>
                   )}
+                  {isNhlNdp && (
+                    <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded">
+                      <ListOrdered className="w-3 h-3" /> NHL Division Predictor
+                    </span>
+                  )}
                   {isCrazyEights && (
                     <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded">
                       <Dice5 className="w-3 h-3" /> {pool.sport === "nhl" ? "Hit the Ice!" : "High Heat"}{(pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}
@@ -271,6 +278,11 @@ export default function PoolHome() {
                       <Zap className="w-2.5 h-2.5" /> Sandbox
                     </span>
                   )}
+                  {isNhlNdp && (pool as any).sandboxMode && (
+                    <span className="flex items-center gap-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
+                      <Zap className="w-2.5 h-2.5" /> Sandbox
+                    </span>
+                  )}
                   {(isNflConfidence || isNflConfidenceWeekly) && (pool as any).sandboxMode && replayStatusData?.active && (
                     <span className="flex items-center gap-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-bold tracking-widest text-[9px] uppercase">
                       🎬 Replay
@@ -288,7 +300,7 @@ export default function PoolHome() {
                       </span>
                     ) : (
                       <span className="font-bebas text-sm text-accent leading-none">
-                        {pool.activeCount}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
+                        {isNhlNdp ? pool.totalMembers : pool.activeCount}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
                       </span>
                     )}
                   </span>
@@ -309,10 +321,10 @@ export default function PoolHome() {
                 ) : (
                   <div className="bg-card border border-border/50 px-5 py-3 rounded-lg text-center shadow-sm">
                     <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
-                      <Users className="w-3 h-3" /> Alive
+                      <Users className="w-3 h-3" /> {isNhlNdp ? "Entries" : "Alive"}
                     </div>
                     <div className="font-bebas text-3xl text-accent">
-                      {pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
+                      {isNhlNdp ? pool.totalMembers : pool.activeCount} <span className="text-xl text-muted-foreground/60">/ {pool.totalMembers}</span>
                     </div>
                   </div>
                 )}
@@ -363,6 +375,8 @@ export default function PoolHome() {
               <GroupStagePredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} />
             ) : isNdp ? (
               <NflDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
+            ) : isNhlNdp ? (
+              <NhlDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
             ) : isCrazyEights ? (
               <div className="space-y-6">
               <Tabs defaultValue={!pool.isActive ? "leaderboard" : "picks"} className="w-full">

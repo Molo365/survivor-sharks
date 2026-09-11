@@ -116,6 +116,10 @@ router.post("/results", requireAuth, requireAdmin, async (req, res): Promise<voi
   const parsed = SubmitNhlNdpResultsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid NHL Division Predictor results payload" }); return; }
   const { results, tbActual } = parsed.data;
+  if (results.length === 0 && tbActual === undefined) {
+    res.status(400).json({ error: "At least one division result or the tiebreaker actual is required" });
+    return;
+  }
   if (!pool.isActive) { res.status(409).json({ error: "This pool is closed and cannot be regraded" }); return; }
   if (tbActual !== undefined && !Number.isInteger(tbActual)) {
     res.status(400).json({ error: "Tiebreaker actual must be a whole number" });
@@ -126,17 +130,19 @@ router.post("/results", requireAuth, requireAdmin, async (req, res): Promise<voi
     return;
   }
   for (const result of results) { const error = validateDivision(result.divisionName, teams(result)); if (error) { res.status(400).json({ error: `${result.divisionName}: ${error}` }); return; } }
-  await db.insert(nhlDivisionResultsTable).values(results.map((result) => ({ poolId: pool.id, ...result, enteredByUserId: req.user!.id }))).onConflictDoUpdate({
-    target: [nhlDivisionResultsTable.poolId, nhlDivisionResultsTable.divisionName],
-    set: {
-      pos1Team: sql`excluded.pos1_team`, pos2Team: sql`excluded.pos2_team`,
-      pos3Team: sql`excluded.pos3_team`, pos4Team: sql`excluded.pos4_team`,
-      pos5Team: sql`excluded.pos5_team`, pos6Team: sql`excluded.pos6_team`,
-      pos7Team: sql`excluded.pos7_team`, pos8Team: sql`excluded.pos8_team`,
-      enteredAt: new Date(),
-      enteredByUserId: req.user!.id,
-    },
-  });
+  if (results.length > 0) {
+    await db.insert(nhlDivisionResultsTable).values(results.map((result) => ({ poolId: pool.id, ...result, enteredByUserId: req.user!.id }))).onConflictDoUpdate({
+      target: [nhlDivisionResultsTable.poolId, nhlDivisionResultsTable.divisionName],
+      set: {
+        pos1Team: sql`excluded.pos1_team`, pos2Team: sql`excluded.pos2_team`,
+        pos3Team: sql`excluded.pos3_team`, pos4Team: sql`excluded.pos4_team`,
+        pos5Team: sql`excluded.pos5_team`, pos6Team: sql`excluded.pos6_team`,
+        pos7Team: sql`excluded.pos7_team`, pos8Team: sql`excluded.pos8_team`,
+        enteredAt: new Date(),
+        enteredByUserId: req.user!.id,
+      },
+    });
+  }
   if (tbActual !== undefined) {
     const members = await db.select({ userId: entriesTable.userId }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
     for (const member of members) await db.insert(nhlDivisionPredictorTiebreakersTable).values({ poolId: pool.id, userId: member.userId, tbActual }).onConflictDoUpdate({
@@ -155,27 +161,12 @@ router.post("/results", requireAuth, requireAdmin, async (req, res): Promise<voi
     const resultMap = new Map(saved.map((r) => [r.divisionName, r]));
     const tbRows = await db.select().from(nhlDivisionPredictorTiebreakersTable).where(eq(nhlDivisionPredictorTiebreakersTable.poolId, pool.id));
     const actual = tbRows.find((r) => r.tbActual != null)?.tbActual ?? null;
-    const picksByUser = new Map<number, typeof allPicks>();
-    for (const pick of allPicks) {
-      if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
-      picksByUser.get(pick.userId)!.push(pick);
-    }
-    const totals = members.map(({ userId }) => ({
-      userId,
-      score: (picksByUser.get(userId) ?? []).reduce((total, pick) => {
-        const result = resultMap.get(pick.divisionName);
-        return total + (result ? scoreNhlDivisionPositions(teams(result), teams(pick)) : 0);
-      }, 0),
-    }));
-    const topScore = Math.max(0, ...totals.map((entry) => entry.score));
-    const topScoreIsTied = totals.filter((entry) => entry.score === topScore).length > 1;
-    if (topScoreIsTied && actual === null) {
-      closureWarning = "All division results are saved, but the Atlantic combined-points actual is required to resolve the tied lead.";
+    if (actual === null) {
+      closureWarning = "All division results are saved, but the Atlantic combined-points actual is required before the pool can close.";
       res.json({ saved: saved.map(row), closedPool, closureWarning });
       return;
     }
     const resolveTie = async (ids: number[]) => {
-      if (actual == null) return ids;
       const guesses = new Map(tbRows.map((r) => [r.userId, r.tbGuess]));
       const diffs = ids.map((userId) => ({ userId, diff: guesses.get(userId) == null ? Infinity : Math.abs(guesses.get(userId)! - actual) }));
       const min = Math.min(...diffs.map((x) => x.diff));
@@ -202,13 +193,25 @@ router.get("/members/:userId/picks", requireAuth, async (req, res): Promise<void
 router.get("/leaderboard", requireAuth, async (req, res): Promise<void> => {
   const pool = await poolFor(req, res); if (!pool) return;
   const [members, picks, results, tb] = await Promise.all([
-    db.select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName, finalWinner: entriesTable.finalWinner }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, pool.id)),
+    db.select({
+      userId: entriesTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      finalWinner: entriesTable.finalWinner,
+      finishPosition: entriesTable.finishPosition,
+      prizeAmount: entriesTable.prizeAmount,
+    }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, pool.id)),
     db.select().from(nhlDivisionPredictorPicksTable).where(eq(nhlDivisionPredictorPicksTable.poolId, pool.id)), db.select().from(nhlDivisionResultsTable).where(eq(nhlDivisionResultsTable.poolId, pool.id)), db.select().from(nhlDivisionPredictorTiebreakersTable).where(eq(nhlDivisionPredictorTiebreakersTable.poolId, pool.id)),
   ]);
   const rm = new Map(results.map((r) => [r.divisionName, r])); const pm = new Map(picks.map((p) => [`${p.userId}:${p.divisionName}`, p])); const tm = new Map(tb.map((t) => [t.userId, t]));
   const actual = tb.find((t) => t.tbActual != null)?.tbActual ?? null;
-  const entries = members.map((m) => { let totalScore = 0; const divisionScores = NHL_DIVISIONS.map((d) => { const r = rm.get(d), p = pm.get(`${m.userId}:${d}`); const score = r && p ? scoreNhlDivisionPositions(teams(r), teams(p)) : 0; totalScore += score; return { divisionName: d, score, hasResult: !!r }; }); const t = tm.get(m.userId); return { ...m, displayName: m.displayName ?? null, totalScore, maxScore: 96, divisionScores, tbGuess: t?.tbGuess ?? null, tbActual: actual, tiebreakerDiff: t?.tbGuess != null && actual != null ? Math.abs(t.tbGuess - actual) : null }; }).sort((a, b) => b.totalScore - a.totalScore);
-  res.json({ entries: entries.map((e, i) => ({ ...e, rank: i + 1 })), tbActual: actual });
+  const entries = members.map((m) => { let totalScore = 0; const divisionScores = NHL_DIVISIONS.map((d) => { const r = rm.get(d), p = pm.get(`${m.userId}:${d}`); const score = r && p ? scoreNhlDivisionPositions(teams(r), teams(p)) : 0; totalScore += score; return { divisionName: d, score, hasResult: !!r }; }); const t = tm.get(m.userId); return { ...m, displayName: m.displayName ?? null, totalScore, maxScore: 96, divisionScores, tbGuess: t?.tbGuess ?? null, tbActual: actual, tiebreakerDiff: t?.tbGuess != null && actual != null ? Math.abs(t.tbGuess - actual) : null }; }).sort((a, b) =>
+    pool.isActive
+      ? b.totalScore - a.totalScore
+      : (a.finishPosition ?? Number.MAX_SAFE_INTEGER) - (b.finishPosition ?? Number.MAX_SAFE_INTEGER)
+        || b.totalScore - a.totalScore
+  );
+  res.json({ entries: entries.map((e, i) => ({ ...e, rank: e.finishPosition ?? i + 1 })), tbActual: actual });
 });
 
 router.get("/my-tiebreaker", requireAuth, async (req, res): Promise<void> => {

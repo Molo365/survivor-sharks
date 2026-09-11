@@ -1639,10 +1639,7 @@ export interface NhlNdpPicksInput {
 }
 
 export interface NhlNdpResultsInput {
-  /**
-     * @minItems 1
-     * @maxItems 4
-     */
+  /** @maxItems 4 */
   results: NhlNdpDivisionResult[];
   /**
      * Actual combined standings points for all eight Atlantic Division teams.
@@ -1705,6 +1702,10 @@ export interface NhlNdpLeaderboardEntry {
   maxScore: NhlNdpLeaderboardEntryMaxScore;
   divisionScores: NhlNdpDivisionScore[];
   finalWinner: boolean;
+  /** @nullable */
+  prizeAmount?: number | null;
+  /** @nullable */
+  finishPosition?: number | null;
   rank: number;
   /** @nullable */
   tbGuess?: number | null;

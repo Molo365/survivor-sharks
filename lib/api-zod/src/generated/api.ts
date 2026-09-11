@@ -2232,7 +2232,7 @@ export const SubmitNhlNdpResultsBody = zod.object({
   "pos6Team": zod.string(),
   "pos7Team": zod.string(),
   "pos8Team": zod.string()
-})).min(1).max(submitNhlNdpResultsBodyResultsMax),
+})).max(submitNhlNdpResultsBodyResultsMax),
   "tbActual": zod.number().min(submitNhlNdpResultsBodyTbActualMin).optional().describe('Actual combined standings points for all eight Atlantic Division teams.')
 })
 
@@ -2295,6 +2295,8 @@ export const GetNhlNdpLeaderboardResponse = zod.object({
   "hasResult": zod.boolean()
 })),
   "finalWinner": zod.boolean(),
+  "prizeAmount": zod.number().nullish(),
+  "finishPosition": zod.number().nullish(),
   "rank": zod.number(),
   "tbGuess": zod.number().nullish(),
   "tbActual": zod.number().nullish(),

@@ -91,7 +91,7 @@ const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s", "mlb_bracket"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
   [PoolInputSport.nba]: ["season", "nba_ats", "crazy_8s"],
-  [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s"],
+  [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s", "nhl_division_predictor"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
   superleague: ["season", "pickem"],
@@ -177,6 +177,18 @@ const POOL_TYPES = [
     badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
     cardClass:
       "border-green-500/30 bg-[linear-gradient(145deg,rgba(34,197,94,0.06)_0%,transparent_100%)]",
+  },
+  {
+    id: "nhl_division_predictor" as const,
+    label: "NHL Division Predictor",
+    icon: ListOrdered,
+    tagline: "Rank Every Team in Every Division",
+    description:
+      "Rank all 8 teams in the Atlantic, Metropolitan, Central, and Pacific divisions. Exact position earns 3 points; one position away earns 1 point. Max score: 96.",
+    badge: "NHL",
+    badgeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    cardClass:
+      "border-yellow-500/30 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,transparent_100%)]",
   },
   {
     id: "nfl_division_predictor" as const,
@@ -289,7 +301,7 @@ function StepHeader({
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "mlb_bracket", "nba_ats"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "nhl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "mlb_bracket", "nba_ats"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   isRecurring: z.boolean().optional(),
