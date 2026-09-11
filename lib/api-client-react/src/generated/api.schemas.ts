@@ -171,6 +171,19 @@ export interface PoolInput {
   prizeMode?: PoolInputPrizeMode;
   /** Ordered prize payouts. prizePot is auto-calculated as the sum. */
   prizeStructure?: PrizeEntry[];
+  /** NFL Pick-Em Season and NFL Confidence Season only: reserve a flat weekly bonus prize */
+  weeklyBonusEnabled?: boolean;
+  /**
+     * NFL season weekly bonus amount in dollars; only used when weeklyBonusEnabled is true
+     * @nullable
+     */
+  weeklyBonusAmount?: number | null;
+  /**
+     * Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true
+     * @minimum 1
+     * @nullable
+     */
+  weeklyBonusMinPlayers?: number | null;
 }
 
 export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];

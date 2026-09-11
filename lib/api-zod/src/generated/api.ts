@@ -252,6 +252,8 @@ export const createPoolBodyDoubleEliminationDefault = false;
 export const createPoolBodyPickFrequencyDefault = `weekly`;
 export const createPoolBodyIsRecurringDefault = false;
 export const createPoolBodyPrizeModeDefault = `fixed`;
+export const createPoolBodyWeeklyBonusEnabledDefault = false;
+
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
@@ -273,7 +275,10 @@ export const CreatePoolBody = zod.object({
   "prizeStructure": zod.array(zod.object({
   "place": zod.number().describe('Finishing position (1 = 1st place)'),
   "amount": zod.number().describe('Prize amount in dollars')
-})).optional().describe('Ordered prize payouts. prizePot is auto-calculated as the sum.')
+})).optional().describe('Ordered prize payouts. prizePot is auto-calculated as the sum.'),
+  "weeklyBonusEnabled": zod.boolean().default(createPoolBodyWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: reserve a flat weekly bonus prize'),
+  "weeklyBonusAmount": zod.number().nullish().describe('NFL season weekly bonus amount in dollars; only used when weeklyBonusEnabled is true'),
+  "weeklyBonusMinPlayers": zod.number().min(1).nullish().describe('Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true')
 })
 
 

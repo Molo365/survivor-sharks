@@ -311,8 +311,8 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const weeklyBonusEnabled = weeklyBonusEligible && requestedWeeklyBonusEnabled === true;
-  const weeklyBonusAmount = weeklyBonusEnabled ? Number(requestedWeeklyBonusAmount) : null;
-  const weeklyBonusMinPlayers = weeklyBonusEnabled ? Number(requestedWeeklyBonusMinPlayers) : null;
+  const weeklyBonusAmount = Number(requestedWeeklyBonusAmount);
+  const weeklyBonusMinPlayers = Number(requestedWeeklyBonusMinPlayers);
   if (weeklyBonusEnabled && (!Number.isFinite(weeklyBonusAmount) || weeklyBonusAmount <= 0)) {
     res.status(400).json({ error: "Weekly prize amount must be greater than $0" });
     return;
@@ -436,7 +436,7 @@ router.post("/", requireAuth, async (req, res) => {
       (sport === "nhl" && (resolvedPoolType === "season" || resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s"))
     ) ? isPreseason === true : false,
     weeklyBonusEnabled,
-    weeklyBonusAmount: weeklyBonusEnabled ? weeklyBonusAmount!.toFixed(2) : null,
+    weeklyBonusAmount: weeklyBonusEnabled ? weeklyBonusAmount.toFixed(2) : null,
     weeklyBonusMinPlayers: weeklyBonusEnabled ? weeklyBonusMinPlayers : null,
   }).returning();
 

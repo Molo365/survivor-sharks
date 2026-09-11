@@ -796,8 +796,8 @@ export default function CreatePool() {
     const cleanEntryFee =
       values.entryFee != null ? Math.round(values.entryFee) : undefined;
     const weeklyBonusIsEnabled = isWeeklyBonusEligible && values.weeklyBonusEnabled === true;
-    const cleanWeeklyBonusAmount = weeklyBonusIsEnabled ? Number(values.weeklyBonusAmount) : undefined;
-    const cleanWeeklyBonusMinPlayers = weeklyBonusIsEnabled ? Number(values.weeklyBonusMinPlayers) : undefined;
+    const cleanWeeklyBonusAmount = Number(values.weeklyBonusAmount ?? NaN);
+    const cleanWeeklyBonusMinPlayers = Number(values.weeklyBonusMinPlayers ?? NaN);
     if (weeklyBonusIsEnabled && (!Number.isFinite(cleanWeeklyBonusAmount) || cleanWeeklyBonusAmount <= 0)) {
       toast({
         variant: "destructive",
@@ -1689,6 +1689,104 @@ export default function CreatePool() {
                           <p className="text-sm text-muted-foreground">
                             Set to 0 or leave blank for a free pool
                           </p>
+                          {isWeeklyBonusEligible && (
+                            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4" data-testid="weekly-bonus-settings">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                  <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer">
+                                    Add a Weekly Bonus Prize?
+                                  </FormLabel>
+                                  <FormDescription className="text-xs leading-relaxed">
+                                    Adds a smaller weekly prize on top of your season-end prize, so players stay engaged even after a tough week.
+                                  </FormDescription>
+                                </div>
+                                <Switch
+                                  checked={watchedWeeklyBonusEnabled === true}
+                                  onCheckedChange={(checked) => form.setValue("weeklyBonusEnabled", checked)}
+                                  data-testid="toggle-weekly-bonus"
+                                />
+                              </div>
+
+                              {watchedWeeklyBonusEnabled === true && (
+                                <div className="space-y-4 border-t border-primary/20 pt-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <FormField
+                                      control={form.control}
+                                      name="weeklyBonusAmount"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel className="font-bebas text-base tracking-wide">Weekly prize amount</FormLabel>
+                                          <FormControl>
+                                            <div className="relative">
+                                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                                              <Input
+                                                type="number"
+                                                min="0.01"
+                                                step="0.01"
+                                                placeholder="25.00"
+                                                {...field}
+                                                value={field.value ?? ""}
+                                                className="bg-background/50 border-primary/20 pl-7"
+                                                data-testid="input-weekly-bonus-amount"
+                                              />
+                                            </div>
+                                          </FormControl>
+                                          <FormDescription className="text-xs">Flat amount reserved for each regular-season week</FormDescription>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name="weeklyBonusMinPlayers"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel className="font-bebas text-base tracking-wide">Minimum players required</FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              step="1"
+                                              placeholder="5"
+                                              {...field}
+                                              value={field.value ?? ""}
+                                              className="bg-background/50 border-primary/20"
+                                              data-testid="input-weekly-bonus-min-players"
+                                            />
+                                          </FormControl>
+                                          <FormDescription className="text-xs">Below this threshold, the winner gets bragging rights only</FormDescription>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+
+                                  <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
+                                    <div className="space-y-1.5 text-sm">
+                                      <div className="flex items-center justify-between gap-4">
+                                        <span className="text-muted-foreground">Reserved for {weeklyBonusWeeks} regular-season weeks</span>
+                                        <span className="font-semibold text-foreground">${weeklyBonusReserved.toFixed(2)}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-4">
+                                        <span className="text-muted-foreground">Season-end pot at {weeklyBonusMinPlayers || "chosen"} players</span>
+                                        <span className="font-semibold text-foreground">${weeklyBonusThresholdPot.toFixed(2)}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
+                                        <span className="text-muted-foreground">Left for season-end prizes</span>
+                                        <span className={cn("font-semibold", weeklyBonusSeasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
+                                          ${weeklyBonusSeasonEndRemaining.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                                      Informational guidance only — you can continue even if the reserved amount exceeds the threshold pot.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div className="flex justify-end">
                             <Button
                               type="button"
