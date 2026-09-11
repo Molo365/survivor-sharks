@@ -27,7 +27,7 @@ export type PoolStartDependencies = {
   sandboxStarted: (pool: PoolStartPool) => Promise<boolean>;
   /** A persisted pick/result/progression proves a pool has begun during outages. */
   persistedStarted: (pool: PoolStartPool) => Promise<boolean>;
-  /** Existing NDP lock resolver; null means no applicable NDP deadline. */
+  /** Division-predictor lock resolver; null means no applicable deadline. */
   ndpStarted?: (pool: PoolStartPool) => Promise<boolean | null>;
   mlbWeeklyDeadline?: (pool: PoolStartPool) => Date;
 };
@@ -64,7 +64,11 @@ export async function resolvePoolStart(
 
   if (!hasStarted && pool.sandboxMode) {
     hasStarted = await deps.sandboxStarted(pool);
-  } else if (!hasStarted && pool.poolType === "nfl_division_predictor" && deps.ndpStarted) {
+  } else if (
+    !hasStarted
+    && (pool.poolType === "nfl_division_predictor" || pool.poolType === "nhl_division_predictor")
+    && deps.ndpStarted
+  ) {
     hasStarted = (await deps.ndpStarted(pool)) ?? false;
   } else if (!hasStarted && pool.sport === "mlb" && pool.pickFrequency === "weekly" && deps.mlbWeeklyDeadline) {
     // Weekly MLB's authoritative lock is Monday 10PM ET. Daily pools are

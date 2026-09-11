@@ -8,6 +8,8 @@ import {
   entriesTable,
   nflDivisionPredictorPicksTable,
   nflDivisionResultsTable,
+  nhlDivisionPredictorPicksTable,
+  nhlDivisionResultsTable,
   groupStagePredictorPicksTable,
   groupStageResultsTable,
   wcBracketPicksTable,
@@ -32,6 +34,7 @@ import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/su
 import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
+import { scoreNhlDivisionPositions } from "../lib/nhl-scoring";
 
 const router = Router();
 
@@ -98,7 +101,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket", "crazy_8s", "nba_ats"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket", "crazy_8s", "nba_ats"];
 
 function computeRank<T extends { score: number }>(rows: T[], userId: number): number {
   if (rows.length === 0) return 0;
@@ -557,6 +560,90 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             eliminatedWeek: null,
             score: null,
             maxScore: null,
+          },
+          poolName: pool.name,
+          sport: pool.sport as string,
+          totalPlayers: memberCountMap.get(pool.id) ?? 0,
+        };
+      }
+
+      // ── NHL Division Predictor ──────────────────────────────────────────────
+      if (poolType === "nhl_division_predictor") {
+        const [allPicks, allResults] = await Promise.all([
+          db.select().from(nhlDivisionPredictorPicksTable).where(eq(nhlDivisionPredictorPicksTable.poolId, pool.id)),
+          db.select().from(nhlDivisionResultsTable).where(eq(nhlDivisionResultsTable.poolId, pool.id)),
+        ]);
+        const resultMap = new Map(allResults.map((result) => [result.divisionName, result]));
+        const picksByUser = new Map<number, typeof allPicks>();
+        for (const pick of allPicks) {
+          if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, []);
+          picksByUser.get(pick.userId)!.push(pick);
+        }
+        const positions = (value: typeof allPicks[number] | typeof allResults[number]) => [
+          value.pos1Team, value.pos2Team, value.pos3Team, value.pos4Team,
+          value.pos5Team, value.pos6Team, value.pos7Team, value.pos8Team,
+        ];
+        const scored = Array.from(picksByUser.entries()).map(([uid, picks]) => ({
+          userId: uid,
+          total: picks.reduce((total, pick) => {
+            const result = resultMap.get(pick.divisionName);
+            return total + (result ? scoreNhlDivisionPositions(positions(result), positions(pick)) : 0);
+          }, 0),
+        })).sort((a, b) => b.total - a.total);
+        const myRow = scored.find((entry) => entry.userId === userId) ?? null;
+        const scoringStarted = allResults.length > 0;
+        const scoreRows = scored.map((entry) => ({ ...entry, score: entry.total }));
+        const myRank = scoringStarted && myRow ? computeRank(scoreRows, userId) : 0;
+        const [winnerRows, myPersistedEntry] = !pool.isActive
+          ? await Promise.all([
+              db
+              .select({
+                userId: entriesTable.userId,
+                username: usersTable.username,
+                displayName: usersTable.displayName,
+                prizeAmount: entriesTable.prizeAmount,
+              })
+              .from(entriesTable)
+              .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+              .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.finalWinner, true))),
+              db.select({
+                finishPosition: entriesTable.finishPosition,
+                prizeAmount: entriesTable.prizeAmount,
+              }).from(entriesTable).where(and(
+                eq(entriesTable.poolId, pool.id),
+                eq(entriesTable.userId, userId),
+              )).limit(1).then((rows) => rows[0] ?? null),
+            ])
+          : [[], null];
+        const scoreMap = new Map(scored.map((entry) => [entry.userId, entry.total]));
+        const lastWinners = winnerRows.length > 0
+          ? winnerRows.map((winner) => ({
+              userId: winner.userId,
+              username: winner.username,
+              displayName: winner.displayName ?? null,
+              score: scoreMap.get(winner.userId) ?? null,
+              correct: null,
+              picked: null,
+              prizeWon: winner.prizeAmount ?? null,
+            }))
+          : null;
+
+        return {
+          poolId: pool.id,
+          isActive: pool.isActive,
+          poolType,
+          lastWinners,
+          myStanding: {
+            rank: myPersistedEntry?.finishPosition ?? myRank,
+            isTied: pool.isActive && scoringStarted && myRow ? computeIsTied(scoreRows, userId) : false,
+            correct: 0,
+            picked: 0,
+            hasPicks: picksByUser.has(userId),
+            status: null,
+            eliminatedWeek: null,
+            score: myRow?.total ?? null,
+            maxScore: 96,
+            prizeWon: myPersistedEntry?.prizeAmount ?? null,
           },
           poolName: pool.name,
           sport: pool.sport as string,

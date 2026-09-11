@@ -764,6 +764,10 @@ const seasonTypeEndCache = new Map<string, {
   expiresAt: number;
   lastGameDate: string;
 }>();
+const seasonTypeStartCache = new Map<string, {
+  expiresAt: number;
+  firstGameDate: string;
+}>();
 
 /**
  * Return the latest scheduled game of the requested season type for an NHL or
@@ -827,6 +831,62 @@ export async function fetchLastSeasonTypeGameDate(
   } catch {
     return null;
   }
+}
+
+/**
+ * Return the earliest authoritative NHL game for a season type.
+ * All team schedules must be available so an incomplete ESPN response cannot
+ * move the predictor lock later than the actual opener.
+ */
+export async function fetchFirstNhlSeasonTypeGameDate(
+  poolSeasonYear: number,
+  seasonType: number,
+): Promise<string | null> {
+  // NHL pools use the season's start year, while ESPN keys NHL seasons by
+  // their ending year (the 2026-27 season is ESPN season=2027).
+  const espnSeasonYear = getNhlEspnSeasonYear(poolSeasonYear);
+  const cacheKey = `nhl:${espnSeasonYear}:${seasonType}`;
+  const cached = seasonTypeStartCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.firstGameDate;
+
+  try {
+    const schedules = await Promise.all(ESPN_TEAMS.nhl.map(async (team) => {
+      const response = await fetch(
+        `${ESPN_ENDPOINTS.nhl}/teams/${team.id}/schedule?season=${espnSeasonYear}`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+      if (!response.ok) throw new Error(`ESPN nhl schedule ${response.status}`);
+      return response.json() as Promise<{ events?: TeamScheduleEvent[] }>;
+    }));
+    if (schedules.some((schedule) => !Array.isArray(schedule.events))) return null;
+
+    const dates = schedules.flatMap((schedule) =>
+      schedule.events!
+        .filter((event) =>
+          event.seasonType?.type === seasonType
+          && (event.season?.year == null || event.season.year === espnSeasonYear)
+          && event.date != null
+          && Number.isFinite(new Date(event.date).getTime()),
+        )
+        .map((event) => event.date!),
+    );
+    if (dates.length === 0) return null;
+
+    const firstGameDate = dates.reduce((earliest, date) =>
+      new Date(date).getTime() < new Date(earliest).getTime() ? date : earliest,
+    );
+    seasonTypeStartCache.set(cacheKey, {
+      expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+      firstGameDate,
+    });
+    return firstGameDate;
+  } catch {
+    return null;
+  }
+}
+
+export function getNhlEspnSeasonYear(poolSeasonYear: number): number {
+  return poolSeasonYear + 1;
 }
 
 export async function fetchLastRegularSeasonGameDate(
@@ -1341,6 +1401,53 @@ export async function fetchNflDivisionStandings(): Promise<NflDivisionStandingsG
     if (_nflStandingsCache) return _nflStandingsCache.data;
     return [];
   }
+}
+
+export interface NhlDivisionStandingsTeam {
+  id: string; displayName: string; abbreviation: string; logo: string | null;
+  wins: number; losses: number; otLosses: number; points: number;
+}
+export interface NhlDivisionStandingsGroup { divisionName: string; teams: NhlDivisionStandingsTeam[]; }
+const NHL_STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/hockey/nhl/standings?level=3";
+const NHL_STANDINGS_TTL_MS = 5 * 60 * 1000;
+let _nhlStandingsCache: { data: NhlDivisionStandingsGroup[]; fetchedAt: number } | null = null;
+
+/** Strict NHL standings parser. Invalid feeds fail rather than creating zero-valued results. */
+export async function fetchNhlDivisionStandings(): Promise<NhlDivisionStandingsGroup[]> {
+  const now = Date.now();
+  if (_nhlStandingsCache && now - _nhlStandingsCache.fetchedAt < NHL_STANDINGS_TTL_MS) return _nhlStandingsCache.data;
+  const res = await fetch(NHL_STANDINGS_URL, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`ESPN NHL standings HTTP ${res.status}`);
+  const raw = await res.json() as { children?: Array<{ name?: string; children?: Array<{ name?: string; standings?: { entries?: Array<{ team?: { id?: string; displayName?: string; abbreviation?: string; logos?: { href?: string }[] }; stats?: Array<{ name?: string; value?: number }> }> } }> }> };
+  if (!Array.isArray(raw.children)) throw new Error("Malformed ESPN NHL standings: missing conferences");
+  const expectedDivisions = ["Atlantic", "Metropolitan", "Central", "Pacific"] as const;
+  const groups: NhlDivisionStandingsGroup[] = [];
+  for (const conf of raw.children) for (const div of conf.children ?? []) {
+    if (!div.name || !Array.isArray(div.standings?.entries)) throw new Error("Malformed ESPN NHL standings: missing division entries");
+    const divisionName = div.name.replace(/\s+Division$/, "");
+    if (!(expectedDivisions as readonly string[]).includes(divisionName)) {
+      throw new Error(`Malformed ESPN NHL standings: unexpected division ${div.name}`);
+    }
+    const teams = div.standings.entries.map((entry) => {
+      const team = entry.team; const stats = entry.stats;
+      const stat = (name: string) => stats?.find((s) => s.name === name)?.value;
+      if (!team?.id || !team.displayName || !team.abbreviation || !stats) throw new Error("Malformed ESPN NHL standings: missing team");
+      const wins = stat("wins"), losses = stat("losses"), otLosses = stat("otLosses"), points = stat("points");
+      if (![wins, losses, otLosses, points].every((v) => typeof v === "number" && Number.isFinite(v))) throw new Error(`Malformed ESPN NHL standings values for ${team.displayName}`);
+      return { id: team.id, displayName: team.displayName, abbreviation: team.abbreviation, logo: team.logos?.[0]?.href ?? null, wins: wins!, losses: losses!, otLosses: otLosses!, points: points! };
+    }).sort((a, b) => b.points - a.points);
+    groups.push({ divisionName, teams });
+  }
+  if (
+    groups.length !== 4
+    || new Set(groups.map((group) => group.divisionName)).size !== 4
+    || groups.some((group) => group.teams.length !== 8)
+  ) {
+    throw new Error("Malformed ESPN NHL standings: expected four divisions of eight");
+  }
+  const ordered = expectedDivisions.map((name) => groups.find((group) => group.divisionName === name)!);
+  _nhlStandingsCache = { data: ordered, fetchedAt: now };
+  return ordered;
 }
 
 // ---------------------------------------------------------------------------

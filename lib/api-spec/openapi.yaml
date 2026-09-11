@@ -1683,6 +1683,275 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ── NHL Division Predictor ───────────────────────────────────────────────
+  /pools/{poolId}/nhl-ndp/lock-state:
+    get:
+      operationId: getNhlNdpLockState
+      tags: [nhl-ndp]
+      summary: Get the NHL Division Predictor pick lock
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Current NHL Division Predictor lock state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhlNdpLockState"
+        "400":
+          description: Not an NHL Division Predictor pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/divisions:
+    get:
+      operationId: getNhlNdpDivisions
+      tags: [nhl-ndp]
+      summary: Get NHL divisions with team metadata, picks, and results
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Four NHL divisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NhlNdpDivisionWithPick"
+        "404":
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/picks:
+    post:
+      operationId: submitNhlNdpPicks
+      tags: [nhl-ndp]
+      summary: Submit all four NHL division rankings and tiebreaker guess
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NhlNdpPicksInput"
+      responses:
+        "200":
+          description: Saved NHL division picks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NhlNdpPick"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: Picks locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhlNdpLockedError"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Pool is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/results:
+    get:
+      operationId: getNhlNdpResults
+      tags: [nhl-ndp]
+      summary: Get NHL Division Predictor results
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Entered division results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NhlNdpDivisionResult"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: submitNhlNdpResults
+      tags: [nhl-ndp]
+      summary: Admin entry of NHL Division Predictor results
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NhlNdpResultsInput"
+      responses:
+        "200":
+          description: Saved results and closure state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhlNdpResultsResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Pool is already closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/members/{userId}/picks:
+    get:
+      operationId: getNhlNdpMemberPicks
+      tags: [nhl-ndp]
+      summary: Get a member's NHL division rankings
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member rankings when visible
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NhlNdpPick"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/leaderboard:
+    get:
+      operationId: getNhlNdpLeaderboard
+      tags: [nhl-ndp]
+      summary: Get the NHL Division Predictor leaderboard
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Ranked NHL predictor entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhlNdpLeaderboardResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/my-tiebreaker:
+    get:
+      operationId: getNhlNdpMyTiebreaker
+      tags: [nhl-ndp]
+      summary: Get the current user's Atlantic combined-points guess
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Tiebreaker guess and actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhlNdpMyTiebreaker"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /pools/{poolId}/nhl-ndp/live-standings:
+    get:
+      operationId: getNhlNdpLiveStandings
+      tags: [nhl-ndp]
+      summary: Get live ESPN NHL division standings
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Four divisions with eight teams each
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NhlDivisionStandingsGroup"
+        "503":
+          description: ESPN standings unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a pool member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── NFL Division Predictor ───────────────────────────────────────────────
   /pools/{poolId}/ndp/lock-state:
     get:
@@ -2313,6 +2582,13 @@ paths:
                     type: integer
 
 components:
+  parameters:
+    PoolId:
+      name: poolId
+      in: path
+      required: true
+      schema:
+        type: integer
   schemas:
     MaintenanceStatus:
       type: object
@@ -2456,7 +2732,7 @@ components:
           enum: [nfl, mlb, nba, nhl, fifa, worldcup, intl, mls, superleague, championsleague]
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, nhl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
           default: season
         startWeek:
           type: integer
@@ -2522,7 +2798,7 @@ components:
           type: boolean
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, nhl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         startWeek:
           type: integer
         doubleElimination:
@@ -2671,7 +2947,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, nhl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         startWeek:
           type: ["integer", "null"]
         initialPeriodStart:
@@ -2748,7 +3024,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, nhl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         startWeek:
           type: ["integer", "null"]
         initialPeriodStart:
@@ -2828,7 +3104,7 @@ components:
           type: string
         poolType:
           type: string
-          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
+          enum: [season, weekly, mid_season, pickem, group_stage_predictor, pickem_season, nfl_division_predictor, nhl_division_predictor, dirty_dozen, crazy_8s, nfl_confidence, nfl_confidence_weekly, wc_bracket, mlb_bracket]
         currentWeek:
           type: integer
         season:
@@ -4174,6 +4450,187 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GspLiveStandingsTeam"
+
+    NhlNdpTeam:
+      type: object
+      required: [name, abbr, logoUrl]
+      properties:
+        name: { type: string }
+        abbr: { type: string }
+        logoUrl: { type: string }
+
+    NhlNdpPick:
+      type: object
+      required: [divisionName, pos1Team, pos2Team, pos3Team, pos4Team, pos5Team, pos6Team, pos7Team, pos8Team]
+      properties:
+        divisionName: { type: string, enum: [Atlantic, Metropolitan, Central, Pacific] }
+        pos1Team: { type: string }
+        pos2Team: { type: string }
+        pos3Team: { type: string }
+        pos4Team: { type: string }
+        pos5Team: { type: string }
+        pos6Team: { type: string }
+        pos7Team: { type: string }
+        pos8Team: { type: string }
+
+    NhlNdpDivisionResult:
+      allOf:
+        - $ref: "#/components/schemas/NhlNdpPick"
+
+    NhlNdpDivisionWithPick:
+      type: object
+      required: [name, shortName, teams, myPick, actualResult]
+      properties:
+        name: { type: string, enum: [Atlantic, Metropolitan, Central, Pacific] }
+        shortName: { type: string }
+        teams:
+          type: array
+          minItems: 8
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/NhlNdpTeam"
+        myPick:
+          oneOf:
+            - $ref: "#/components/schemas/NhlNdpPick"
+            - type: "null"
+        actualResult:
+          oneOf:
+            - $ref: "#/components/schemas/NhlNdpDivisionResult"
+            - type: "null"
+
+    NhlNdpPicksInput:
+      type: object
+      required: [picks, tbGuess]
+      properties:
+        picks:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/NhlNdpPick"
+        tbGuess:
+          type: integer
+          minimum: 0
+          description: Predicted combined standings points for all eight Atlantic Division teams.
+
+    NhlNdpResultsInput:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/NhlNdpDivisionResult"
+        tbActual:
+          type: integer
+          minimum: 0
+          description: Actual combined standings points for all eight Atlantic Division teams.
+
+    NhlNdpResultsResponse:
+      type: object
+      required: [saved, closedPool]
+      properties:
+        saved:
+          type: array
+          items:
+            $ref: "#/components/schemas/NhlNdpDivisionResult"
+        closedPool: { type: boolean }
+        closureWarning: { type: string }
+
+    NhlNdpLockState:
+      type: object
+      required: [poolId, season, lockAt, locked, source]
+      properties:
+        poolId: { type: integer }
+        season: { type: integer }
+        lockAt:
+          type: ["string", "null"]
+          format: date-time
+        locked: { type: boolean }
+        source:
+          type: string
+          enum: [espn, cache, fallback, sandbox]
+
+    NhlNdpLockedError:
+      type: object
+      required: [error, locked]
+      properties:
+        error: { type: string }
+        lockAt:
+          type: ["string", "null"]
+          format: date-time
+        locked: { type: boolean }
+
+    NhlNdpDivisionScore:
+      type: object
+      required: [divisionName, score, hasResult]
+      properties:
+        divisionName: { type: string }
+        score: { type: integer }
+        hasResult: { type: boolean }
+
+    NhlNdpLeaderboardEntry:
+      type: object
+      required: [userId, username, totalScore, maxScore, divisionScores, finalWinner, rank]
+      properties:
+        userId: { type: integer }
+        username: { type: string }
+        displayName: { type: ["string", "null"] }
+        totalScore: { type: integer }
+        maxScore: { type: integer, enum: [96] }
+        divisionScores:
+          type: array
+          items:
+            $ref: "#/components/schemas/NhlNdpDivisionScore"
+        finalWinner: { type: boolean }
+        rank: { type: integer }
+        tbGuess: { type: ["integer", "null"] }
+        tbActual: { type: ["integer", "null"] }
+        tiebreakerDiff: { type: ["integer", "null"] }
+
+    NhlNdpLeaderboardResponse:
+      type: object
+      required: [entries, tbActual]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NhlNdpLeaderboardEntry"
+        tbActual: { type: ["integer", "null"] }
+
+    NhlNdpMyTiebreaker:
+      type: object
+      required: [tbGuess, tbActual]
+      properties:
+        tbGuess: { type: ["integer", "null"] }
+        tbActual: { type: ["integer", "null"] }
+
+    NhlDivisionStandingsTeam:
+      type: object
+      required: [id, displayName, abbreviation, logo, wins, losses, otLosses, points]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        abbreviation: { type: string }
+        logo: { type: ["string", "null"] }
+        wins: { type: number }
+        losses: { type: number }
+        otLosses: { type: number }
+        points: { type: number }
+
+    NhlDivisionStandingsGroup:
+      type: object
+      required: [divisionName, teams]
+      properties:
+        divisionName: { type: string }
+        teams:
+          type: array
+          minItems: 8
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/NhlDivisionStandingsTeam"
 
     NdpTeam:
       type: object

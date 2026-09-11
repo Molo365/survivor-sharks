@@ -6,6 +6,7 @@ import {
   picksTable,
   pickemPicksTable,
   nflDivisionPredictorPicksTable,
+  nhlDivisionPredictorPicksTable,
   wcBracketPicksTable,
   mlbBracketPicksTable,
   groupStagePredictorPicksTable,
@@ -276,6 +277,26 @@ router.get("/summary", requireAuth, async (req, res) => {
           ...base,
           pickStatus: (hasAny ? "submitted" : "pending") as PickStatus,
           summary: hasAny ? "All divisions predicted" : "Divisions not yet predicted",
+        };
+      }
+
+      // ── NHL Division Predictor ─────────────────────────────────────────────
+      if (poolType === "nhl_division_predictor") {
+        const [countRow] = await db
+          .select({ cnt: count() })
+          .from(nhlDivisionPredictorPicksTable)
+          .where(
+            and(
+              eq(nhlDivisionPredictorPicksTable.poolId, pool.id),
+              eq(nhlDivisionPredictorPicksTable.userId, userId),
+            ),
+          );
+
+        const complete = Number(countRow?.cnt ?? 0) >= 4;
+        return {
+          ...base,
+          pickStatus: (complete ? "submitted" : "pending") as PickStatus,
+          summary: complete ? "All divisions predicted" : "Divisions not yet predicted",
         };
       }
 

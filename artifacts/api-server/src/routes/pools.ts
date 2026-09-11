@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable, weekResultsTable, mlbBracketResultsTable, wcBracketResultsTable, groupStageResultsTable, nflConfidenceResultsTable, nflDivisionResultsTable } from "@workspace/db";
+import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable, weekResultsTable, mlbBracketResultsTable, wcBracketResultsTable, groupStageResultsTable, nflConfidenceResultsTable, nflDivisionResultsTable, nhlDivisionResultsTable } from "@workspace/db";
 import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
@@ -17,6 +17,7 @@ import {
 } from "../lib/espn";
 import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
+import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
@@ -55,7 +56,7 @@ async function getPoolStartState(pool: PoolRow) {
     persistedStarted: async (candidate) => {
       // Pending picks/predictions are deliberately excluded: they can be made
       // before kickoff. Only grading/progression records survive an outage.
-      const [[survivorPick], [weekResult], [mlbBracketResult], [wcBracketResult], [groupResult], [confidenceResult], [divisionResult], [entryEvidence]] = await Promise.all([
+      const [[survivorPick], [weekResult], [mlbBracketResult], [wcBracketResult], [groupResult], [confidenceResult], [divisionResult], [nhlDivisionResult], [entryEvidence]] = await Promise.all([
         db.select({ n: count() }).from(picksTable).where(and(eq(picksTable.poolId, candidate.id), ne(picksTable.result, "pending"))),
         db.select({ n: count() }).from(weekResultsTable).where(eq(weekResultsTable.poolId, candidate.id)),
         db.select({ n: count() }).from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, candidate.id)),
@@ -63,12 +64,13 @@ async function getPoolStartState(pool: PoolRow) {
         db.select({ n: count() }).from(groupStageResultsTable).where(eq(groupStageResultsTable.poolId, candidate.id)),
         db.select({ n: count() }).from(nflConfidenceResultsTable).where(eq(nflConfidenceResultsTable.poolId, candidate.id)),
         db.select({ n: count() }).from(nflDivisionResultsTable).where(eq(nflDivisionResultsTable.poolId, candidate.id)),
+        db.select({ n: count() }).from(nhlDivisionResultsTable).where(eq(nhlDivisionResultsTable.poolId, candidate.id)),
         db.select({ n: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, candidate.id), or(isNotNull(entriesTable.eliminatedWeek), eq(entriesTable.finalWinner, true), isNotNull(entriesTable.finishPosition)))),
       ]);
       return Number(survivorPick.n) > 0 || Number(weekResult.n) > 0 ||
         Number(mlbBracketResult.n) > 0 || Number(wcBracketResult.n) > 0 ||
         Number(groupResult.n) > 0 || Number(confidenceResult.n) > 0 ||
-        Number(divisionResult.n) > 0 ||
+        Number(divisionResult.n) > 0 || Number(nhlDivisionResult.n) > 0 ||
         Number(entryEvidence.n) > 0 ||
         candidate.currentWeek > (candidate.startWeek ?? 1);
     },
@@ -79,7 +81,11 @@ async function getPoolStartState(pool: PoolRow) {
       ));
       return Number(row.n) > 0;
     },
-    ndpStarted: async (candidate) => (await getNdpLockState(candidate.season, candidate.sandboxMode)).locked,
+    ndpStarted: async (candidate) => (
+      candidate.poolType === "nhl_division_predictor"
+        ? getNhlNdpLockState(candidate.season, candidate.sandboxMode)
+        : getNdpLockState(candidate.season, candidate.sandboxMode)
+    ).then((state) => state.locked),
     mlbWeeklyDeadline: (candidate) => getMlbWeekBounds(candidate.createdAt, candidate.currentWeek).deadline,
     gamesFor: async (candidate, kind) => {
       if (kind === "nfl") {
@@ -756,6 +762,12 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
       .select({ n: count() })
       .from(nflDivisionPredictorPicksTable)
       .where(and(eq(nflDivisionPredictorPicksTable.poolId, poolId), ne(nflDivisionPredictorPicksTable.userId, pool.commissionerId)));
+    hasOtherPicks = Number(row.n) > 0;
+  } else if (pt === "nhl_division_predictor") {
+    const [row] = await db
+      .select({ n: count() })
+      .from(nhlDivisionPredictorPicksTable)
+      .where(and(eq(nhlDivisionPredictorPicksTable.poolId, poolId), ne(nhlDivisionPredictorPicksTable.userId, pool.commissionerId)));
     hasOtherPicks = Number(row.n) > 0;
   } else if (pt === "group_stage_predictor") {
     const [row] = await db

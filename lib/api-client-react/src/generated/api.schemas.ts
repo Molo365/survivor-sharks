@@ -118,6 +118,7 @@ export const PoolInputPoolType = {
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
   nfl_division_predictor: 'nfl_division_predictor',
+  nhl_division_predictor: 'nhl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
@@ -183,6 +184,7 @@ export const PoolUpdatePoolType = {
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
   nfl_division_predictor: 'nfl_division_predictor',
+  nhl_division_predictor: 'nhl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
@@ -326,6 +328,7 @@ export const PoolPoolType = {
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
   nfl_division_predictor: 'nfl_division_predictor',
+  nhl_division_predictor: 'nhl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
@@ -411,6 +414,7 @@ export const PoolDetailPoolType = {
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
   nfl_division_predictor: 'nfl_division_predictor',
+  nhl_division_predictor: 'nhl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
@@ -516,6 +520,7 @@ export const PastPoolPoolType = {
   group_stage_predictor: 'group_stage_predictor',
   pickem_season: 'pickem_season',
   nfl_division_predictor: 'nfl_division_predictor',
+  nhl_division_predictor: 'nhl_division_predictor',
   dirty_dozen: 'dirty_dozen',
   crazy_8s: 'crazy_8s',
   nfl_confidence: 'nfl_confidence',
@@ -1566,6 +1571,181 @@ export interface GspLiveStandingsGroup {
   groupLetter: string;
   displayName: string;
   teams: GspLiveStandingsTeam[];
+}
+
+export interface NhlNdpTeam {
+  name: string;
+  abbr: string;
+  logoUrl: string;
+}
+
+export type NhlNdpPickDivisionName = typeof NhlNdpPickDivisionName[keyof typeof NhlNdpPickDivisionName];
+
+
+export const NhlNdpPickDivisionName = {
+  Atlantic: 'Atlantic',
+  Metropolitan: 'Metropolitan',
+  Central: 'Central',
+  Pacific: 'Pacific',
+} as const;
+
+export interface NhlNdpPick {
+  divisionName: NhlNdpPickDivisionName;
+  pos1Team: string;
+  pos2Team: string;
+  pos3Team: string;
+  pos4Team: string;
+  pos5Team: string;
+  pos6Team: string;
+  pos7Team: string;
+  pos8Team: string;
+}
+
+export type NhlNdpDivisionResult = NhlNdpPick;
+
+export type NhlNdpDivisionWithPickName = typeof NhlNdpDivisionWithPickName[keyof typeof NhlNdpDivisionWithPickName];
+
+
+export const NhlNdpDivisionWithPickName = {
+  Atlantic: 'Atlantic',
+  Metropolitan: 'Metropolitan',
+  Central: 'Central',
+  Pacific: 'Pacific',
+} as const;
+
+export interface NhlNdpDivisionWithPick {
+  name: NhlNdpDivisionWithPickName;
+  shortName: string;
+  /**
+     * @minItems 8
+     * @maxItems 8
+     */
+  teams: NhlNdpTeam[];
+  myPick: NhlNdpPick | null;
+  actualResult: NhlNdpDivisionResult | null;
+}
+
+export interface NhlNdpPicksInput {
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
+  picks: NhlNdpPick[];
+  /**
+     * Predicted combined standings points for all eight Atlantic Division teams.
+     * @minimum 0
+     */
+  tbGuess: number;
+}
+
+export interface NhlNdpResultsInput {
+  /**
+     * @minItems 1
+     * @maxItems 4
+     */
+  results: NhlNdpDivisionResult[];
+  /**
+     * Actual combined standings points for all eight Atlantic Division teams.
+     * @minimum 0
+     */
+  tbActual?: number;
+}
+
+export interface NhlNdpResultsResponse {
+  saved: NhlNdpDivisionResult[];
+  closedPool: boolean;
+  closureWarning?: string;
+}
+
+export type NhlNdpLockStateSource = typeof NhlNdpLockStateSource[keyof typeof NhlNdpLockStateSource];
+
+
+export const NhlNdpLockStateSource = {
+  espn: 'espn',
+  cache: 'cache',
+  fallback: 'fallback',
+  sandbox: 'sandbox',
+} as const;
+
+export interface NhlNdpLockState {
+  poolId: number;
+  season: number;
+  /** @nullable */
+  lockAt: string | null;
+  locked: boolean;
+  source: NhlNdpLockStateSource;
+}
+
+export interface NhlNdpLockedError {
+  error: string;
+  /** @nullable */
+  lockAt?: string | null;
+  locked: boolean;
+}
+
+export interface NhlNdpDivisionScore {
+  divisionName: string;
+  score: number;
+  hasResult: boolean;
+}
+
+export type NhlNdpLeaderboardEntryMaxScore = typeof NhlNdpLeaderboardEntryMaxScore[keyof typeof NhlNdpLeaderboardEntryMaxScore];
+
+
+export const NhlNdpLeaderboardEntryMaxScore = {
+  NUMBER_96: 96,
+} as const;
+
+export interface NhlNdpLeaderboardEntry {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  totalScore: number;
+  maxScore: NhlNdpLeaderboardEntryMaxScore;
+  divisionScores: NhlNdpDivisionScore[];
+  finalWinner: boolean;
+  rank: number;
+  /** @nullable */
+  tbGuess?: number | null;
+  /** @nullable */
+  tbActual?: number | null;
+  /** @nullable */
+  tiebreakerDiff?: number | null;
+}
+
+export interface NhlNdpLeaderboardResponse {
+  entries: NhlNdpLeaderboardEntry[];
+  /** @nullable */
+  tbActual: number | null;
+}
+
+export interface NhlNdpMyTiebreaker {
+  /** @nullable */
+  tbGuess: number | null;
+  /** @nullable */
+  tbActual: number | null;
+}
+
+export interface NhlDivisionStandingsTeam {
+  id: string;
+  displayName: string;
+  abbreviation: string;
+  /** @nullable */
+  logo: string | null;
+  wins: number;
+  losses: number;
+  otLosses: number;
+  points: number;
+}
+
+export interface NhlDivisionStandingsGroup {
+  divisionName: string;
+  /**
+     * @minItems 8
+     * @maxItems 8
+     */
+  teams: NhlDivisionStandingsTeam[];
 }
 
 export interface NdpTeam {

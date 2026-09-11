@@ -3,6 +3,7 @@ import { entriesTable, poolsTable } from "@workspace/db";
 import { eq, and, inArray, count } from "drizzle-orm";
 import type { Logger } from "pino";
 import { calcPrize } from "./prizeCalc";
+export { scoreNhlDivisionPositions } from "./nhl-scoring";
 
 /**
  * FIFA World Cup 2026 has 12 groups (A–L).
@@ -46,6 +47,7 @@ interface PositionResult {
   pos2Team: string;
   pos3Team: string;
   pos4Team: string;
+  [key: `pos${number}Team`]: string;
 }
 
 interface PositionPick extends PositionResult {
@@ -81,8 +83,11 @@ export async function closePredictorPool<P extends PositionPick>(params: {
   /** Optional tiebreaker resolver — called when multiple users share the top score.
    *  Returns the narrowed winner set (same length = still tied, smaller = resolved). */
   resolveTie?: (tiedUserIds: number[]) => Promise<number[]>;
+  /** Optional sport-specific scorer. Defaults to the legacy NFL/GSP scorer. */
+  scorer?: (actual: string[], predicted: string[]) => number;
 }): Promise<ClosureOutcome> {
-  const { poolId, resultMap, allPicks, memberUserIds, getPickKey, log, resolveTie } = params;
+  const { poolId, resultMap, allPicks, memberUserIds, getPickKey, log, resolveTie, scorer = (actual, predicted) =>
+    scorePositions(actual.slice(0, 4) as PositionTuple, predicted.slice(0, 4) as PositionTuple) } = params;
 
   if (memberUserIds.length === 0) {
     log.warn({ poolId }, "closePredictorPool: pool has no members — skipping closure");
@@ -101,10 +106,11 @@ export async function closePredictorPool<P extends PositionPick>(params: {
     for (const pick of picks) {
       const result = resultMap.get(getPickKey(pick));
       if (result) {
-        total += scorePositions(
-          [result.pos1Team, result.pos2Team, result.pos3Team, result.pos4Team],
-          [pick.pos1Team, pick.pos2Team, pick.pos3Team, pick.pos4Team],
-        );
+        const positions = (value: PositionResult) => Object.keys(value)
+          .filter((key) => /^pos\d+Team$/.test(key))
+          .sort((a, b) => Number(a.slice(3, -4)) - Number(b.slice(3, -4)))
+          .map((key) => value[key as keyof PositionResult] as string);
+        total += scorer(positions(result), positions(pick));
       }
     }
     return { userId: uid, total };

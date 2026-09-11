@@ -211,7 +211,7 @@ export const ListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "initialPeriodStart": zod.coerce.date().nullish(),
   "description": zod.string().nullish(),
@@ -256,7 +256,7 @@ export const createPoolBodyPrizeModeDefault = `fixed`;
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
   "sport": zod.enum(['nfl', 'mlb', 'nba', 'nhl', 'fifa', 'worldcup', 'intl', 'mls', 'superleague', 'championsleague']),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).default(createPoolBodyPoolTypeDefault),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).default(createPoolBodyPoolTypeDefault),
   "startWeek": zod.number().optional().describe('Starting week for mid_season pools (required when poolType is mid_season)'),
   "initialPeriodStart": zod.coerce.date().optional().describe('MLB weekly Pick-Em only: Monday calendar date for the pool\'s first period'),
   "description": zod.string().optional(),
@@ -289,7 +289,7 @@ export const JoinPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "initialPeriodStart": zod.coerce.date().nullish(),
   "description": zod.string().nullish(),
@@ -360,7 +360,7 @@ export const ListPastPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "currentWeek": zod.number(),
   "season": zod.number(),
   "memberCount": zod.number(),
@@ -383,7 +383,7 @@ export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "initialPeriodStart": zod.coerce.date().nullish(),
   "description": zod.string().nullish(),
@@ -437,7 +437,7 @@ export const UpdatePoolBody = zod.object({
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
   "isActive": zod.boolean().optional(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).optional(),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']).optional(),
   "startWeek": zod.number().optional(),
   "doubleElimination": zod.boolean().optional(),
   "pickFrequency": zod.enum(['weekly', 'daily']).optional(),
@@ -453,7 +453,7 @@ export const UpdatePoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "initialPeriodStart": zod.coerce.date().nullish(),
   "description": zod.string().nullish(),
@@ -2083,6 +2083,269 @@ export const GetWcBracketTreeResponse = zod.array(GetWcBracketTreeResponseItem)
 
 
 /**
+ * @summary Get the NHL Division Predictor pick lock
+ */
+export const GetNhlNdpLockStateParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNhlNdpLockStateResponse = zod.object({
+  "poolId": zod.number(),
+  "season": zod.number(),
+  "lockAt": zod.coerce.date().nullable(),
+  "locked": zod.boolean(),
+  "source": zod.enum(['espn', 'cache', 'fallback', 'sandbox'])
+})
+
+
+/**
+ * @summary Get NHL divisions with team metadata, picks, and results
+ */
+export const GetNhlNdpDivisionsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const getNhlNdpDivisionsResponseTeamsMin = 8;
+export const getNhlNdpDivisionsResponseTeamsMax = 8;
+
+
+
+export const GetNhlNdpDivisionsResponseItem = zod.object({
+  "name": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "shortName": zod.string(),
+  "teams": zod.array(zod.object({
+  "name": zod.string(),
+  "abbr": zod.string(),
+  "logoUrl": zod.string()
+})).min(getNhlNdpDivisionsResponseTeamsMin).max(getNhlNdpDivisionsResponseTeamsMax),
+  "myPick": zod.union([zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+}),zod.null()]),
+  "actualResult": zod.union([zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+}),zod.null()])
+})
+export const GetNhlNdpDivisionsResponse = zod.array(GetNhlNdpDivisionsResponseItem)
+
+
+/**
+ * @summary Submit all four NHL division rankings and tiebreaker guess
+ */
+export const SubmitNhlNdpPicksParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const submitNhlNdpPicksBodyPicksMin = 4;
+export const submitNhlNdpPicksBodyPicksMax = 4;
+
+export const submitNhlNdpPicksBodyTbGuessMin = 0;
+
+
+
+export const SubmitNhlNdpPicksBody = zod.object({
+  "picks": zod.array(zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})).min(submitNhlNdpPicksBodyPicksMin).max(submitNhlNdpPicksBodyPicksMax),
+  "tbGuess": zod.number().min(submitNhlNdpPicksBodyTbGuessMin).describe('Predicted combined standings points for all eight Atlantic Division teams.')
+})
+
+export const SubmitNhlNdpPicksResponseItem = zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})
+export const SubmitNhlNdpPicksResponse = zod.array(SubmitNhlNdpPicksResponseItem)
+
+
+/**
+ * @summary Get NHL Division Predictor results
+ */
+export const GetNhlNdpResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNhlNdpResultsResponseItem = zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})
+export const GetNhlNdpResultsResponse = zod.array(GetNhlNdpResultsResponseItem)
+
+
+/**
+ * @summary Admin entry of NHL Division Predictor results
+ */
+export const SubmitNhlNdpResultsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const submitNhlNdpResultsBodyResultsMax = 4;
+
+export const submitNhlNdpResultsBodyTbActualMin = 0;
+
+
+
+export const SubmitNhlNdpResultsBody = zod.object({
+  "results": zod.array(zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})).min(1).max(submitNhlNdpResultsBodyResultsMax),
+  "tbActual": zod.number().min(submitNhlNdpResultsBodyTbActualMin).optional().describe('Actual combined standings points for all eight Atlantic Division teams.')
+})
+
+export const SubmitNhlNdpResultsResponse = zod.object({
+  "saved": zod.array(zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})),
+  "closedPool": zod.boolean(),
+  "closureWarning": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a member's NHL division rankings
+ */
+export const GetNhlNdpMemberPicksParams = zod.object({
+  "poolId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const GetNhlNdpMemberPicksResponseItem = zod.object({
+  "divisionName": zod.enum(['Atlantic', 'Metropolitan', 'Central', 'Pacific']),
+  "pos1Team": zod.string(),
+  "pos2Team": zod.string(),
+  "pos3Team": zod.string(),
+  "pos4Team": zod.string(),
+  "pos5Team": zod.string(),
+  "pos6Team": zod.string(),
+  "pos7Team": zod.string(),
+  "pos8Team": zod.string()
+})
+export const GetNhlNdpMemberPicksResponse = zod.array(GetNhlNdpMemberPicksResponseItem)
+
+
+/**
+ * @summary Get the NHL Division Predictor leaderboard
+ */
+export const GetNhlNdpLeaderboardParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNhlNdpLeaderboardResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "totalScore": zod.number(),
+  "maxScore": zod.literal(96),
+  "divisionScores": zod.array(zod.object({
+  "divisionName": zod.string(),
+  "score": zod.number(),
+  "hasResult": zod.boolean()
+})),
+  "finalWinner": zod.boolean(),
+  "rank": zod.number(),
+  "tbGuess": zod.number().nullish(),
+  "tbActual": zod.number().nullish(),
+  "tiebreakerDiff": zod.number().nullish()
+})),
+  "tbActual": zod.number().nullable()
+})
+
+
+/**
+ * @summary Get the current user's Atlantic combined-points guess
+ */
+export const GetNhlNdpMyTiebreakerParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNhlNdpMyTiebreakerResponse = zod.object({
+  "tbGuess": zod.number().nullable(),
+  "tbActual": zod.number().nullable()
+})
+
+
+/**
+ * @summary Get live ESPN NHL division standings
+ */
+export const GetNhlNdpLiveStandingsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const getNhlNdpLiveStandingsResponseTeamsMin = 8;
+export const getNhlNdpLiveStandingsResponseTeamsMax = 8;
+
+
+
+export const GetNhlNdpLiveStandingsResponseItem = zod.object({
+  "divisionName": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "abbreviation": zod.string(),
+  "logo": zod.string().nullable(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "otLosses": zod.number(),
+  "points": zod.number()
+})).min(getNhlNdpLiveStandingsResponseTeamsMin).max(getNhlNdpLiveStandingsResponseTeamsMax)
+})
+export const GetNhlNdpLiveStandingsResponse = zod.array(GetNhlNdpLiveStandingsResponseItem)
+
+
+/**
  * @summary Get the server-authoritative NFL Division Predictor pick lock
  */
 export const GetNdpLockStateParams = zod.object({
@@ -2337,7 +2600,7 @@ export const AdminListPoolsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "sport": zod.string(),
-  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
+  "poolType": zod.enum(['season', 'weekly', 'mid_season', 'pickem', 'group_stage_predictor', 'pickem_season', 'nfl_division_predictor', 'nhl_division_predictor', 'dirty_dozen', 'crazy_8s', 'nfl_confidence', 'nfl_confidence_weekly', 'wc_bracket', 'mlb_bracket']),
   "startWeek": zod.number().nullish(),
   "initialPeriodStart": zod.coerce.date().nullish(),
   "description": zod.string().nullish(),
