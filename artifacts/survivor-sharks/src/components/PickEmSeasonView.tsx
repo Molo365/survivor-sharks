@@ -1301,6 +1301,7 @@ export function PickEmSeasonView({
     prevWeekResults?.hasResults && prevWeekResults.winners.length > 0
       ? prevWeekResults.winners
       : null;
+  const prevWeekBonus = prevWeekResults?.weeklyBonus;
 
   useEffect(() => {
     if (!slate?.games) return;
@@ -1749,6 +1750,25 @@ export function PickEmSeasonView({
                       {prevWeekWinners[0].correct}/{prevWeekWinners[0].total}{" "}
                       correct
                     </span>
+                    {prevWeekBonus?.enabled ? (
+                      prevWeekBonus.thresholdMet &&
+                      prevWeekBonus.perWinnerAmount != null ? (
+                        <>
+                          <span className="text-yellow-500/50 text-xs">·</span>
+                          <span className="text-sm font-semibold text-yellow-300">
+                            ${prevWeekBonus.perWinnerAmount.toFixed(2)} bonus
+                            {prevWeekWinners.length > 1 ? " each" : ""}!
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-yellow-500/50 text-xs">·</span>
+                          <span className="text-xs text-yellow-500/70">
+                            Pool hasn&apos;t reached its weekly prize threshold yet
+                          </span>
+                        </>
+                      )
+                    ) : null}
                   </div>
                 </div>
               )}

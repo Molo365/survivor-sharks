@@ -239,6 +239,9 @@ export const ListPoolsResponseItem = zod.object({
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
+  "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
+  "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
   "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
@@ -322,6 +325,9 @@ export const JoinPoolResponse = zod.object({
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
+  "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
+  "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
   "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 
@@ -486,6 +492,9 @@ export const UpdatePoolResponse = zod.object({
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
+  "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
+  "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
   "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 
@@ -2635,6 +2644,9 @@ export const AdminListPoolsResponseItem = zod.object({
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
+  "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
+  "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
   "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)
@@ -2892,7 +2904,15 @@ export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
   "correct": zod.number(),
   "total": zod.number()
 })),
-  "hasResults": zod.boolean()
+  "hasResults": zod.boolean(),
+  "weeklyBonus": zod.object({
+  "enabled": zod.boolean(),
+  "thresholdMet": zod.boolean(),
+  "amount": zod.number().nullable(),
+  "perWinnerAmount": zod.number().nullable(),
+  "minPlayers": zod.number().nullable(),
+  "confirmedPlayerCount": zod.number()
+})
 })
 
 

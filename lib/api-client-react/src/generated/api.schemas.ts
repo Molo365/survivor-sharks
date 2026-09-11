@@ -412,6 +412,18 @@ export interface Pool {
   sandboxMode?: boolean;
   /** Active week when sandboxMode is true */
   sandboxWeek?: number;
+  /** NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled */
+  weeklyBonusEnabled?: boolean;
+  /**
+     * NFL Pick-Em Season weekly bonus display amount
+     * @nullable
+     */
+  weeklyBonusAmount?: number | null;
+  /**
+     * Minimum confirmed players required for the weekly bonus display
+     * @nullable
+     */
+  weeklyBonusMinPlayers?: number | null;
   /** True when at least one game for this pool's sport is currently in progress */
   hasLiveGames?: boolean;
 }
@@ -2185,12 +2197,25 @@ export interface UserBalance {
   pastPools: UserBalancePastPool[];
 }
 
+export type NflPickEmSeasonWeekResultsWeeklyBonus = {
+  enabled: boolean;
+  thresholdMet: boolean;
+  /** @nullable */
+  amount: number | null;
+  /** @nullable */
+  perWinnerAmount: number | null;
+  /** @nullable */
+  minPlayers: number | null;
+  confirmedPlayerCount: number;
+};
+
 export interface NflPickEmSeasonWeekResults {
   week: number;
   games: NflPickEmSeasonGame[];
   players: NflPickEmSeasonWeekPlayer[];
   winners: NflPickEmSeasonWeekWinner[];
   hasResults: boolean;
+  weeklyBonus: NflPickEmSeasonWeekResultsWeeklyBonus;
 }
 
 export interface UserFinalEntry {

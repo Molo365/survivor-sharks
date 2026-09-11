@@ -932,7 +932,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
   const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
 
-  const [rawGames, allPicks] = await Promise.all([
+  const [rawGames, allPicks, memberCountRows] = await Promise.all([
     pool.sandboxMode
       ? (async () => {
           const replayRows = await db
@@ -983,6 +983,10 @@ router.get("/week-results", requireAuth, async (req, res) => {
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
       .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week))),
+    db
+      .select({ playerCount: count() })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId)),
   ]);
 
   // normalise to a common shape: { id, date, status, awayTeam, homeTeam, awayScore, homeScore }
@@ -1100,6 +1104,24 @@ router.get("/week-results", requireAuth, async (req, res) => {
     awayRecord: g.awayRecord ?? null,
   }));
 
+  const confirmedPlayerCount = Number(memberCountRows[0]?.playerCount ?? 0);
+  const weeklyBonusAmount =
+    pool.weeklyBonusEnabled && pool.weeklyBonusAmount != null
+      ? Number(pool.weeklyBonusAmount)
+      : null;
+  const weeklyBonusMinPlayers =
+    pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
+      ? pool.weeklyBonusMinPlayers
+      : null;
+  const weeklyBonusThresholdMet =
+    weeklyBonusAmount != null &&
+    weeklyBonusMinPlayers != null &&
+    confirmedPlayerCount >= weeklyBonusMinPlayers;
+  const weeklyBonusPerWinner =
+    weeklyBonusThresholdMet && winners.length > 0
+      ? Math.round((weeklyBonusAmount! / winners.length) * 100) / 100
+      : null;
+
   // Slate-level visibility gate: if no game in the week has kicked off yet,
   // hide picks for players who haven't locked a full slate (same rule as nfl-confidence).
   const now = Date.now();
@@ -1119,7 +1141,21 @@ router.get("/week-results", requireAuth, async (req, res) => {
     }
   }
 
-  res.json({ week, games: formattedGames, players: rankedPlayers, winners, hasResults });
+  res.json({
+    week,
+    games: formattedGames,
+    players: rankedPlayers,
+    winners,
+    hasResults,
+    weeklyBonus: {
+      enabled: pool.weeklyBonusEnabled,
+      thresholdMet: weeklyBonusThresholdMet,
+      amount: weeklyBonusAmount,
+      perWinnerAmount: weeklyBonusPerWinner,
+      minPlayers: weeklyBonusMinPlayers,
+      confirmedPlayerCount,
+    },
+  });
 });
 
 // PATCH /api/pools/:poolId/pickem-season/sandbox-week
