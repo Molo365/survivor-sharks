@@ -296,7 +296,7 @@ router.get("/", requireAuth, async (req, res) => {
   if (pool.sport === "nhl" && pool.sandboxMode) {
     const week = pool.currentWeek;
     const bounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, week);
-    const allGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+    const allGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week, pool.isPreseason ? 1 : 2);
 
     // Load stored scores from simulate-grading so graded cards show final scores.
     const storedScoreRows = await db
@@ -364,7 +364,7 @@ router.get("/", requireAuth, async (req, res) => {
   if (pool.sport === "nhl") {
     const week = pool.currentWeek;
     const bounds = getNhlWeekBounds(pool.createdAt, week);
-    const allGames = await fetchNhlGamesByWeek(pool.createdAt, week);
+    const allGames = await fetchNhlGamesByWeek(pool.createdAt, week, pool.isPreseason ? 1 : 2);
 
     // Group games by ET date string (YYYY-MM-DD)
     const gamesByDate = new Map<string, EspnGame[]>();

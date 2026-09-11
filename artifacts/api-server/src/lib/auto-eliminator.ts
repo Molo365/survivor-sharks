@@ -163,7 +163,7 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
   }
   if (pool.sport === "nhl" || pool.sport === "nba") {
     const games = pool.sport === "nhl"
-      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek)
+      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek, pool.isPreseason ? 1 : 2)
       : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
     return isCompleteRegularSeasonSlate(games);
   }
@@ -404,7 +404,7 @@ export async function processCompletedGames(): Promise<{
       await Promise.all(nhlPoolWeekKeys.map(async key => {
         const ref = nhlRows.find(r => `${r.poolId}:${r.week}` === key)!;
         const anchor = ref.sandboxMode ? NHL_SANDBOX_ANCHOR : ref.poolCreatedAt;
-        const games = await fetchNhlGamesByWeek(anchor, ref.week);
+        const games = await fetchNhlGamesByWeek(anchor, ref.week, ref.isPreseason ? 1 : 2);
         nhlGamesByPoolWeek.set(key, games);
         const completed = games.filter(g => g.isCompleted);
         logger.info(
@@ -3993,7 +3993,7 @@ export async function processPickEmResults(): Promise<{
       const nhlWeekendGames: EspnGame[] = [];
       let nhlHasUnfinished = false;
       for (const [espnDate, gameIds] of nhlGameIdsByDate) {
-        const gamesOnDate = await fetchGamesForDate("nhl", espnDate);
+        const gamesOnDate = await fetchGamesForDate("nhl", espnDate, pool.isPreseason ? 1 : 2);
         for (const g of gamesOnDate) {
           if (!gameIds.has(g.id)) continue;
           nhlWeekendGames.push(g);
@@ -5480,8 +5480,8 @@ export async function processCrazyEightsResults(): Promise<{
     const periodDates = [satDate, sunDate];
 
     const [satGames, sunGames] = await Promise.all([
-      fetchGamesForDate("nhl", satEspn),
-      fetchGamesForDate("nhl", sunEspn),
+      fetchGamesForDate("nhl", satEspn, pool.isPreseason ? 1 : 2),
+      fetchGamesForDate("nhl", sunEspn, pool.isPreseason ? 1 : 2),
     ]);
     const allNhlGames = [...satGames, ...sunGames];
 

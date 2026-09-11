@@ -91,7 +91,9 @@ async function getPoolStartState(pool: PoolRow) {
         const bounds = getSuperLeagueWeekBoundsEt(getTodayEtDate());
         return (await Promise.all(datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate))).flat();
       }
-      if (candidate.sport === "nhl") return fetchNhlGamesByWeek(candidate.createdAt, candidate.currentWeek);
+      if (candidate.sport === "nhl") {
+        return fetchNhlGamesByWeek(candidate.createdAt, candidate.currentWeek, candidate.isPreseason ? 1 : 2);
+      }
       if (candidate.sport === "nba") return fetchNbaGamesByWeek(candidate.createdAt, candidate.currentWeek);
       if (candidate.sport === "mlb" && candidate.pickFrequency === "weekly") {
         const bounds = getMlbWeekBounds(candidate.createdAt, candidate.currentWeek);
@@ -390,9 +392,14 @@ router.post("/", requireAuth, async (req, res) => {
     // Crazy 8's pools are always recurring — the daily/weekly competition never ends.
     isRecurring: resolvedPoolType === "crazy_8s" ? true : (typeof isRecurring === 'boolean' ? isRecurring : true),
     sandboxMode: sandboxMode === true,
-    // isPreseason is meaningful for NFL survivor, nfl_confidence, and pickem_season pools.
-    // When set, fetchNflGamesByWeek will use seasontype=1 (preseason) instead of 2.
-    isPreseason: (sport === "nfl" && (resolvedPoolType === "season" || resolvedPoolType === "nfl_confidence" || resolvedPoolType === "pickem_season")) ? isPreseason === true : false,
+    // isPreseason is meaningful for the supported NFL pool types and all
+    // currently available NHL pool types (Survivor, Weekend Pick-Ems, and
+    // Hit The Ice). Each sport's fetch path maps true to ESPN seasonType 1
+    // and false to seasonType 2.
+    isPreseason: (
+      (sport === "nfl" && (resolvedPoolType === "season" || resolvedPoolType === "nfl_confidence" || resolvedPoolType === "pickem_season")) ||
+      (sport === "nhl" && (resolvedPoolType === "season" || resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s"))
+    ) ? isPreseason === true : false,
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
@@ -532,7 +539,8 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
     }
 
     if (sport === "nhl") {
-      const games = await fetchNhlGamesByWeek(now, 1);
+      const preseason = req.query.preseason === "true";
+      const games = await fetchNhlGamesByWeek(now, 1, preseason ? 1 : 2);
       res.json({ count: games.length });
       return;
     }

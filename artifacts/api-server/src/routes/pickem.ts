@@ -163,7 +163,7 @@ router.get("/games", requireAuth, async (req, res) => {
     const anchorBounds = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
     const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10); // YYYY-MM-DD
-    allGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
+    allGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""), pool.isPreseason ? 1 : 2);
     allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const sbRows = await db.select().from(sandboxGameScoresTable)
       .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
@@ -776,7 +776,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     const sandboxDayDate = new Date(anchorBounds.weekStart.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
     const sandboxDay = sandboxDayDate.toISOString().slice(0, 10);
     anchorGameDate = sandboxDay;
-    const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""));
+    const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""), pool.isPreseason ? 1 : 2);
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
     // NBA sandbox weekly (non-ATS): map today's day-of-week onto the anchor week.
@@ -1862,7 +1862,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
     : isChampionsLeague ? Promise.resolve(championsLeagueSlate?.games ?? [] as EspnGame[])
-    : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek)
+    : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek, pool.isPreseason ? 1 : 2)
     : (isAts && isWeekly && weekBounds)
       ? (() => {
           // nba_ats: fetch only the 3 Fri/Sat/Sun dates already set in weekBounds.
@@ -2633,7 +2633,7 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
 
   // ── NHL sandbox simulate-grading (unchanged) ─────────────────────────────────
   // Fetch all games for the anchor week
-  const weekGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+  const weekGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week, pool.isPreseason ? 1 : 2);
   type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
   const gameList: SandboxGame[] = weekGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
 

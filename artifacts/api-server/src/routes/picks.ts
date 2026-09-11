@@ -321,7 +321,7 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
   type SandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
   let gameList: SandboxGame[];
   if (pool.sport === "nhl") {
-    const nhlGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week);
+    const nhlGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week, pool.isPreseason ? 1 : 2);
     gameList = nhlGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
   } else if (pool.sport === "nba") {
     const nbaGames = await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);

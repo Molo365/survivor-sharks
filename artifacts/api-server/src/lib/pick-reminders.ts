@@ -24,7 +24,13 @@ async function gamesForPool(pool: typeof poolsTable.$inferSelect): Promise<EspnG
     return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
   }
   if (pool.pickFrequency === "daily") return fetchGamesForDate("mlb", today.replace(/-/g, ""));
-  if (pool.sport === "nhl") return fetchNhlGamesByWeek(pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt, pool.currentWeek);
+  if (pool.sport === "nhl") {
+    return fetchNhlGamesByWeek(
+      pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+    );
+  }
   if (pool.sport === "nba") return fetchNbaGamesByWeek(pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt, pool.currentWeek);
   if (pool.sport === "nfl") return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
   const period = await resolvePickemPeriod(pool);

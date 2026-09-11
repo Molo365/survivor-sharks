@@ -42,8 +42,8 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   const satDate = days[0];
   const sunDate = days[1];
   const [satGames, sunGames] = await Promise.all([
-    fetchGamesForDate("nhl", satEspn),
-    fetchGamesForDate("nhl", sunEspn),
+    fetchGamesForDate("nhl", satEspn, pool.isPreseason ? 1 : 2),
+    fetchGamesForDate("nhl", sunEspn, pool.isPreseason ? 1 : 2),
   ]);
   const seen = new Set<string>();
   const games: EspnGame[] = [];
@@ -287,8 +287,8 @@ router.get("/grid", requireAuth, async (req, res) => {
     const sunEspn = sunDate.replace(/-/g, "");
 
     const [satGames, sunGames, allPicks] = await Promise.all([
-      fetchGamesForDate("nhl", satEspn),
-      fetchGamesForDate("nhl", sunEspn),
+      fetchGamesForDate("nhl", satEspn, pool.isPreseason ? 1 : 2),
+      fetchGamesForDate("nhl", sunEspn, pool.isPreseason ? 1 : 2),
       db.select({
         userId: pickemPicksTable.userId,
         username: usersTable.username,
