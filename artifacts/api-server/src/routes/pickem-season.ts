@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "../lib/pickem-season-closure";
@@ -1363,16 +1363,13 @@ router.get("/week-results", requireAuth, async (req, res) => {
 });
 
 // PATCH /api/pools/:poolId/pickem-season/sandbox-week
-router.patch("/sandbox-week", requireAuth, async (req, res) => {
+router.patch("/sandbox-week", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  if (!pool.sandboxMode) {
+    res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
   }
 
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, parseInt(String(req.body.week)) || 1));
@@ -1381,9 +1378,8 @@ router.patch("/sandbox-week", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/pickem-season/simulate-grading
-router.post("/simulate-grading", requireAuth, async (req, res) => {
+router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
-  const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
@@ -1391,9 +1387,8 @@ router.post("/simulate-grading", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
   }
 
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  if (!pool.sandboxMode) {
+    res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
   }
 
   const week = pool.sandboxWeek ?? pool.currentWeek;

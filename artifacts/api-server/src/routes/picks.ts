@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable, sandboxGameScoresTable } from "@workspace/db";
+import { picksTable, entriesTable, poolsTable, weekResultsTable, sandboxGameScoresTable } from "@workspace/db";
 import { eq, and, count, isNotNull, inArray } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import {
   isPickLocked,
   isMlbPickDeadlinePassed,
@@ -298,16 +298,14 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/picks/simulate-grading — sandbox grading for Classic/Weekly Survivor
-router.post("/simulate-grading", requireAuth, async (req, res) => {
+router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  if (!pool.sandboxMode) {
+    res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
   }
   if (pool.sport !== "nfl" && pool.sport !== "nhl" && pool.sport !== "nba" && pool.sport !== "superleague") {
     res.status(400).json({ error: "Simulate grading is only available for NFL, NHL, NBA, and ESL pools" }); return;

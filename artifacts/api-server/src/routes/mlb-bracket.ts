@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, poolsTable, usersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 
@@ -231,7 +231,7 @@ async function simulate(ctx: Context, full: boolean) {
   }
   return simulated;
 }
-function sandboxOnly(ctx: Context, req: any, res: any) { if (ctx.pool.sandboxMode && (ctx.pool.commissionerId === req.user.id || req.user.role === "admin")) return true; res.status(403).json({ error: "Sandbox commissioner only" }); return false; }
-router.post("/sandbox/simulate-next-round", requireAuth, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, req, res)) return; const simulated = await simulate(ctx, false); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
-router.post("/sandbox/simulate-full", requireAuth, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, req, res)) return; const simulated = await simulate(ctx, true); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
+function sandboxOnly(ctx: Context, res: any) { if (ctx.pool.sandboxMode) return true; res.status(403).json({ error: "Sandbox mode is not enabled for this pool" }); return false; }
+router.post("/sandbox/simulate-next-round", requireAuth, requireAdmin, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, res)) return; const simulated = await simulate(ctx, false); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
+router.post("/sandbox/simulate-full", requireAuth, requireAdmin, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, res)) return; const simulated = await simulate(ctx, true); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
 export default router;

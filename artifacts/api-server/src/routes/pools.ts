@@ -299,10 +299,8 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
-  const isNbaSandboxPool =
-    sport === "nba" && (resolvedPoolType === "nba_ats" || resolvedPoolType === "crazy_8s");
-  if (isNbaSandboxPool && sandboxMode === true && req.user!.role !== "admin") {
-    res.status(403).json({ error: "Only admins can create NBA sandbox pools." });
+  if (sandboxMode === true && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Only admins can create sandbox pools." });
     return;
   }
   const weeklyBonusEligible =
@@ -720,6 +718,11 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   }
 
   const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
+
+  if (Object.prototype.hasOwnProperty.call(req.body, "sandboxMode") && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Only admins can change sandbox mode." });
+    return;
+  }
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
 

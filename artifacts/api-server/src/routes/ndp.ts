@@ -715,7 +715,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/ndp/simulate-standings — sandbox: random standings + optional tiebreaker injection + closure
-router.post("/simulate-standings", requireAuth, async (req, res) => {
+router.post("/simulate-standings", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
@@ -724,10 +724,8 @@ router.post("/simulate-standings", requireAuth, async (req, res) => {
   if ((pool.poolType as string) !== "nfl_division_predictor") {
     res.status(400).json({ error: "Not an NFL Division Predictor pool" }); return;
   }
-
-  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (pool.commissionerId !== userId && userRow?.role !== "admin") {
-    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  if (!pool.sandboxMode) {
+    res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
   }
 
   const { tb1CombinedWins, tb2CombinedWins } = req.body as {

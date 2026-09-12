@@ -2,15 +2,15 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sandboxGameScoresTable, poolsTable } from "@workspace/db";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { requireAuth, requireCommissioner } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchAndStoreReplayWeek } from "../lib/replayMode";
 import { logger } from "../lib/logger";
 
 const router = Router({ mergeParams: true });
 
 // POST /api/pools/:poolId/replay/start
-// Commissioner: fetch 2025 ESPN data for `week`, compress kickoff times, arm replay clock
-router.post("/start", requireAuth, requireCommissioner, async (req, res) => {
+// Admin: fetch 2025 ESPN data for `week`, compress kickoff times, arm replay clock
+router.post("/start", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const { week, startTime } = req.body as { week?: unknown; startTime?: unknown };
 

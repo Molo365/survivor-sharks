@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { weekResultsTable, picksTable, entriesTable, poolsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { getCompletedGameResults, getGameMarginsByTeam } from "../lib/espn";
 import { ESPN_TEAMS, type Sport } from "../lib/teams-data";
 import { applySeasonSurvivorClosure } from "../lib/season-survivor-closure";
@@ -29,9 +29,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /api/pools/:poolId/results
-// Commissioner submits week results. Pass { week, autoFetch: true } to auto-fetch
+// Admin submits week results. Pass { week, autoFetch: true } to auto-fetch
 // from ESPN, or { week, losingTeamIds: string[] } to submit manually.
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const { week, losingTeamIds, autoFetch } = req.body;
 
@@ -45,11 +45,6 @@ router.post("/", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
-  if (pool.commissionerId !== req.user!.id && req.user!.role !== "admin") {
-    res.status(403).json({ error: "Only the commissioner can process results" });
-    return;
-  }
-
   const sportTeams = ESPN_TEAMS[pool.sport as Sport] ?? [];
   const abbrevToId = new Map(sportTeams.map(t => [t.abbreviation.toUpperCase(), t.id]));
   const idToAbbrev = new Map(sportTeams.map(t => [t.id, t.abbreviation.toUpperCase()]));
