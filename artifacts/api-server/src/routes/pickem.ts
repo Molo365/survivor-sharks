@@ -2772,8 +2772,8 @@ router.get("/ats-spreads", requireAuth, async (req, res) => {
   res.json({ week: pool.currentWeek, spreads: rows });
 });
 
-// POST /api/pools/:poolId/pickem/ats-spreads — commissioner saves spread lines
-router.post("/ats-spreads", requireAuth, async (req, res) => {
+// POST /api/pools/:poolId/pickem/ats-spreads — admin saves spread lines
+router.post("/ats-spreads", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 

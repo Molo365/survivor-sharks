@@ -14,6 +14,8 @@ const suffix = `security-auth-${crypto.randomUUID()}`;
 const poolIds: number[] = [];
 let commissionerId: number;
 let commissionerToken: string;
+let adminId: number;
+let adminToken: string;
 let baseUrl: string;
 let server: ReturnType<typeof createServer>;
 let testPools: Record<string, number>;
@@ -39,14 +41,14 @@ async function insertPool(values: {
   return pool;
 }
 
-async function request(method: string, path: string, body: unknown): Promise<{
+async function request(method: string, path: string, body: unknown, token = commissionerToken): Promise<{
   status: number;
   body: ResponseBody;
 }> {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      authorization: `Bearer ${commissionerToken}`,
+      authorization: `Bearer ${token}`,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -81,6 +83,19 @@ before(async () => {
     sub: user.id,
     username: user.username,
     role: user.role,
+  });
+  const [admin] = await db.insert(usersTable).values({
+    username: `${suffix}-admin`,
+    email: `${suffix}-admin@example.test`,
+    passwordHash: "test-only",
+    role: "admin",
+  }).returning();
+  if (!admin) throw new Error("Failed to create admin fixture");
+  adminId = admin.id;
+  adminToken = signToken({
+    sub: admin.id,
+    username: admin.username,
+    role: admin.role,
   });
 
   const survivorPool = await insertPool({
@@ -154,6 +169,9 @@ after(async () => {
   }
   if (commissionerId) {
     await db.delete(usersTable).where(eq(usersTable.id, commissionerId));
+  }
+  if (adminId) {
+    await db.delete(usersTable).where(eq(usersTable.id, adminId));
   }
   if (previousPoolCreationOpen === undefined) delete process.env.POOL_CREATION_OPEN;
   else process.env.POOL_CREATION_OPEN = previousPoolCreationOpen;
@@ -230,8 +248,24 @@ test("keeps broadcast email accessible to the pool commissioner", async () => {
   assert.equal(response.body.error, "Message is required");
 });
 
-test("keeps NBA ATS spread entry accessible to the pool commissioner", async () => {
-  const response = await request("POST", `/pools/${testPools.ats}/pickem/ats-spreads`, { spreads: [] });
-  assert.equal(response.status, 400);
-  assert.equal(response.body.error, "spreads must be a non-empty array");
+test("rejects NBA ATS spread entry for the pool commissioner", async () => {
+  await assertForbidden("NBA ATS spread entry", "POST", `/pools/${testPools.ats}/pickem/ats-spreads`, {
+    spreads: [{
+      gameId: `${suffix}-game`,
+      spread: 5.5,
+      favoriteTeamId: "1",
+    }],
+  });
+});
+
+test("allows an admin to submit NBA ATS spread lines", async () => {
+  const response = await request("POST", `/pools/${testPools.ats}/pickem/ats-spreads`, {
+    spreads: [{
+      gameId: `${suffix}-admin-game`,
+      spread: 5.5,
+      favoriteTeamId: "1",
+    }],
+  }, adminToken);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { saved: 1 });
 });
