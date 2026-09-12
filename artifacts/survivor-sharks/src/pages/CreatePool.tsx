@@ -1726,7 +1726,7 @@ export default function CreatePool() {
                                                 placeholder="25.00"
                                                 {...field}
                                                 value={field.value ?? ""}
-                                                className="bg-background/50 border-primary/20 pl-7"
+                                                className="bg-background/50 border-primary/20 pl-7 placeholder:text-muted-foreground/50"
                                                 data-testid="input-weekly-bonus-amount"
                                               />
                                             </div>
@@ -1750,7 +1750,7 @@ export default function CreatePool() {
                                               placeholder="5"
                                               {...field}
                                               value={field.value ?? ""}
-                                              className="bg-background/50 border-primary/20"
+                                              className="bg-background/50 border-primary/20 placeholder:text-muted-foreground/50"
                                               data-testid="input-weekly-bonus-min-players"
                                             />
                                           </FormControl>
