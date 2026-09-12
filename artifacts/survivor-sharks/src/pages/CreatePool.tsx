@@ -1693,12 +1693,12 @@ export default function CreatePool() {
                             <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4" data-testid="weekly-bonus-settings">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="space-y-1">
-                                  <FormLabel className="font-bebas text-lg tracking-wide cursor-pointer">
+                                  <div className="font-bebas text-lg tracking-wide">
                                     Add a Weekly Bonus Prize?
-                                  </FormLabel>
-                                  <FormDescription className="text-xs leading-relaxed">
+                                  </div>
+                                  <p className="text-xs leading-relaxed text-muted-foreground">
                                     Adds a smaller weekly prize on top of your season-end prize, so players stay engaged even after a tough week.
-                                  </FormDescription>
+                                  </p>
                                 </div>
                                 <Switch
                                   checked={watchedWeeklyBonusEnabled === true}
