@@ -2444,6 +2444,11 @@ paths:
                 tiebreakerRushingYards:
                   type: number
                   nullable: true
+                weeklyTiebreakerGuess:
+                  type: integer
+                  minimum: 0
+                  nullable: true
+                  description: "Required on every week only when weeklyBonusEnabled is true; combined passing plus rushing yards for that week's last scheduled game"
       responses:
         "201":
           description: Picks saved
@@ -3135,6 +3140,14 @@ components:
         sandboxWeek:
           type: integer
           description: "Active week when sandboxMode is true"
+        weeklyBonusEnabled:
+          type: boolean
+          default: false
+          description: "NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled"
+        weeklyBonusAmount:
+          type: ["number", "null"]
+        weeklyBonusMinPlayers:
+          type: ["integer", "null"]
 
     PastPool:
       type: object
@@ -5016,6 +5029,21 @@ components:
           type: string
           nullable: true
           description: "Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks"
+        weeklyTiebreaker:
+          type: object
+          nullable: true
+          description: "Present only when weeklyBonusEnabled is true"
+          required: [targetGameId, guess, actual]
+          properties:
+            targetGameId:
+              type: string
+              nullable: true
+            guess:
+              type: integer
+              nullable: true
+            actual:
+              type: integer
+              nullable: true
         games:
           type: array
           items:

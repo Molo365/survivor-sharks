@@ -1181,6 +1181,7 @@ interface PickEmSeasonViewProps {
   sandboxWeek: number;
   isSuperAdmin: boolean;
   isActive: boolean;
+  weeklyBonusEnabled: boolean;
 }
 
 export function PickEmSeasonView({
@@ -1194,6 +1195,7 @@ export function PickEmSeasonView({
   sandboxWeek,
   isSuperAdmin,
   isActive,
+  weeklyBonusEnabled,
 }: PickEmSeasonViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1213,6 +1215,7 @@ export function PickEmSeasonView({
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
   const [tbPassingYards, setTbPassingYards] = useState<string>("");
   const [tbRushingYards, setTbRushingYards] = useState<string>("");
+  const [weeklyTiebreakerGuess, setWeeklyTiebreakerGuess] = useState<string>("");
   const [sandboxWeekInput, setSandboxWeekInput] = useState<string>(
     String(sandboxWeek),
   );
@@ -1247,6 +1250,15 @@ export function PickEmSeasonView({
       },
     },
   });
+
+  useEffect(() => {
+    if (!weeklyBonusEnabled) return;
+    setWeeklyTiebreakerGuess(
+      slate?.weeklyTiebreaker?.guess != null
+        ? String(slate.weeklyTiebreaker.guess)
+        : "",
+    );
+  }, [displayWeek, slate?.weeklyTiebreaker?.guess, weeklyBonusEnabled]);
 
   useEffect(() => {
     slateRef.current = slate;
@@ -1374,6 +1386,7 @@ export function PickEmSeasonView({
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     py?: number,
     ry?: number,
+    weeklyGuess?: number,
   ) {
     submitPicks.mutate(
       {
@@ -1383,6 +1396,9 @@ export function PickEmSeasonView({
           picks,
           ...(py != null && ry != null
             ? { tiebreakerPassingYards: py, tiebreakerRushingYards: ry }
+            : {}),
+          ...(weeklyBonusEnabled && weeklyGuess != null
+            ? { weeklyTiebreakerGuess: weeklyGuess }
             : {}),
         },
       },
@@ -1436,6 +1452,19 @@ export function PickEmSeasonView({
       return;
     }
 
+    const parsedWeeklyGuess = Number(weeklyTiebreakerGuess);
+    if (
+      weeklyBonusEnabled &&
+      (!Number.isInteger(parsedWeeklyGuess) || parsedWeeklyGuess < 0)
+    ) {
+      toast({
+        title: "Weekly tiebreaker required",
+        description: "Enter a non-negative whole-number guess for the last game of the week.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (isWeek18) {
       pendingPicksRef.current = picks;
       setTbPassingYards("");
@@ -1444,7 +1473,7 @@ export function PickEmSeasonView({
       return;
     }
 
-    doFinalSubmit(picks);
+      doFinalSubmit(picks, undefined, undefined, weeklyBonusEnabled ? parsedWeeklyGuess : undefined);
   }
 
   function handleGradeResults() {
@@ -1557,6 +1586,9 @@ export function PickEmSeasonView({
   const tiebreakerGame = slate?.tiebreakerGameId
     ? (slate.games.find((g) => g.id === slate.tiebreakerGameId) ?? null)
     : null;
+  const weeklyTiebreakerGame = weeklyBonusEnabled
+    ? slate?.games.find((g) => g.id === slate.weeklyTiebreaker?.targetGameId) ?? slate?.games.at(-1) ?? null
+    : null;
 
   return (
     <>
@@ -1624,7 +1656,12 @@ export function PickEmSeasonView({
                     const ry = parseInt(tbRushingYards, 10);
                     if (!isNaN(py) && py >= 0 && !isNaN(ry) && ry >= 0) {
                       setShowTbModal(false);
-                      doFinalSubmit(pendingPicksRef.current, py, ry);
+                      doFinalSubmit(
+                        pendingPicksRef.current,
+                        py,
+                        ry,
+                        weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
+                      );
                     }
                   }
                 }}
@@ -1650,7 +1687,12 @@ export function PickEmSeasonView({
                   return;
                 }
                 setShowTbModal(false);
-                doFinalSubmit(pendingPicksRef.current, py, ry);
+                doFinalSubmit(
+                  pendingPicksRef.current,
+                  py,
+                  ry,
+                  weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
+                );
               }}
             >
               {submitPicks.isPending ? (
@@ -1887,6 +1929,36 @@ export function PickEmSeasonView({
                       forceReadOnly={weekIsLocked}
                     />
                   ))}
+
+                   {weeklyBonusEnabled && weeklyTiebreakerGame && openGames.length > 0 && (
+                     <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-4 space-y-3">
+                       <div>
+                         <p className="font-bebas text-lg tracking-wide text-yellow-300">Weekly bonus tiebreaker</p>
+                         <p className="text-xs text-muted-foreground leading-relaxed">
+                           Enter the combined passing and rushing yards for the last scheduled game of Week {slate.week}.
+                           This guess is collected now; weekly tiebreaker resolution is handled separately.
+                         </p>
+                       </div>
+                       <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-500/20 bg-background/30 px-3 py-2">
+                         <span className="text-sm font-semibold text-foreground">
+                           {weeklyTiebreakerGame.awayTeam.name} @ {weeklyTiebreakerGame.homeTeam.name}
+                         </span>
+                         <span className="text-xs text-muted-foreground">
+                           {formatGameTimeEt(weeklyTiebreakerGame.startTime)}
+                         </span>
+                       </div>
+                       <Input
+                         type="number"
+                         min="0"
+                         step="1"
+                         inputMode="numeric"
+                         placeholder="Combined yards"
+                         value={weeklyTiebreakerGuess}
+                         onChange={(event) => setWeeklyTiebreakerGuess(event.target.value)}
+                         aria-label="Weekly tiebreaker combined yards guess"
+                       />
+                     </div>
+                   )}
 
                   {/* Submit */}
                   {isActive && openGames.length > 0 && (

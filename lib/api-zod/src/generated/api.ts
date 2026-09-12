@@ -390,6 +390,8 @@ export const GetPoolParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const getPoolResponseWeeklyBonusEnabledDefault = false;
+
 export const GetPoolResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -429,7 +431,10 @@ export const GetPoolResponse = zod.object({
   "closureReason": zod.string().nullish().describe('null = normal end \/ last survivor, co_winners = prize split, sov_tiebreaker = SOV decided winner, min_entries_not_met = cancelled before start'),
   "minEntries": zod.number().nullish().describe('Minimum entries required; null means no minimum enforced'),
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
-  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true')
+  "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
+  "weeklyBonusEnabled": zod.boolean().default(getPoolResponseWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled'),
+  "weeklyBonusAmount": zod.number().nullish(),
+  "weeklyBonusMinPlayers": zod.number().nullish()
 })
 
 
@@ -2746,6 +2751,11 @@ export const GetNflPickEmSeasonGamesResponse = zod.object({
   "totalWeeks": zod.number(),
   "currentWeek": zod.number(),
   "tiebreakerGameId": zod.string().nullish().describe('Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks'),
+  "weeklyTiebreaker": zod.object({
+  "targetGameId": zod.string().nullable(),
+  "guess": zod.number().nullable(),
+  "actual": zod.number().nullable()
+}).nullish().describe('Present only when weeklyBonusEnabled is true'),
   "games": zod.array(zod.object({
   "id": zod.string(),
   "startTime": zod.string(),
@@ -2781,6 +2791,10 @@ export const SubmitNflPickEmSeasonPicksParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const submitNflPickEmSeasonPicksBodyWeeklyTiebreakerGuessMin = 0;
+
+
+
 export const SubmitNflPickEmSeasonPicksBody = zod.object({
   "week": zod.number(),
   "picks": zod.array(zod.object({
@@ -2789,7 +2803,8 @@ export const SubmitNflPickEmSeasonPicksBody = zod.object({
   "pickedTeamName": zod.string()
 })),
   "tiebreakerPassingYards": zod.number().nullish(),
-  "tiebreakerRushingYards": zod.number().nullish()
+  "tiebreakerRushingYards": zod.number().nullish(),
+  "weeklyTiebreakerGuess": zod.number().min(submitNflPickEmSeasonPicksBodyWeeklyTiebreakerGuessMin).nullish().describe('Required on every week only when weeklyBonusEnabled is true; combined passing plus rushing yards for that week\'s last scheduled game')
 })
 
 

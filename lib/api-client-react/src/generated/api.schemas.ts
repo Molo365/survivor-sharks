@@ -532,6 +532,12 @@ export interface PoolDetail {
   sandboxMode?: boolean;
   /** Active week when sandboxMode is true */
   sandboxWeek?: number;
+  /** NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled */
+  weeklyBonusEnabled?: boolean;
+  /** @nullable */
+  weeklyBonusAmount?: number | null;
+  /** @nullable */
+  weeklyBonusMinPlayers?: number | null;
 }
 
 export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];
@@ -1945,12 +1951,23 @@ export interface NflPickEmSeasonGame {
   awayRecord?: string | null;
 }
 
+/**
+ * Present only when weeklyBonusEnabled is true
+ */
+export type NflPickEmSeasonSlateWeeklyTiebreaker = {
+  targetGameId: string | null;
+  guess: number | null;
+  actual: number | null;
+} | null;
+
 export interface NflPickEmSeasonSlate {
   week: number;
   totalWeeks: number;
   currentWeek: number;
   /** Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks */
   tiebreakerGameId?: string | null;
+  /** Present only when weeklyBonusEnabled is true */
+  weeklyTiebreaker?: NflPickEmSeasonSlateWeeklyTiebreaker;
   games: NflPickEmSeasonGame[];
 }
 
@@ -2553,6 +2570,11 @@ export type SubmitNflPickEmSeasonPicksBody = {
   picks: NflPickEmSeasonPickInput[];
   tiebreakerPassingYards?: number | null;
   tiebreakerRushingYards?: number | null;
+  /**
+     * Required on every week only when weeklyBonusEnabled is true; combined passing plus rushing yards for that week's last scheduled game
+     * @minimum 0
+     */
+  weeklyTiebreakerGuess?: number | null;
 };
 
 export type ProcessNflPickEmSeasonResultsBody = {

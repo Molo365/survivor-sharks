@@ -26,3 +26,4 @@ export * from "./email_verification_tokens";
 export * from "./pick_reminders";
 export * from "./site_settings";
 export * from "./pick_confirmations";
+export * from "./nfl_weekly_tiebreakers";

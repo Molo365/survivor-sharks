@@ -31,6 +31,7 @@ import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
 interface NflConfidenceViewProps {
   poolId: number;
   currentWeek?: number;
+  weeklyBonusEnabled: boolean;
 }
 
 interface SubmittedPick {
@@ -67,6 +68,9 @@ interface SubmittedPicksResponse {
   tiebreakerPassingYards: number | null;
   tiebreakerRushingYards: number | null;
   tiebreakerGame: TiebreakerGame | null;
+  weeklyTiebreakerGuess?: number | null;
+  weeklyTiebreakerActual?: number | null;
+  weeklyTiebreakerTargetGameId?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -920,7 +924,7 @@ export function NflConfidenceCommissionerPanel({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProps) {
+export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: NflConfidenceViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -930,6 +934,7 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [tbPassingYards, setTbPassingYards] = useState("");
   const [tbRushingYards, setTbRushingYards] = useState("");
+  const [weeklyTiebreakerGuess, setWeeklyTiebreakerGuess] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultsWeek, setResultsWeek] = useState<number | null>(null);
 
@@ -980,6 +985,15 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
   const existingPicks = myPicksData?.picks ?? [];
   const hasPicks = existingPicks.length > 0;
 
+  useEffect(() => {
+    if (!weeklyBonusEnabled) return;
+    setWeeklyTiebreakerGuess(
+      myPicksData?.weeklyTiebreakerGuess != null
+        ? String(myPicksData.weeklyTiebreakerGuess)
+        : "",
+    );
+  }, [myPicksData?.weeklyTiebreakerGuess, weeklyBonusEnabled]);
+
   // Lock at first game kickoff
   const firstGameStart = useMemo(() => {
     if (games.length === 0) return Infinity;
@@ -1023,7 +1037,10 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     });
   }
 
-  async function doSubmit(tiebreaker?: { passing: number; rushing: number }) {
+  async function doSubmit(
+    tiebreaker?: { passing: number; rushing: number },
+    weeklyGuess?: number,
+  ) {
     setSubmitting(true);
     try {
       const picks = games.map((g) => {
@@ -1041,6 +1058,9 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       if (tiebreaker) {
         body.tiebreakerPassingYards = tiebreaker.passing;
         body.tiebreakerRushingYards = tiebreaker.rushing;
+      }
+      if (weeklyBonusEnabled && weeklyGuess != null) {
+        body.weeklyTiebreakerGuess = weeklyGuess;
       }
       const res = await fetch(`/api/pools/${poolId}/nfl-confidence/picks`, {
         method: "POST",
@@ -1084,11 +1104,23 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       });
       return;
     }
+    const parsedWeeklyGuess = Number(weeklyTiebreakerGuess);
+    if (
+      weeklyBonusEnabled &&
+      (!Number.isInteger(parsedWeeklyGuess) || parsedWeeklyGuess < 0)
+    ) {
+      toast({
+        title: "Weekly tiebreaker required",
+        description: "Enter a non-negative whole-number guess for the last game of the week.",
+        variant: "destructive",
+      });
+      return;
+    }
     // Tiebreaker is only needed in Week 18 (season champion resolution)
     if (currentWeek === 18) {
       setShowTiebreaker(true);
     } else {
-      void doSubmit();
+      void doSubmit(undefined, weeklyBonusEnabled ? parsedWeeklyGuess : undefined);
     }
   }
 
@@ -1097,7 +1129,10 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
       toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
       return;
     }
-    await doSubmit({ passing: parseInt(tbPassingYards, 10), rushing: parseInt(tbRushingYards, 10) });
+    await doSubmit(
+      { passing: parseInt(tbPassingYards, 10), rushing: parseInt(tbRushingYards, 10) },
+      weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
+    );
   }
 
   // ── Loading ─────────────────────────────────────────────────────────────────
@@ -1140,6 +1175,9 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
 
   const missingPicks = games.filter((g) => !pickedTeams[g.id]).length;
   const missingPoints = games.filter((g) => confidence[g.id] === undefined).length;
+  const weeklyTiebreakerGame = weeklyBonusEnabled
+    ? games.find((game) => game.id === myPicksData?.weeklyTiebreakerTargetGameId) ?? games.at(-1) ?? null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -1278,6 +1316,36 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
           />
         ))}
       </div>
+
+      {weeklyBonusEnabled && weeklyTiebreakerGame && (
+        <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-4 space-y-3">
+          <div>
+            <p className="font-bebas text-lg tracking-wide text-yellow-300">Weekly bonus tiebreaker</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Enter the combined passing and rushing yards for the last scheduled game of Week {currentWeek}.
+              This guess is collected now; weekly tiebreaker resolution is handled separately.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-500/20 bg-background/30 px-3 py-2">
+            <span className="text-sm font-semibold text-foreground">
+              {weeklyTiebreakerGame.awayTeam.name} @ {weeklyTiebreakerGame.homeTeam.name}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {formatTimeEt(weeklyTiebreakerGame.startTime)}
+            </span>
+          </div>
+          <Input
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            placeholder="Combined yards"
+            value={weeklyTiebreakerGuess}
+            onChange={(event) => setWeeklyTiebreakerGuess(event.target.value)}
+            aria-label="Weekly tiebreaker combined yards guess"
+          />
+        </div>
+      )}
 
       {/* Submit button */}
       <Button

@@ -368,6 +368,7 @@ export default function PoolHome() {
                 sandboxWeek={(pool as any).sandboxWeek ?? 1}
                 isSuperAdmin={user?.role === "admin"}
                 isActive={pool.isActive}
+                weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
               />
             ) : ((pool.poolType as string) === "pickem" || isNbaAts) ? (
               <PickEmView poolId={pool.id} poolName={pool.name} poolDescription={pool.description ?? ""} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} isRecurring={pool.isRecurring} entryFee={pool.entryFee} />
@@ -518,7 +519,11 @@ export default function PoolHome() {
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceView poolId={pool.id} currentWeek={pool.currentWeek} />
+              <NflConfidenceView
+                poolId={pool.id}
+                currentWeek={pool.currentWeek}
+                weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
+              />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
                     <NflConfidenceLeaderboard poolId={pool.id} initialWeek={pool.currentWeek} />

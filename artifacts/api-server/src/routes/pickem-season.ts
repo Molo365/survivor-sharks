@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
@@ -14,11 +14,59 @@ import {
   type PickConfirmationTransaction,
   type ConfirmationGame,
 } from "../lib/pick-confirmation";
+import { findLastNflGameByKickoff } from "../lib/nfl-weekly-tiebreaker";
 
 const router = Router({ mergeParams: true });
 
 function isGameLocked(startIso: string): boolean {
   return new Date(startIso).getTime() <= Date.now();
+}
+
+async function resolveWeeklyTiebreakerGameId(
+  pool: typeof poolsTable.$inferSelect,
+  week: number,
+): Promise<string | null> {
+  if (!pool.weeklyBonusEnabled) return null;
+
+  if (pool.sandboxMode) {
+    const replayRows = await db
+      .select({ gameId: sandboxGameScoresTable.gameId, replayKickoff: sandboxGameScoresTable.replayKickoff })
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, pool.id),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      return findLastNflGameByKickoff(replayRows.map((row) => ({ id: row.gameId, startTime: row.replayKickoff })))?.id ?? null;
+    }
+    return findLastNflGameByKickoff(
+      getSandboxGamesForWeek(week).map((game) => ({ id: game.id, startTime: game.gameTime })),
+    )?.id ?? null;
+  }
+
+  const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+  return findLastNflGameByKickoff(games.map((game) => ({ id: game.id, startTime: game.date })))?.id ?? null;
+}
+
+async function saveWeeklyTiebreaker(
+  poolId: number,
+  userId: number,
+  week: number,
+  guess: number,
+  targetGameId: string,
+): Promise<void> {
+  await db
+    .insert(nflWeeklyTiebreakersTable)
+    .values({ poolId, userId, week, guess, targetGameId })
+    .onConflictDoUpdate({
+      target: [
+        nflWeeklyTiebreakersTable.poolId,
+        nflWeeklyTiebreakersTable.userId,
+        nflWeeklyTiebreakersTable.week,
+      ],
+      set: { guess, targetGameId, updatedAt: new Date() },
+    });
 }
 
 async function persistNflPickEmSeasonConfirmation(
@@ -79,6 +127,20 @@ router.get("/games", requireAuth, async (req, res) => {
     and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.userId, userId), eq(pickemPicksTable.week, week))
   );
   const pickMap = new Map(existingPicks.map(p => [p.gameId, p]));
+  const [weeklyTiebreaker] = pool.weeklyBonusEnabled
+    ? await db
+        .select({
+          guess: nflWeeklyTiebreakersTable.guess,
+          actual: nflWeeklyTiebreakersTable.actual,
+        })
+        .from(nflWeeklyTiebreakersTable)
+        .where(and(
+          eq(nflWeeklyTiebreakersTable.poolId, poolId),
+          eq(nflWeeklyTiebreakersTable.userId, userId),
+          eq(nflWeeklyTiebreakersTable.week, week),
+        ))
+        .limit(1)
+    : [];
 
   // ── Sandbox path ────────────────────────────────────────────────────────────
   if (pool.sandboxMode) {
@@ -145,7 +207,25 @@ router.get("/games", requireAuth, async (req, res) => {
       const replayTiebreakerGameId = week === NFL_TOTAL_WEEKS
         ? ([...formattedGames].sort((a, b) => a.startTime.localeCompare(b.startTime)).at(-1)?.id ?? null)
         : null;
-      res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, sandboxMode: true, replayMode: true, ...(replayTiebreakerGameId !== null && { tiebreakerGameId: replayTiebreakerGameId }) });
+      const weeklyTiebreakerGameId = pool.weeklyBonusEnabled
+        ? findLastNflGameByKickoff(formattedGames.map((game) => ({ id: game.id, startTime: game.startTime })))?.id ?? null
+        : null;
+      res.json({
+        week,
+        totalWeeks: NFL_TOTAL_WEEKS,
+        currentWeek: pool.currentWeek,
+        games: formattedGames,
+        sandboxMode: true,
+        replayMode: true,
+        ...(replayTiebreakerGameId !== null && { tiebreakerGameId: replayTiebreakerGameId }),
+        ...(pool.weeklyBonusEnabled && {
+          weeklyTiebreaker: {
+            targetGameId: weeklyTiebreakerGameId,
+            guess: weeklyTiebreaker?.guess ?? null,
+            actual: weeklyTiebreaker?.actual ?? null,
+          },
+        }),
+      });
       return;
     }
 
@@ -172,7 +252,23 @@ router.get("/games", requireAuth, async (req, res) => {
     const staticTiebreakerGameId = week === NFL_TOTAL_WEEKS
       ? ([...formattedGames].sort((a, b) => a.startTime.localeCompare(b.startTime)).at(-1)?.id ?? null)
       : null;
-    res.json({ week, totalWeeks: NFL_TOTAL_WEEKS, currentWeek: pool.currentWeek, games: formattedGames, ...(staticTiebreakerGameId !== null && { tiebreakerGameId: staticTiebreakerGameId }) });
+    const weeklyTiebreakerGameId = pool.weeklyBonusEnabled
+      ? findLastNflGameByKickoff(formattedGames.map((game) => ({ id: game.id, startTime: game.startTime })))?.id ?? null
+      : null;
+    res.json({
+      week,
+      totalWeeks: NFL_TOTAL_WEEKS,
+      currentWeek: pool.currentWeek,
+      games: formattedGames,
+      ...(staticTiebreakerGameId !== null && { tiebreakerGameId: staticTiebreakerGameId }),
+      ...(pool.weeklyBonusEnabled && {
+        weeklyTiebreaker: {
+          targetGameId: weeklyTiebreakerGameId,
+          guess: weeklyTiebreaker?.guess ?? null,
+          actual: weeklyTiebreaker?.actual ?? null,
+        },
+      }),
+    });
     return;
   }
 
@@ -181,6 +277,9 @@ router.get("/games", requireAuth, async (req, res) => {
 
   // Auto-designate: last game of the week by start time is the tiebreaker reference game (Week 18 only)
   const tiebreakerGameId = week === NFL_TOTAL_WEEKS ? (games.at(-1)?.id ?? null) : null;
+  const weeklyTiebreakerGameId = pool.weeklyBonusEnabled
+    ? findLastNflGameByKickoff(games.map((game) => ({ id: game.id, startTime: game.date })))?.id ?? null
+    : null;
 
   const formattedGames = games.map(g => {
     const existing = pickMap.get(g.id);
@@ -232,6 +331,13 @@ router.get("/games", requireAuth, async (req, res) => {
     currentWeek: pool.currentWeek,
     games: formattedGames,
     ...(tiebreakerGameId !== null && { tiebreakerGameId }),
+    ...(pool.weeklyBonusEnabled && {
+      weeklyTiebreaker: {
+        targetGameId: weeklyTiebreakerGameId,
+        guess: weeklyTiebreaker?.guess ?? null,
+        actual: weeklyTiebreaker?.actual ?? null,
+      },
+    }),
   });
 });
 
@@ -239,11 +345,12 @@ router.get("/games", requireAuth, async (req, res) => {
 router.post("/picks", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
-  const { week, picks, tiebreakerPassingYards, tiebreakerRushingYards } = req.body as {
+  const { week, picks, tiebreakerPassingYards, tiebreakerRushingYards, weeklyTiebreakerGuess } = req.body as {
     week: number;
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>;
     tiebreakerPassingYards?: number;
     tiebreakerRushingYards?: number;
+    weeklyTiebreakerGuess?: number;
   };
 
   if (!week || isNaN(Number(week)) || Number(week) < 1 || Number(week) > NFL_TOTAL_WEEKS) {
@@ -268,6 +375,20 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const numWeek = Number(week);
+  const weeklyTiebreakerGameId = pool.weeklyBonusEnabled
+    ? await resolveWeeklyTiebreakerGameId(pool, numWeek)
+    : null;
+
+  if (pool.weeklyBonusEnabled) {
+    if (typeof weeklyTiebreakerGuess !== "number" || !Number.isInteger(weeklyTiebreakerGuess) || weeklyTiebreakerGuess < 0) {
+      res.status(400).json({ error: "weeklyTiebreakerGuess is required and must be a non-negative integer" });
+      return;
+    }
+    if (!weeklyTiebreakerGameId) {
+      res.status(400).json({ error: "The weekly tiebreaker game is not available yet" });
+      return;
+    }
+  }
 
   // ── Sandbox path — skip lock validation ────────────────────────────────────
   if (pool.sandboxMode) {
@@ -330,6 +451,9 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
       return persistNflPickEmSeasonConfirmation(tx, pool, req.user!, numWeek, confirmationGames);
       });
+      if (pool.weeklyBonusEnabled) {
+        await saveWeeklyTiebreaker(poolId, userId, numWeek, weeklyTiebreakerGuess!, weeklyTiebreakerGameId!);
+      }
       deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
       res.json({ saved: picks.length, skipped: 0 });
       return;
@@ -382,6 +506,9 @@ router.post("/picks", requireAuth, async (req, res) => {
       })));
     return persisted;
     });
+    if (pool.weeklyBonusEnabled) {
+      await saveWeeklyTiebreaker(poolId, userId, numWeek, weeklyTiebreakerGuess!, weeklyTiebreakerGameId!);
+    }
     deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
     res.status(201).json({ saved, skipped: 0 });
     return;
@@ -479,6 +606,9 @@ router.post("/picks", requireAuth, async (req, res) => {
   const persisted = await persistNflPickEmSeasonConfirmation(tx, pool, req.user!, numWeek, games);
   return persisted;
   });
+  if (pool.weeklyBonusEnabled) {
+    await saveWeeklyTiebreaker(poolId, userId, numWeek, weeklyTiebreakerGuess!, weeklyTiebreakerGameId!);
+  }
   deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
 
   res.status(201).json({ saved, skipped: 0 });
