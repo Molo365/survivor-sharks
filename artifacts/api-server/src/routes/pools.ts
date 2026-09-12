@@ -299,6 +299,12 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  const isNbaSandboxPool =
+    sport === "nba" && (resolvedPoolType === "nba_ats" || resolvedPoolType === "crazy_8s");
+  if (isNbaSandboxPool && sandboxMode === true && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Only admins can create NBA sandbox pools." });
+    return;
+  }
   const weeklyBonusEligible =
     sport === "nfl" && (resolvedPoolType === "pickem_season" || resolvedPoolType === "nfl_confidence");
   const hasWeeklyBonusSettings =

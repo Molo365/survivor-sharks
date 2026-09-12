@@ -2534,7 +2534,7 @@ router.post("/process-results", requireAuth, async (req, res) => {
   });
 });
 
-// POST /api/pools/:poolId/pickem/simulate-grading — sandbox grading for NHL Weekly Pick'em
+// POST /api/pools/:poolId/pickem/simulate-grading — admin-only sandbox grading
 router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
 
@@ -2542,16 +2542,83 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
+  const isCrazyEightsNba = (pool.poolType as string) === "crazy_8s" && pool.sport === "nba";
   const isPickemNhlWeekly = pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
   const isNbaAts = (pool.poolType as string) === "nba_ats";
-  if (!isCrazyEightsNhl && !isPickemNhlWeekly && !isNbaAts) {
-    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly), NHL Hit the Ice, and NBA ATS pools in sandbox mode" }); return;
+  if (!isCrazyEightsNhl && !isCrazyEightsNba && !isPickemNhlWeekly && !isNbaAts) {
+    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly), NHL Hit the Ice, NBA ATS, and NBA Fast Break pools in sandbox mode" }); return;
   }
   if (!pool.sandboxMode) {
     res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
   }
 
   const week = pool.currentWeek;
+
+  // ── NBA Fast Break sandbox simulate-grading ─────────────────────────────────
+  if (isCrazyEightsNba) {
+    // Fetch the full Fri/Sat/Sun weekend slate for this anchor week.
+    const { espnDates } = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, week);
+    const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
+    type FastBreakSandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
+    const gameList: FastBreakSandboxGame[] = weekendGames.map((g) => ({
+      id: g.id,
+      homeTeamId: g.homeTeam.id,
+      awayTeamId: g.awayTeam.id,
+    }));
+
+    // Load existing scores so outcomes stay stable across repeated calls.
+    const existingRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week)));
+    const gameScores = new Map<string, { homeScore: number; awayScore: number }>(
+      existingRows.map((r) => [r.gameId, { homeScore: r.homeScore ?? 90, awayScore: r.awayScore ?? 90 }]),
+    );
+
+    // Generate NBA-range scores (90–130 points, never a tie) for unscored games.
+    for (const game of gameList) {
+      if (gameScores.has(game.id)) continue;
+      let homeScore = 90 + Math.floor(Math.random() * 41);
+      let awayScore = 90 + Math.floor(Math.random() * 41);
+      if (homeScore === awayScore) awayScore = awayScore >= 130 ? 129 : awayScore + 1;
+      gameScores.set(game.id, { homeScore, awayScore });
+      await db
+        .insert(sandboxGameScoresTable)
+        .values({ poolId, week, gameId: game.id, homeScore, awayScore })
+        .onConflictDoNothing();
+    }
+
+    const winnerByGameId = new Map<string, string>();
+    for (const game of gameList) {
+      const scores = gameScores.get(game.id);
+      if (!scores) continue;
+      winnerByGameId.set(game.id, scores.homeScore > scores.awayScore ? game.homeTeamId : game.awayTeamId);
+    }
+
+    const pendingPicks = await db
+      .select()
+      .from(pickemPicksTable)
+      .where(and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.week, week),
+        eq(pickemPicksTable.result, "pending"),
+      ));
+
+    let graded = 0;
+    for (const pick of pendingPicks) {
+      const winner = winnerByGameId.get(pick.gameId);
+      if (winner === undefined) continue;
+      const result: "correct" | "incorrect" = pick.pickedTeamId === winner ? "correct" : "incorrect";
+      await db
+        .update(pickemPicksTable)
+        .set({ result, updatedAt: new Date() })
+        .where(eq(pickemPicksTable.id, pick.id));
+      graded++;
+    }
+
+    res.json({ graded, week });
+    return;
+  }
 
   // ── NBA ATS sandbox simulate-grading ────────────────────────────────────────
   if (isNbaAts) {
