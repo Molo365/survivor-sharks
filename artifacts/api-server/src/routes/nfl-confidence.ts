@@ -1,20 +1,27 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
-import { eq, and, sql, isNotNull, count } from "drizzle-orm";
+import { eq, and, sql, isNotNull, count, inArray } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
-import { findLastNflGameByKickoff } from "../lib/nfl-weekly-tiebreaker";
+import {
+  findLastNflGameByKickoff,
+  resolveWeeklyTiebreaker,
+  type NflScheduledGame,
+} from "../lib/nfl-weekly-tiebreaker";
+import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
 
 const router = Router({ mergeParams: true });
+type NflConfidenceTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function resolveWeeklyTiebreakerGameId(
+async function resolveWeeklyTiebreakerGame(
   pool: typeof poolsTable.$inferSelect,
   week: number,
-): Promise<string | null> {
+): Promise<NflScheduledGame | null> {
   if (!pool.weeklyBonusEnabled) return null;
 
+  let scheduledGames: NflScheduledGame[];
   if (pool.sandboxMode) {
     const replayRows = await db
       .select({ gameId: sandboxGameScoresTable.gameId, replayKickoff: sandboxGameScoresTable.replayKickoff })
@@ -25,25 +32,30 @@ async function resolveWeeklyTiebreakerGameId(
         isNotNull(sandboxGameScoresTable.gameStatus),
       ));
     if (replayRows.length > 0) {
-      return findLastNflGameByKickoff(replayRows.map((row) => ({ id: row.gameId, startTime: row.replayKickoff })))?.id ?? null;
+      scheduledGames = replayRows.map((row) => ({ id: row.gameId, startTime: row.replayKickoff }));
+    } else {
+      scheduledGames = getSandboxGamesForWeek(week).map((game) => ({
+        id: game.id,
+        startTime: game.gameTime,
+      }));
     }
-    return findLastNflGameByKickoff(
-      getSandboxGamesForWeek(week).map((game) => ({ id: game.id, startTime: game.gameTime })),
-    )?.id ?? null;
+  } else {
+    const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    scheduledGames = games.map((game) => ({ id: game.id, startTime: game.date }));
   }
 
-  const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
-  return findLastNflGameByKickoff(games.map((game) => ({ id: game.id, startTime: game.date })))?.id ?? null;
+  return getCanonicalWeeklyTiebreakerTarget(pool.id, week, scheduledGames);
 }
 
 async function saveWeeklyTiebreaker(
+  tx: NflConfidenceTransaction,
   poolId: number,
   userId: number,
   week: number,
   guess: number,
   targetGameId: string,
 ): Promise<void> {
-  await db
+  await tx
     .insert(nflWeeklyTiebreakersTable)
     .values({ poolId, userId, week, guess, targetGameId })
     .onConflictDoUpdate({
@@ -255,7 +267,9 @@ router.get("/picks", requireAuth, async (req, res) => {
   allGames.sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const lastGame = allGames.at(-1);
   const weeklyLastGame = pool.weeklyBonusEnabled
-    ? findLastNflGameByKickoff(
+    ? await getCanonicalWeeklyTiebreakerTarget(
+        poolId,
+        week,
         [...gameMap.entries()].map(([gameId, game]) => ({ id: gameId, startTime: game.startTime })),
       )
     : null;
@@ -313,8 +327,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   const week = pool.currentWeek;
   const isSandbox = (pool as any).sandboxMode as boolean;
-  const weeklyTiebreakerGameId = pool.weeklyBonusEnabled
-    ? await resolveWeeklyTiebreakerGameId(pool, week)
+  const weeklyTiebreakerGame = pool.weeklyBonusEnabled
+    ? await resolveWeeklyTiebreakerGame(pool, week)
     : null;
 
   if (pool.weeklyBonusEnabled) {
@@ -322,8 +336,12 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: "weeklyTiebreakerGuess is required and must be a non-negative integer" });
       return;
     }
-    if (!weeklyTiebreakerGameId) {
+    if (!weeklyTiebreakerGame) {
       res.status(400).json({ error: "The weekly tiebreaker game is not available yet" });
+      return;
+    }
+    if (new Date(weeklyTiebreakerGame.startTime!).getTime() <= Date.now()) {
+      res.status(400).json({ error: "The weekly tiebreaker is locked because its target game has started" });
       return;
     }
   }
@@ -363,12 +381,53 @@ router.post("/picks", requireAuth, async (req, res) => {
       return;
     }
 
-    // Validate confidence points 1-N each used exactly once
-    const cpSorted = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
-    if (!cpSorted.every((v, i) => v === i + 1)) {
-      res.status(400).json({ error: `Confidence points 1-${expectedCount} must each be used exactly once` });
+  } else {
+    const liveGames = await fetchNflGamesByWeek(
+      week,
+      pool.season,
+      pool.isPreseason ? 1 : 2,
+    );
+    const gameMap = new Map(liveGames.map((game) => [game.id, game]));
+    expectedCount = liveGames.length;
+
+    if (expectedCount === 0) {
+      res.status(400).json({ error: "The NFL schedule is not available yet" });
       return;
     }
+    if (picks.length !== expectedCount) {
+      res.status(400).json({ error: `Expected ${expectedCount} picks, got ${picks.length}` });
+      return;
+    }
+    for (const pick of picks) {
+      const game = gameMap.get(pick.gameId);
+      if (!game) {
+        res.status(400).json({ error: `Unknown game: ${pick.gameId}` });
+        return;
+      }
+      if (new Date(game.date).getTime() <= Date.now()) {
+        res.status(400).json({ error: `Game ${pick.gameId} has already locked` });
+        return;
+      }
+      const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
+      if (resolvedTeamId !== game.homeTeam.id && resolvedTeamId !== game.awayTeam.id) {
+        res.status(400).json({ error: `Invalid team for game ${pick.gameId}` });
+        return;
+      }
+    }
+  }
+
+  // Validate confidence points 1-N each used exactly once for every environment.
+  const cpSorted = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
+  if (!cpSorted.every((v, i) => v === i + 1)) {
+    res.status(400).json({ error: `Confidence points 1-${expectedCount} must each be used exactly once` });
+    return;
+  }
+
+  // Existing Week 18 season tiebreaker remains separate, but all validation
+  // must finish before any picks or weekly tiebreaker values are written.
+  if (week === 18 && (tiebreakerPassingYards == null || tiebreakerRushingYards == null)) {
+    res.status(400).json({ error: "Tiebreaker guesses are required for Week 18" });
+    return;
   }
 
   // Compute gameDate from week (use Sunday of the week)
@@ -382,49 +441,54 @@ router.post("/picks", requireAuth, async (req, res) => {
   const gameDate = weekSundayOffsets[week] ?? `2025-week-${week}`;
 
   let saved = 0;
-  for (const pick of picks) {
-    const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
-    await db
-      .insert(pickemPicksTable)
-      .values({
-        poolId,
-        userId,
-        gameId: pick.gameId,
-        gameDate,
-        week,
-        pickedTeamId: resolvedTeamId,
-        pickedTeamName: pick.pickedTeamName,
-        confidencePoints: pick.confidencePoints,
-        result: "pending",
-      } as any)
-      .onConflictDoUpdate({
-        target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-        set: {
+  await db.transaction(async (tx) => {
+    for (const pick of picks) {
+      const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
+      await tx
+        .insert(pickemPicksTable)
+        .values({
+          poolId,
+          userId,
+          gameId: pick.gameId,
+          gameDate,
+          week,
           pickedTeamId: resolvedTeamId,
           pickedTeamName: pick.pickedTeamName,
           confidencePoints: pick.confidencePoints,
           result: "pending",
-          updatedAt: new Date(),
-        } as any,
-      });
-    saved++;
-  }
-
-  if (pool.weeklyBonusEnabled) {
-    await saveWeeklyTiebreaker(poolId, userId, week, weeklyTiebreakerGuess!, weeklyTiebreakerGameId!);
-  }
-
-  // Tiebreaker guesses are only collected in Week 18 (season champion resolution)
-  if (week === 18) {
-    if (tiebreakerPassingYards == null || tiebreakerRushingYards == null) {
-      res.status(400).json({ error: "Tiebreaker guesses are required for Week 18" });
-      return;
+        } as any)
+        .onConflictDoUpdate({
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+          set: {
+            pickedTeamId: resolvedTeamId,
+            pickedTeamName: pick.pickedTeamName,
+            confidencePoints: pick.confidencePoints,
+            result: "pending",
+            updatedAt: new Date(),
+          } as any,
+        });
+      saved++;
     }
-    await db
-      .update(entriesTable)
-      .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
-      .where(eq(entriesTable.id, entry.id));
-  }
+
+    if (pool.weeklyBonusEnabled) {
+      await saveWeeklyTiebreaker(
+        tx,
+        poolId,
+        userId,
+        week,
+        weeklyTiebreakerGuess!,
+        weeklyTiebreakerGame!.id,
+      );
+    }
+
+    // Tiebreaker guesses are only collected in Week 18 (season champion resolution)
+    if (week === 18) {
+      await tx
+        .update(entriesTable)
+        .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
+        .where(eq(entriesTable.id, entry.id));
+    }
+  });
 
   req.log.info({ poolId, userId, week, saved }, "NFL Confidence picks submitted");
   res.status(201).json({ ok: true, saved, message: "NFL Confidence picks submitted successfully" });
@@ -925,8 +989,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 });
 
 // GET /api/pools/:poolId/nfl-confidence/weekly-winner?week=W
-// Returns the co-winner(s) for the most recently completed week, using that
-// week's confidence points only. Tiebreakers are intentionally not applied.
+// Returns the winner(s) for the most recently completed week using that week's
+// confidence points, then the separate weekly combined-yards tiebreaker.
 router.get("/weekly-winner", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
@@ -992,6 +1056,8 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
       week: null,
       hasResults: false,
       winners: [],
+      tiebreakerStatus: "not_needed",
+      tiebreakerActual: null,
       weeklyBonus: weeklyBonusBase,
     });
     return;
@@ -1014,6 +1080,8 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
       week,
       hasResults: false,
       winners: [],
+      tiebreakerStatus: "not_needed",
+      tiebreakerActual: null,
       weeklyBonus: weeklyBonusBase,
     });
     return;
@@ -1026,9 +1094,34 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
     weeklyPoints: Number(row.weeklyPoints),
   }));
   const winningPoints = Math.max(...players.map((player) => player.weeklyPoints));
-  const winners = players.filter((player) => player.weeklyPoints === winningPoints);
+  const scoreWinners = players.filter((player) => player.weeklyPoints === winningPoints);
+  const weeklyTiebreakerRows =
+    pool.weeklyBonusEnabled && scoreWinners.length > 1
+      ? await db
+          .select({
+            userId: nflWeeklyTiebreakersTable.userId,
+            guess: nflWeeklyTiebreakersTable.guess,
+            actual: nflWeeklyTiebreakersTable.actual,
+          })
+          .from(nflWeeklyTiebreakersTable)
+          .where(and(
+            eq(nflWeeklyTiebreakersTable.poolId, poolId),
+            eq(nflWeeklyTiebreakersTable.week, week),
+            inArray(
+              nflWeeklyTiebreakersTable.userId,
+              scoreWinners.map((winner) => winner.userId),
+            ),
+          ))
+      : [];
+  const weeklyTiebreakerResolution = pool.weeklyBonusEnabled
+    ? resolveWeeklyTiebreaker(scoreWinners, weeklyTiebreakerRows)
+    : { status: "not_needed" as const, actual: null, winners: scoreWinners };
+  const winners = weeklyTiebreakerResolution.winners;
   const perWinnerAmount =
-    weeklyBonusBase.thresholdMet && weeklyBonusAmount != null && winners.length > 0
+    weeklyBonusBase.thresholdMet &&
+    weeklyBonusAmount != null &&
+    weeklyTiebreakerResolution.status !== "pending" &&
+    winners.length > 0
       ? Math.round((weeklyBonusAmount / winners.length) * 100) / 100
       : null;
 
@@ -1036,6 +1129,8 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
     week,
     hasResults: true,
     winners,
+    tiebreakerStatus: weeklyTiebreakerResolution.status,
+    tiebreakerActual: weeklyTiebreakerResolution.actual,
     weeklyBonus: {
       ...weeklyBonusBase,
       perWinnerAmount,

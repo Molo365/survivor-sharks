@@ -5529,7 +5529,7 @@ components:
 
     NflPickEmSeasonWeekResults:
       type: object
-      required: [week, games, players, winners, hasResults, weeklyBonus]
+      required: [week, games, players, winners, hasResults, tiebreakerStatus, tiebreakerActual, weeklyBonus]
       properties:
         week:
           type: integer
@@ -5547,6 +5547,13 @@ components:
             $ref: "#/components/schemas/NflPickEmSeasonWeekWinner"
         hasResults:
           type: boolean
+        tiebreakerStatus:
+          type: string
+          enum: [not_needed, pending, resolved]
+          description: "pending means tied score leaders are waiting for the target game's actual combined yards"
+        tiebreakerActual:
+          type: ["integer", "null"]
+          description: "Combined passing plus rushing yards for the weekly target game once final"
         weeklyBonus:
           type: object
           required: [enabled, thresholdMet, amount, perWinnerAmount, minPlayers, confirmedPlayerCount]
@@ -5566,7 +5573,7 @@ components:
 
     NflConfidenceWeeklyWinner:
       type: object
-      required: [week, hasResults, winners, weeklyBonus]
+      required: [week, hasResults, winners, tiebreakerStatus, tiebreakerActual, weeklyBonus]
       properties:
         week:
           type: ["integer", "null"]
@@ -5586,6 +5593,13 @@ components:
                 type: ["string", "null"]
               weeklyPoints:
                 type: number
+        tiebreakerStatus:
+          type: string
+          enum: [not_needed, pending, resolved]
+          description: "pending means tied score leaders are waiting for the target game's actual combined yards"
+        tiebreakerActual:
+          type: ["integer", "null"]
+          description: "Combined passing plus rushing yards for the weekly target game once final"
         weeklyBonus:
           type: object
           required: [enabled, thresholdMet, amount, perWinnerAmount, minPlayers, confirmedPlayerCount]

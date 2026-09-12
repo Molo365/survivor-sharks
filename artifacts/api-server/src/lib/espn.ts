@@ -1,4 +1,5 @@
 import { ESPN_TEAMS } from "./teams-data";
+import { parseNflWeeklyTiebreakerActual } from "./nfl-weekly-tiebreaker";
 
 const ESPN_ENDPOINTS: Record<string, string> = {
   nfl: "https://site.api.espn.com/apis/site/v2/sports/football/nfl",
@@ -1521,4 +1522,25 @@ export async function fetchNflWeek18TiebreakerStats(
     actualPassingYards: passingFound ? totalPassing : 0,
     actualRushingYards: rushingFound ? totalRushing : 0,
   };
+}
+
+/**
+ * Weekly bonus tiebreakers require a complete two-team box score before
+ * storing an irreversible combined-yardage actual.
+ */
+export async function fetchNflWeeklyTiebreakerActual(
+  gameId: string,
+): Promise<number | null> {
+  const response = await fetch(`${NFL_SUMMARY_BASE}?event=${gameId}`, {
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as {
+    boxscore?: {
+      teams?: Array<{
+        statistics?: Array<{ name: string; displayValue: string }>;
+      }>;
+    };
+  };
+  return parseNflWeeklyTiebreakerActual(payload.boxscore?.teams ?? []);
 }

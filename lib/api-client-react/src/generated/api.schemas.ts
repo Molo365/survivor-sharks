@@ -2214,6 +2214,18 @@ export interface UserBalance {
   pastPools: UserBalancePastPool[];
 }
 
+/**
+ * pending means tied score leaders are waiting for the target game's actual combined yards
+ */
+export type NflPickEmSeasonWeekResultsTiebreakerStatus = typeof NflPickEmSeasonWeekResultsTiebreakerStatus[keyof typeof NflPickEmSeasonWeekResultsTiebreakerStatus];
+
+
+export const NflPickEmSeasonWeekResultsTiebreakerStatus = {
+  not_needed: 'not_needed',
+  pending: 'pending',
+  resolved: 'resolved',
+} as const;
+
 export type NflPickEmSeasonWeekResultsWeeklyBonus = {
   enabled: boolean;
   thresholdMet: boolean;
@@ -2232,6 +2244,13 @@ export interface NflPickEmSeasonWeekResults {
   players: NflPickEmSeasonWeekPlayer[];
   winners: NflPickEmSeasonWeekWinner[];
   hasResults: boolean;
+  /** pending means tied score leaders are waiting for the target game's actual combined yards */
+  tiebreakerStatus: NflPickEmSeasonWeekResultsTiebreakerStatus;
+  /**
+     * Combined passing plus rushing yards for the weekly target game once final
+     * @nullable
+     */
+  tiebreakerActual: number | null;
   weeklyBonus: NflPickEmSeasonWeekResultsWeeklyBonus;
 }
 
@@ -2242,6 +2261,18 @@ export type NflConfidenceWeeklyWinnerWinnersItem = {
   displayName: string | null;
   weeklyPoints: number;
 };
+
+/**
+ * pending means tied score leaders are waiting for the target game's actual combined yards
+ */
+export type NflConfidenceWeeklyWinnerTiebreakerStatus = typeof NflConfidenceWeeklyWinnerTiebreakerStatus[keyof typeof NflConfidenceWeeklyWinnerTiebreakerStatus];
+
+
+export const NflConfidenceWeeklyWinnerTiebreakerStatus = {
+  not_needed: 'not_needed',
+  pending: 'pending',
+  resolved: 'resolved',
+} as const;
 
 export type NflConfidenceWeeklyWinnerWeeklyBonus = {
   enabled: boolean;
@@ -2260,6 +2291,13 @@ export interface NflConfidenceWeeklyWinner {
   week: number | null;
   hasResults: boolean;
   winners: NflConfidenceWeeklyWinnerWinnersItem[];
+  /** pending means tied score leaders are waiting for the target game's actual combined yards */
+  tiebreakerStatus: NflConfidenceWeeklyWinnerTiebreakerStatus;
+  /**
+     * Combined passing plus rushing yards for the weekly target game once final
+     * @nullable
+     */
+  tiebreakerActual: number | null;
   weeklyBonus: NflConfidenceWeeklyWinnerWeeklyBonus;
 }
 

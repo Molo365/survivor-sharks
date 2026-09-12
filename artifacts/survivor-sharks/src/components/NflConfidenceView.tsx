@@ -1217,7 +1217,10 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
             <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
             <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-yellow-200">
-                Week {weeklyWinner.week} Winner{weeklyWinner.winners.length > 1 ? "s" : ""}:
+                Week {weeklyWinner.week}{" "}
+                {weeklyWinner.tiebreakerStatus === "pending"
+                  ? "Tie — pending tiebreaker:"
+                  : `Winner${weeklyWinner.winners.length > 1 ? "s" : ""}:`}
               </span>
               <span className="text-sm text-yellow-300">
                 {weeklyWinner.winners
@@ -1227,7 +1230,11 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
               {weeklyWinner.weeklyBonus.enabled && (
                 <>
                   <span className="text-yellow-500/50 text-xs">·</span>
-                  {weeklyWinner.weeklyBonus.thresholdMet &&
+                  {weeklyWinner.tiebreakerStatus === "pending" ? (
+                    <span className="text-xs text-yellow-500/70">
+                      Bonus payout will finalize after the target game ends
+                    </span>
+                  ) : weeklyWinner.weeklyBonus.thresholdMet &&
                   weeklyWinner.weeklyBonus.perWinnerAmount != null ? (
                     <span className="text-sm font-semibold text-yellow-300">
                       ${weeklyWinner.weeklyBonus.perWinnerAmount.toFixed(2)} bonus

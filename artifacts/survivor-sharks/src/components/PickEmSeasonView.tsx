@@ -1780,7 +1780,10 @@ export function PickEmSeasonView({
                   <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
                   <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-yellow-200">
-                      Week {prevWeek} Winner{prevWeekWinners.length > 1 ? "s" : ""}:
+                      Week {prevWeek}{" "}
+                      {prevWeekResults?.tiebreakerStatus === "pending"
+                        ? "Tie — pending tiebreaker:"
+                        : `Winner${prevWeekWinners.length > 1 ? "s" : ""}:`}
                     </span>
                     <span className="text-sm text-yellow-300">
                       {prevWeekWinners
@@ -1793,7 +1796,14 @@ export function PickEmSeasonView({
                       correct
                     </span>
                     {prevWeekBonus?.enabled ? (
-                      prevWeekBonus.thresholdMet &&
+                      prevWeekResults?.tiebreakerStatus === "pending" ? (
+                        <>
+                          <span className="text-yellow-500/50 text-xs">·</span>
+                          <span className="text-xs text-yellow-500/70">
+                            Bonus payout will finalize after the target game ends
+                          </span>
+                        </>
+                      ) : prevWeekBonus.thresholdMet &&
                       prevWeekBonus.perWinnerAmount != null ? (
                         <>
                           <span className="text-yellow-500/50 text-xs">·</span>

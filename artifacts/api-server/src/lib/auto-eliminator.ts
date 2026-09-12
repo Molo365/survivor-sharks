@@ -68,6 +68,7 @@ import { fetchNhlTiebreakerStats } from "./nhl-stats";
 import { fetchNbaTiebreakerStats } from "./nba-stats";
 import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
+import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlotTeams } from "./mlb-bracket";
@@ -6073,6 +6074,7 @@ export function startAutoEliminator(): void {
       processMlbBracketResults(),
       processReplayTick(),
     ]);
+    const weeklyTiebreakers = await resolveNflWeeklyTiebreakerActuals();
     // Run only after survivor, confidence, and Pick-Ems Season grading finish.
     // The advance changes which slate the UI shows; it must not race grading of
     // the just-finished NFL week.
@@ -6086,7 +6088,9 @@ export function startAutoEliminator(): void {
       pickEmPicksGraded: pickEm.picksGraded,
       crazyEightsPicksGraded: crazyEights.picksGraded,
       wcBracketPicksGraded: wcBracket.picksGraded,
-        mlbBracketPicksGraded: mlbBracket.picksGraded,
+      mlbBracketPicksGraded: mlbBracket.picksGraded,
+      weeklyTiebreakerRowsUpdated: weeklyTiebreakers.rowsUpdated,
+      weeklyTiebreakerGroupsFailed: weeklyTiebreakers.groupsFailed,
       nflWeeksAdvanced,
     };
   }
@@ -6104,6 +6108,8 @@ export function startAutoEliminator(): void {
           stats.mlbWeeksProcessed > 0 ||
           stats.mlbDaysProcessed > 0 ||
           stats.pickEmPicksGraded > 0 ||
+          stats.weeklyTiebreakerRowsUpdated > 0 ||
+          stats.weeklyTiebreakerGroupsFailed > 0 ||
           stats.nflWeeksAdvanced > 0
         ) {
           logger.info(stats, "Auto-eliminator poll complete");

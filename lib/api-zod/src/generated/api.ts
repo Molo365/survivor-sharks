@@ -2920,6 +2920,8 @@ export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
   "total": zod.number()
 })),
   "hasResults": zod.boolean(),
+  "tiebreakerStatus": zod.enum(['not_needed', 'pending', 'resolved']).describe('pending means tied score leaders are waiting for the target game\'s actual combined yards'),
+  "tiebreakerActual": zod.number().nullable().describe('Combined passing plus rushing yards for the weekly target game once final'),
   "weeklyBonus": zod.object({
   "enabled": zod.boolean(),
   "thresholdMet": zod.boolean(),
@@ -2951,6 +2953,8 @@ export const GetNflConfidenceWeeklyWinnerResponse = zod.object({
   "displayName": zod.string().nullable(),
   "weeklyPoints": zod.number()
 })),
+  "tiebreakerStatus": zod.enum(['not_needed', 'pending', 'resolved']).describe('pending means tied score leaders are waiting for the target game\'s actual combined yards'),
+  "tiebreakerActual": zod.number().nullable().describe('Combined passing plus rushing yards for the weekly target game once final'),
   "weeklyBonus": zod.object({
   "enabled": zod.boolean(),
   "thresholdMet": zod.boolean(),
