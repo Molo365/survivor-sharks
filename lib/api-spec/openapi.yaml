@@ -2523,6 +2523,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/NflPickEmSeasonWeekResults"
 
+  /pools/{poolId}/nfl-confidence/weekly-winner:
+    get:
+      operationId: getNflConfidenceWeeklyWinner
+      tags: [nfl-confidence]
+      summary: Weekly confidence winner and bonus details
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: week
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Weekly confidence winner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflConfidenceWeeklyWinner"
+
   /pools/{poolId}/pickem-season/sandbox-week:
     patch:
       operationId: setNflPickEmSeasonSandboxWeek
@@ -5495,6 +5519,45 @@ components:
             $ref: "#/components/schemas/NflPickEmSeasonWeekWinner"
         hasResults:
           type: boolean
+        weeklyBonus:
+          type: object
+          required: [enabled, thresholdMet, amount, perWinnerAmount, minPlayers, confirmedPlayerCount]
+          properties:
+            enabled:
+              type: boolean
+            thresholdMet:
+              type: boolean
+            amount:
+              type: ["number", "null"]
+            perWinnerAmount:
+              type: ["number", "null"]
+            minPlayers:
+              type: ["integer", "null"]
+            confirmedPlayerCount:
+              type: integer
+
+    NflConfidenceWeeklyWinner:
+      type: object
+      required: [week, hasResults, winners, weeklyBonus]
+      properties:
+        week:
+          type: ["integer", "null"]
+        hasResults:
+          type: boolean
+        winners:
+          type: array
+          items:
+            type: object
+            required: [userId, username, displayName, weeklyPoints]
+            properties:
+              userId:
+                type: integer
+              username:
+                type: string
+              displayName:
+                type: ["string", "null"]
+              weeklyPoints:
+                type: number
         weeklyBonus:
           type: object
           required: [enabled, thresholdMet, amount, perWinnerAmount, minPlayers, confirmedPlayerCount]

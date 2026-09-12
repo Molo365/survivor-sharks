@@ -1,7 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
-import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
+import {
+  useUpdatePool,
+  getGetPoolQueryKey,
+  useGetNflConfidenceWeeklyWinner,
+  getGetNflConfidenceWeeklyWinnerQueryKey,
+} from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
@@ -957,6 +962,18 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
     enabled: !!user,
   });
 
+  const { data: weeklyWinner } = useGetNflConfidenceWeeklyWinner(
+    poolId,
+    undefined,
+    {
+      query: {
+        queryKey: getGetNflConfidenceWeeklyWinnerQueryKey(poolId),
+        staleTime: 2 * 60 * 1000,
+        enabled: !!user,
+      },
+    },
+  );
+
   const games: PickEmGame[] = slate?.games ?? [];
   const maxConfidence = games.length;
 
@@ -1153,6 +1170,41 @@ export function NflConfidenceView({ poolId, currentWeek }: NflConfidenceViewProp
           )}
         </div>
       </div>
+
+      {/* Weekly winner banner */}
+      {weeklyWinner?.hasResults &&
+        weeklyWinner.week !== null &&
+        weeklyWinner.winners.length > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/[0.08] px-4 py-3">
+            <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+            <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-yellow-200">
+                Week {weeklyWinner.week} Winner{weeklyWinner.winners.length > 1 ? "s" : ""}:
+              </span>
+              <span className="text-sm text-yellow-300">
+                {weeklyWinner.winners
+                  .map((winner) => winner.displayName || winner.username)
+                  .join(" & ")}
+              </span>
+              {weeklyWinner.weeklyBonus.enabled && (
+                <>
+                  <span className="text-yellow-500/50 text-xs">·</span>
+                  {weeklyWinner.weeklyBonus.thresholdMet &&
+                  weeklyWinner.weeklyBonus.perWinnerAmount != null ? (
+                    <span className="text-sm font-semibold text-yellow-300">
+                      ${weeklyWinner.weeklyBonus.perWinnerAmount.toFixed(2)} bonus
+                      {weeklyWinner.winners.length > 1 ? " each" : ""}!
+                    </span>
+                  ) : (
+                    <span className="text-xs text-yellow-500/70">
+                      Pool hasn&apos;t reached its weekly prize threshold yet
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Tiebreaker notice — only relevant in Week 18 (season champion resolution) */}
       {currentWeek === 18 && (

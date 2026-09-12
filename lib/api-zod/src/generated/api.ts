@@ -2917,6 +2917,37 @@ export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
 
 
 /**
+ * @summary Weekly confidence winner and bonus details
+ */
+export const GetNflConfidenceWeeklyWinnerParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNflConfidenceWeeklyWinnerQueryParams = zod.object({
+  "week": zod.coerce.number().optional()
+})
+
+export const GetNflConfidenceWeeklyWinnerResponse = zod.object({
+  "week": zod.number().nullable(),
+  "hasResults": zod.boolean(),
+  "winners": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullable(),
+  "weeklyPoints": zod.number()
+})),
+  "weeklyBonus": zod.object({
+  "enabled": zod.boolean(),
+  "thresholdMet": zod.boolean(),
+  "amount": zod.number().nullable(),
+  "perWinnerAmount": zod.number().nullable(),
+  "minPlayers": zod.number().nullable(),
+  "confirmedPlayerCount": zod.number()
+})
+})
+
+
+/**
  * @summary Set sandbox week (super admin / commissioner only)
  */
 export const SetNflPickEmSeasonSandboxWeekParams = zod.object({

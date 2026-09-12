@@ -37,6 +37,7 @@ import type {
   Game,
   GetDailyScheduleParams,
   GetLeaderboardParams,
+  GetNflConfidenceWeeklyWinnerParams,
   GetNflPickEmSeasonGamesParams,
   GetNflPickEmSeasonWeekResultsParams,
   GetPickEmDailyPicksParams,
@@ -73,6 +74,7 @@ import type {
   NdpPicksInput,
   NdpResultsInput,
   NdpWeek18Game,
+  NflConfidenceWeeklyWinner,
   NflDivisionStandingsGroup,
   NflPickEmSeasonLeaderboard,
   NflPickEmSeasonPicksResult,
@@ -7448,6 +7450,95 @@ export function useGetNflPickEmSeasonWeekResults<TData = Awaited<ReturnType<type
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNflPickEmSeasonWeekResultsQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNflConfidenceWeeklyWinnerUrl = (poolId: number,
+    params?: GetNflConfidenceWeeklyWinnerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pools/${poolId}/nfl-confidence/weekly-winner?${stringifiedParams}` : `/api/pools/${poolId}/nfl-confidence/weekly-winner`
+}
+
+/**
+ * @summary Weekly confidence winner and bonus details
+ */
+export const getNflConfidenceWeeklyWinner = async (poolId: number,
+    params?: GetNflConfidenceWeeklyWinnerParams, options?: RequestInit): Promise<NflConfidenceWeeklyWinner> => {
+
+  return customFetch<NflConfidenceWeeklyWinner>(getGetNflConfidenceWeeklyWinnerUrl(poolId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflConfidenceWeeklyWinnerQueryKey = (poolId: number,
+    params?: GetNflConfidenceWeeklyWinnerParams,) => {
+    return [
+    `/api/pools/${poolId}/nfl-confidence/weekly-winner`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNflConfidenceWeeklyWinnerQueryOptions = <TData = Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>, TError = ErrorType<unknown>>(poolId: number,
+    params?: GetNflConfidenceWeeklyWinnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflConfidenceWeeklyWinnerQueryKey(poolId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>> = ({ signal }) => getNflConfidenceWeeklyWinner(poolId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflConfidenceWeeklyWinnerQueryResult = NonNullable<Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>>
+export type GetNflConfidenceWeeklyWinnerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Weekly confidence winner and bonus details
+ */
+
+export function useGetNflConfidenceWeeklyWinner<TData = Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>, TError = ErrorType<unknown>>(
+ poolId: number,
+    params?: GetNflConfidenceWeeklyWinnerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceWeeklyWinner>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflConfidenceWeeklyWinnerQueryOptions(poolId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

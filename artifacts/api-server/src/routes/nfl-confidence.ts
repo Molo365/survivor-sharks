@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql, isNotNull } from "drizzle-orm";
+import { eq, and, sql, isNotNull, count } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
@@ -830,6 +830,125 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }
 
   res.json({ week, players, actualPassingYards, actualRushingYards });
+});
+
+// GET /api/pools/:poolId/nfl-confidence/weekly-winner?week=W
+// Returns the co-winner(s) for the most recently completed week, using that
+// week's confidence points only. Tiebreakers are intentionally not applied.
+router.get("/weekly-winner", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "nfl_confidence") {
+    res.status(400).json({ error: "Not an NFL Confidence pool" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const [completedWeeks, memberCountRows] = await Promise.all([
+    db
+      .select({ week: nflConfidenceResultsTable.week })
+      .from(nflConfidenceResultsTable)
+      .where(eq(nflConfidenceResultsTable.poolId, poolId)),
+    db
+      .select({ playerCount: count() })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId)),
+  ]);
+
+  const requestedWeek = req.query.week ? parseInt(String(req.query.week)) : NaN;
+  const latestCompletedWeek = completedWeeks.reduce(
+    (latest, row) => Math.max(latest, row.week),
+    0,
+  );
+  const week = Number.isInteger(requestedWeek)
+    ? Math.max(1, Math.min(18, requestedWeek))
+    : latestCompletedWeek;
+
+  const confirmedPlayerCount = Number(memberCountRows[0]?.playerCount ?? 0);
+  const weeklyBonusAmount =
+    pool.weeklyBonusEnabled && pool.weeklyBonusAmount != null
+      ? Number(pool.weeklyBonusAmount)
+      : null;
+  const weeklyBonusMinPlayers =
+    pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
+      ? pool.weeklyBonusMinPlayers
+      : null;
+
+  const weeklyBonusBase = {
+    enabled: pool.weeklyBonusEnabled,
+    thresholdMet:
+      weeklyBonusAmount != null &&
+      weeklyBonusMinPlayers != null &&
+      confirmedPlayerCount >= weeklyBonusMinPlayers,
+    amount: weeklyBonusAmount,
+    perWinnerAmount: null as number | null,
+    minPlayers: weeklyBonusMinPlayers,
+    confirmedPlayerCount,
+  };
+
+  if (week === 0 || !completedWeeks.some((row) => row.week === week)) {
+    res.json({
+      week: null,
+      hasResults: false,
+      winners: [],
+      weeklyBonus: weeklyBonusBase,
+    });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      userId: pickemPicksTable.userId,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+      weeklyPoints: sql<string>`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE(${pickemPicksTable.confidencePoints}::integer, 0) ELSE 0 END), 0)`,
+    })
+    .from(pickemPicksTable)
+    .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+    .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week)))
+    .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName);
+
+  if (rows.length === 0) {
+    res.json({
+      week,
+      hasResults: false,
+      winners: [],
+      weeklyBonus: weeklyBonusBase,
+    });
+    return;
+  }
+
+  const players = rows.map((row) => ({
+    userId: row.userId,
+    username: row.username,
+    displayName: row.displayName ?? null,
+    weeklyPoints: Number(row.weeklyPoints),
+  }));
+  const winningPoints = Math.max(...players.map((player) => player.weeklyPoints));
+  const winners = players.filter((player) => player.weeklyPoints === winningPoints);
+  const perWinnerAmount =
+    weeklyBonusBase.thresholdMet && weeklyBonusAmount != null && winners.length > 0
+      ? Math.round((weeklyBonusAmount / winners.length) * 100) / 100
+      : null;
+
+  res.json({
+    week,
+    hasResults: true,
+    winners,
+    weeklyBonus: {
+      ...weeklyBonusBase,
+      perWinnerAmount,
+    },
+  });
 });
 
 // GET /api/pools/:poolId/nfl-confidence/season-standings

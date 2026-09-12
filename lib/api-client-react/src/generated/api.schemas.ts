@@ -2218,6 +2218,34 @@ export interface NflPickEmSeasonWeekResults {
   weeklyBonus: NflPickEmSeasonWeekResultsWeeklyBonus;
 }
 
+export type NflConfidenceWeeklyWinnerWinnersItem = {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName: string | null;
+  weeklyPoints: number;
+};
+
+export type NflConfidenceWeeklyWinnerWeeklyBonus = {
+  enabled: boolean;
+  thresholdMet: boolean;
+  /** @nullable */
+  amount: number | null;
+  /** @nullable */
+  perWinnerAmount: number | null;
+  /** @nullable */
+  minPlayers: number | null;
+  confirmedPlayerCount: number;
+};
+
+export interface NflConfidenceWeeklyWinner {
+  /** @nullable */
+  week: number | null;
+  hasResults: boolean;
+  winners: NflConfidenceWeeklyWinnerWinnersItem[];
+  weeklyBonus: NflConfidenceWeeklyWinnerWeeklyBonus;
+}
+
 export interface UserFinalEntry {
   finishPosition?: number | null;
   prizeAmount?: number | null;
@@ -2532,6 +2560,10 @@ export type ProcessNflPickEmSeasonResultsBody = {
 };
 
 export type GetNflPickEmSeasonWeekResultsParams = {
+week?: number;
+};
+
+export type GetNflConfidenceWeeklyWinnerParams = {
 week?: number;
 };
 
