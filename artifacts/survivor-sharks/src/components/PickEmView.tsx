@@ -4397,7 +4397,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* ATS: commissioner spread-line entry */}
-              {isNbaAts && (
+              {isNbaAts && user?.role === "admin" && (
                 <AtsCommissionerSpreads poolId={poolId} games={slate?.games ?? []} />
               )}
 
