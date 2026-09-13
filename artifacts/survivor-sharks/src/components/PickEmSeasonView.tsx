@@ -110,6 +110,19 @@ function formatGameTimeEt(iso: string): string {
   }
 }
 
+function formatGameDateEt(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
 // ── NflGameCard ───────────────────────────────────────────────────────────────
 
 function NflGameCard({
@@ -309,6 +322,9 @@ function NflGameCard({
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
                 ● LIVE
               </span>
+              <span className="text-[10px] text-muted-foreground/70 leading-none whitespace-nowrap">
+                {formatGameDateEt(game.startTime)}
+              </span>
               {game.liveDetail && (
                 <span className="font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
                   {game.liveDetail}
@@ -327,6 +343,9 @@ function NflGameCard({
             <>
               <span className="font-bebas text-xs text-muted-foreground/70 tracking-widest uppercase">
                 vs
+              </span>
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground/80 leading-tight font-semibold whitespace-nowrap">
+                {formatGameDateEt(game.startTime)}
               </span>
               <div className="flex items-center gap-1 mt-0.5">
                 <Clock className="w-3 h-3 text-primary/60 shrink-0" />
