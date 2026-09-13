@@ -156,14 +156,26 @@ const WC_PICK_SHORT: Record<WcPickOption, string> = {
   home_win: "HW",
 };
 
+type HomeAwaySide = "HOME" | "AWAY";
+
+function HomeAwayBadge({ side }: { side: HomeAwaySide }) {
+  return (
+    <span className="inline-flex items-center text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded-full border bg-muted/20 text-muted-foreground/60 border-border/30 leading-none whitespace-nowrap">
+      {side}
+    </span>
+  );
+}
+
 function WcGameCard({
   game,
   pickedOption,
   onPick,
+  showHomeAwayLabels = false,
 }: {
   game: PickEmGame;
   pickedOption: WcPickOption | null;
   onPick: (opt: WcPickOption) => void;
+  showHomeAwayLabels?: boolean;
 }) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
@@ -202,7 +214,10 @@ function WcGameCard({
             </div>
           )}
           <div>
-            <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.awayTeam.name}</div>
+            <div className="flex items-center gap-1 flex-wrap">
+              <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.awayTeam.name}</div>
+              {showHomeAwayLabels && <HomeAwayBadge side="AWAY" />}
+            </div>
             {(isFinal || isLive) && game.awayScore != null && (
               <div className="font-bebas text-2xl leading-none text-foreground">{game.awayScore}</div>
             )}
@@ -230,7 +245,10 @@ function WcGameCard({
         {/* Home team */}
         <div className="flex items-center gap-2 flex-1 justify-end text-right">
           <div>
-            <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.homeTeam.name}</div>
+            <div className="flex items-center justify-end gap-1 flex-wrap">
+              {showHomeAwayLabels && <HomeAwayBadge side="HOME" />}
+              <div className="font-bebas tracking-wide text-sm leading-tight text-muted-foreground">{game.homeTeam.name}</div>
+            </div>
             {(isFinal || isLive) && game.homeScore != null && (
               <div className="font-bebas text-2xl leading-none text-foreground">{game.homeScore}</div>
             )}
@@ -532,9 +550,10 @@ interface PicksGridProps {
   week: number;
   isWc?: boolean;
   phase?: string | null;
+  showHomeAwayLabels?: boolean;
 }
 
-function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGridProps) {
+function PicksGrid({ games, entries, currentUserId, week, isWc, phase, showHomeAwayLabels = false }: PicksGridProps) {
   const title = isWc
     ? phase === "knockout_stage" ? "Knockout Stage Grid"
       : phase === "group_stage" ? "Group Stage Grid"
@@ -628,6 +647,7 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase }: PicksGr
 
                         const TeamSection = ({ opt, team }: { opt: "home_win" | "away_win"; team: typeof game.homeTeam }) => (
                           <div className={cn("flex flex-col items-center justify-center gap-[3px] rounded-md py-1.5 px-1 transition-all", sectionCn(opt))}>
+                            {showHomeAwayLabels && <HomeAwayBadge side={opt === "home_win" ? "HOME" : "AWAY"} />}
                             <div className={cn("rounded-full p-[3px] shrink-0 transition-all", pickedOpt === opt ? "bg-white/90" : "bg-white/15")}>
                               {team.logoUrl
                                 ? <img src={team.logoUrl} alt="" className="w-[18px] h-[18px] object-contain block" />
@@ -743,9 +763,10 @@ interface StatsViewProps {
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
   isWc?: boolean;
+  showHomeAwayLabels?: boolean;
 }
 
-function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
+function StatsView({ games, entries, currentUserId, isWc, showHomeAwayLabels = false }: StatsViewProps) {
   const playerStats = [...entries]
     .map((entry) => ({
       ...entry,
@@ -883,7 +904,10 @@ function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
                         />
                       </div>
                     )}
-                    <span className="font-bebas tracking-wide">{game.awayTeam.abbreviation}</span>
+                    <span className="font-bebas tracking-wide flex items-center gap-1">
+                      {showHomeAwayLabels && <HomeAwayBadge side="AWAY" />}
+                      {game.awayTeam.abbreviation}
+                    </span>
                     <span className="text-muted-foreground ml-auto">
                       {awayCount} {awayCount === 1 ? "pick" : "picks"}
                     </span>
@@ -899,7 +923,10 @@ function StatsView({ games, entries, currentUserId, isWc }: StatsViewProps) {
                         />
                       </div>
                     )}
-                    <span className="font-bebas tracking-wide">{game.homeTeam.abbreviation}</span>
+                    <span className="font-bebas tracking-wide flex items-center gap-1">
+                      {showHomeAwayLabels && <HomeAwayBadge side="HOME" />}
+                      {game.homeTeam.abbreviation}
+                    </span>
                     <span className="text-muted-foreground mr-auto">
                       {homeCount} {homeCount === 1 ? "pick" : "picks"}
                     </span>
@@ -960,9 +987,10 @@ interface SnapshotViewProps {
   currentUserId: number | null;
   poolName: string;
   sport?: string;
+  showHomeAwayLabels?: boolean;
 }
 
-function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport = "mlb" }: SnapshotViewProps) {
+function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport = "mlb", showHomeAwayLabels = false }: SnapshotViewProps) {
   const slateGameIds = new Set(slate.games.map((g) => g.id));
 
   // Merge slate game order + team IDs with leaderboard logo URLs
@@ -991,7 +1019,11 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
   function handleDownloadPdf() {
     const year = slate.date.substring(0, 4);
     const sportLabel = sport.toUpperCase().replace("WORLDCUP", "WORLD CUP").replace("INTL", "INTL SOCCER");
-    const gameColHeaders = snapshotGames.map((g) => `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`);
+    const gameColHeaders = snapshotGames.map((g) =>
+      showHomeAwayLabels
+        ? `AWAY ${g.awayTeam.abbreviation} @ HOME ${g.homeTeam.abbreviation}`
+        : `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`,
+    );
     const pdfRows = sortedEntries.map((entry) => {
       const name = `${entry.rank}. ${entry.displayName || entry.username}`;
       const pickMap = new Map(
@@ -1068,7 +1100,20 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                     className="px-1 py-2 text-center border-b border-border/30 font-mono text-[10px] font-medium text-muted-foreground/60 whitespace-nowrap"
                     style={{ width: 72 }}
                   >
-                    {game.awayTeam.abbreviation} @ {game.homeTeam.abbreviation}
+                    {showHomeAwayLabels ? (
+                      <span className="flex flex-col items-center gap-0.5">
+                        <span className="flex items-center gap-1">
+                          <HomeAwayBadge side="AWAY" />
+                          {game.awayTeam.abbreviation}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <HomeAwayBadge side="HOME" />
+                          {game.homeTeam.abbreviation}
+                        </span>
+                      </span>
+                    ) : (
+                      `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
+                    )}
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right border-b border-border/30 font-bebas text-xs text-muted-foreground/40 whitespace-nowrap">
@@ -2281,6 +2326,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
   const isNhlWeekly = isNhl && isWeekly;
+  const showSoccerHomeAwayLabels = sport === "superleague" || sport === "championsleague";
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
   const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
@@ -3509,6 +3555,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         game={game}
                         pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
                         onPick={(opt) => togglePick(game.id, opt)}
+                        showHomeAwayLabels={showSoccerHomeAwayLabels}
                       />
                     </Fragment>
                   ))}
@@ -4043,6 +4090,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             game={game}
                             pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
                             onPick={(opt) => togglePick(game.id, opt)}
+                            showHomeAwayLabels={showSoccerHomeAwayLabels}
                           />
                         ) : (
                           <GameCard
@@ -4295,6 +4343,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               week={leaderboard.week}
               isWc={is3way}
               phase={leaderboard.phase}
+              showHomeAwayLabels={showSoccerHomeAwayLabels}
             />
           )}
         </TabsContent>
@@ -4309,6 +4358,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               currentUserId={user?.id ?? null}
               poolName={poolName}
               sport={sport}
+              showHomeAwayLabels={showSoccerHomeAwayLabels}
             />
           </TabsContent>
         )}
