@@ -1042,29 +1042,84 @@ export interface ChampionsLeagueSlate {
   games: EspnGame[];
 }
 
+const CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS = 60;
+const CHAMPIONS_LEAGUE_PERIOD_MAX_GAP_DAYS = 3;
+
 function eventEtDate(date: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(date));
 }
 
+function championsLeaguePeriodDayGap(previous: EspnGame, next: EspnGame): number {
+  const [previousYear, previousMonth, previousDay] = eventEtDate(previous.date).split("-").map(Number);
+  const [nextYear, nextMonth, nextDay] = eventEtDate(next.date).split("-").map(Number);
+  const previousTime = Date.UTC(previousYear!, previousMonth! - 1, previousDay!);
+  const nextTime = Date.UTC(nextYear!, nextMonth! - 1, nextDay!);
+  return Math.round((nextTime - previousTime) / 86_400_000);
+}
+
+function hasConflictingChampionsLeaguePeriodMetadata(period: EspnGame[], next: EspnGame): boolean {
+  const phaseSlug = period[0]!.phaseSlug;
+  const matchdays = new Set(period.flatMap((game) => game.matchday == null ? [] : [game.matchday]));
+  const legNumbers = new Set(period.flatMap((game) => game.legNumber == null ? [] : [game.legNumber]));
+  return phaseSlug !== next.phaseSlug
+    || (next.matchday != null && matchdays.size > 0 && !matchdays.has(next.matchday))
+    || (next.legNumber != null && legNumbers.size > 0 && !legNumbers.has(next.legNumber));
+}
+
+/**
+ * ESPN currently omits matchday, week, notes, series, and leg metadata from
+ * league-phase events. Build UEFA periods from compact date clusters instead:
+ * a matchday can span several consecutive dates, while distinct matchdays are
+ * separated by more than three calendar days in the competition schedule.
+ */
+function groupChampionsLeaguePeriods(games: EspnGame[]): EspnGame[][] {
+  const periods: EspnGame[][] = [];
+
+  for (const game of games) {
+    const currentPeriod = periods.at(-1);
+    const previousGame = currentPeriod?.at(-1);
+    if (
+      !currentPeriod
+      || !previousGame
+      || hasConflictingChampionsLeaguePeriodMetadata(currentPeriod, game)
+      || championsLeaguePeriodDayGap(previousGame, game) > CHAMPIONS_LEAGUE_PERIOD_MAX_GAP_DAYS
+    ) {
+      periods.push([game]);
+    } else {
+      currentPeriod.push(game);
+    }
+  }
+
+  return periods;
+}
+
 export function resolveCurrentChampionsLeagueSlate(
   games: EspnGame[],
   now = new Date(),
 ): ChampionsLeagueSlate | null {
-  const eligible = games.filter((game) => game.phaseSlug);
-  if (eligible.length === 0) return null;
-  const future = eligible.filter((game) => new Date(game.date).getTime() >= now.getTime() - 24 * 60 * 60 * 1000);
-  const seed = (future.length ? future : eligible)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]!;
-  const gamesInPeriod = eligible
-    .filter((game) => game.phaseSlug === seed.phaseSlug
-      && game.matchday === seed.matchday
-      && game.legNumber === seed.legNumber)
+  const eligible = games
+    .filter((game) => game.phaseSlug)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  if (eligible.length === 0) return null;
+
+  const periods = groupChampionsLeaguePeriods(eligible);
+  const currentOrUpcoming = periods.find((period) =>
+    period.some((game) =>
+      game.status !== "final"
+      && game.status !== "postponed"
+      && game.status !== "suspended"
+      && new Date(game.date).getTime() >= now.getTime() - 86_400_000
+    )
+  );
+  const gamesInPeriod = currentOrUpcoming ?? periods[periods.length - 1]!;
+  const seed = gamesInPeriod.find((game) => game.matchday != null || game.legNumber != null)
+    ?? gamesInPeriod[0]!;
+
   return {
     phaseSlug: seed.phaseSlug!,
-    phaseLabel: seed.phaseLabel!,
+    phaseLabel: seed.phaseLabel ?? CHAMPIONS_LEAGUE_PHASE_LABELS[seed.phaseSlug!],
     ...(seed.matchday != null ? { matchday: seed.matchday } : {}),
     ...(seed.legNumber != null ? { legNumber: seed.legNumber, legLabel: seed.legLabel } : {}),
     dates: [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))],
@@ -1073,9 +1128,9 @@ export function resolveCurrentChampionsLeagueSlate(
 }
 
 /**
- * Resolve one Champions League competition period from ESPN's phase metadata,
- * rather than week.number or an arbitrary calendar week. ESPN accepts a date
- * range on scoreboard; the window covers the current and next UEFA midweek.
+ * Resolve one Champions League competition period rather than using an
+ * arbitrary calendar week. The window is wide enough to cross UEFA's long
+ * gaps, while the resolver returns only the next compact date cluster.
  */
 export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
   const dateAtOffset = (days: number) => {
@@ -1085,7 +1140,7 @@ export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promis
     }).format(d).replace(/-/g, "");
   };
   const rangeStart = dateAtOffset(-2);
-  const rangeEnd = dateAtOffset(21);
+  const rangeEnd = dateAtOffset(CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS);
   let games = await fetchGamesForDate("championsleague", `${rangeStart}-${rangeEnd}`, 2);
 
   // ESPN occasionally returns an empty range response even though the season

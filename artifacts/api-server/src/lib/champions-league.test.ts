@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  fetchCurrentChampionsLeagueSlate,
   normalizeChampionsLeagueMetadata,
   regulationScoreFromEspn,
   resolveCurrentChampionsLeagueSlate,
@@ -66,6 +67,226 @@ describe("Champions League ESPN normalization", () => {
     assert.equal(slate?.matchday, undefined);
     assert.deepEqual(slate?.dates, ["2026-09-08", "2026-09-10"]);
     assert.equal(slate?.games.length, 2);
+  });
+
+  it("selects the next date-clustered matchday without merging later fixtures", () => {
+    const games = [
+      {
+        id: "matchday-2-tuesday",
+        date: "2026-10-13T16:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+      },
+      {
+        id: "matchday-2-wednesday",
+        date: "2026-10-14T19:00:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+      },
+      {
+        id: "matchday-3-tuesday",
+        date: "2026-10-20T16:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+      },
+      {
+        id: "matchday-3-wednesday",
+        date: "2026-10-21T19:00:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+      },
+      {
+        id: "matchday-4-tuesday",
+        date: "2026-11-03T17:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+      },
+    ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
+
+    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2026-09-13T16:00:00Z"));
+
+    assert.deepEqual(slate?.dates, ["2026-10-13", "2026-10-14"]);
+    assert.deepEqual(slate?.games.map((game) => game.id), [
+      "matchday-2-tuesday",
+      "matchday-2-wednesday",
+    ]);
+  });
+
+  it("advances to the next date cluster once the prior matchday concludes", () => {
+    const games = [
+      {
+        id: "matchday-2-tuesday",
+        date: "2026-10-13T16:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "final",
+        isCompleted: true,
+      },
+      {
+        id: "matchday-2-wednesday",
+        date: "2026-10-14T19:00:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "final",
+        isCompleted: true,
+      },
+      {
+        id: "matchday-3-tuesday",
+        date: "2026-10-20T16:45:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+        isCompleted: false,
+      },
+      {
+        id: "matchday-3-wednesday",
+        date: "2026-10-21T19:00:00Z",
+        phaseSlug: "league-phase",
+        phaseLabel: "League Phase",
+        status: "scheduled",
+        isCompleted: false,
+      },
+    ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
+
+    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2026-10-15T12:00:00Z"));
+
+    assert.deepEqual(slate?.dates, ["2026-10-20", "2026-10-21"]);
+    assert.deepEqual(slate?.games.map((game) => game.id), [
+      "matchday-3-tuesday",
+      "matchday-3-wednesday",
+    ]);
+  });
+
+  it("keeps knockout legs separate and advances after the first leg concludes", () => {
+    const games = [
+      {
+        id: "round-of-16-first-leg-tuesday",
+        date: "2027-03-09T17:45:00Z",
+        phaseSlug: "round-of-16",
+        phaseLabel: "Round of 16",
+        legNumber: 1,
+        legLabel: "1st Leg",
+        status: "final",
+        isCompleted: true,
+      },
+      {
+        id: "round-of-16-first-leg-wednesday",
+        date: "2027-03-10T20:00:00Z",
+        phaseSlug: "round-of-16",
+        phaseLabel: "Round of 16",
+        legNumber: 1,
+        legLabel: "1st Leg",
+        status: "final",
+        isCompleted: true,
+      },
+      {
+        id: "round-of-16-second-leg-tuesday",
+        date: "2027-03-16T17:45:00Z",
+        phaseSlug: "round-of-16",
+        phaseLabel: "Round of 16",
+        legNumber: 2,
+        legLabel: "2nd Leg",
+        status: "scheduled",
+        isCompleted: false,
+      },
+      {
+        id: "round-of-16-second-leg-wednesday",
+        date: "2027-03-17T20:00:00Z",
+        phaseSlug: "round-of-16",
+        phaseLabel: "Round of 16",
+        legNumber: 2,
+        legLabel: "2nd Leg",
+        status: "scheduled",
+        isCompleted: false,
+      },
+    ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
+
+    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2027-03-11T12:00:00Z"));
+
+    assert.equal(slate?.legNumber, 2);
+    assert.equal(slate?.legLabel, "2nd Leg");
+    assert.deepEqual(slate?.dates, ["2027-03-16", "2027-03-17"]);
+  });
+
+  it("fetches far enough ahead and returns only October 13-14 on September 13", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+    const makeEvent = (id: string, date: string) => ({
+      id,
+      date,
+      season: { year: 2026, type: 14534, slug: "league-phase" },
+      competitions: [{
+        status: { type: { state: "pre", completed: false, name: "STATUS_SCHEDULED" } },
+        competitors: [
+          { homeAway: "home", score: "0", team: { id: `${id}-home`, abbreviation: "H", displayName: "Home" } },
+          { homeAway: "away", score: "0", team: { id: `${id}-away`, abbreviation: "A", displayName: "Away" } },
+        ],
+      }],
+    });
+
+    globalThis.fetch = async (input) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({
+        events: [
+          makeEvent("matchday-2-tuesday", "2026-10-13T16:45:00Z"),
+          makeEvent("matchday-2-wednesday", "2026-10-14T19:00:00Z"),
+          makeEvent("matchday-3-tuesday", "2026-10-20T16:45:00Z"),
+          makeEvent("matchday-3-wednesday", "2026-10-21T19:00:00Z"),
+        ],
+      }));
+    };
+
+    try {
+      const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
+      assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
+      assert.deepEqual(slate?.dates, ["2026-10-13", "2026-10-14"]);
+      assert.equal(slate?.games.length, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("applies the widened date bounds to the season-feed fallback", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+    const makeEvent = (id: string, date: string) => ({
+      id,
+      date,
+      season: { year: 2026, type: 14534, slug: "league-phase" },
+      competitions: [{
+        status: { type: { state: "pre", completed: false, name: "STATUS_SCHEDULED" } },
+        competitors: [
+          { homeAway: "home", score: "0", team: { id: `${id}-home`, abbreviation: "H", displayName: "Home" } },
+          { homeAway: "away", score: "0", team: { id: `${id}-away`, abbreviation: "A", displayName: "Away" } },
+        ],
+      }],
+    });
+
+    globalThis.fetch = async (input) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({
+        events: requestedUrls.length === 1
+          ? []
+          : [
+              makeEvent("inside-window", "2026-10-13T16:45:00Z"),
+              makeEvent("outside-window", "2026-12-15T20:00:00Z"),
+            ],
+      }));
+    };
+
+    try {
+      const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
+      assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
+      assert.match(requestedUrls[1]!, /dates=2026/);
+      assert.deepEqual(slate?.games.map((game) => game.id), ["inside-window"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("matches simulated picks across every resolved fixture date, not the current calendar week", () => {
