@@ -538,6 +538,11 @@ export interface PoolDetail {
   weeklyBonusAmount?: number | null;
   /** @nullable */
   weeklyBonusMinPlayers?: number | null;
+  /**
+     * Null before season kickoff; permanently true or false after the weekly bonus threshold is evaluated at season lock
+     * @nullable
+     */
+  weeklyBonusLockedActive?: boolean | null;
 }
 
 export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];
@@ -2235,7 +2240,11 @@ export type NflPickEmSeasonWeekResultsWeeklyBonus = {
   perWinnerAmount: number | null;
   /** @nullable */
   minPlayers: number | null;
-  confirmedPlayerCount: number;
+  /**
+     * Deprecated; null because bonus eligibility is persisted at season lock instead of recalculated from a live entry count
+     * @nullable
+     */
+  confirmedPlayerCount: number | null;
 };
 
 export interface NflPickEmSeasonWeekResults {
@@ -2283,7 +2292,11 @@ export type NflConfidenceWeeklyWinnerWeeklyBonus = {
   perWinnerAmount: number | null;
   /** @nullable */
   minPlayers: number | null;
-  confirmedPlayerCount: number;
+  /**
+     * Deprecated; null because bonus eligibility is persisted at season lock instead of recalculated from a live entry count
+     * @nullable
+     */
+  confirmedPlayerCount: number | null;
 };
 
 export interface NflConfidenceWeeklyWinner {

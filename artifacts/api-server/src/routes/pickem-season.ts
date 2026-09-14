@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
-import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
+import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
@@ -1110,7 +1110,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
   const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
   const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
 
-  const [rawGames, allPicks, memberCountRows] = await Promise.all([
+  const [rawGames, allPicks] = await Promise.all([
     pool.sandboxMode
       ? (async () => {
           const replayRows = await db
@@ -1161,10 +1161,6 @@ router.get("/week-results", requireAuth, async (req, res) => {
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
       .where(and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.week, week))),
-    db
-      .select({ playerCount: count() })
-      .from(entriesTable)
-      .where(eq(entriesTable.poolId, poolId)),
   ]);
 
   // normalise to a common shape: { id, date, status, awayTeam, homeTeam, awayScore, homeScore }
@@ -1304,7 +1300,6 @@ router.get("/week-results", requireAuth, async (req, res) => {
     awayRecord: g.awayRecord ?? null,
   }));
 
-  const confirmedPlayerCount = Number(memberCountRows[0]?.playerCount ?? 0);
   const weeklyBonusAmount =
     pool.weeklyBonusEnabled && pool.weeklyBonusAmount != null
       ? Number(pool.weeklyBonusAmount)
@@ -1313,15 +1308,13 @@ router.get("/week-results", requireAuth, async (req, res) => {
     pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
       ? pool.weeklyBonusMinPlayers
       : null;
-  const weeklyBonusThresholdMet =
-    weeklyBonusAmount != null &&
-    weeklyBonusMinPlayers != null &&
-    confirmedPlayerCount >= weeklyBonusMinPlayers;
+  const weeklyBonusThresholdMet = pool.weeklyBonusLockedActive === true;
   const weeklyBonusPerWinner =
     weeklyBonusThresholdMet &&
+    weeklyBonusAmount != null &&
     weeklyTiebreakerResolution.status !== "pending" &&
     winners.length > 0
-      ? Math.round((weeklyBonusAmount! / winners.length) * 100) / 100
+      ? Math.round((weeklyBonusAmount / winners.length) * 100) / 100
       : null;
 
   // Slate-level visibility gate: if no game in the week has kicked off yet,
@@ -1357,7 +1350,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
       amount: weeklyBonusAmount,
       perWinnerAmount: weeklyBonusPerWinner,
       minPlayers: weeklyBonusMinPlayers,
-      confirmedPlayerCount,
+      confirmedPlayerCount: null,
     },
   });
 });

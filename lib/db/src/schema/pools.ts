@@ -37,6 +37,7 @@ export const poolsTable = pgTable("pools", {
   weeklyBonusEnabled: boolean("weekly_bonus_enabled").notNull().default(false),
   weeklyBonusAmount: numeric("weekly_bonus_amount", { precision: 10, scale: 2 }),
   weeklyBonusMinPlayers: integer("weekly_bonus_min_players"),
+  weeklyBonusLockedActive: boolean("weekly_bonus_locked_active"),
   ndpTb1GameId: text("ndp_tb1_game_id"),
   ndpTb2GameId: text("ndp_tb2_game_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

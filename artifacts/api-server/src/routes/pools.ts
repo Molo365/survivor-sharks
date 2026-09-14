@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable, weekResultsTable, mlbBracketResultsTable, wcBracketResultsTable, groupStageResultsTable, nflConfidenceResultsTable, nflDivisionResultsTable, nhlDivisionResultsTable } from "@workspace/db";
-import { eq, and, count, ne, inArray, or, lte, isNotNull, gt } from "drizzle-orm";
+import { eq, and, count, ne, inArray, or, lte, isNotNull, isNull, gt, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 import {
@@ -51,7 +51,7 @@ async function getPoolStartState(pool: PoolRow) {
     startWeek: pool.startWeek, season: pool.season, isPreseason: pool.isPreseason,
     pickFrequency: pool.pickFrequency, sandboxMode: pool.sandboxMode, createdAt: pool.createdAt,
   };
-  return resolvePoolStart(policyPool, {
+  const startState = await resolvePoolStart(policyPool, {
     now: () => new Date(),
     persistedStarted: async (candidate) => {
       // Pending picks/predictions are deliberately excluded: they can be made
@@ -108,6 +108,42 @@ async function getPoolStartState(pool: PoolRow) {
       return fetchGamesForDate(candidate.sport, getTodayEtDate().replace(/-/g, ""));
     },
   });
+
+  let weeklyBonusLockedActive = pool.weeklyBonusLockedActive;
+  if (
+    startState.hasStarted &&
+    pool.weeklyBonusEnabled &&
+    weeklyBonusLockedActive === null &&
+    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
+  ) {
+    // Count and persist in one statement so concurrent lock requests cannot
+    // decide from different entry snapshots. IS NULL makes the decision final.
+    const [locked] = await db
+      .update(poolsTable)
+      .set({
+        weeklyBonusLockedActive: sql<boolean>`coalesce(
+          (select count(*) from ${entriesTable} where ${entriesTable.poolId} = ${pool.id})
+            >= ${poolsTable.weeklyBonusMinPlayers},
+          false
+        )`,
+      })
+      .where(and(
+        eq(poolsTable.id, pool.id),
+        eq(poolsTable.weeklyBonusEnabled, true),
+        inArray(poolsTable.poolType, ["pickem_season", "nfl_confidence"]),
+        isNull(poolsTable.weeklyBonusLockedActive),
+      ))
+      .returning({ weeklyBonusLockedActive: poolsTable.weeklyBonusLockedActive });
+    weeklyBonusLockedActive = locked?.weeklyBonusLockedActive ?? (
+      await db
+        .select({ weeklyBonusLockedActive: poolsTable.weeklyBonusLockedActive })
+        .from(poolsTable)
+        .where(eq(poolsTable.id, pool.id))
+        .limit(1)
+    )[0]?.weeklyBonusLockedActive ?? null;
+  }
+
+  return { ...startState, weeklyBonusLockedActive };
 }
 
 function formatPool(pool: PoolRow, memberCount: number, activeCount: number, commissionerName: string) {
@@ -653,6 +689,13 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
+  const startState = (
+    pool.weeklyBonusEnabled &&
+    pool.weeklyBonusLockedActive === null &&
+    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
+  )
+    ? await getPoolStartState(pool)
+    : null;
 
   const members = await db.select({
     userId: entriesTable.userId,
@@ -697,6 +740,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
     weeklyBonusAmount: pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null,
     weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers ?? null,
+    weeklyBonusLockedActive: startState?.weeklyBonusLockedActive ?? pool.weeklyBonusLockedActive,
     totalMembers: members.length,
     activeCount: members.filter(m => m.status === "alive").length,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),

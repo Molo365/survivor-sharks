@@ -434,7 +434,8 @@ export const GetPoolResponse = zod.object({
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
   "weeklyBonusEnabled": zod.boolean().default(getPoolResponseWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled'),
   "weeklyBonusAmount": zod.number().nullish(),
-  "weeklyBonusMinPlayers": zod.number().nullish()
+  "weeklyBonusMinPlayers": zod.number().nullish(),
+  "weeklyBonusLockedActive": zod.boolean().nullish().describe('Null before season kickoff; permanently true or false after the weekly bonus threshold is evaluated at season lock')
 })
 
 
@@ -2928,7 +2929,7 @@ export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
   "amount": zod.number().nullable(),
   "perWinnerAmount": zod.number().nullable(),
   "minPlayers": zod.number().nullable(),
-  "confirmedPlayerCount": zod.number()
+  "confirmedPlayerCount": zod.number().nullable().describe('Deprecated; null because bonus eligibility is persisted at season lock instead of recalculated from a live entry count')
 })
 })
 
@@ -2961,7 +2962,7 @@ export const GetNflConfidenceWeeklyWinnerResponse = zod.object({
   "amount": zod.number().nullable(),
   "perWinnerAmount": zod.number().nullable(),
   "minPlayers": zod.number().nullable(),
-  "confirmedPlayerCount": zod.number()
+  "confirmedPlayerCount": zod.number().nullable().describe('Deprecated; null because bonus eligibility is persisted at season lock instead of recalculated from a live entry count')
 })
 })
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
-import { eq, and, sql, isNotNull, count, inArray } from "drizzle-orm";
+import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
@@ -1009,16 +1009,10 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const [completedWeeks, memberCountRows] = await Promise.all([
-    db
-      .select({ week: nflConfidenceResultsTable.week })
-      .from(nflConfidenceResultsTable)
-      .where(eq(nflConfidenceResultsTable.poolId, poolId)),
-    db
-      .select({ playerCount: count() })
-      .from(entriesTable)
-      .where(eq(entriesTable.poolId, poolId)),
-  ]);
+  const completedWeeks = await db
+    .select({ week: nflConfidenceResultsTable.week })
+    .from(nflConfidenceResultsTable)
+    .where(eq(nflConfidenceResultsTable.poolId, poolId));
 
   const requestedWeek = req.query.week ? parseInt(String(req.query.week)) : NaN;
   const latestCompletedWeek = completedWeeks.reduce(
@@ -1029,7 +1023,6 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
     ? Math.max(1, Math.min(18, requestedWeek))
     : latestCompletedWeek;
 
-  const confirmedPlayerCount = Number(memberCountRows[0]?.playerCount ?? 0);
   const weeklyBonusAmount =
     pool.weeklyBonusEnabled && pool.weeklyBonusAmount != null
       ? Number(pool.weeklyBonusAmount)
@@ -1041,14 +1034,11 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
 
   const weeklyBonusBase = {
     enabled: pool.weeklyBonusEnabled,
-    thresholdMet:
-      weeklyBonusAmount != null &&
-      weeklyBonusMinPlayers != null &&
-      confirmedPlayerCount >= weeklyBonusMinPlayers,
+    thresholdMet: pool.weeklyBonusLockedActive === true,
     amount: weeklyBonusAmount,
     perWinnerAmount: null as number | null,
     minPlayers: weeklyBonusMinPlayers,
-    confirmedPlayerCount,
+    confirmedPlayerCount: null,
   };
 
   if (week === 0 || !completedWeeks.some((row) => row.week === week)) {

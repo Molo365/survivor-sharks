@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, type PoolStartPool } from "./pool-start";
+import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, resolveWeeklyBonusLock, type PoolStartPool } from "./pool-start";
 
 const base: PoolStartPool = { id: 1, sport: "nfl", poolType: "season", currentWeek: 1, startWeek: null, season: 2026, isPreseason: false, pickFrequency: "weekly", sandboxMode: false, createdAt: new Date("2026-09-01T00:00:00Z") };
 const game = (date: string, hasStarted = false) => ({ date, hasStarted });
@@ -54,4 +54,47 @@ test("pre-lock non-Survivor submissions do not produce a warning", async () => {
   const state = await resolvePoolStart({ ...base, poolType: "pickem" }, deps([game("2026-09-11T00:00:00Z")], false));
   assert.equal(state.hasStarted, false);
   assert.equal(state.joinBlockedReason, null);
+});
+
+for (const poolType of ["pickem_season", "nfl_confidence"]) {
+  test(`${poolType} locks the weekly bonus on when the player threshold is met`, () => {
+    assert.equal(resolveWeeklyBonusLock({
+      poolType,
+      weeklyBonusEnabled: true,
+      weeklyBonusLockedActive: null,
+      weeklyBonusMinPlayers: 10,
+      playerCount: 10,
+      hasStarted: true,
+    }), true);
+  });
+
+  test(`${poolType} locks the weekly bonus off when the player threshold is not met`, () => {
+    assert.equal(resolveWeeklyBonusLock({
+      poolType,
+      weeklyBonusEnabled: true,
+      weeklyBonusLockedActive: null,
+      weeklyBonusMinPlayers: 10,
+      playerCount: 9,
+      hasStarted: true,
+    }), false);
+  });
+}
+
+test("weekly bonus lock remains undecided before start and cannot be recalculated", () => {
+  assert.equal(resolveWeeklyBonusLock({
+    poolType: "pickem_season",
+    weeklyBonusEnabled: true,
+    weeklyBonusLockedActive: null,
+    weeklyBonusMinPlayers: 10,
+    playerCount: 10,
+    hasStarted: false,
+  }), null);
+  assert.equal(resolveWeeklyBonusLock({
+    poolType: "nfl_confidence",
+    weeklyBonusEnabled: true,
+    weeklyBonusLockedActive: false,
+    weeklyBonusMinPlayers: 10,
+    playerCount: 20,
+    hasStarted: true,
+  }), null);
 });

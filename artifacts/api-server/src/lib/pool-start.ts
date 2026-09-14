@@ -45,6 +45,32 @@ export function joinBlockedByStart(poolType: string, hasStarted: boolean): boole
   return isSurvivorPoolType(poolType) && hasStarted;
 }
 
+export type WeeklyBonusLockInput = {
+  poolType: string;
+  weeklyBonusEnabled: boolean;
+  weeklyBonusLockedActive: boolean | null;
+  weeklyBonusMinPlayers: number | null;
+  playerCount: number;
+  hasStarted: boolean;
+};
+
+/**
+ * Returns a one-time weekly bonus decision when an eligible NFL season pool
+ * first resolves as started. Null means no decision should be persisted.
+ */
+export function resolveWeeklyBonusLock(input: WeeklyBonusLockInput): boolean | null {
+  if (
+    !input.hasStarted ||
+    !input.weeklyBonusEnabled ||
+    input.weeklyBonusLockedActive !== null ||
+    !["pickem_season", "nfl_confidence"].includes(input.poolType)
+  ) {
+    return null;
+  }
+  return input.weeklyBonusMinPlayers !== null &&
+    input.playerCount >= input.weeklyBonusMinPlayers;
+}
+
 /** Pending selections are editable pre-start and are never progression evidence. */
 export function isFinalizedPickResult(result: string): boolean {
   return result !== "pending";

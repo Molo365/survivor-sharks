@@ -1,0 +1,1 @@
+ALTER TABLE "pools" ADD COLUMN "weekly_bonus_locked_active" boolean DEFAULT NULL;
