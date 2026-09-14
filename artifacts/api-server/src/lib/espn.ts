@@ -1006,7 +1006,7 @@ export async function fetchIntlGamesForDate(dateStr: string): Promise<EspnGame[]
  *   Pass 3 for a future playoff-bracket pool without modifying callers.
  *   Note: some ESPN sport endpoints ignore this parameter (e.g. MLB returns the same games regardless).
  */
-async function fetchGamesForDateChecked(
+export async function fetchGamesForDateChecked(
   sport: string,
   dateStr: string,
   seasonType = 2,
@@ -1021,7 +1021,12 @@ async function fetchGamesForDateChecked(
     if (!res.ok) return null;
     const data = await res.json() as { events?: EspnEvent[] };
     if (requireEventsArray && !Array.isArray(data.events)) return null;
-    return (data.events ?? []).map(parseGame);
+    const games = (data.events ?? []).map(parseGame);
+    // ESPN's MLB scoreboard ignores the seasontype query parameter. Enforce it
+    // locally so regular-season products never receive postseason events.
+    return sport === "mlb"
+      ? games.filter((game) => game.seasonType === seasonType)
+      : games;
   } catch {
     return null;
   }
@@ -1029,6 +1034,27 @@ async function fetchGamesForDateChecked(
 
 export async function fetchGamesForDate(sport: string, dateStr: string, seasonType = 2): Promise<EspnGame[]> {
   return (await fetchGamesForDateChecked(sport, dateStr, seasonType)) ?? [];
+}
+
+/**
+ * Fetches an MLB scoreboard date range without applying a season-type filter.
+ * Returns null when ESPN fails or omits its events array so season-boundary
+ * callers can fail open instead of closing pools from incomplete data.
+ */
+export async function fetchMlbGamesForDateRangeChecked(
+  startDate: string,
+  endDate: string,
+): Promise<EspnGame[] | null> {
+  const url = `${ESPN_ENDPOINTS.mlb}/scoreboard?dates=${startDate}-${endDate}&limit=1000`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json() as { events?: EspnEvent[] };
+    if (!Array.isArray(data.events)) return null;
+    return data.events.map(parseGame);
+  } catch {
+    return null;
+  }
 }
 
 export interface ChampionsLeagueSlate {
@@ -1172,7 +1198,8 @@ export async function fetchNflGamesByWeek(week: number, season?: number, seasonT
  * Calls ESPN once per day in parallel.
  *
  * @param seasonType ESPN season type (1=preseason, 2=regular, 3=postseason). Defaults to 2.
- *   Note: the ESPN MLB scoreboard endpoint currently ignores this parameter and returns all games.
+ *   ESPN ignores the query parameter, so fetchGamesForDate filters parsed
+ *   event metadata locally.
  */
 export async function fetchMlbWeekGames(espnDates: string[], seasonType = 2): Promise<EspnGame[]> {
   const results = await Promise.all(espnDates.map(d => fetchGamesForDate("mlb", d, seasonType)));
@@ -1185,6 +1212,32 @@ export async function fetchMlbWeekGames(espnDates: string[], seasonType = 2): Pr
         seen.add(g.id);
         games.push(g);
       }
+    }
+  }
+  return games;
+}
+
+/**
+ * Checked MLB week fetch for lifecycle settlement. Any failed or malformed
+ * daily response aborts the full week so callers cannot mistake missing
+ * schedule data for a completed period.
+ */
+export async function fetchMlbWeekGamesChecked(
+  espnDates: string[],
+  seasonType = 2,
+): Promise<EspnGame[] | null> {
+  const results = await Promise.all(
+    espnDates.map((date) => fetchGamesForDateChecked("mlb", date, seasonType, true)),
+  );
+  if (results.some((games) => games === null)) return null;
+
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of results as EspnGame[][]) {
+    for (const game of dayGames) {
+      if (seen.has(game.id)) continue;
+      seen.add(game.id);
+      games.push(game);
     }
   }
   return games;

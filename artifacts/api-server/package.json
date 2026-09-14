@@ -20,6 +20,7 @@
     "test:pick-reminders-integration": "esbuild src/lib/pick-reminders.integration.test.ts --bundle --platform=node --format=cjs --external:pino --external:pino-pretty --outfile=.pick-reminders.integration.test.cjs || exit $?; node --test .pick-reminders.integration.test.cjs; status=$?; rm -f .pick-reminders.integration.test.cjs; exit $status",
     "test:mlb-weekly-period": "esbuild src/lib/mlb-weekly-period.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mlb-weekly-period.test.mjs && node --test /tmp/mlb-weekly-period.test.mjs",
     "test:mlb-bracket": "esbuild src/lib/mlb-bracket.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mlb-bracket.test.mjs && node --test /tmp/mlb-bracket.test.mjs",
+    "test:mlb-season-boundary": "esbuild src/lib/mlb-season-boundary.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mlb-season-boundary.test.mjs && node --test /tmp/mlb-season-boundary.test.mjs",
     "test:mls-weekly-period": "esbuild src/lib/mls-weekly-period.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mls-weekly-period.test.mjs && node --test /tmp/mls-weekly-period.test.mjs",
     "test:nfl-weekly-tiebreaker": "esbuild src/lib/nfl-weekly-tiebreaker-resolution.test.ts --bundle --platform=node --format=esm --outfile=/tmp/nfl-weekly-tiebreaker-resolution.test.mjs && node --test /tmp/nfl-weekly-tiebreaker-resolution.test.mjs"
   },

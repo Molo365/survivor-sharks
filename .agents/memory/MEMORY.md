@@ -29,3 +29,4 @@
 - [NHL ESPN season keys](nhl-espn-season-keys.md) — NHL pools use the season start year, but ESPN schedules use the ending year; add one when querying an opener.
 - [NFL weekly tiebreaker collection](nfl-weekly-tiebreaker-collection.md) — weekly bonuses use a separate combined-yards guess and latest-kickoff target; Week 18 entry tiebreakers stay separate.
 - [Sandbox authorization policy](sandbox-authorization-policy.md) — sandbox creation, toggles, simulations, and manual Survivor results are admin-only; limited real-data commissioner actions remain allowed.
+- [MLB recurring postseason cutoff](mlb-recurring-postseason-cutoff.md) — live recurring MLB Pick-Em and High Heat wind down after ESPN proves the regular season complete; postseason games never enter their slates.

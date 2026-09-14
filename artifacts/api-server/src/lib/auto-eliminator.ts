@@ -24,6 +24,7 @@ import { calcPrize } from "./prizeCalc";
 import {
   fetchGames,
   fetchGamesForDate,
+  fetchGamesForDateChecked,
   fetchSuperLeagueGamesForDate,
   fetchSuperLeagueGamesForDateWithStatus,
   fetchIntlGamesForDate,
@@ -39,6 +40,7 @@ import {
   getMlbWeekBounds,
   getMlbProcessingTrigger,
   fetchMlbWeekGames,
+  fetchMlbWeekGamesChecked,
   fetchNhlGamesByWeek,
   fetchNhlGamesByWeekWithStatus,
   fetchNbaGamesByWeek,
@@ -72,6 +74,7 @@ import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resol
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlotTeams } from "./mlb-bracket";
+import { detectMlbRegularSeasonEnd } from "./mlb-season-boundary";
 import { NFL_TEAM_INFO, NFL_TEAM_INFO_BY_ID, getSandboxGamesForWeek } from "./nfl2025Schedule";
 import {
   evaluateNflAutoAdvanceSlate,
@@ -5189,6 +5192,10 @@ async function resolveCrazyEightsPeriod(
   periodGames: EspnGame[],
 ): Promise<void> {
   if (isMlbWeeklyPreStart(pool)) return;
+  // Recurring periods remain active. The manual End Recurring action and the
+  // automatic MLB season boundary both flip isRecurring to false; this same
+  // resolver then settles and closes that final in-progress period.
+  if (pool.sport === "mlb" && pool.isRecurring) return;
 
   // A weekly MLB High Heat pool must be resolved against the entire Mon–Sun
   // period. This guard prevents any caller from accidentally closing it from
@@ -5207,6 +5214,13 @@ async function resolveCrazyEightsPeriod(
     .from(pickemPicksTable)
     .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)));
   if (total === 0) return;
+  if (periodGames.length === 0) {
+    logger.warn(
+      { poolId: pool.id, sport: pool.sport, periodDates },
+      "Crazy 8's: skipping resolution — period schedule is unavailable",
+    );
+    return;
+  }
 
   // 2. All picks graded? (no pending = grading cycle finished)
   const [{ pending }] = await db
@@ -5483,15 +5497,37 @@ export async function processCrazyEightsResults(): Promise<{
       const dailyDates = [yesterdayEt, todayEt];
       picksGraded += await gradeMlbCrazyEightsPicks(pool, [...yesterdayGames, ...todayGames], dailyDates);
 
-      if (pool.pickFrequency === "weekly") {
+      if (pool.isRecurring && pool.pickFrequency === "weekly") {
         // Re-grade the complete period as a catch-up pass, then resolve only
         // after all seven calendar days have been included.
         picksGraded += await gradeMlbCrazyEightsPicks(pool, weeklyGames, weeklyDates);
         await resolveCrazyEightsPeriod(pool, weeklyDates, weeklyGames);
+        continue;
+      }
+
+      if (pool.isRecurring) continue;
+
+      // End Recurring and the automatic season boundary both settle the pool's
+      // actual latest picked period. This remains correct after scheduler/API
+      // downtime instead of guessing from today's calendar.
+      const [{ latestPickDate }] = await db
+        .select({ latestPickDate: max(pickemPicksTable.gameDate) })
+        .from(pickemPicksTable)
+        .where(eq(pickemPicksTable.poolId, pool.id));
+      if (!latestPickDate) continue;
+
+      if (pool.pickFrequency === "weekly") {
+        const period = getWeekBoundsEt(latestPickDate);
+        const periodDates = dateRangeInclusive(period.weekStart, period.weekEnd);
+        const periodGames = await fetchMlbWeekGamesChecked(periodDates.map((date) => date.replace(/-/g, "")));
+        if (periodGames === null) continue;
+        picksGraded += await gradeMlbCrazyEightsPicks(pool, periodGames, periodDates);
+        await resolveCrazyEightsPeriod(pool, periodDates, periodGames);
       } else {
-        // Daily High Heat keeps its existing one-day resolution behavior.
-        await resolveCrazyEightsPeriod(pool, [yesterdayEt], yesterdayGames);
-        await resolveCrazyEightsPeriod(pool, [todayEt], todayGames);
+        const periodGames = await fetchGamesForDateChecked("mlb", latestPickDate.replace(/-/g, ""), 2, true);
+        if (periodGames === null) continue;
+        picksGraded += await gradeMlbCrazyEightsPicks(pool, periodGames, [latestPickDate]);
+        await resolveCrazyEightsPeriod(pool, [latestPickDate], periodGames);
       }
     }
   }
@@ -6061,12 +6097,55 @@ export async function processMlbBracketResults(poolId?: number): Promise<{ picks
 
 let _timer: ReturnType<typeof setInterval> | null = null;
 
+export async function markRecurringMlbPoolsForSeasonEnd(
+): Promise<{ poolsMarked: number }> {
+  const recurringPools = await db
+    .select({ id: poolsTable.id, season: poolsTable.season })
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.sport, "mlb"),
+      inArray(poolsTable.poolType, ["pickem", "crazy_8s"]),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.isRecurring, true),
+      eq(poolsTable.sandboxMode, false),
+    ));
+
+  if (recurringPools.length === 0) return { poolsMarked: 0 };
+
+  const endedSeasons = new Set<number>();
+  for (const season of new Set(recurringPools.map((pool) => pool.season))) {
+    if (await detectMlbRegularSeasonEnd(season)) endedSeasons.add(season);
+  }
+
+  const poolIds = recurringPools
+    .filter((pool) => endedSeasons.has(pool.season))
+    .map((pool) => pool.id);
+  if (poolIds.length === 0) return { poolsMarked: 0 };
+
+  const updated = await db
+    .update(poolsTable)
+    .set({ isRecurring: false })
+    .where(and(inArray(poolsTable.id, poolIds), eq(poolsTable.isRecurring, true)))
+    .returning({ id: poolsTable.id });
+
+  if (updated.length > 0) {
+    logger.info(
+      { poolIds: updated.map((pool) => pool.id), seasons: [...endedSeasons] },
+      "MLB regular season ended: recurring Pick-Em and High Heat pools marked to close after their final period",
+    );
+  }
+  return { poolsMarked: updated.length };
+}
+
 export function startAutoEliminator(): void {
   if (_timer) return;
 
   logger.info({ intervalMs: POLL_INTERVAL_MS }, "Auto-eliminator starting");
 
   async function runAll() {
+    // This must finish before MLB grading reads pool.isRecurring so the final
+    // regular-season day/week uses the established non-recurring closure path.
+    const mlbSeasonEnd = await markRecurringMlbPoolsForSeasonEnd();
     const [nonMlb, mlbWeekly, mlbDaily, pickEm, crazyEights, wcBracket, mlbBracket] = await Promise.all([
       processCompletedGames(),
       processMlbWeeklyResults(),
@@ -6084,6 +6163,7 @@ export function startAutoEliminator(): void {
     const nflWeeksAdvanced = await advanceCompletedNflPools();
     return {
       ...nonMlb,
+      mlbRecurringPoolsMarkedForWindDown: mlbSeasonEnd.poolsMarked,
       mlbWeeksProcessed: mlbWeekly.weeksProcessed,
       mlbPlayersEliminated: mlbWeekly.playersEliminated + mlbDaily.playersEliminated,
       mlbPlayersRevived: mlbWeekly.playersRevived + mlbDaily.playersRevived,
