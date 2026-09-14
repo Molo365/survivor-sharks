@@ -232,6 +232,23 @@ async function simulate(ctx: Context, full: boolean) {
   return simulated;
 }
 function sandboxOnly(ctx: Context, res: any) { if (ctx.pool.sandboxMode) return true; res.status(403).json({ error: "Sandbox mode is not enabled for this pool" }); return false; }
-router.post("/sandbox/simulate-next-round", requireAuth, requireAdmin, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, res)) return; const simulated = await simulate(ctx, false); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
-router.post("/sandbox/simulate-full", requireAuth, requireAdmin, async (req, res) => { const ctx = await getContext(req, res); if (!ctx || !sandboxOnly(ctx, res)) return; const simulated = await simulate(ctx, true); const graded = await processMlbBracketResults(); res.json({ simulated, picksGraded: graded.picksGraded }); });
+function activeOnly(ctx: Context, res: any) {
+  if (ctx.pool.isActive && !ctx.pool.endedAt) return true;
+  res.status(409).json({ error: "Cannot simulate an inactive or ended pool" });
+  return false;
+}
+router.post("/sandbox/simulate-next-round", requireAuth, requireAdmin, async (req, res) => {
+  const ctx = await getContext(req, res);
+  if (!ctx || !sandboxOnly(ctx, res) || !activeOnly(ctx, res)) return;
+  const simulated = await simulate(ctx, false);
+  const graded = await processMlbBracketResults(ctx.poolId);
+  res.json({ simulated, picksGraded: graded.picksGraded });
+});
+router.post("/sandbox/simulate-full", requireAuth, requireAdmin, async (req, res) => {
+  const ctx = await getContext(req, res);
+  if (!ctx || !sandboxOnly(ctx, res) || !activeOnly(ctx, res)) return;
+  const simulated = await simulate(ctx, true);
+  const graded = await processMlbBracketResults(ctx.poolId);
+  res.json({ simulated, picksGraded: graded.picksGraded });
+});
 export default router;

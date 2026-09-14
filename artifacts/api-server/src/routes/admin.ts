@@ -53,10 +53,11 @@ router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireAdmin, async (re
   }
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  const sandboxCapable = ["nfl_confidence", "nfl_confidence_weekly", "season", "weekly", "mid_season", "nfl_division_predictor", "pickem_season", "pickem", "nba_ats"];
+  const sandboxCapable = ["nfl_confidence", "nfl_confidence_weekly", "season", "weekly", "mid_season", "nfl_division_predictor", "pickem_season", "pickem", "nba_ats", "mlb_bracket"];
+  const isCrazyEightsMlb = (pool.poolType as string) === "crazy_8s" && pool.sport === "mlb";
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
   const isCrazyEightsNba = (pool.poolType as string) === "crazy_8s" && pool.sport === "nba";
-  if (!sandboxCapable.includes(pool.poolType as string) && !isCrazyEightsNhl && !isCrazyEightsNba) {
+  if (!sandboxCapable.includes(pool.poolType as string) && !isCrazyEightsMlb && !isCrazyEightsNhl && !isCrazyEightsNba) {
     res.status(400).json({ error: "Sandbox mode is not available for this pool type" });
     return;
   }

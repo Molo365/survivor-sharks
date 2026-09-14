@@ -116,11 +116,22 @@ before(async () => {
     poolType: "pickem_season",
     sandboxMode: false,
   });
-  await insertPool({
+  const mlbBracketPool = await insertPool({
     name: `${suffix}-mlb-bracket`,
     sport: "mlb",
     poolType: "mlb_bracket",
     sandboxMode: true,
+  });
+  const mlbHighHeatPool = await insertPool({
+    name: `${suffix}-mlb-high-heat`,
+    sport: "mlb",
+    poolType: "crazy_8s",
+    sandboxMode: false,
+  });
+  await db.insert(entriesTable).values({
+    poolId: mlbBracketPool.id,
+    userId: adminId,
+    status: "alive",
   });
   const replayPool = await insertPool({
     name: `${suffix}-replay`,
@@ -154,7 +165,8 @@ before(async () => {
     survivor: survivorPool.id,
     ndp: ndpPool.id,
     pickemSeason: pickemSeasonPool.id,
-    mlbBracket: poolIds[3]!,
+    mlbBracket: mlbBracketPool.id,
+    mlbHighHeat: mlbHighHeatPool.id,
     replay: replayPool.id,
     ats: atsPool.id,
   };
@@ -233,6 +245,51 @@ test("rejects Pick-Em Season simulation for a non-admin commissioner", async () 
 test("rejects both MLB bracket simulations for a non-admin commissioner", async () => {
   await assertForbidden("MLB bracket next-round simulation", "POST", `/pools/${testPools.mlbBracket}/mlb-bracket/sandbox/simulate-next-round`, {});
   await assertForbidden("MLB bracket full simulation", "POST", `/pools/${testPools.mlbBracket}/mlb-bracket/sandbox/simulate-full`, {});
+});
+
+test("allows admins to toggle MLB bracket and High Heat sandbox mode", async () => {
+  for (const poolId of [testPools.mlbBracket, testPools.mlbHighHeat]) {
+    const response = await request("PATCH", `/admin/pools/${poolId}/sandbox-mode`, { sandboxMode: true }, adminToken);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.sandboxMode, true);
+  }
+});
+
+test("generic admin sandbox updates remain available for MLB pools", async () => {
+  for (const poolId of [testPools.mlbBracket, testPools.mlbHighHeat]) {
+    const response = await request("PATCH", `/pools/${poolId}`, { sandboxMode: false }, adminToken);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.sandboxMode, false);
+    const restore = await request("PATCH", `/pools/${poolId}`, { sandboxMode: true }, adminToken);
+    assert.equal(restore.status, 200);
+    assert.equal(restore.body.sandboxMode, true);
+  }
+});
+
+test("rejects both MLB bracket simulations for an inactive pool", async () => {
+  await db.update(poolsTable).set({ isActive: false }).where(eq(poolsTable.id, testPools.mlbBracket));
+  try {
+    for (const path of ["simulate-next-round", "simulate-full"]) {
+      const response = await request("POST", `/pools/${testPools.mlbBracket}/mlb-bracket/sandbox/${path}`, {}, adminToken);
+      assert.equal(response.status, 409);
+      assert.equal(response.body.error, "Cannot simulate an inactive or ended pool");
+    }
+  } finally {
+    await db.update(poolsTable).set({ isActive: true, endedAt: null }).where(eq(poolsTable.id, testPools.mlbBracket));
+  }
+});
+
+test("rejects both MLB bracket simulations for an ended pool", async () => {
+  await db.update(poolsTable).set({ isActive: true, endedAt: new Date() }).where(eq(poolsTable.id, testPools.mlbBracket));
+  try {
+    for (const path of ["simulate-next-round", "simulate-full"]) {
+      const response = await request("POST", `/pools/${testPools.mlbBracket}/mlb-bracket/sandbox/${path}`, {}, adminToken);
+      assert.equal(response.status, 409);
+      assert.equal(response.body.error, "Cannot simulate an inactive or ended pool");
+    }
+  } finally {
+    await db.update(poolsTable).set({ isActive: true, endedAt: null }).where(eq(poolsTable.id, testPools.mlbBracket));
+  }
 });
 
 test("rejects Replay Mode start for a non-admin commissioner", async () => {

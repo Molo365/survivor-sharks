@@ -5961,10 +5961,13 @@ export async function processWcBracketResults(): Promise<{ picksGraded: number }
 }
 
 /** Idempotently persists completed MLB series and grades both winner and length. */
-export async function processMlbBracketResults(): Promise<{ picksGraded: number }> {
+export async function processMlbBracketResults(poolId?: number): Promise<{ picksGraded: number }> {
   let picksGraded = 0;
+  const poolFilter = poolId === undefined
+    ? and(eq(poolsTable.poolType, "mlb_bracket"), eq(poolsTable.isActive, true))
+    : and(eq(poolsTable.id, poolId), eq(poolsTable.poolType, "mlb_bracket"), eq(poolsTable.isActive, true));
   const pools = await db.select({ id: poolsTable.id, season: poolsTable.season, sandboxMode: poolsTable.sandboxMode, prizeStructure: poolsTable.prizeStructure, prizeMode: poolsTable.prizeMode, entryFee: poolsTable.entryFee, prizePot: poolsTable.prizePot, maxEntries: poolsTable.maxEntries })
-    .from(poolsTable).where(and(eq(poolsTable.poolType, "mlb_bracket"), eq(poolsTable.isActive, true)));
+    .from(poolsTable).where(poolFilter);
   if (!pools.length) return { picksGraded };
   for (const pool of pools) {
     const [live, slots, priorResults] = await Promise.all([
