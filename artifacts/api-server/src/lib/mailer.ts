@@ -31,6 +31,20 @@ function escapeHtml(value: string): string {
   })[character]!);
 }
 
+function formatBroadcastTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return `${new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date)} ET`;
+}
+
 export interface BroadcastEmailContent {
   subject: string;
   html: string;
@@ -47,33 +61,39 @@ export function buildBroadcastEmail(
   const safeMessage = escapeHtml(commissionerMessage).replace(/\r?\n/g, "<br />");
   const safePoolUrl = escapeHtml(poolUrl);
   const safeTitle = escapeHtml(standingsSnapshot.summary.title);
-  const safeAsOf = escapeHtml(standingsSnapshot.summary.asOf);
+  const safeAsOf = escapeHtml(formatBroadcastTimestamp(standingsSnapshot.summary.asOf));
 
   const standingsRows = standingsSnapshot.rows.map((row) => {
     const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
       ? ""
       : `<div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.secondaryLabel)}: ${escapeHtml(String(row.secondaryValue))}</div>`;
+    const compactResult = row.secondaryValue === undefined || row.secondaryLabel === undefined
+      ? `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(row.primaryLabel)}`
+      : `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(row.primaryLabel)} <span class="broadcast-result-separator" style="color:#64748b"> • </span><strong>${escapeHtml(String(row.secondaryValue))}</strong> ${escapeHtml(row.secondaryLabel)}`;
     return `
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #263244;color:#94a3b8;text-align:center">${row.rank}</td>
-        <td style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc">${escapeHtml(row.displayName)}</td>
-        <td style="padding:10px;border-bottom:1px solid #263244;color:#cbd5e1">${escapeHtml(row.status)}</td>
-        <td style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc;text-align:right">
-          <strong>${escapeHtml(String(row.primaryValue))}</strong>
-          <div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.primaryLabel)}</div>
-          ${secondary}
+        <td class="broadcast-standings-cell" style="padding:10px;border-bottom:1px solid #263244;color:#94a3b8;text-align:center">${row.rank}</td>
+        <td class="broadcast-standings-cell broadcast-player-name" style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc">${escapeHtml(row.displayName)}</td>
+        <td class="broadcast-standings-cell" style="padding:10px;border-bottom:1px solid #263244;color:#cbd5e1">${escapeHtml(row.status)}</td>
+        <td class="broadcast-standings-cell broadcast-result-cell" style="padding:10px;border-bottom:1px solid #263244;color:#f8fafc;text-align:right">
+          <div class="broadcast-result-desktop">
+            <strong>${escapeHtml(String(row.primaryValue))}</strong>
+            <div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.primaryLabel)}</div>
+            ${secondary}
+          </div>
+          <div class="broadcast-result-mobile" style="display:none;mso-hide:all;font-size:11px;white-space:nowrap">${compactResult}</div>
         </td>
       </tr>`;
   }).join("");
 
   const standingsHtml = standingsRows
-    ? `<table role="table" style="width:100%;border-collapse:collapse;background:#111827;border-radius:8px;overflow:hidden">
+    ? `<table role="table" class="broadcast-standings-table" style="width:100%;border-collapse:collapse;background:#111827;border-radius:8px;overflow:hidden;table-layout:auto">
         <thead>
           <tr>
-            <th style="padding:10px;text-align:center;color:#94a3b8;font-size:12px">RANK</th>
-            <th style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">PLAYER</th>
-            <th style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">STATUS</th>
-            <th style="padding:10px;text-align:right;color:#94a3b8;font-size:12px">RESULT</th>
+            <th class="broadcast-standings-cell" style="padding:10px;text-align:center;color:#94a3b8;font-size:12px">RANK</th>
+            <th class="broadcast-standings-cell" style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">PLAYER</th>
+            <th class="broadcast-standings-cell" style="padding:10px;text-align:left;color:#94a3b8;font-size:12px">STATUS</th>
+            <th class="broadcast-standings-cell" style="padding:10px;text-align:right;color:#94a3b8;font-size:12px">RESULT</th>
           </tr>
         </thead>
         <tbody>${standingsRows}</tbody>
@@ -81,7 +101,36 @@ export function buildBroadcastEmail(
     : `<p style="padding:18px;background:#111827;border-radius:8px;color:#94a3b8">No standings are available yet.</p>`;
 
   const html = `
-    <div style="font-family:sans-serif;max-width:680px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px;border:1px solid rgba(30,144,255,0.2)">
+    <style>
+      @media only screen and (max-width:600px) {
+        .broadcast-email-shell {
+          width:100% !important;
+          max-width:none !important;
+          padding:20px 12px !important;
+          border-radius:0 !important;
+        }
+        .broadcast-standings-cell {
+          padding:7px 5px !important;
+          font-size:11px !important;
+        }
+        .broadcast-player-name {
+          white-space:nowrap !important;
+          word-break:keep-all !important;
+          overflow-wrap:normal !important;
+        }
+        .broadcast-result-cell {
+          white-space:nowrap !important;
+        }
+        .broadcast-result-desktop {
+          display:none !important;
+        }
+        .broadcast-result-mobile {
+          display:block !important;
+          mso-hide:none !important;
+        }
+      }
+    </style>
+    <div class="broadcast-email-shell" style="font-family:sans-serif;max-width:680px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px;border:1px solid rgba(30,144,255,0.2)">
       <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff;margin-bottom:8px">SURVIVOR SHARKS</h1>
       <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px">Commissioner update</p>
       <h2 style="color:#f8fafc;margin-bottom:16px">${safePoolName}</h2>
