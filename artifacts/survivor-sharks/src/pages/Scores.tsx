@@ -30,6 +30,9 @@ interface EspnGame {
   homeScore: number | null;
   awayScore: number | null;
   hasStarted: boolean;
+  liveState?: {
+    shortDetail: string | null;
+  } | null;
 }
 
 interface SportSection {
@@ -200,8 +203,8 @@ function GameStatus({ game }: { game: EspnGame }) {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
           </span>
-          <span className="text-[11px] font-bold text-green-400 tracking-widest uppercase">
-            Live
+          <span className="text-[11px] font-bold text-green-400 tracking-wide uppercase">
+            {game.liveState?.shortDetail ?? "Live"}
           </span>
         </div>
       </div>
@@ -228,49 +231,35 @@ function GameStatus({ game }: { game: EspnGame }) {
   );
 }
 
-// ── TeamSide ──────────────────────────────────────────────────────────────────
+// ── ScoreTeamRow ───────────────────────────────────────────────────────────────
 
-function TeamSide({
+function ScoreTeamRow({
   team,
   score,
   hasStarted,
-  align,
 }: {
   team: EspnTeam;
   score: number | null;
   hasStarted: boolean;
-  align: "left" | "right";
 }) {
-  const isLeft = align === "left";
   return (
-    <div
-      className={`flex items-center gap-2.5 flex-1 ${isLeft ? "flex-row" : "flex-row-reverse"}`}
-    >
+    <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/20 bg-background/30 px-2.5 py-2">
       {team.logo ? (
         <img
           src={team.logo}
           alt={team.abbreviation}
-          className="h-8 w-8 object-contain flex-shrink-0"
+          className="h-7 w-7 object-contain flex-shrink-0"
         />
       ) : (
-        <div className="h-8 w-8 rounded-full bg-muted/20 flex-shrink-0" />
+        <div className="h-7 w-7 rounded-full bg-muted/20 flex-shrink-0" />
       )}
-      <div
-        className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`}
-      >
-        <span className="text-sm font-semibold text-foreground leading-tight">
-          {team.abbreviation}
-        </span>
-      </div>
+      <span className="min-w-0 truncate text-sm font-semibold leading-tight text-foreground">
+        {team.abbreviation}
+      </span>
       <span
-        className={`text-xl font-bold tabular-nums ml-auto ${
+        className={`ml-auto text-2xl font-bold tabular-nums ${
           hasStarted ? "text-foreground" : "text-muted-foreground/30"
         }`}
-        style={
-          isLeft
-            ? { marginLeft: "auto" }
-            : { marginRight: "auto", marginLeft: 0 }
-        }
       >
         {hasStarted && score !== null ? score : "—"}
       </span>
@@ -288,27 +277,28 @@ function GameCard({
   onClick?: () => void;
 }) {
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border/20 bg-white/[0.02] hover:bg-white/[0.05] transition-colors cursor-pointer"
+    <button
+      type="button"
+      aria-label={`${game.awayTeam.displayName} at ${game.homeTeam.displayName}`}
+      className="shark-card group flex min-h-[164px] w-full flex-col rounded-xl p-3 text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       onClick={onClick}
     >
-      <TeamSide
-        team={game.awayTeam}
-        score={game.awayScore}
-        hasStarted={game.hasStarted}
-        align="left"
-      />
-      <div className="flex flex-col items-center gap-0.5 w-20 flex-shrink-0">
-        <span className="text-muted-foreground/40 text-xs">@</span>
+      <div className="space-y-1.5">
+        <ScoreTeamRow
+          team={game.awayTeam}
+          score={game.awayScore}
+          hasStarted={game.hasStarted}
+        />
+        <ScoreTeamRow
+          team={game.homeTeam}
+          score={game.homeScore}
+          hasStarted={game.hasStarted}
+        />
+      </div>
+      <div className="mt-auto flex min-h-8 items-center justify-center border-t border-border/25 pt-2.5">
         <GameStatus game={game} />
       </div>
-      <TeamSide
-        team={game.homeTeam}
-        score={game.homeScore}
-        hasStarted={game.hasStarted}
-        align="right"
-      />
-    </div>
+    </button>
   );
 }
 
@@ -352,7 +342,7 @@ function SportSectionCard({
           </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {sorted.map((game) => (
           <GameCard
             key={game.id}
@@ -1166,12 +1156,9 @@ export default function Scores() {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-8 md:grid md:grid-cols-2 md:gap-6">
+            <div className="flex flex-col gap-8">
               {data.sports.map((section) => (
-                <div
-                  key={section.sport}
-                  className={section.games.length > 6 ? "md:col-span-2" : ""}
-                >
+                <div key={section.sport}>
                   <SportSectionCard
                     section={section}
                     onSelectGame={(game, sport) =>
