@@ -13,6 +13,28 @@ export const MLB_ROUND_LENGTHS: Record<string, number[]> = { wild_card: [2, 3], 
 export const SANDBOX_MLB_FIELD = ["Baltimore Orioles", "Boston Red Sox", "Cleveland Guardians", "Detroit Tigers", "Houston Astros", "New York Yankees", "Atlanta Braves", "Chicago Cubs", "Los Angeles Dodgers", "Milwaukee Brewers", "New York Mets", "Philadelphia Phillies"];
 export type MlbField = { AL: string[]; NL: string[] };
 
+type StandingsStat = {
+  name?: string;
+  value?: number | string;
+  displayValue?: string;
+};
+
+type StandingsEntry = {
+  team?: {
+    displayName?: string;
+    league?: { name?: string };
+    groups?: { parent?: { name?: string } };
+  };
+  stats?: StandingsStat[];
+};
+
+type StandingsNode = {
+  name?: string;
+  abbreviation?: string;
+  standings?: { entries?: StandingsEntry[] };
+  children?: StandingsNode[];
+};
+
 export function getMlbBracketPickPoints(round: string, winnerCorrect: boolean | null, lengthCorrect: boolean | null): number {
   return (winnerCorrect ? MLB_ROUND_POINTS[round] ?? 0 : 0) + (lengthCorrect ? MLB_LENGTH_BONUS_POINTS : 0);
 }
@@ -181,22 +203,60 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
     });
   } catch { return []; }
 }
+
+function leagueFromLabel(label: string | null | undefined): "AL" | "NL" | null {
+  if (!label) return null;
+  if (/american|^al$/i.test(label)) return "AL";
+  if (/national|^nl$/i.test(label)) return "NL";
+  return null;
+}
+
+/**
+ * Extracts the final twelve-team field from ESPN's grouped standings response.
+ * ESPN places league identity on the parent standings group and publishes its
+ * clincher code as a stat displayValue. "e" means eliminated; every other
+ * non-empty clincher marker denotes a secured postseason position or seed.
+ */
+export function parseMlbPostseasonField(data: StandingsNode): MlbField | null {
+  const entries: Array<{ entry: StandingsEntry; league: "AL" | "NL" }> = [];
+  const collect = (node: StandingsNode, inheritedLeague: "AL" | "NL" | null = null) => {
+    const nodeLeague =
+      leagueFromLabel(node.name) ??
+      leagueFromLabel(node.abbreviation) ??
+      inheritedLeague;
+    if (nodeLeague) {
+      for (const entry of node.standings?.entries ?? []) {
+        entries.push({ entry, league: nodeLeague });
+      }
+    }
+    for (const child of node.children ?? []) collect(child, nodeLeague);
+  };
+  collect(data);
+
+  const seeded: MlbField = { AL: [], NL: [] };
+  for (const { entry, league: parentLeague } of entries) {
+    const stats = new Map((entry.stats ?? []).map(stat => [stat.name, stat]));
+    const seed = Number(stats.get("playoffSeed")?.value);
+    const clincher = stats.get("clincher")?.displayValue?.trim().toLowerCase();
+    const teamName = entry.team?.displayName;
+    if (!teamName || !Number.isInteger(seed) || seed < 1 || seed > 6 || !clincher || clincher === "e") continue;
+
+    const teamLeague =
+      leagueFromLabel(entry.team?.league?.name) ??
+      leagueFromLabel(entry.team?.groups?.parent?.name) ??
+      parentLeague;
+    seeded[teamLeague][seed - 1] = teamName;
+  }
+
+  return seeded.AL.filter(Boolean).length === 6 && seeded.NL.filter(Boolean).length === 6
+    ? seeded
+    : null;
+}
+
 export async function getMlbPostseasonField(season = new Date().getFullYear()): Promise<MlbField | null> {
   try {
     const response = await fetch(`https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings?season=${season}`, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) return null;
-    const data = await response.json() as any;
-    const entries: any[] = [];
-    const collect = (node: any) => { if (node?.standings?.entries) entries.push(...node.standings.entries); for (const child of node?.children ?? []) collect(child); };
-    collect(data);
-    const seeded: MlbField = { AL: [], NL: [] };
-    for (const entry of entries) {
-      const stats = Object.fromEntries((entry.stats ?? []).map((stat: any) => [stat.name, stat.value]));
-      const seed = Number(stats.playoffSeed);
-      if (!Number.isInteger(seed) || seed < 1 || seed > 6 || entry.clincher === "e") continue;
-      const league = /american|^al$/i.test(entry?.team?.league?.name ?? entry?.team?.groups?.parent?.name ?? "") ? "AL" : /national|^nl$/i.test(entry?.team?.league?.name ?? entry?.team?.groups?.parent?.name ?? "") ? "NL" : null;
-      if (league) seeded[league][seed - 1] = entry.team.displayName;
-    }
-    return seeded.AL.filter(Boolean).length === 6 && seeded.NL.filter(Boolean).length === 6 ? seeded : null;
+    return parseMlbPostseasonField(await response.json() as StandingsNode);
   } catch { return null; }
 }

@@ -15,7 +15,7 @@ import {
   getMlbWeekBounds,
   fetchCurrentChampionsLeagueSlate,
 } from "../lib/espn";
-import { bracketBlueprint, getMlbPostseasonField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { bracketBlueprint, getMlbPostseasonField, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
@@ -335,6 +335,7 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  let mlbPostseasonField: MlbField | null = null;
   if (sandboxMode === true && req.user!.role !== "admin") {
     res.status(403).json({ error: "Only admins can create sandbox pools." });
     return;
@@ -367,8 +368,8 @@ router.post("/", requireAuth, async (req, res) => {
       return;
     }
     if (sandboxMode !== true) {
-      const field = await getMlbPostseasonField(season ?? new Date().getFullYear());
-      if (!field) {
+      mlbPostseasonField = await getMlbPostseasonField(season ?? new Date().getFullYear());
+      if (!mlbPostseasonField) {
         res.status(400).json({ error: "Bracket opens once the playoff field is set" });
         return;
       }
@@ -484,8 +485,8 @@ router.post("/", requireAuth, async (req, res) => {
   if (resolvedPoolType === "mlb_bracket") {
     const field = sandboxMode === true
       ? { AL: SANDBOX_MLB_FIELD.slice(0, 6), NL: SANDBOX_MLB_FIELD.slice(6, 12) }
-      : await getMlbPostseasonField(resolvedSeason);
-    if (!field) throw new Error("MLB playoff field disappeared during pool creation");
+      : mlbPostseasonField;
+    if (!field) throw new Error("MLB playoff field was not resolved before pool creation");
     await db.insert(mlbBracketSlotsTable).values(bracketBlueprint(field).map(slot => ({ poolId: pool.id, ...slot })));
   }
 
