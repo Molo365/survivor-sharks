@@ -38,6 +38,8 @@ test("broadcast template escapes commissioner text and standings while preservin
         status: "Active",
         primaryValue: 12,
         primaryLabel: "Correct <picks>",
+         secondaryValue: 18,
+         secondaryLabel: "Graded picks",
       }],
     },
     "https://example.com/pools/1?x=<unsafe>",
@@ -50,6 +52,12 @@ test("broadcast template escapes commissioner text and standings while preservin
   assert.match(content.html, /Pool &lt;One&gt;/);
   assert.match(content.html, /Player &amp; One/);
   assert.match(content.html, /Correct &lt;picks&gt;/);
+   assert.match(content.html, /Sep 10, 2026, 8:00 AM ET/);
+   assert.doesNotMatch(content.html, /2026-09-10T12:00:00\.000Z/);
+   assert.match(content.html, /broadcast-result-mobile/);
+   assert.match(content.html, /<strong>12<\/strong> Correct &lt;picks&gt;/);
+   assert.match(content.html, /<strong>18<\/strong> graded/);
+   assert.match(content.html, /Graded picks: 18/);
   assert.match(content.text, /First line\n<script>alert\('x'\)<\/script>/);
   assert.match(content.text, /1\. Player & One — Active — Correct <picks>: 12/);
 });

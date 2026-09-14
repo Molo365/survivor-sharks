@@ -45,6 +45,25 @@ function formatBroadcastTimestamp(value: string): string {
   }).format(date)} ET`;
 }
 
+function compactBroadcastLabel(label: string): string {
+  switch (label.trim().toLowerCase()) {
+    case "correct picks":
+      return "correct";
+    case "graded picks":
+      return "graded";
+    case "confidence points":
+      return "points";
+    case "strength of victory":
+      return "SOV";
+    case "week eliminated":
+      return "week out";
+    case "maximum":
+      return "max";
+    default:
+      return label;
+  }
+}
+
 export interface BroadcastEmailContent {
   subject: string;
   html: string;
@@ -68,8 +87,8 @@ export function buildBroadcastEmail(
       ? ""
       : `<div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.secondaryLabel)}: ${escapeHtml(String(row.secondaryValue))}</div>`;
     const compactResult = row.secondaryValue === undefined || row.secondaryLabel === undefined
-      ? `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(row.primaryLabel)}`
-      : `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(row.primaryLabel)} <span class="broadcast-result-separator" style="color:#64748b"> • </span><strong>${escapeHtml(String(row.secondaryValue))}</strong> ${escapeHtml(row.secondaryLabel)}`;
+      ? `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(compactBroadcastLabel(row.primaryLabel))}`
+      : `<strong>${escapeHtml(String(row.primaryValue))}</strong> ${escapeHtml(compactBroadcastLabel(row.primaryLabel))} <span class="broadcast-result-separator" style="color:#64748b"> • </span><strong>${escapeHtml(String(row.secondaryValue))}</strong> ${escapeHtml(compactBroadcastLabel(row.secondaryLabel))}`;
     return `
       <tr>
         <td class="broadcast-standings-cell" style="padding:10px;border-bottom:1px solid #263244;color:#94a3b8;text-align:center">${row.rank}</td>
@@ -81,7 +100,7 @@ export function buildBroadcastEmail(
             <div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.primaryLabel)}</div>
             ${secondary}
           </div>
-          <div class="broadcast-result-mobile" style="display:none;mso-hide:all;font-size:11px;white-space:nowrap">${compactResult}</div>
+          <div class="broadcast-result-mobile" style="display:none;mso-hide:all;font-size:10px;white-space:nowrap">${compactResult}</div>
         </td>
       </tr>`;
   }).join("");
