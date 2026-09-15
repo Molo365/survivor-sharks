@@ -178,9 +178,6 @@ router.get("/", requireAuth, async (req, res) => {
       ? pool.currentWeek
       : (member.eliminatedWeek ?? 0);
 
-    const sortedPicks = userPicks.sort((a, b) => b.week - a.week);
-    const lastPick = sortedPicks[0];
-
     const currentWeekPick = userPicks.find(p => p.week === pool.currentWeek);
     const hasWonThisWeek = currentWeekPick?.result === "win";
 
@@ -195,17 +192,18 @@ router.get("/", requireAuth, async (req, res) => {
         marginOfVictory: p.marginOfVictory!,
       }));
 
-    // Reveal lastPickTeam at kickoff (same rule as grid.ts).
+    // Reveal the current-week pick at kickoff (same rule as grid.ts).
     // Own entry always visible; other players reveal when kickoff has passed
-    // or when the pick is graded (isGraded is a safe fallback).
+    // or when the pick is graded (isGraded is a safe fallback). Do not fall
+    // back to an older week's pick when the current week has no row yet.
     const isOwnEntry  = member.userId === userId;
-    const isGraded    = lastPick !== undefined && lastPick.result !== "pending";
+    const isGraded    = currentWeekPick !== undefined && currentWeekPick.result !== "pending";
     let kickoffPassed = false;
-    if (pool.sport === "nfl" && lastPick?.teamId) {
-      const kickoff = teamKickoffMap.get(lastPick.teamId);
+    if (pool.sport === "nfl" && currentWeekPick?.teamId) {
+      const kickoff = teamKickoffMap.get(currentWeekPick.teamId);
       kickoffPassed = kickoff !== undefined && now >= kickoff;
     }
-    const showLastPickTeam = isOwnEntry || kickoffPassed || isGraded;
+    const showCurrentWeekPick = isOwnEntry || kickoffPassed || isGraded;
 
     return {
       userId: member.userId,
@@ -214,8 +212,8 @@ router.get("/", requireAuth, async (req, res) => {
       status: isAliveInDisplay ? "active" : "eliminated",
       weeksAlive,
       eliminatedWeek: member.eliminatedWeek,
-      lastPickTeam: showLastPickTeam ? (lastPick?.teamName ?? null) : null,
-      lastPickResult: lastPick?.result ?? null,
+      lastPickTeam: showCurrentWeekPick ? (currentWeekPick?.teamName ?? null) : null,
+      lastPickResult: currentWeekPick?.result ?? null,
       streak: member.streak,
       strikeCount: member.strikeCount,
       hasWonThisWeek,
