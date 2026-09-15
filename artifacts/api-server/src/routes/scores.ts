@@ -284,6 +284,22 @@ router.get("/game/:gameId", async (req, res) => {
     // competitions[0].situation from the matching event.
     const statusState: string = hdrComp?.status?.type?.state ?? "pre";
     const isLive = statusState === "in";
+    const statusName: string = hdrComp?.status?.type?.name ?? "";
+    const isCompleted = hdrComp?.status?.type?.completed ?? false;
+    const isPostponed = /postponed|cancel/i.test(statusName);
+    const isSuspended = /suspend/i.test(statusName);
+    const status = isSuspended
+      ? "suspended"
+      : isPostponed
+        ? "postponed"
+        : isCompleted
+          ? "final"
+          : isLive
+            ? "in_progress"
+            : "scheduled";
+    const hasStarted = isLive || statusState === "post" || isCompleted;
+    const homeScore = homeComp?.score != null ? Number(homeComp.score) : null;
+    const awayScore = awayComp?.score != null ? Number(awayComp.score) : null;
 
     // "Top 8th", "Bot 3rd", "End 5th" — null for pre/post games
     const inning: string | null = hdrComp?.status?.type?.detail ?? null;
@@ -539,6 +555,12 @@ router.get("/game/:gameId", async (req, res) => {
 
     res.json({
       gameId,
+      status,
+      isLive,
+      isCompleted,
+      hasStarted,
+      homeScore,
+      awayScore,
       headline,
       venue,
       broadcasts: broadcastNames,

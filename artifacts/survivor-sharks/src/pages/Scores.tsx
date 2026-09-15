@@ -74,6 +74,12 @@ const SPORTS_WITH_STANDINGS = new Set(["mlb", "nhl", "nba", "mls", "nfl"]);
 
 interface GameDetail {
   gameId: string;
+  status: "scheduled" | "in_progress" | "final" | "postponed" | "suspended";
+  isLive: boolean;
+  isCompleted: boolean;
+  hasStarted: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
   headline: string | null;
   venue: string | null;
   broadcasts: string[];
@@ -374,32 +380,53 @@ function GameDetailSheet({
     setDetailLoading(true);
     setIsPolling(false);
 
-    const doFetch = () =>
-      fetch(
-        `/api/scores/game/${selectedGame.game.id}?sport=${selectedGame.sport}`,
-      )
-        .then((r) => (r.ok ? (r.json() as Promise<GameDetail>) : null))
-        .then((d) => {
-          setDetail(d);
-          setDetailLoading(false);
-        })
-        .catch(() => setDetailLoading(false));
+    let cancelled = false;
+    let pollTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    doFetch();
+    const doFetch = async () => {
+      try {
+        const response = await fetch(
+          `/api/scores/game/${selectedGame.game.id}?sport=${selectedGame.sport}`,
+        );
+        if (!response.ok) throw new Error("game detail fetch failed");
+        const nextDetail = await (response.json() as Promise<GameDetail>);
+        if (cancelled) return;
 
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (selectedGame.game.status === "in_progress") {
-      setIsPolling(true);
-      interval = setInterval(doFetch, 45_000);
-    }
+        setDetail(nextDetail);
+        setDetailLoading(false);
+        if (nextDetail?.isLive) {
+          setIsPolling(true);
+          pollTimeout = setTimeout(doFetch, 45_000);
+        } else {
+          setIsPolling(false);
+        }
+      } catch {
+        if (cancelled) return;
+        setDetailLoading(false);
+        setIsPolling(true);
+        pollTimeout = setTimeout(doFetch, 45_000);
+      }
+    };
+
+    void doFetch();
 
     return () => {
-      if (interval !== undefined) clearInterval(interval);
+      cancelled = true;
+      if (pollTimeout !== undefined) clearTimeout(pollTimeout);
       setIsPolling(false);
     };
   }, [selectedGame?.game.id, selectedGame?.sport]);
 
   const game = selectedGame?.game;
+  const headerGame = game && detail
+    ? {
+        ...game,
+        status: detail.status,
+        hasStarted: detail.hasStarted,
+        homeScore: detail.homeScore,
+        awayScore: detail.awayScore,
+      }
+    : game;
 
   const RHE_COLS = new Set(["R", "H", "E"]);
 
@@ -414,37 +441,37 @@ function GameDetailSheet({
         side="right"
         className="w-full sm:max-w-lg overflow-y-auto p-0 flex flex-col"
       >
-        {game && (
+        {headerGame && (
           <>
             {/* ── Header ── */}
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/30">
               <SheetTitle className="sr-only">
-                {game.awayTeam.displayName} at {game.homeTeam.displayName}
+                {headerGame.awayTeam.displayName} at {headerGame.homeTeam.displayName}
               </SheetTitle>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 flex-1">
-                  {game.awayTeam.logo && (
+                  {headerGame.awayTeam.logo && (
                     <img
-                      src={game.awayTeam.logo}
-                      alt={game.awayTeam.abbreviation}
+                      src={headerGame.awayTeam.logo}
+                      alt={headerGame.awayTeam.abbreviation}
                       className="h-9 w-9 object-contain"
                     />
                   )}
                   <div>
                     <div className="text-xs text-muted-foreground">Away</div>
                     <div className="font-semibold text-sm leading-tight">
-                      {game.awayTeam.abbreviation}
+                      {headerGame.awayTeam.abbreviation}
                     </div>
                   </div>
                   <span className="font-bebas text-4xl ml-auto tabular-nums">
-                    {game.hasStarted && game.awayScore !== null
-                      ? game.awayScore
+                    {headerGame.hasStarted && headerGame.awayScore !== null
+                      ? headerGame.awayScore
                       : "—"}
                   </span>
                 </div>
 
                 <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-                  {game.status === "in_progress" && detail?.inning ? (
+                  {headerGame.status === "in_progress" && detail?.inning ? (
                     <div className="flex items-center gap-1.5">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -455,7 +482,7 @@ function GameDetailSheet({
                       </span>
                     </div>
                   ) : (
-                    <GameStatus game={game} />
+                    <GameStatus game={headerGame} />
                   )}
                   {isPolling && (
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -463,22 +490,22 @@ function GameDetailSheet({
                 </div>
 
                 <div className="flex items-center gap-2 flex-1 flex-row-reverse">
-                  {game.homeTeam.logo && (
+                  {headerGame.homeTeam.logo && (
                     <img
-                      src={game.homeTeam.logo}
-                      alt={game.homeTeam.abbreviation}
+                      src={headerGame.homeTeam.logo}
+                      alt={headerGame.homeTeam.abbreviation}
                       className="h-9 w-9 object-contain"
                     />
                   )}
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Home</div>
                     <div className="font-semibold text-sm leading-tight">
-                      {game.homeTeam.abbreviation}
+                      {headerGame.homeTeam.abbreviation}
                     </div>
                   </div>
                   <span className="font-bebas text-4xl mr-auto tabular-nums">
-                    {game.hasStarted && game.homeScore !== null
-                      ? game.homeScore
+                    {headerGame.hasStarted && headerGame.homeScore !== null
+                      ? headerGame.homeScore
                       : "—"}
                   </span>
                 </div>
@@ -800,11 +827,11 @@ function GameDetailSheet({
                       <div className="grid grid-cols-2 gap-3">
                         {[
                           {
-                            side: game.awayTeam.abbreviation,
+                            side: headerGame.awayTeam.abbreviation,
                             pitcher: detail.awayPitcher,
                           },
                           {
-                            side: game.homeTeam.abbreviation,
+                            side: headerGame.homeTeam.abbreviation,
                             pitcher: detail.homePitcher,
                           },
                         ].map(
