@@ -658,6 +658,10 @@ function WeeklyGrid({
       query: {
         queryKey: getGetNflPickEmSeasonWeekResultsQueryKey(poolId, weekParams),
         staleTime: 60_000,
+        refetchInterval: (query) =>
+          query.state.data?.games.some((game) => game.status === "in_progress")
+            ? 15_000
+            : 60_000,
       },
     },
   );

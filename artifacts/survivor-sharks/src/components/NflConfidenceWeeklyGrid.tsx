@@ -138,7 +138,10 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
     queryFn: () => authedFetch<GridResponse>(`/api/pools/${poolId}/nfl-confidence-weekly/grid?week=${week}&season=${currentYear}`),
     enabled: !!user,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: (query) =>
+      query.state.data?.games.some((game) => game.status === "in_progress")
+        ? 15_000
+        : 60_000,
   });
 
   const isCurrentWeek = week === (initialWeek ?? 1);

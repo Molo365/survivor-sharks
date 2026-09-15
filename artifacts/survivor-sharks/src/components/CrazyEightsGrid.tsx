@@ -222,7 +222,10 @@ export function CrazyEightsGrid({
     queryFn: () => authedFetch<GridResponse>(`/api/pools/${poolId}/crazy-eights/grid?date=${date}`),
     enabled: !!user,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: (query) =>
+      query.state.data?.games.some((game) => game.status === "in_progress")
+        ? 15_000
+        : 60_000,
   });
 
   // Lock in the anchor date the first time the backend resolves it
