@@ -21,6 +21,7 @@ import { db } from "@workspace/db";
 import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql, desc } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
+import { applyChampionsLeagueClosure } from "./champions-league-closure";
 import {
   fetchGames,
   fetchGamesForDate,
@@ -2235,6 +2236,7 @@ export async function processPickEmResults(): Promise<{
 
   // Both dates checked so West Coast games finishing after midnight ET are graded
   const datesToCheck = [todayEt, yesterdayEt];
+  const championsLeagueClosureGames: EspnGame[] = [];
 
   // ── Catch-up grading pass ─────────────────────────────────────────────────
   // Grade any pending picks whose gameDate is older than yesterday (i.e., outside
@@ -2275,6 +2277,9 @@ export async function processPickEmResults(): Promise<{
         } else {
           // mlb, mls, nhl, nba — all routed through fetchGamesForDate
           games = await fetchGamesForDate(sport, espnDate);
+        }
+        if (sport === "championsleague") {
+          championsLeagueClosureGames.push(...games);
         }
 
         // worldcup is skipped above, so only the remaining 3-way sports need this check
@@ -2808,6 +2813,7 @@ export async function processPickEmResults(): Promise<{
       fetchGamesForDate("championsleague", yesterdayEspn),
     ]);
     const allGames = [...todayGames, ...yesterdayGames];
+    championsLeagueClosureGames.push(...allGames);
     const outcomeByGameId = new Map<string, "home_win" | "draw" | "away_win">();
 
     for (const game of allGames) {
@@ -2852,6 +2858,12 @@ export async function processPickEmResults(): Promise<{
           );
         }
       }
+      await applyChampionsLeagueClosure({
+        poolId: pool.id,
+        pool,
+        games: championsLeagueClosureGames,
+        log: logger,
+      });
     }
   }
 

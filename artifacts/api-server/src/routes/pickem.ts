@@ -38,6 +38,7 @@ import {
   championsLeagueRegulationOutcome,
   isThreeWayPickOption,
 } from "../lib/champions-league-pickem";
+import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
 import {
   buildThreeWayPickConfirmationItems,
   deliverPickConfirmation,
@@ -2374,6 +2375,15 @@ router.post("/process-results", requireAuth, async (req, res) => {
     }
   }
 
+  const championsLeagueClosure = isChampionsLeague
+    ? await applyChampionsLeagueClosure({
+        poolId,
+        pool,
+        games: gamesByDate.flat(),
+        log: req.log,
+      })
+    : { closureApplied: false, winnerCount: 0 };
+
   // ── WC group stage closure ───────────────────────────────────────────────
   // Fires when: sport=worldcup, group stage has ended, zero pending picks
   // remain in the group stage date range. Sets final_winner on the winner(s)
@@ -2529,6 +2539,12 @@ router.post("/process-results", requireAuth, async (req, res) => {
   res.json({
     processed,
     date: todayEt,
+    ...(isChampionsLeague
+      ? {
+          championsLeagueClosed: championsLeagueClosure.closureApplied,
+          championsLeagueWinnerCount: championsLeagueClosure.winnerCount,
+        }
+      : {}),
     ...(isWc ? { wcGroupStageClosed, wcGroupStageWinnerCount } : {}),
     ...(isDailyPickem ? { dailyClosed, dailyWinnerCount } : {}),
   });

@@ -507,6 +507,10 @@ router.post("/join", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
+  if (!pool.isActive) {
+    res.status(409).json({ error: "This pool has ended and cannot accept new members." });
+    return;
+  }
 
   const [existing] = await db.select().from(entriesTable)
     .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, req.user!.id)))
@@ -536,11 +540,26 @@ router.post("/join", requireAuth, async (req, res) => {
     return;
   }
 
-  await db.insert(entriesTable).values({
-    poolId: pool.id,
-    userId: req.user!.id,
-    status: "alive",
+  const joined = await db.transaction(async (tx) => {
+    const [lockedPool] = await tx
+      .select({ isActive: poolsTable.isActive })
+      .from(poolsTable)
+      .where(eq(poolsTable.id, pool.id))
+      .for("update")
+      .limit(1);
+    if (!lockedPool?.isActive) return false;
+
+    await tx.insert(entriesTable).values({
+      poolId: pool.id,
+      userId: req.user!.id,
+      status: "alive",
+    });
+    return true;
   });
+  if (!joined) {
+    res.status(409).json({ error: "This pool has ended and cannot accept new members." });
+    return;
+  }
 
   const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
   const [{ active }] = await db.select({ active: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));

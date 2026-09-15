@@ -114,6 +114,8 @@ export interface EspnGame {
   /** Normalized UEFA Champions League phase metadata. */
   phaseSlug?: ChampionsLeaguePhase;
   phaseLabel?: string;
+  /** Structured phase provenance from ESPN's exact season slug. */
+  championsLeaguePhaseSource?: "season_slug";
   /** Knockout leg only. The final intentionally has neither value. */
   legNumber?: number;
   legLabel?: string;
@@ -315,6 +317,9 @@ export function parseGame(event: EspnEvent): EspnGame {
       .filter(Boolean)
       .join(" - "),
   );
+  const seasonPhase = CHAMPIONS_LEAGUE_PHASES.includes(event.season?.slug as ChampionsLeaguePhase)
+    ? event.season?.slug as ChampionsLeaguePhase
+    : undefined;
   const directLegNumber = event.season?.slug === "final" ? undefined : comp?.leg?.value;
   const championsLeagueWithDirectLeg = {
     ...championsLeague,
@@ -360,6 +365,9 @@ export function parseGame(event: EspnEvent): EspnGame {
     homeLinescores: home?.linescores ?? [],
     awayLinescores: away?.linescores ?? [],
     ...championsLeagueWithDirectLeg,
+    ...(seasonPhase === championsLeagueWithDirectLeg.phaseSlug
+      ? { championsLeaguePhaseSource: "season_slug" as const }
+      : {}),
     regulationHomeScore: regulation.homeScore,
     regulationAwayScore: regulation.awayScore,
   };
@@ -1011,11 +1019,12 @@ export async function fetchGamesForDateChecked(
   dateStr: string,
   seasonType = 2,
   requireEventsArray = false,
+  limit = 100,
 ): Promise<EspnGame[] | null> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return null;
 
-  const url = `${base}/scoreboard?dates=${dateStr}&seasontype=${seasonType}&limit=100`;
+  const url = `${base}/scoreboard?dates=${dateStr}&seasontype=${seasonType}&limit=${limit}`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;

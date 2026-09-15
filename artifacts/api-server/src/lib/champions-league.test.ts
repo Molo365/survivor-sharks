@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   fetchCurrentChampionsLeagueSlate,
   normalizeChampionsLeagueMetadata,
+  parseGame,
   regulationScoreFromEspn,
   resolveCurrentChampionsLeagueSlate,
 } from "./espn";
@@ -10,6 +11,12 @@ import {
   championsLeagueRegulationOutcome,
   isThreeWayPickOption,
 } from "./champions-league-pickem";
+import {
+  buildChampionsLeagueClosurePlan,
+  championsLeagueGameMatchesPoolSeason,
+  resolveTerminalChampionsLeagueSlate,
+  resolveTerminalChampionsLeagueSlateForPool,
+} from "./champions-league-closure-logic";
 
 describe("Champions League ESPN normalization", () => {
   it("keeps league phase matchdays as one metadata period", () => {
@@ -374,5 +381,220 @@ describe("Champions League Pick-Em decisions", () => {
       regulationAwayScore: null,
     };
     assert.equal(championsLeagueRegulationOutcome(incompleteRegulationFixture), null);
+  });
+});
+
+describe("Champions League tournament closure", () => {
+  it("recognizes ESPN's completed 2025-26 Final as the terminal no-leg period", () => {
+    const final = parseGame({
+      id: "401862897",
+      date: "2026-05-30T16:00Z",
+      season: { year: 2025, type: 13677, slug: "final" },
+      competitions: [{
+        status: {
+          type: {
+            state: "post",
+            completed: true,
+            name: "STATUS_FINAL_PEN",
+            shortDetail: "FT-Pens",
+          },
+        },
+        notes: [{ headline: "Paris Saint-Germain win 4-3 on penalties" }],
+        competitors: [
+          {
+            homeAway: "home",
+            score: "1",
+            team: { id: "psg", abbreviation: "PSG", displayName: "Paris Saint-Germain" },
+          },
+          {
+            homeAway: "away",
+            score: "1",
+            team: { id: "ars", abbreviation: "ARS", displayName: "Arsenal" },
+          },
+        ],
+      }],
+    });
+
+    const terminal = resolveTerminalChampionsLeagueSlate(
+      [final],
+      new Date("2026-05-31T12:00:00Z"),
+    );
+
+    assert.equal(terminal?.phaseSlug, "final");
+    assert.equal(terminal?.legNumber, undefined);
+    assert.deepEqual(terminal?.games.map((game) => game.id), ["401862897"]);
+  });
+
+  it("does not treat the last known semifinal as terminal during a schedule gap", () => {
+    const semifinal = {
+      id: "semifinal-second-leg",
+      date: "2026-05-06T19:00:00Z",
+      phaseSlug: "semifinals",
+      phaseLabel: "Semifinals",
+      legNumber: 2,
+      legLabel: "2nd Leg",
+      status: "final",
+      isCompleted: true,
+      homeScore: 2,
+      awayScore: 1,
+    } as Parameters<typeof resolveTerminalChampionsLeagueSlate>[0][number];
+
+    assert.equal(
+      resolveTerminalChampionsLeagueSlate(
+        [semifinal],
+        new Date("2026-05-20T12:00:00Z"),
+      ),
+      null,
+    );
+  });
+
+  it("does not trust incidental Final text without ESPN's structured phase slug", () => {
+    const misleading = parseGame({
+      id: "semifinal-note",
+      date: "2026-05-06T19:00:00Z",
+      season: { year: 2025, type: 13677 },
+      competitions: [{
+        status: {
+          type: { state: "post", completed: true, name: "STATUS_FINAL" },
+        },
+        notes: [{ headline: "Winner advances to Final" }],
+        competitors: [
+          {
+            homeAway: "home",
+            score: "2",
+            team: { id: "home", abbreviation: "H", displayName: "Home" },
+          },
+          {
+            homeAway: "away",
+            score: "1",
+            team: { id: "away", abbreviation: "A", displayName: "Away" },
+          },
+        ],
+      }],
+    });
+
+    assert.equal(misleading.phaseSlug, "final");
+    assert.equal(misleading.championsLeaguePhaseSource, undefined);
+    assert.equal(
+      resolveTerminalChampionsLeagueSlate(
+        [misleading],
+        new Date("2026-05-07T12:00:00Z"),
+      ),
+      null,
+    );
+  });
+
+  it("matches both start-year and final-year pool season conventions safely", () => {
+    const final = {
+      id: "final",
+      date: "2026-05-30T16:00:00Z",
+      seasonYear: 2025,
+    } as Parameters<typeof championsLeagueGameMatchesPoolSeason>[0];
+
+    assert.equal(
+      championsLeagueGameMatchesPoolSeason(final, {
+        season: 2025,
+        createdAt: new Date("2025-09-01T12:00:00Z"),
+      }),
+      true,
+    );
+    assert.equal(
+      championsLeagueGameMatchesPoolSeason(final, {
+        season: 2026,
+        createdAt: new Date("2026-02-01T12:00:00Z"),
+      }),
+      true,
+    );
+    assert.equal(
+      championsLeagueGameMatchesPoolSeason(final, {
+        season: 2026,
+        createdAt: new Date("2026-09-01T12:00:00Z"),
+      }),
+      false,
+    );
+  });
+
+  it("allows a June-created pool to close from the following year's Final", () => {
+    const nextFinal = {
+      id: "2027-final",
+      date: "2027-05-29T19:00:00Z",
+      seasonYear: 2026,
+      phaseSlug: "final",
+      phaseLabel: "Final",
+      championsLeaguePhaseSource: "season_slug",
+      status: "final",
+      isCompleted: true,
+      homeScore: 2,
+      awayScore: 1,
+    } as Parameters<typeof resolveTerminalChampionsLeagueSlateForPool>[0][number];
+
+    assert.equal(
+      resolveTerminalChampionsLeagueSlateForPool(
+        [nextFinal],
+        {
+          season: 2026,
+          createdAt: new Date("2026-06-15T12:00:00Z"),
+        },
+        new Date("2027-05-30T12:00:00Z"),
+      )?.games[0]?.id,
+      "2027-final",
+    );
+  });
+
+  it("does not close on a scheduled Final", () => {
+    const scheduledFinal = {
+      id: "scheduled-final",
+      date: "2026-05-30T16:00:00Z",
+      phaseSlug: "final",
+      phaseLabel: "Final",
+      status: "scheduled",
+      isCompleted: false,
+      homeScore: null,
+      awayScore: null,
+    } as Parameters<typeof resolveTerminalChampionsLeagueSlate>[0][number];
+
+    assert.equal(
+      resolveTerminalChampionsLeagueSlate(
+        [scheduledFinal],
+        new Date("2026-05-29T12:00:00Z"),
+      ),
+      null,
+    );
+  });
+
+  it("splits occupied prize places evenly among tied tournament winners", () => {
+    const plan = buildChampionsLeagueClosurePlan(
+      [
+        { userId: 1, correct: 20 },
+        { userId: 2, correct: 20 },
+        { userId: 3, correct: 18 },
+      ],
+      {
+        prizeStructure: [
+          { place: 1, amount: 60 },
+          { place: 2, amount: 30 },
+          { place: 3, amount: 10 },
+        ],
+        prizeMode: "pct",
+        entryFee: null,
+        prizePot: 1000,
+        maxEntries: 10,
+      },
+    );
+
+    assert.deepEqual(plan, [
+      {
+        userIds: [1, 2],
+        finishPosition: 1,
+        finalWinner: true,
+        prizeAmount: 450,
+      },
+      {
+        userIds: [3],
+        finishPosition: 2,
+        finalWinner: false,
+        prizeAmount: 100,
+      },
+    ]);
   });
 });

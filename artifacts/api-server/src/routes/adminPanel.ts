@@ -17,6 +17,7 @@ import {
   isThreeWayPickEmSport,
   threeWayPickEmOutcome,
 } from "../lib/pickem-grading";
+import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -888,8 +889,26 @@ router.post("/pickem/process-results", async (req, res) => {
     }
   }
 
+  const championsLeagueClosure = sport === "championsleague"
+    ? await applyChampionsLeagueClosure({
+        poolId,
+        pool,
+        games: gamesByDate.flat(),
+        log: req.log,
+      })
+    : { closureApplied: false, winnerCount: 0 };
+
   req.log.info({ poolId, date, processed, pendingDates }, "Admin graded Pick-Em results");
-  res.json({ processed, dates: pendingDates });
+  res.json({
+    processed,
+    dates: pendingDates,
+    ...(sport === "championsleague"
+      ? {
+          championsLeagueClosed: championsLeagueClosure.closureApplied,
+          championsLeagueWinnerCount: championsLeagueClosure.winnerCount,
+        }
+      : {}),
+  });
 });
 
 // ── GSP Admin endpoints ──────────────────────────────────────────────────────
