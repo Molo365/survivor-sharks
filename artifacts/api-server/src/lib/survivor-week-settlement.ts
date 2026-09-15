@@ -1,6 +1,20 @@
 export type SurvivorSport = "nfl" | "nhl" | "nba" | "superleague";
 export type SurvivorWipeoutDecision = "void" | "normal" | "co-winners" | "manual-review";
 
+// 2026-27 season terminal weekend — update for future seasons.
+export const SUPER_LEAGUE_2026_27_TERMINAL_PERIOD = {
+  weekStart: "2027-05-28",
+  weekEnd: "2027-05-31",
+} as const;
+
+export function isSuperLeagueTerminalPeriod(
+  period: { weekStart: string; weekEnd: string } | null | undefined,
+): boolean {
+  return period != null
+    && period.weekStart >= SUPER_LEAGUE_2026_27_TERMINAL_PERIOD.weekStart
+    && period.weekEnd >= SUPER_LEAGUE_2026_27_TERMINAL_PERIOD.weekEnd;
+}
+
 /** Pure policy used by the live settlement transaction and its tests. */
 export function decideSurvivorWipeout(options: {
   sport: SurvivorSport;
@@ -10,6 +24,8 @@ export function decideSurvivorWipeout(options: {
   followingRegularSeasonSlate?: "confirmed" | "unknown" | "contaminated";
   /** NHL/NBA only: positive schedule proof that this is the final pickable period. */
   terminalPeriodConfirmed?: boolean;
+  /** Super League's 2026-27 Friday-Monday period being settled. */
+  superLeaguePeriod?: { weekStart: string; weekEnd: string } | null;
 }): SurvivorWipeoutDecision {
   if (!options.allAliveAtStartLost) return "normal";
   if (options.sport === "nfl") {
@@ -17,8 +33,8 @@ export function decideSurvivorWipeout(options: {
     return options.week === 18 ? "co-winners" : "manual-review";
   }
   if (options.sport === "superleague") {
-    if (options.week < 38) return "void";
-    return options.week === 38 ? "co-winners" : "manual-review";
+    if (!options.superLeaguePeriod) return "manual-review";
+    return isSuperLeagueTerminalPeriod(options.superLeaguePeriod) ? "co-winners" : "void";
   }
   // Do not guess where a rolling calendar season ends. A next regular-season
   // slate is authoritative proof that this week is non-terminal.

@@ -88,6 +88,7 @@ import {
   classifyFollowingRegularSeasonSlate,
   decideSurvivorWipeout,
   isCompleteRegularSeasonSlate,
+  isSuperLeagueTerminalPeriod,
   resolveSuperLeagueSettlementBounds,
   isFinalCalendarSurvivorPeriod,
   shouldAdvanceLiveSurvivorPeriod,
@@ -220,7 +221,12 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
     if (pending) return { finalized: false, playersEliminated: 0 };
 
     const [weekPicks, alive] = await Promise.all([
-      tx.select({ entryId: picksTable.entryId, teamId: picksTable.teamId, result: picksTable.result })
+      tx.select({
+        entryId: picksTable.entryId,
+        teamId: picksTable.teamId,
+        result: picksTable.result,
+        pickDate: picksTable.pickDate,
+      })
         .from(picksTable).where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, week))),
       tx.select({ id: entriesTable.id, strikeCount: entriesTable.strikeCount })
         .from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive"))),
@@ -230,6 +236,9 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
       weekPicks,
     );
     const allAliveAtSettlementLost = outcome.allAliveAtStartLost;
+    const superLeaguePeriod = pool.sport === "superleague"
+      ? resolveSuperLeagueSettlementBounds(weekPicks.map(pick => pick.pickDate))
+      : undefined;
 
     let followingRegularSeasonSlate: "confirmed" | "unknown" | "contaminated" | undefined;
     let terminalPeriodConfirmed: boolean | undefined;
@@ -295,6 +304,7 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
       week, allAliveAtStartLost: allAliveAtSettlementLost,
       followingRegularSeasonSlate,
       terminalPeriodConfirmed,
+      superLeaguePeriod,
     });
     if (wipeoutDecision === "manual-review") {
       logger.warn(
@@ -1366,7 +1376,7 @@ export async function processCompletedGames(): Promise<{
 
   // ── ESL Survivor auto-close ────────────────────────────────────────────────
   // Case A: exactly 1 alive → close immediately (matches NFL/NHL/NBA pattern).
-  // Case B: multiple alive after matchweek 38, fully graded → rank surviving
+  // Case B: multiple alive after the 2026-27 terminal period, fully graded → rank surviving
   //         players by total-season wins (descending). Fall back to even-split
   //         co-winner only when two or more players share the highest win count.
   const eslSurvivorPools = await db
@@ -1464,14 +1474,25 @@ export async function processCompletedGames(): Promise<{
       continue;
     }
 
-    // ── Case B: multiple alive — only fire after matchweek 38 is fully graded ─
-    if (pool.currentWeek < 38) continue;
+    // ── Case B: multiple alive — only fire after the 2026-27 terminal period ─
+    const terminalPeriodRows = await db
+      .select({ pickDate: picksTable.pickDate })
+      .from(picksTable)
+      .where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, pool.currentWeek)));
+    const terminalPeriod = resolveSuperLeagueSettlementBounds(
+      terminalPeriodRows.map(row => row.pickDate),
+    );
+    if (!isSuperLeagueTerminalPeriod(terminalPeriod)) continue;
 
     const [pendingRow] = await db
       .select({ cnt: sql<number>`cast(count(*) as int)` })
       .from(picksTable)
-      .where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, 38), eq(picksTable.result, "pending")));
-    if ((pendingRow?.cnt ?? 0) > 0) continue; // week 38 not fully graded yet
+      .where(and(
+        eq(picksTable.poolId, pool.id),
+        eq(picksTable.week, pool.currentWeek),
+        eq(picksTable.result, "pending"),
+      ));
+    if ((pendingRow?.cnt ?? 0) > 0) continue; // terminal period not fully graded yet
 
     // Count total-season wins per alive player
     const winRows = await db
@@ -1554,7 +1575,7 @@ export async function processCompletedGames(): Promise<{
 
     logger.info(
       { poolId: pool.id, champions: champions.length, topWins, totalEntries },
-      "ESL Survivor auto-close: week 38 complete — ranked surviving players by total wins",
+      "ESL Survivor auto-close: terminal period complete — ranked surviving players by total wins",
     );
   }
 

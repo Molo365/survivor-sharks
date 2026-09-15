@@ -7,6 +7,7 @@ import {
   decideSurvivorWipeout,
   isFinalCalendarSurvivorPeriod,
   isCompleteRegularSeasonSlate,
+  isSuperLeagueTerminalPeriod,
   resolveSuperLeagueSettlementBounds,
   shouldAdvanceLiveSurvivorPeriod,
   survivorStateEffect,
@@ -16,18 +17,31 @@ import { fetchNhlGamesByWeekWithStatus } from "./espn";
 
 for (const sport of ["nfl", "nhl", "nba", "superleague"] as const) {
   test(`${sport}: nonterminal wipeout voids`, () => {
-    assert.equal(decideSurvivorWipeout({
+    const decision = decideSurvivorWipeout({
       sport, week: sport === "superleague" ? 37 : 10, allAliveAtStartLost: true,
       followingRegularSeasonSlate: sport === "nhl" || sport === "nba" ? "confirmed" : undefined,
-    }), "void");
+      superLeaguePeriod: sport === "superleague"
+        ? { weekStart: "2027-05-21", weekEnd: "2027-05-24" }
+        : undefined,
+    });
+    assert.equal(decision, "void");
   });
 }
 test("mixed results, confirmed terminals, and unknown terminals resolve safely", () => {
   assert.equal(decideSurvivorWipeout({ sport: "nfl", week: 10, allAliveAtStartLost: false }), "normal");
   assert.equal(decideSurvivorWipeout({ sport: "nfl", week: 18, allAliveAtStartLost: true }), "co-winners");
-  assert.equal(decideSurvivorWipeout({ sport: "superleague", week: 38, allAliveAtStartLost: true }), "co-winners");
+  assert.equal(decideSurvivorWipeout({
+    sport: "superleague",
+    week: 1,
+    allAliveAtStartLost: true,
+    superLeaguePeriod: { weekStart: "2027-05-28", weekEnd: "2027-05-31" },
+  }), "co-winners");
+  assert.equal(decideSurvivorWipeout({
+    sport: "superleague",
+    week: 38,
+    allAliveAtStartLost: true,
+  }), "manual-review");
   assert.equal(decideSurvivorWipeout({ sport: "nfl", week: 19, allAliveAtStartLost: true }), "manual-review");
-  assert.equal(decideSurvivorWipeout({ sport: "superleague", week: 39, allAliveAtStartLost: true }), "manual-review");
   assert.equal(decideSurvivorWipeout({ sport: "nba", week: 10, allAliveAtStartLost: true }), "manual-review");
   assert.equal(decideSurvivorWipeout({
     sport: "nba", week: 10, allAliveAtStartLost: true,
@@ -222,6 +236,10 @@ for (const sport of ["nfl", "nhl", "nba", "superleague"] as const) {
         sport === "nhl" || sport === "nba" ? "unknown" : undefined,
       terminalPeriodConfirmed:
         sport === "nhl" || sport === "nba" ? true : undefined,
+      superLeaguePeriod:
+        sport === "superleague"
+          ? { weekStart: "2027-05-28", weekEnd: "2027-05-31" }
+          : undefined,
     });
     assert.equal(decision, "co-winners");
     const prizeAmount = calcPrize({
@@ -302,4 +320,20 @@ test("Super League picks define one shared Fri-Mon slate", () => {
     "2026-04-13", "2026-04-17",
   ]), null);
   assert.equal(resolveSuperLeagueSettlementBounds([null]), null);
+});
+
+test("Super League terminal period is anchored to the 2026-27 Friday-Monday window", () => {
+  assert.equal(isSuperLeagueTerminalPeriod({
+    weekStart: "2027-05-21",
+    weekEnd: "2027-05-24",
+  }), false);
+  assert.equal(isSuperLeagueTerminalPeriod({
+    weekStart: "2027-05-28",
+    weekEnd: "2027-05-31",
+  }), true);
+  assert.equal(isSuperLeagueTerminalPeriod({
+    weekStart: "2027-06-04",
+    weekEnd: "2027-06-07",
+  }), true);
+  assert.equal(isSuperLeagueTerminalPeriod(null), false);
 });
