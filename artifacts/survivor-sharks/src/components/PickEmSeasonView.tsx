@@ -2031,13 +2031,16 @@ export function PickEmSeasonView({
                       <AlertDialogHeader>
                         <AlertDialogTitle>Incomplete picks</AlertDialogTitle>
                         <AlertDialogDescription>
-                          You&apos;ve only picked{" "}
+                          You&apos;ve picked{" "}
                           <strong>
                             {openGames.length - pendingPickCount} of{" "}
                             {openGames.length}
                           </strong>{" "}
-                          games this week. Submit anyway? Any unpicked games
-                          won&apos;t count toward your score.
+                          games this week. That&apos;s totally fine — each game
+                          stays open for picking until it kicks off, so you can
+                          come back and finish the rest anytime. Just don&apos;t
+                          forget: any game left unpicked by kickoff will count
+                          as 0.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
