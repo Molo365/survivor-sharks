@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog, isBroadcastEmailSupported } from "@/components/BroadcastEmailDialog";
+import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -247,6 +248,8 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
 
   return (
     <div className="space-y-8 max-w-4xl">
+      <PoolSetupSummary poolId={poolId} />
+
       {/* Invite Code */}
       <Card className="bg-card border-border/50 overflow-hidden relative">
         <div className="absolute right-0 top-0 bottom-0 w-32 bg-[radial-gradient(ellipse_at_right,rgba(30,144,255,0.1),transparent)] pointer-events-none" />

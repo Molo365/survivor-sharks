@@ -54,6 +54,7 @@ import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
+import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 
 function BaseDiamond({
   onFirst,
@@ -4366,6 +4367,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         {isCommissioner && (
           <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
             <div className="max-w-lg space-y-6">
+              <PoolSetupSummary poolId={poolId} />
+
               <div>
                 <h3 className="font-bebas text-2xl tracking-wide mb-1">Commissioner Tools</h3>
                 <p className="text-sm text-muted-foreground">

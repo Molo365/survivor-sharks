@@ -3063,7 +3063,7 @@ components:
 
     PoolDetail:
       type: object
-      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, isRecurring, members, commissionerId, activeCount, totalMembers]
+      required: [id, name, sport, poolType, inviteCode, currentWeek, season, isActive, isRecurring, members, commissionerId, activeCount, totalMembers, commissionerCut, showCommissionerCut, isPreseason]
       properties:
         id:
           type: integer
@@ -3099,6 +3099,12 @@ components:
           type: ["number", "null"]
         prizePot:
           type: ["number", "null"]
+        commissionerCut:
+          type: integer
+          description: "Commissioner percentage retained from the prize pool"
+        showCommissionerCut:
+          type: boolean
+          description: "Whether the commissioner cut is disclosed to pool members"
         doubleElimination:
           type: boolean
         pickFrequency:
@@ -3140,6 +3146,9 @@ components:
         sandboxWeek:
           type: integer
           description: "Active week when sandboxMode is true"
+        isPreseason:
+          type: boolean
+          description: "Whether this pool uses preseason games instead of regular-season games"
         weeklyBonusEnabled:
           type: boolean
           default: false

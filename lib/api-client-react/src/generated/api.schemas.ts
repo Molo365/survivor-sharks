@@ -501,6 +501,10 @@ export interface PoolDetail {
   entryFee?: number | null;
   /** @nullable */
   prizePot?: number | null;
+  /** Commissioner percentage retained from the prize pool */
+  commissionerCut: number;
+  /** Whether the commissioner cut is disclosed to pool members */
+  showCommissionerCut: boolean;
   doubleElimination?: boolean;
   /** MLB only: pick frequency for this pool */
   pickFrequency?: PoolDetailPickFrequency;
@@ -532,6 +536,8 @@ export interface PoolDetail {
   sandboxMode?: boolean;
   /** Active week when sandboxMode is true */
   sandboxWeek?: number;
+  /** Whether this pool uses preseason games instead of regular-season games */
+  isPreseason: boolean;
   /** NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled */
   weeklyBonusEnabled?: boolean;
   /** @nullable */

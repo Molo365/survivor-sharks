@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
+import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 
 interface Props {
   poolId: number;
@@ -726,6 +727,7 @@ function CommissionerTab({ poolId, inviteCode, sandboxMode: initSandboxMode = fa
 
   return (
     <div className="pt-4 max-w-xl space-y-6">
+      <PoolSetupSummary poolId={poolId} />
       <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="nfl_division_predictor" />
 
       {isSuperAdmin && (

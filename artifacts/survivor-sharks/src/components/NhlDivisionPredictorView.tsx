@@ -54,6 +54,7 @@ import { NhlNdpPick, NhlNdpDivisionResult, NhlNdpResultsResponse } from "@worksp
 import { useGetNhlNdpResults, useSubmitNhlNdpResults, getGetNhlNdpResultsQueryKey, getGetNhlNdpLiveStandingsQueryKey } from "@workspace/api-client-react";
 
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
+import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 
 interface Props {
   poolId: number;
@@ -780,6 +781,7 @@ function CommissionerTab({ poolId, inviteCode, isSuperAdmin = false }: {
 
   return (
     <div className="pt-4 max-w-2xl space-y-6">
+      <PoolSetupSummary poolId={poolId} />
       <BroadcastEmailDialog poolId={poolId} sport="nhl" poolType="nhl_division_predictor" />
 
       {isSuperAdmin && (
