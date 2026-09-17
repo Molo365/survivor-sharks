@@ -18,6 +18,9 @@ import { requireAuth } from "../middlewares/auth";
 import {
   getTodayEtDate,
   fetchGamesForDate,
+  fetchNflGamesByWeek,
+  fetchNhlGamesByWeek,
+  getNbaWeekendBounds,
   fetchSuperLeagueGamesForDate,
   getWeekBoundsEt,
   getSuperLeagueWeekBoundsEt,
@@ -32,8 +35,76 @@ const router = Router();
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
 const PICKEM_TYPES = new Set(["pickem", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "nba_ats"]);
 
-type PickStatus = "submitted" | "pending" | "not_required";
-const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, submitted: 1, not_required: 2 };
+type PickStatus = "submitted" | "incomplete" | "pending" | "not_required";
+const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, incomplete: 1, submitted: 2, not_required: 3 };
+
+function datesInRange(start: string, end: string): string[] {
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const finish = new Date(`${end}T00:00:00Z`);
+  const dates: string[] = [];
+  while (cursor <= finish) {
+    dates.push(cursor.toISOString().slice(0, 10).replace(/-/g, ""));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function isGameLocked(game: { date: string; hasStarted: boolean }): boolean {
+  return game.hasStarted || new Date(game.date).getTime() <= Date.now();
+}
+
+function allowsPartialPeriodStatus(pool: {
+  poolType: string;
+  sport: string;
+  pickFrequency: string;
+}): boolean {
+  return pool.poolType === "pickem_season"
+    || pool.poolType === "nba_ats"
+    || (pool.sport === "superleague" && pool.pickFrequency === "weekly")
+    || (pool.sport === "nhl" && pool.pickFrequency === "weekly");
+}
+
+async function getPartialPeriodGames(pool: {
+  poolType: string;
+  sport: string;
+  pickFrequency: string;
+  currentWeek: number;
+  season: number;
+  isPreseason: boolean | null;
+  sandboxMode: boolean | null;
+  createdAt: Date;
+  initialPeriodStart: string | null;
+}): Promise<Awaited<ReturnType<typeof fetchGamesForDate>>> {
+  if (pool.poolType === "pickem_season") {
+    return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
+  }
+
+  if (pool.poolType === "nba_ats") {
+    const dates = getNbaWeekendBounds(pool.createdAt, pool.currentWeek).espnDates;
+    const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
+    const seen = new Set<string>();
+    return results.flat().filter((game) => {
+      if (seen.has(game.id)) return false;
+      seen.add(game.id);
+      return true;
+    });
+  }
+
+  if (pool.sport === "superleague" && pool.pickFrequency === "weekly") {
+    const bounds = getSuperLeagueConfiguredPeriod(pool);
+    const results = await Promise.all(
+      datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate),
+    );
+    const seen = new Set<string>();
+    return results.flat().filter((game) => {
+      if (seen.has(game.id)) return false;
+      seen.add(game.id);
+      return true;
+    });
+  }
+
+  return fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, pool.isPreseason ? 1 : 2);
+}
 
 // GET /api/picks/summary — returns pick status across all of the user's active pools
 router.get("/summary", requireAuth, async (req, res) => {
@@ -64,6 +135,9 @@ router.get("/summary", requireAuth, async (req, res) => {
       isActive: poolsTable.isActive,
       sandboxMode: poolsTable.sandboxMode,
       initialPeriodStart: poolsTable.initialPeriodStart,
+      season: poolsTable.season,
+      isPreseason: poolsTable.isPreseason,
+      createdAt: poolsTable.createdAt,
     })
     .from(poolsTable)
     .where(inArray(poolsTable.id, poolIds));
@@ -197,6 +271,7 @@ router.get("/summary", requireAuth, async (req, res) => {
 
         const picked = countRow?.cnt ?? 0;
         let total: number | null = null;
+        let pickedGameIds = new Set<string>();
 
         if (poolType === "pickem_season") {
           const [gameCountRow] = await db
@@ -210,6 +285,20 @@ router.get("/summary", requireAuth, async (req, res) => {
             )
             .limit(1);
           total = gameCountRow?.gameCount ?? null;
+        }
+
+        if (picked > 0 && allowsPartialPeriodStatus(pool)) {
+          const pickRows = await db
+            .select({ gameId: pickemPicksTable.gameId })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+                dateFilter,
+              ),
+            );
+          pickedGameIds = new Set(pickRows.map((row) => row.gameId));
         }
 
         const summary =
@@ -253,9 +342,19 @@ router.get("/summary", requireAuth, async (req, res) => {
           }
         }
 
+        let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
+        if (picked > 0 && allowsPartialPeriodStatus(pool)) {
+          const games = await getPartialPeriodGames(pool);
+          const openGames = games.filter((game) => !game.isPostponed && !isGameLocked(game));
+          const pickedOpenGames = openGames.filter((game) => pickedGameIds.has(game.id));
+          if (pickedOpenGames.length < openGames.length) {
+            pickStatus = "incomplete";
+          }
+        }
+
         return {
           ...base,
-          pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
+          pickStatus,
           summary: picked > 0 || total !== null ? summary : null,
         };
       }
