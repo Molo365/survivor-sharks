@@ -38,6 +38,8 @@ import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { scoreNhlDivisionPositions } from "../lib/nhl-scoring";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
+import { GSP_GROUP_COUNT } from "../lib/closePredictorPool";
+import { getGspLockState } from "../lib/gsp-lock";
 
 const router = Router();
 
@@ -752,9 +754,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── World Cup Group Stage Predictor ──────────────────────────────────
       if (poolType === "group_stage_predictor") {
-        const [allPicks, allResults] = await Promise.all([
+        const [allPicks, allResults, lockState] = await Promise.all([
           db.select().from(groupStagePredictorPicksTable).where(eq(groupStagePredictorPicksTable.poolId, pool.id)),
           db.select().from(groupStageResultsTable).where(eq(groupStageResultsTable.poolId, pool.id)),
+          Promise.resolve(getGspLockState(pool.season, pool.sandboxMode)),
         ]);
         const resultMap = new Map(allResults.map((r) => [r.groupName, r]));
         const picksByUser = new Map<number, typeof allPicks>();
@@ -778,6 +781,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         scored.sort((a, b) => b.total - a.total);
         const myRow = scored.find((r) => r.userId === userId) ?? null;
         const hasPicks = picksByUser.has(userId);
+        const hasAllPicks = (picksByUser.get(userId)?.length ?? 0) >= GSP_GROUP_COUNT;
 
         let lastWinners = null;
         if (!pool.isActive) {
@@ -810,7 +814,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             isTied: computeIsTied(scored.map((s) => ({ ...s, score: s.total })), userId),
             correct: 0, picked: 0,
             hasPicks,
-            status: null, eliminatedWeek: null,
+            status: !hasAllPicks && lockState.locked ? "closed" : null,
+            eliminatedWeek: null,
             score: myRow ? myRow.total : null,
             maxScore: 144,
           },

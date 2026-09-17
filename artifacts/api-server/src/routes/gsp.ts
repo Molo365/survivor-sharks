@@ -11,6 +11,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchWcStandings } from "../lib/wc";
 import { closePredictorPool, GSP_GROUP_COUNT, scorePositions } from "../lib/closePredictorPool";
+import { getGspLockState } from "../lib/gsp-lock";
 
 const router = Router({ mergeParams: true });
 
@@ -102,6 +103,11 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
   if ((pool.poolType as string) !== "group_stage_predictor") {
     res.status(400).json({ error: "This pool is not a Group Stage Predictor pool" });
+    return;
+  }
+  const lockState = getGspLockState(pool.season, pool.sandboxMode);
+  if (lockState.locked) {
+    res.status(400).json({ error: "Group Stage Predictor is locked; predictions were due before the tournament started" });
     return;
   }
 

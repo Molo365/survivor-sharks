@@ -33,6 +33,8 @@ import { NFL_DIVISIONS } from "../lib/nfl-divisions";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
+import { GSP_GROUP_COUNT } from "../lib/closePredictorPool";
+import { getGspLockState } from "../lib/gsp-lock";
 
 const router = Router();
 
@@ -432,21 +434,38 @@ router.get("/summary", requireAuth, async (req, res) => {
 
       // ── Group Stage Predictor ──────────────────────────────────────────────
       if (poolType === "group_stage_predictor") {
-        const [countRow] = await db
-          .select({ cnt: count() })
-          .from(groupStagePredictorPicksTable)
-          .where(
-            and(
-              eq(groupStagePredictorPicksTable.poolId, pool.id),
-              eq(groupStagePredictorPicksTable.userId, userId),
+        const [[countRow], lockState] = await Promise.all([
+          db
+            .select({ cnt: count() })
+            .from(groupStagePredictorPicksTable)
+            .where(
+              and(
+                eq(groupStagePredictorPicksTable.poolId, pool.id),
+                eq(groupStagePredictorPicksTable.userId, userId),
+              ),
             ),
-          );
+          Promise.resolve(getGspLockState(pool.season, pool.sandboxMode)),
+        ]);
 
-        const hasAny = (countRow?.cnt ?? 0) > 0;
+        const picked = Number(countRow?.cnt ?? 0);
+        const complete = picked >= GSP_GROUP_COUNT;
+        const pickStatus: PickStatus = complete
+          ? "submitted"
+          : lockState.locked
+            ? "closed"
+            : picked > 0
+              ? "incomplete"
+              : "pending";
         return {
           ...base,
-          pickStatus: (hasAny ? "submitted" : "pending") as PickStatus,
-          summary: hasAny ? "All groups predicted" : null,
+          pickStatus,
+          summary: complete
+            ? "All groups predicted"
+            : lockState.locked
+              ? "Predictions closed - tournament started"
+              : picked > 0
+                ? `${picked}/${GSP_GROUP_COUNT} groups predicted`
+                : null,
         };
       }
 

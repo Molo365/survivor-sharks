@@ -398,7 +398,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
-              ) : (pt === "nhl_division_predictor" || pt === "mlb_bracket") && pickEmStat.myStanding.status === "closed" ? (
+              ) : (pt === "nhl_division_predictor" || pt === "mlb_bracket" || pt === "group_stage_predictor") && pickEmStat.myStanding.status === "closed" ? (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
                   <span aria-hidden>🔒</span>
                   <span>Picks closed</span>
