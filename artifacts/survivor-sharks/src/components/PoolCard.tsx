@@ -306,7 +306,12 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   </div>
                 )
               ) : pt === "nfl_division_predictor" ? (
-                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
+                pickEmStat.myStanding.status === "closed" ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                    <span aria-hidden>🔒</span>
+                    <span>Picks closed</span>
+                  </div>
+                ) : pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   !pool.isActive ? (
                     <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
                       <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
@@ -393,6 +398,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
+              ) : pt === "nhl_division_predictor" && pickEmStat.myStanding.status === "closed" ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                  <span aria-hidden>🔒</span>
+                  <span>Picks closed</span>
+                </div>
               ) : (
                 /* pickem (MLB/WC pickem) and pickem_season — "X/Y correct" style */
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (

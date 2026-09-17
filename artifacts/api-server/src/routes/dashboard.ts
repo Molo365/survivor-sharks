@@ -35,6 +35,8 @@ import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-p
 import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { scoreNhlDivisionPositions } from "../lib/nhl-scoring";
+import { getNdpLockState } from "../lib/ndp-lock";
+import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 
 const router = Router();
 
@@ -142,6 +144,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       currentWeek: poolsTable.currentWeek,
+      season: poolsTable.season,
       isActive: poolsTable.isActive,
       closureReason: poolsTable.closureReason,
       prizeStructure: poolsTable.prizeStructure,
@@ -569,9 +572,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── NHL Division Predictor ──────────────────────────────────────────────
       if (poolType === "nhl_division_predictor") {
-        const [allPicks, allResults] = await Promise.all([
+        const [allPicks, allResults, lockState] = await Promise.all([
           db.select().from(nhlDivisionPredictorPicksTable).where(eq(nhlDivisionPredictorPicksTable.poolId, pool.id)),
           db.select().from(nhlDivisionResultsTable).where(eq(nhlDivisionResultsTable.poolId, pool.id)),
+          getNhlNdpLockState(pool.season, pool.sandboxMode),
         ]);
         const resultMap = new Map(allResults.map((result) => [result.divisionName, result]));
         const picksByUser = new Map<number, typeof allPicks>();
@@ -639,7 +643,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             correct: 0,
             picked: 0,
             hasPicks: picksByUser.has(userId),
-            status: null,
+            status: pool.isActive && !picksByUser.has(userId) && lockState.locked ? "closed" : null,
             eliminatedWeek: null,
             score: myRow?.total ?? null,
             maxScore: 96,
@@ -653,9 +657,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       // ── NFL Division Predictor ──────────────────────────────────────────────
       if (poolType === "nfl_division_predictor") {
-        const [allPicks, allResults] = await Promise.all([
+        const [allPicks, allResults, lockState] = await Promise.all([
           db.select().from(nflDivisionPredictorPicksTable).where(eq(nflDivisionPredictorPicksTable.poolId, pool.id)),
           db.select().from(nflDivisionResultsTable).where(eq(nflDivisionResultsTable.poolId, pool.id)),
+          getNdpLockState(pool.season, pool.sandboxMode),
         ]);
         const resultMap = new Map(allResults.map((r) => [r.divisionName, r]));
         const picksByUser = new Map<number, typeof allPicks>();
@@ -732,7 +737,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             isTied: scoringStarted && myRow ? computeIsTied(scored.map((s) => ({ ...s, score: s.total })), userId) : false,
             correct: 0, picked: 0,
             hasPicks,
-            status: null, eliminatedWeek: null,
+            status: pool.isActive && !hasPicks && lockState.locked ? "closed" : null,
+            eliminatedWeek: null,
             score: myRow ? myRow.total : null,
             maxScore: 96,
             prizeWon: myPrizeWon,

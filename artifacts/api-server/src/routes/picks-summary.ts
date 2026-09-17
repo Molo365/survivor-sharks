@@ -29,14 +29,17 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import { NFL_DIVISIONS } from "../lib/nfl-divisions";
+import { getNdpLockState } from "../lib/ndp-lock";
+import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 
 const router = Router();
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
 const PICKEM_TYPES = new Set(["pickem", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "nba_ats"]);
 
-type PickStatus = "submitted" | "incomplete" | "pending" | "not_required";
-const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, incomplete: 1, submitted: 2, not_required: 3 };
+type PickStatus = "submitted" | "incomplete" | "pending" | "closed" | "not_required";
+const STATUS_ORDER: Record<PickStatus, number> = { pending: 0, incomplete: 1, closed: 2, submitted: 3, not_required: 4 };
 
 function datesInRange(start: string, end: string): string[] {
   const cursor = new Date(`${start}T00:00:00Z`);
@@ -371,11 +374,27 @@ router.get("/summary", requireAuth, async (req, res) => {
             ),
           );
 
-        const hasAny = (countRow?.cnt ?? 0) > 0;
+        const picked = Number(countRow?.cnt ?? 0);
+        const required = NFL_DIVISIONS.length;
+        const complete = picked >= required;
+        const lockState = await getNdpLockState(pool.season, pool.sandboxMode);
+        const pickStatus: PickStatus = complete
+          ? "submitted"
+          : lockState.locked
+            ? "closed"
+            : picked > 0
+              ? "incomplete"
+              : "pending";
         return {
           ...base,
-          pickStatus: (hasAny ? "submitted" : "pending") as PickStatus,
-          summary: hasAny ? "All divisions predicted" : "Divisions not yet predicted",
+          pickStatus,
+          summary: complete
+            ? "All divisions predicted"
+            : lockState.locked
+              ? "Predictions closed - season started"
+              : picked > 0
+                ? `${picked}/${required} divisions predicted`
+                : "Divisions not yet predicted",
         };
       }
 
@@ -391,11 +410,22 @@ router.get("/summary", requireAuth, async (req, res) => {
             ),
           );
 
-        const complete = Number(countRow?.cnt ?? 0) >= 4;
+        const picked = Number(countRow?.cnt ?? 0);
+        const complete = picked >= 4;
+        const lockState = await getNhlNdpLockState(pool.season, pool.sandboxMode);
+        const pickStatus: PickStatus = complete
+          ? "submitted"
+          : lockState.locked
+            ? "closed"
+            : "pending";
         return {
           ...base,
-          pickStatus: (complete ? "submitted" : "pending") as PickStatus,
-          summary: complete ? "All divisions predicted" : "Divisions not yet predicted",
+          pickStatus,
+          summary: complete
+            ? "All divisions predicted"
+            : lockState.locked
+              ? "Predictions closed - season started"
+              : "Divisions not yet predicted",
         };
       }
 

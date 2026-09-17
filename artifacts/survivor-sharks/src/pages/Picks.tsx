@@ -12,7 +12,7 @@ interface PoolSummary {
   poolType: string;
   sport: string;
   currentWeek: number;
-  pickStatus: "submitted" | "incomplete" | "pending" | "not_required";
+  pickStatus: "submitted" | "incomplete" | "pending" | "closed" | "not_required";
   summary: string | null;
   poolUrl: string;
   hasLiveGames?: boolean;
@@ -59,6 +59,16 @@ function StatusBadge({ status }: { status: PoolSummary["pickStatus"] }) {
         </span>
         <span className="text-[12px] font-semibold text-blue-400 tracking-wide">
           Picks incomplete
+        </span>
+      </div>
+    );
+  }
+  if (status === "closed") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground/60 text-sm leading-none">🔒</span>
+        <span className="text-[12px] font-semibold text-muted-foreground/70 tracking-wide">
+          Picks closed
         </span>
       </div>
     );
