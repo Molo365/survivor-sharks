@@ -169,6 +169,7 @@ router.get("/users", async (_req, res) => {
       id: user.id,
       username: user.username,
       email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       displayName: user.displayName,
       role: user.role,
       poolCount: Number(poolCount),
@@ -224,10 +225,43 @@ router.post("/users", async (req, res) => {
     id: user.id,
     username: user.username,
     email: user.email.endsWith("@noemail.invalid") ? null : user.email,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     displayName: user.displayName,
     role: user.role,
     poolCount: 0,
     createdAt: user.createdAt.toISOString(),
+  });
+});
+
+// POST /api/admin-panel/users/:userId/verify-email
+// The router-wide Super Admin authentication protects this deliberate override.
+router.post("/users/:userId/verify-email", async (req, res) => {
+  const userId = parseInt(String(req.params.userId));
+  if (isNaN(userId)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ emailVerifiedAt: new Date() })
+    .where(eq(usersTable.id, userId))
+    .returning({
+      id: usersTable.id,
+      username: usersTable.username,
+      emailVerifiedAt: usersTable.emailVerifiedAt,
+    });
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  res.json({
+    success: true,
+    id: user.id,
+    username: user.username,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
   });
 });
 

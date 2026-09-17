@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
 const DISMISSED_PREFIX = "email-verification-banner-dismissed:";
+const DISMISSAL_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export function EmailVerificationBanner() {
   const { user } = useAuth();
@@ -13,7 +14,17 @@ export function EmailVerificationBanner() {
 
   useEffect(() => {
     if (!user) return;
-    setDismissed(localStorage.getItem(`${DISMISSED_PREFIX}${user.id}`) === "1");
+    const dismissalKey = `${DISMISSED_PREFIX}${user.id}`;
+    const dismissedAt = Number(localStorage.getItem(dismissalKey));
+    const dismissalIsActive =
+      Number.isFinite(dismissedAt) &&
+      dismissedAt > 0 &&
+      Date.now() - dismissedAt < DISMISSAL_DURATION_MS;
+
+    if (!dismissalIsActive) {
+      localStorage.removeItem(dismissalKey);
+    }
+    setDismissed(dismissalIsActive);
   }, [user]);
 
   if (!user || user.emailVerifiedAt !== null || dismissed) return null;
@@ -40,7 +51,7 @@ export function EmailVerificationBanner() {
   }
 
   function dismiss() {
-    localStorage.setItem(`${DISMISSED_PREFIX}${currentUser.id}`, "1");
+    localStorage.setItem(`${DISMISSED_PREFIX}${currentUser.id}`, String(Date.now()));
     setDismissed(true);
   }
 

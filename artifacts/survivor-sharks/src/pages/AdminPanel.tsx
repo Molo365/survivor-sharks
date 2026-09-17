@@ -45,7 +45,7 @@ function useAdminFetch() {
 
 interface StatData { totalUsers: number; totalPools: number; picksToday: number }
 interface PoolRow { id: number; name: string; sport: string; poolType: string; isActive: boolean; memberCount: number; commissionerName: string; currentWeek: number; season: number; createdAt: string }
-interface UserRow { id: number; username: string; email: string; displayName: string | null; role: string; poolCount: number; createdAt: string }
+interface UserRow { id: number; username: string; email: string; emailVerifiedAt: string | null; displayName: string | null; role: string; poolCount: number; createdAt: string }
 interface AgentRow { id: number; username: string; displayName: string | null; playerCount: number; createdAt: string }
 interface PlayerRow { id: number; username: string; displayName: string | null; poolCount: number; createdAt: string }
 interface MaintenanceData { enabled: boolean; message: string | null }
@@ -1300,6 +1300,20 @@ export default function AdminPanel() {
     onError: () => toast({ variant: "destructive", title: "Failed to delete user" }),
   });
 
+  const verifyUserEmail = useMutation({
+    mutationFn: (id: number) => adminFetch(`/users/${id}/verify-email`, { method: "POST" }),
+    onSuccess: (_data, id) => {
+      qc.setQueryData<UserRow[]>(["admin-users"], (current) =>
+        current?.map((user) =>
+          user.id === id ? { ...user, emailVerifiedAt: new Date().toISOString() } : user,
+        ),
+      );
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "Email marked as verified" });
+    },
+    onError: () => toast({ variant: "destructive", title: "Failed to verify email" }),
+  });
+
   const [wiping, setWiping] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [detailPoolId, setDetailPoolId] = useState<number | null>(null);
@@ -1607,6 +1621,7 @@ export default function AdminPanel() {
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Username</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Display Name</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Email</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Email Status</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Role</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Pools</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Joined</TableHead>
@@ -1616,16 +1631,28 @@ export default function AdminPanel() {
                   <TableBody>
                     {loadingUsers ? (
                       Array.from({ length: 4 }).map((_, i) => (
-                        <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
+                        <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-5 w-full" /></TableCell></TableRow>
                       ))
                     ) : !users?.length ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No users found</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No users found</TableCell></TableRow>
                     ) : users.map(user => (
                       <TableRow key={user.id} className="border-border/40 hover:bg-primary/5 transition-colors">
                         <TableCell className="font-mono text-xs text-muted-foreground">{user.id}</TableCell>
                         <TableCell className="font-medium">{user.username}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{user.displayName ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
+                        <TableCell>
+                          {user.emailVerifiedAt ? (
+                            <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-amber-500/30 text-amber-400">
+                              Unverified
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${user.role === "admin" ? "bg-primary/20 text-primary border border-primary/30" : "bg-muted text-muted-foreground"}`}>
                             {user.role.toUpperCase()}
@@ -1635,6 +1662,39 @@ export default function AdminPanel() {
                         <TableCell className="text-sm text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {!user.emailVerifiedAt && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="gap-1.5 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                    Mark verified
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-bebas text-2xl tracking-wide">
+                                      Manually verify email?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to manually verify {user.username}&apos;s email? This bypasses the normal email-ownership confirmation.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => verifyUserEmail.mutate(user.id)}
+                                      disabled={verifyUserEmail.isPending}
+                                    >
+                                      Mark email verified
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
