@@ -32,6 +32,7 @@ import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { NFL_DIVISIONS } from "../lib/nfl-divisions";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
+import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 
 const router = Router();
 
@@ -484,10 +485,24 @@ router.get("/summary", requireAuth, async (req, res) => {
       }
 
       if (poolType === "mlb_bracket") {
-        const [countRow] = await db.select({ cnt: count() }).from(mlbBracketPicksTable)
-          .where(and(eq(mlbBracketPicksTable.poolId, pool.id), eq(mlbBracketPicksTable.userId, userId)));
+        const [[countRow], locked] = await Promise.all([
+          db.select({ cnt: count() }).from(mlbBracketPicksTable)
+            .where(and(eq(mlbBracketPicksTable.poolId, pool.id), eq(mlbBracketPicksTable.userId, userId))),
+          isMlbBracketLocked(pool.id, pool.season, pool.sandboxMode),
+        ]);
         const picked = Number(countRow?.cnt ?? 0);
-        return { ...base, pickStatus: (picked === 11 ? "submitted" : "pending") as PickStatus, summary: picked ? `${picked}/11 series picked` : null };
+        const complete = picked >= 11;
+        return {
+          ...base,
+          pickStatus: (complete ? "submitted" : locked ? "closed" : "pending") as PickStatus,
+          summary: complete
+            ? `${picked}/11 series picked`
+            : locked
+              ? "Bracket closed - Wild Card started"
+              : picked
+                ? `${picked}/11 series picked`
+                : null,
+        };
       }
 
       // ── Crazy 8s (daily or weekly — respects pickFrequency) ──────────────

@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
@@ -23,13 +24,7 @@ async function getContext(req: any, res: any): Promise<Context | null> {
   return { poolId, pool };
 }
 async function pickLocked(ctx: Context, series?: Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>): Promise<boolean> {
-  if (ctx.pool.sandboxMode) {
-    const result = await db.select({ id: mlbBracketResultsTable.id }).from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)).limit(1);
-    return result.length > 0;
-  }
-  const slate = series ?? await fetchMlbPostseasonSeries(ctx.pool.season);
-  const firstPitch = slate.filter(s => s.round === "wild_card").map(s => s.startsAt.getTime()).sort((a, b) => a - b)[0];
-  return firstPitch !== undefined && Date.now() >= firstPitch;
+  return isMlbBracketLocked(ctx.poolId, ctx.pool.season, ctx.pool.sandboxMode, series);
 }
 function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Array<typeof mlbBracketPicksTable.$inferSelect>, series: Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>, results: Array<typeof mlbBracketResultsTable.$inferSelect>) {
   const saved = new Map(results.map(r => [r.seriesSlot, r]));

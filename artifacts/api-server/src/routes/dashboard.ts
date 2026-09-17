@@ -32,7 +32,8 @@ import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
-import { getMlbBracketPickPoints, MLB_MAX_SCORE } from "../lib/mlb-bracket";
+import { getMlbBracketPickPoints, MLB_BRACKET_SLOTS, MLB_MAX_SCORE } from "../lib/mlb-bracket";
+import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { scoreNhlDivisionPositions } from "../lib/nhl-scoring";
 import { getNdpLockState } from "../lib/ndp-lock";
@@ -897,12 +898,15 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       }
 
       if (poolType === "mlb_bracket") {
-        const picks = await db.select({
-          userId: mlbBracketPicksTable.userId,
-          round: mlbBracketPicksTable.round,
-          winnerCorrect: mlbBracketPicksTable.winnerCorrect,
-          lengthCorrect: mlbBracketPicksTable.lengthCorrect,
-        }).from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id));
+        const [picks, locked] = await Promise.all([
+          db.select({
+            userId: mlbBracketPicksTable.userId,
+            round: mlbBracketPicksTable.round,
+            winnerCorrect: mlbBracketPicksTable.winnerCorrect,
+            lengthCorrect: mlbBracketPicksTable.lengthCorrect,
+          }).from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, pool.id)),
+          isMlbBracketLocked(pool.id, pool.season, pool.sandboxMode),
+        ]);
         const picksByUser = new Map<number, typeof picks>();
         for (const pick of picks) {
           const userPicks = picksByUser.get(pick.userId) ?? [];
@@ -916,7 +920,8 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           picked: userPicks.length,
         }));
         const mine = rows.find(r => r.userId === userId);
-        return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows, userId), isTied: computeIsTied(rows, userId), correct: mine?.correct ?? 0, picked: mine?.picked ?? 0, hasPicks: Boolean(mine?.picked), status: null, eliminatedWeek: null, score: mine?.score ?? null, maxScore: MLB_MAX_SCORE }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
+        const hasAllPicks = (mine?.picked ?? 0) >= MLB_BRACKET_SLOTS.length;
+        return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows, userId), isTied: computeIsTied(rows, userId), correct: mine?.correct ?? 0, picked: mine?.picked ?? 0, hasPicks: Boolean(mine?.picked), status: !hasAllPicks && locked ? "closed" : null, eliminatedWeek: null, score: mine?.score ?? null, maxScore: MLB_MAX_SCORE }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
       }
 
       // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────
