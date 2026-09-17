@@ -5,7 +5,7 @@ import { sendPickReminderEmail } from "./mailer";
 import { countSubmittedPickemGames, resolveNflGameIds, resolveNflSelectableGames, resolvePickemPeriod, type PickemPeriod } from "../routes/pick-status";
 import { logger } from "./logger";
 export { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames, shouldClaimReminder } from "./pick-reminder-windows";
-import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
+import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, nextUnpickedGameReminderTiming, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -45,10 +45,27 @@ function dateRange(start: string, end: string): string[] {
   return output;
 }
 
-export type ReminderEligibilityContext = { period?: PickemPeriod; nflGameIds?: Set<string> };
+type ReminderGame = { id: string; date: string };
+type PerGameReminderContext = { games: ReminderGame[]; lockOffsetMs: number };
+export type ReminderEligibilityContext = {
+  period?: PickemPeriod;
+  nflGameIds?: Set<string>;
+  perGame?: PerGameReminderContext;
+};
 export type ReminderResolution = { deadline: Date; periodKey: string; context: ReminderEligibilityContext };
 
-async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: ReminderEligibilityContext = {}, onlyUserId?: number): Promise<Array<{ id: number; email: string }>> {
+type IncompleteReminderUser = { id: number; email: string; submittedGameIds: Set<string> };
+
+function pickemPeriodCondition(pool: typeof poolsTable.$inferSelect, context: ReminderEligibilityContext) {
+  const period = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly"
+    ? null
+    : context.period;
+  return !period || period.kind === "week" ? eq(pickemPicksTable.week, pool.currentWeek)
+    : period.kind === "date" ? eq(pickemPicksTable.gameDate, period.date)
+    : and(gte(pickemPicksTable.gameDate, period.start), lte(pickemPicksTable.gameDate, period.end));
+}
+
+async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: ReminderEligibilityContext = {}, onlyUserId?: number): Promise<IncompleteReminderUser[]> {
   const members = await db.select({ id: usersTable.id, email: usersTable.email, status: entriesTable.status, emailVerifiedAt: usersTable.emailVerifiedAt, remindersEnabled: usersTable.remindersEnabled })
     .from(entriesTable).innerJoin(usersTable, eq(usersTable.id, entriesTable.userId))
     .where(and(eq(entriesTable.poolId, pool.id), onlyUserId === undefined ? undefined : eq(usersTable.id, onlyUserId)));
@@ -57,13 +74,12 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
   if (SURVIVOR_TYPES.has(pool.poolType)) {
     const rows = await db.select({ userId: picksTable.userId }).from(picksTable).where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, pool.currentWeek), pool.pickFrequency === "daily" ? eq(picksTable.pickDate, getTodayEtDate()) : undefined));
     const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), new Set(rows.map((row) => row.userId)), true);
-    return ids.map((id) => ({ id, email: memberById.get(id)!.email }));
+    return ids.map((id) => ({ id, email: memberById.get(id)!.email, submittedGameIds: new Set<string>() }));
   }
   const period = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly" ? null : context.period ?? await resolvePickemPeriod(pool);
   const gameIds = period?.gameIds ?? context.nflGameIds ?? await resolveNflGameIds(pool);
-  const condition = !period || period.kind === "week" ? eq(pickemPicksTable.week, pool.currentWeek)
-    : period.kind === "date" ? eq(pickemPicksTable.gameDate, period.date)
-    : and(gte(pickemPicksTable.gameDate, period.start), lte(pickemPicksTable.gameDate, period.end));
+  const resolvedContext = period === context.period ? context : { ...context, period: period ?? undefined };
+  const condition = pickemPeriodCondition(pool, resolvedContext);
   const rows = await db.select({ userId: pickemPicksTable.userId, gameId: pickemPicksTable.gameId, confidencePoints: pickemPicksTable.confidencePoints })
     .from(pickemPicksTable).where(and(eq(pickemPicksTable.poolId, pool.id), condition));
   const submitted = countSubmittedPickemGames(
@@ -73,18 +89,57 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
   );
   const completed = new Set(members.filter((member) => (submitted.get(member.id) ?? 0) >= gameIds.size).map((member) => member.id));
   const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), completed, false);
-  return ids.map((id) => ({ id, email: memberById.get(id)!.email }));
+  const confidenceRequired = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly";
+  const submittedByUser = new Map<number, Set<string>>();
+  for (const row of rows) {
+    if (!gameIds.has(row.gameId) || (confidenceRequired && row.confidencePoints == null)) continue;
+    if (!submittedByUser.has(row.userId)) submittedByUser.set(row.userId, new Set());
+    submittedByUser.get(row.userId)!.add(row.gameId);
+  }
+  return ids.map((id) => ({
+    id,
+    email: memberById.get(id)!.email,
+    submittedGameIds: submittedByUser.get(id) ?? new Set<string>(),
+  }));
 }
 
-async function isStillEligible(pool: typeof poolsTable.$inferSelect, userId: number, context: ReminderEligibilityContext): Promise<boolean> {
-  return (await incompleteUsers(pool, context, userId)).length > 0;
+function effectiveReminderTiming(
+  resolved: ReminderResolution,
+  user: IncompleteReminderUser,
+  now: Date,
+): { deadline: Date; periodKey: string } | null {
+  if (!resolved.context.perGame) {
+    return { deadline: resolved.deadline, periodKey: resolved.periodKey };
+  }
+  return nextUnpickedGameReminderTiming({
+    ...resolved.context.perGame,
+    submittedGameIds: user.submittedGameIds,
+    now,
+    basePeriodKey: resolved.periodKey,
+  });
+}
+
+async function currentReminderTiming(
+  pool: typeof poolsTable.$inferSelect,
+  userId: number,
+  resolved: ReminderResolution,
+  now: Date,
+): Promise<{ deadline: Date; periodKey: string } | null> {
+  const [user] = await incompleteUsers(pool, resolved.context, userId);
+  return user ? effectiveReminderTiming(resolved, user, now) : null;
 }
 
 export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution | null> {
   if (pool.poolType === "pickem_season") {
     const games = await resolveNflSelectableGames(pool);
     const timing = reminderTimingFromGames({ kind: "pickem", season: pool.season, week: pool.currentWeek, games });
-    return timing && { ...timing, context: { nflGameIds: new Set(games.map((game) => game.id)) } };
+    return timing && {
+      ...timing,
+      context: {
+        nflGameIds: new Set(games.map((game) => game.id)),
+        perGame: { games, lockOffsetMs: 0 },
+      },
+    };
   }
   if (pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly") {
     const games = await resolveNflSelectableGames(pool);
@@ -112,7 +167,15 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     ? period.games.map((game) => game.date.slice(0, 10)).sort()
     : [];
   const timing = reminderTimingFromGames({ kind: "pickem", daily: period.kind === "date", date: period.kind === "date" ? period.date : undefined, start: period.kind === "range" ? period.start : weeklyDates[0], end: period.kind === "range" ? period.end : weeklyDates.at(-1), season: pool.season, week: pool.currentWeek, games: period.games });
-  return timing && { ...timing, context: { period } };
+  return timing && {
+    ...timing,
+    context: {
+      period,
+      perGame: pool.poolType === "pickem" || pool.poolType === "nba_ats"
+        ? { games: period.games.map((game) => ({ id: game.id, date: game.date })), lockOffsetMs: 5 * MINUTE }
+        : undefined,
+    },
+  };
 }
 
 let passRunning = false;
@@ -156,13 +219,16 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     try {
       const resolved = await (options.resolver ?? resolveReminderDeadline)(pool);
       if (!resolved) continue;
-      const stage = reminderStageForDeadline(now, resolved.deadline);
-      if (!stage) continue;
       for (const user of await incompleteUsers(pool, resolved.context)) {
         try {
+          const initialTiming = effectiveReminderTiming(resolved, user, now);
+          if (!initialTiming || !reminderStageForDeadline(now, initialTiming.deadline)) continue;
           // Re-read immediately before claim: status/picks may have changed after initial resolution.
-          if (!await isStillEligible(pool, user.id, resolved.context)) continue;
-          const [claim] = await db.insert(pickRemindersTable).values({ userId: user.id, poolId: pool.id, periodKey: resolved.periodKey, reminderStage: stage }).onConflictDoNothing().returning({ id: pickRemindersTable.id });
+          const currentTiming = await currentReminderTiming(pool, user.id, resolved, now);
+          if (!currentTiming) continue;
+          const stage = reminderStageForDeadline(now, currentTiming.deadline);
+          if (!stage) continue;
+          const [claim] = await db.insert(pickRemindersTable).values({ userId: user.id, poolId: pool.id, periodKey: currentTiming.periodKey, reminderStage: stage }).onConflictDoNothing().returning({ id: pickRemindersTable.id });
           if (!claim) continue;
           claimed++;
           try {

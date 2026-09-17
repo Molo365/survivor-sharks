@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames, shouldClaimReminder } from "./pick-reminder-windows";
+import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, nextUnpickedGameReminderTiming, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames, shouldClaimReminder } from "./pick-reminder-windows";
 
 test("reminder windows are mutually exclusive at their boundaries", () => {
   const now = new Date("2026-01-01T12:00:00Z");
@@ -18,6 +18,85 @@ test("period keys distinguish daily dates, calendar ranges, and NFL reset cycles
   assert.equal(reminderPeriodKey({ daily: true, date: "2026-06-01", week: 1 }), "2026-06-01");
   assert.equal(reminderPeriodKey({ start: "2026-06-01", end: "2026-06-07", week: 1 }), "2026-06-01/2026-06-07");
   assert.notEqual(reminderPeriodKey({ season: 2025, week: 1 }), reminderPeriodKey({ season: 2026, week: 1 }));
+});
+
+test("next-unpicked timing advances from a picked Thursday game to the Sunday kickoff wave", () => {
+  const games = [
+    { id: "thu", date: "2026-09-10T00:15:00Z" },
+    { id: "sun-a", date: "2026-09-13T17:00:00Z" },
+    { id: "sun-b", date: "2026-09-13T17:00:00Z" },
+    { id: "sun-late", date: "2026-09-13T20:25:00Z" },
+  ];
+  const timing = nextUnpickedGameReminderTiming({
+    games,
+    submittedGameIds: new Set(["thu"]),
+    now: new Date("2026-09-11T18:00:00Z"),
+    lockOffsetMs: 0,
+    basePeriodKey: "2026-week-1",
+  });
+  assert.equal(timing?.deadline.toISOString(), "2026-09-13T17:00:00.000Z");
+  assert.equal(timing?.periodKey, "2026-week-1|pick-date:2026-09-13");
+});
+
+test("next-unpicked timing ignores locked misses and keeps one stable claim key per kickoff wave", () => {
+  const games = [
+    { id: "thu", date: "2026-09-10T00:15:00Z" },
+    { id: "sun-a", date: "2026-09-13T17:00:00Z" },
+    { id: "sun-b", date: "2026-09-13T17:00:00Z" },
+  ];
+  const first = nextUnpickedGameReminderTiming({
+    games,
+    submittedGameIds: new Set(),
+    now: new Date("2026-09-12T18:00:00Z"),
+    lockOffsetMs: 5 * 60_000,
+    basePeriodKey: "2026-week-1",
+  });
+  const partial = nextUnpickedGameReminderTiming({
+    games,
+    submittedGameIds: new Set(["sun-a"]),
+    now: new Date("2026-09-12T18:00:00Z"),
+    lockOffsetMs: 5 * 60_000,
+    basePeriodKey: "2026-week-1",
+  });
+  assert.equal(first?.deadline.toISOString(), "2026-09-13T16:55:00.000Z");
+  assert.equal(first?.periodKey, "2026-week-1|pick-date:2026-09-13");
+  assert.equal(partial?.periodKey, first?.periodKey);
+});
+
+test("same-day postponements do not create a second reminder claim identity", () => {
+  const common = {
+    submittedGameIds: new Set<string>(),
+    now: new Date("2026-09-12T18:00:00Z"),
+    lockOffsetMs: 0,
+    basePeriodKey: "2026-week-1",
+  };
+  const beforePostponement = nextUnpickedGameReminderTiming({
+    ...common,
+    games: [
+      { id: "sun-a", date: "2026-09-13T17:00:00Z" },
+      { id: "sun-b", date: "2026-09-13T17:00:00Z" },
+    ],
+  });
+  const afterPostponement = nextUnpickedGameReminderTiming({
+    ...common,
+    games: [{ id: "sun-a", date: "2026-09-13T18:00:00Z" }],
+  });
+  assert.equal(beforePostponement?.periodKey, "2026-week-1|pick-date:2026-09-13");
+  assert.equal(afterPostponement?.periodKey, beforePostponement?.periodKey);
+});
+
+test("next-unpicked timing returns null when every still-open game is already picked", () => {
+  const timing = nextUnpickedGameReminderTiming({
+    games: [
+      { id: "locked", date: "2026-09-10T00:15:00Z" },
+      { id: "open", date: "2026-09-13T17:00:00Z" },
+    ],
+    submittedGameIds: new Set(["open"]),
+    now: new Date("2026-09-12T18:00:00Z"),
+    lockOffsetMs: 0,
+    basePeriodKey: "2026-week-1",
+  });
+  assert.equal(timing, null);
 });
 
 test("only scoped active recurring pools and incomplete eligible members are selected", () => {

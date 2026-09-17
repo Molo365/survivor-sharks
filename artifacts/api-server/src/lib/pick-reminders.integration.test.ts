@@ -48,12 +48,22 @@ test("development DB reminder orchestration claims sandbox fixture pools once", 
     const resolver = async (pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution> => {
       const gameId = `fixture-${pool.id}`;
       if (pool.poolType === "season") return { deadline, periodKey: "2025-week-1", context: {} };
-      if (pool.poolType === "pickem_season") return { deadline, periodKey: "2025-week-1", context: { nflGameIds: new Set([gameId]) } };
+      if (pool.poolType === "pickem_season") return {
+        deadline,
+        periodKey: "2025-week-1",
+        context: {
+          nflGameIds: new Set([gameId]),
+          perGame: { games: [{ id: gameId, date: deadline.toISOString() }], lockOffsetMs: 0 },
+        },
+      };
       if (pool.poolType.includes("confidence")) return { deadline, periodKey: "2025-week-1", context: { nflGameIds: new Set([gameId]) } };
       const period = pool.pickFrequency === "daily"
         ? { kind: "date" as const, date: today, games: [], gameIds: new Set([gameId]), confidenceRequired: false }
         : { kind: "week" as const, games: [], gameIds: new Set([gameId]), confidenceRequired: false };
-      return { deadline, periodKey: pool.pickFrequency === "daily" ? today : `2025-09-01/2025-09-07`, context: { period } };
+      const perGame = pool.poolType === "pickem" || pool.poolType === "nba_ats"
+        ? { games: [{ id: gameId, date: new Date(deadline.getTime() + 5 * 60_000).toISOString() }], lockOffsetMs: 5 * 60_000 }
+        : undefined;
+      return { deadline, periodKey: pool.pickFrequency === "daily" ? today : `2025-09-01/2025-09-07`, context: { period, perGame } };
     };
     const sender = async (_email: string, poolName: string) => {
       if (poolName.includes("nba_ats")) throw new Error("intentional fake provider failure");

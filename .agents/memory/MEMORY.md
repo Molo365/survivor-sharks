@@ -30,3 +30,4 @@
 - [NFL weekly tiebreaker collection](nfl-weekly-tiebreaker-collection.md) — weekly bonuses use a separate combined-yards guess and latest-kickoff target; Week 18 entry tiebreakers stay separate.
 - [Sandbox authorization policy](sandbox-authorization-policy.md) — sandbox creation, toggles, simulations, and manual Survivor results are admin-only; limited real-data commissioner actions remain allowed.
 - [MLB recurring postseason cutoff](mlb-recurring-postseason-cutoff.md) — live recurring MLB Pick-Em and High Heat wind down after ESPN proves the regular season complete; postseason games never enter their slates.
+- [Pick reminder deadline granularity](pick-reminder-deadline-granularity.md) — per-game Pick-Em reminders follow each user’s next open pick-date; whole-slate pools retain one deadline.

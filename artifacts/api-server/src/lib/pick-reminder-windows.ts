@@ -14,6 +14,45 @@ export function reminderPeriodKey(input: { daily?: boolean; date?: string; start
   return `${input.season ?? "calendar"}-week-${input.week}`;
 }
 
+export function nextUnpickedGameReminderTiming(input: {
+  games: Array<{ id: string; date: string }>;
+  submittedGameIds: Set<string>;
+  now: Date;
+  lockOffsetMs: number;
+  basePeriodKey: string;
+}): { deadline: Date; periodKey: string } | null {
+  const scheduled = input.games
+    .map((game) => ({
+      id: game.id,
+      deadlineMs: new Date(game.date).getTime() - input.lockOffsetMs,
+    }))
+    .filter((game) => Number.isFinite(game.deadlineMs));
+
+  const next = scheduled
+    .filter((game) => game.deadlineMs > input.now.getTime() && !input.submittedGameIds.has(game.id))
+    .sort((a, b) => a.deadlineMs - b.deadlineMs || a.id.localeCompare(b.id))[0];
+  if (!next) return null;
+
+  const kickoffDate = new Date(next.deadlineMs + input.lockOffsetMs);
+  const etDateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(kickoffDate);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    etDateParts.find((item) => item.type === type)?.value;
+  const pickDate = `${part("year")}-${part("month")}-${part("day")}`;
+
+  return {
+    deadline: new Date(next.deadlineMs),
+    // One reminder per pick-day/stage prevents same-day schedule changes or
+    // partial picks from producing duplicate claims, while Thursday and Sunday
+    // can still have independent reminder cycles in the same weekly period.
+    periodKey: `${input.basePeriodKey}|pick-date:${pickDate}`,
+  };
+}
+
 export function isReminderEligiblePool(
   pool: { isActive: boolean; isRecurring: boolean; sandboxMode?: boolean; poolType: string },
   includeSandbox = false,
