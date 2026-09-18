@@ -29,6 +29,8 @@ interface EspnGame {
   awayTeam: EspnTeam;
   homeScore: number | null;
   awayScore: number | null;
+  homeRecord?: string | null;
+  awayRecord?: string | null;
   hasStarted: boolean;
   liveState?: {
     shortDetail: string | null;
@@ -241,31 +243,41 @@ function GameStatus({ game }: { game: EspnGame }) {
 
 function ScoreTeamRow({
   team,
+  record,
   score,
   hasStarted,
+  isDimmed = false,
 }: {
   team: EspnTeam;
+  record?: string | null;
   score: number | null;
   hasStarted: boolean;
+  isDimmed?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/20 bg-background/30 px-2.5 py-2">
+    <div className={cn("flex min-w-0 items-center gap-2", isDimmed && "opacity-60")}>
       {team.logo ? (
         <img
           src={team.logo}
           alt={team.abbreviation}
-          className="h-7 w-7 object-contain flex-shrink-0"
+          className="h-8 w-8 object-contain flex-shrink-0"
         />
       ) : (
-        <div className="h-7 w-7 rounded-full bg-muted/20 flex-shrink-0" />
+        <div className="h-8 w-8 rounded-full bg-muted/20 flex-shrink-0" />
       )}
-      <span className="min-w-0 truncate text-sm font-semibold leading-tight text-foreground">
-        {team.abbreviation}
+      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold leading-tight text-foreground">
+        {team.displayName}
       </span>
+      {record != null && (
+        <span className="shrink-0 text-[11px] text-muted-foreground/70">
+          {record}
+        </span>
+      )}
       <span
-        className={`ml-auto text-2xl font-bold tabular-nums ${
-          hasStarted ? "text-foreground" : "text-muted-foreground/30"
-        }`}
+        className={cn(
+          "ml-auto shrink-0 text-lg font-bold leading-none tabular-nums",
+          hasStarted ? "text-foreground" : "text-muted-foreground/30",
+        )}
       >
         {hasStarted && score !== null ? score : "—"}
       </span>
@@ -282,26 +294,36 @@ function GameCard({
   game: EspnGame;
   onClick?: () => void;
 }) {
+  const hasFinalScores =
+    game.status === "final"
+    && game.homeScore !== null
+    && game.awayScore !== null
+    && game.homeScore !== game.awayScore;
+
   return (
     <button
       type="button"
       aria-label={`${game.awayTeam.displayName} at ${game.homeTeam.displayName}`}
-      className="shark-card group flex min-h-[164px] w-full flex-col rounded-xl p-3 text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="shark-card group flex min-h-[84px] w-full items-stretch rounded-xl p-3 text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       onClick={onClick}
     >
-      <div className="space-y-1.5">
+      <div className="min-w-0 flex-1 space-y-1">
         <ScoreTeamRow
           team={game.awayTeam}
+          record={game.awayRecord}
           score={game.awayScore}
           hasStarted={game.hasStarted}
+          isDimmed={hasFinalScores && game.awayScore! < game.homeScore!}
         />
         <ScoreTeamRow
           team={game.homeTeam}
+          record={game.homeRecord}
           score={game.homeScore}
           hasStarted={game.hasStarted}
+          isDimmed={hasFinalScores && game.homeScore! < game.awayScore!}
         />
       </div>
-      <div className="mt-auto flex min-h-8 items-center justify-center border-t border-border/25 pt-2.5">
+      <div className="ml-3 flex min-w-[76px] items-center justify-center border-l border-border/25 pl-3">
         <GameStatus game={game} />
       </div>
     </button>
@@ -348,7 +370,7 @@ function SportSectionCard({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {sorted.map((game) => (
           <GameCard
             key={game.id}
