@@ -73,16 +73,14 @@ export interface BroadcastEmailContent {
 export function buildBroadcastEmail(
   poolName: string,
   commissionerMessage: string,
-  standingsSnapshot: BroadcastStandingsSnapshot,
+  standingsSnapshot: BroadcastStandingsSnapshot | undefined,
   poolUrl: string,
 ): BroadcastEmailContent {
   const safePoolName = escapeHtml(poolName);
   const safeMessage = escapeHtml(commissionerMessage).replace(/\r?\n/g, "<br />");
   const safePoolUrl = escapeHtml(poolUrl);
-  const safeTitle = escapeHtml(standingsSnapshot.summary.title);
-  const safeAsOf = escapeHtml(formatBroadcastTimestamp(standingsSnapshot.summary.asOf));
 
-  const standingsRows = standingsSnapshot.rows.map((row) => {
+  const standingsRows = standingsSnapshot?.rows.map((row) => {
     const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
       ? ""
       : `<div style="margin-top:3px;color:#94a3b8;font-size:12px">${escapeHtml(row.secondaryLabel)}: ${escapeHtml(String(row.secondaryValue))}</div>`;
@@ -103,9 +101,9 @@ export function buildBroadcastEmail(
           <div class="broadcast-result-mobile" style="display:none;mso-hide:all;font-size:10px;white-space:nowrap">${compactResult}</div>
         </td>
       </tr>`;
-  }).join("");
+  }).join("") ?? "";
 
-  const standingsHtml = standingsRows
+  const standingsSectionHtml = standingsSnapshot
     ? `<table role="table" class="broadcast-standings-table" style="width:100%;border-collapse:collapse;background:#111827;border-radius:8px;overflow:hidden;table-layout:auto">
         <thead>
           <tr>
@@ -117,7 +115,7 @@ export function buildBroadcastEmail(
         </thead>
         <tbody>${standingsRows}</tbody>
       </table>`
-    : `<p style="padding:18px;background:#111827;border-radius:8px;color:#94a3b8">No standings are available yet.</p>`;
+    : "";
 
   const html = `
     <style>
@@ -154,34 +152,42 @@ export function buildBroadcastEmail(
       <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px">Commissioner update</p>
       <h2 style="color:#f8fafc;margin-bottom:16px">${safePoolName}</h2>
       <div style="padding:20px;background:#111827;border-radius:8px;line-height:1.6">${safeMessage}</div>
-      <h2 style="color:#f8fafc;margin:30px 0 4px">${safeTitle}</h2>
-      <p style="color:#64748b;font-size:12px;margin:0 0 14px">As of ${safeAsOf}</p>
-      ${standingsHtml}
+       ${standingsSnapshot
+         ? `<h2 style="color:#f8fafc;margin:30px 0 4px">${escapeHtml(standingsSnapshot.summary.title)}</h2>
+       <p style="color:#64748b;font-size:12px;margin:0 0 14px">As of ${escapeHtml(formatBroadcastTimestamp(standingsSnapshot.summary.asOf))}</p>
+       ${standingsSectionHtml}`
+         : ""}
       <a href="${safePoolUrl}" style="display:inline-block;margin-top:28px;padding:14px 32px;background:#1e90ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">VIEW POOL</a>
       <p style="margin-top:18px;font-size:11px;color:#64748b;word-break:break-all">${safePoolUrl}</p>
     </div>`;
 
-  const textRows = standingsSnapshot.rows.length > 0
-    ? standingsSnapshot.rows.map((row) => {
-        const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
-          ? ""
-          : `; ${row.secondaryLabel}: ${row.secondaryValue}`;
-        return `${row.rank}. ${row.displayName} — ${row.status} — ${row.primaryLabel}: ${row.primaryValue}${secondary}`;
-      }).join("\n")
-    : "No standings are available yet.";
-
-  const text = [
-    poolName,
-    "",
-    commissionerMessage,
-    "",
-    standingsSnapshot.summary.title,
-    `As of ${standingsSnapshot.summary.asOf}`,
-    "",
-    textRows,
-    "",
-    `View the pool: ${poolUrl}`,
-  ].join("\n");
+  const text = standingsSnapshot
+    ? [
+        poolName,
+        "",
+        commissionerMessage,
+        "",
+        standingsSnapshot.summary.title,
+        `As of ${standingsSnapshot.summary.asOf}`,
+        "",
+        standingsSnapshot.rows.length > 0
+          ? standingsSnapshot.rows.map((row) => {
+              const secondary = row.secondaryValue === undefined || row.secondaryLabel === undefined
+                ? ""
+                : `; ${row.secondaryLabel}: ${row.secondaryValue}`;
+              return `${row.rank}. ${row.displayName} — ${row.status} — ${row.primaryLabel}: ${row.primaryValue}${secondary}`;
+            }).join("\n")
+          : "No standings are available yet.",
+        "",
+        `View the pool: ${poolUrl}`,
+      ].join("\n")
+    : [
+        poolName,
+        "",
+        commissionerMessage,
+        "",
+        `View the pool: ${poolUrl}`,
+      ].join("\n");
 
   return { subject: BROADCAST_EMAIL_SUBJECT, html, text };
 }
@@ -190,7 +196,7 @@ export async function sendBroadcastEmail(
   to: string,
   poolName: string,
   commissionerMessage: string,
-  standingsSnapshot: BroadcastStandingsSnapshot,
+  standingsSnapshot: BroadcastStandingsSnapshot | undefined,
   poolUrl: string,
 ): Promise<string | null> {
   const transport = createTransport();

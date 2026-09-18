@@ -42,6 +42,21 @@ export class UnsupportedBroadcastPoolError extends Error {
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
+const MESSAGE_ONLY_BROADCAST_POOL_KEYS = new Set([
+  "nhl:pickem",
+  "mlb:pickem",
+  "mls:pickem",
+  "superleague:pickem",
+  "championsleague:pickem",
+  "worldcup:pickem",
+  "nba:nba_ats",
+  "nhl:season",
+  "nba:season",
+  "superleague:season",
+  "nhl:crazy_8s",
+  "mlb:crazy_8s",
+  "nba:crazy_8s",
+]);
 export function isSupportedNflBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
   return pool.sport === "nfl" && (
     SURVIVOR_TYPES.has(String(pool.poolType)) ||
@@ -50,7 +65,11 @@ export function isSupportedNflBroadcastPool(pool: Pick<BroadcastPool, "sport" | 
 }
 export function isSupportedBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
   return isSupportedNflBroadcastPool(pool)
-    || (pool.sport === "nhl" && String(pool.poolType) === "nhl_division_predictor");
+    || (pool.sport === "nhl" && String(pool.poolType) === "nhl_division_predictor")
+    || MESSAGE_ONLY_BROADCAST_POOL_KEYS.has(`${pool.sport}:${pool.poolType}`);
+}
+export function isMessageOnlyBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
+  return MESSAGE_ONLY_BROADCAST_POOL_KEYS.has(`${pool.sport}:${pool.poolType}`);
 }
 
 function name(displayName: string | null, username: string): string {

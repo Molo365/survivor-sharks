@@ -55,6 +55,7 @@ import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
+import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 
 type PrevWeekWinnerGroup = {
   entries: PickEmLeaderboardEntry[];
@@ -4368,6 +4369,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   Manage your pool and grade completed games.
                 </p>
               </div>
+
+              <BroadcastEmailDialog poolId={poolId} sport={sport} poolType={poolDetail?.poolType} />
 
               {/* Invite Code */}
               <div className="rounded-xl border border-primary/30 bg-card/60 overflow-hidden relative">

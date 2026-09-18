@@ -9,20 +9,43 @@ import { useToast } from "@/hooks/use-toast";
 
 const MAX_BROADCAST_MESSAGE_LENGTH = 5000;
 
-const SUPPORTED_BROADCAST_POOL_TYPES = new Set([
-  "season",
-  "weekly",
-  "mid_season",
-  "dirty_dozen",
-  "pickem_season",
-  "nfl_confidence",
-  "nfl_confidence_weekly",
-  "nfl_division_predictor",
-  "nhl_division_predictor",
+const SUPPORTED_BROADCAST_POOL_TYPES = new Map<string, boolean>([
+  ["nfl:season", false],
+  ["nfl:weekly", false],
+  ["nfl:mid_season", false],
+  ["nfl:dirty_dozen", false],
+  ["nfl:pickem_season", false],
+  ["nfl:nfl_confidence", false],
+  ["nfl:nfl_confidence_weekly", false],
+  ["nfl:nfl_division_predictor", false],
+  ["nhl:nhl_division_predictor", false],
+  ["nhl:pickem", true],
+  ["mlb:pickem", true],
+  ["mls:pickem", true],
+  ["superleague:pickem", true],
+  ["championsleague:pickem", true],
+  ["worldcup:pickem", true],
+  ["nba:nba_ats", true],
+  ["nhl:season", true],
+  ["nba:season", true],
+  ["superleague:season", true],
+  ["nhl:crazy_8s", true],
+  ["mlb:crazy_8s", true],
+  ["nba:crazy_8s", true],
 ]);
 
+function broadcastPoolKey(sport: string | null | undefined, poolType: string | null | undefined): string | null {
+  return sport && poolType ? `${sport}:${poolType}` : null;
+}
+
 export function isBroadcastEmailSupported(sport: string | null | undefined, poolType: string | null | undefined): boolean {
-  return (sport === "nfl" || sport === "nhl") && !!poolType && SUPPORTED_BROADCAST_POOL_TYPES.has(poolType);
+  const key = broadcastPoolKey(sport, poolType);
+  return key !== null && SUPPORTED_BROADCAST_POOL_TYPES.has(key);
+}
+
+function isBroadcastMessageOnly(sport: string | null | undefined, poolType: string | null | undefined): boolean {
+  const key = broadcastPoolKey(sport, poolType);
+  return key !== null && SUPPORTED_BROADCAST_POOL_TYPES.get(key) === true;
 }
 
 interface BroadcastEmailDialogProps {
@@ -56,6 +79,7 @@ export function BroadcastEmailDialog({ poolId, sport, poolType }: BroadcastEmail
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const messageOnly = isBroadcastMessageOnly(sport, poolType);
 
   if (!isBroadcastEmailSupported(sport, poolType)) return null;
 
@@ -118,7 +142,9 @@ export function BroadcastEmailDialog({ poolId, sport, poolType }: BroadcastEmail
             <Send className="w-5 h-5 text-primary" /> Pool Update
           </CardTitle>
           <CardDescription>
-            Send a message and the current standings to every member of this pool.
+            {messageOnly
+              ? "Send a message to every member of this pool."
+              : "Send a message and the current standings to every member of this pool."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -140,7 +166,9 @@ export function BroadcastEmailDialog({ poolId, sport, poolType }: BroadcastEmail
           <DialogHeader>
             <DialogTitle className="font-bebas text-3xl tracking-wider">Send Update to Pool</DialogTitle>
             <DialogDescription>
-              Your message will be sent to every member of this pool along with the current standings.
+              {messageOnly
+                ? "Your message will be sent to every member of this pool."
+                : "Your message will be sent to every member of this pool along with the current standings."}
             </DialogDescription>
           </DialogHeader>
 

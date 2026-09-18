@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import {
   getBroadcastStandings,
+  isMessageOnlyBroadcastPool,
   isSupportedBroadcastPool,
 } from "../lib/broadcast-standings";
 import { resolveBroadcastRecipients } from "../lib/broadcast-recipients";
@@ -65,7 +66,9 @@ router.post("/", requireAuth, requireCommissioner, async (req, res) => {
   }
 
   try {
-    const standingsSnapshot = await getBroadcastStandings(pool);
+    const standingsSnapshot = isMessageOnlyBroadcastPool(pool)
+      ? undefined
+      : await getBroadcastStandings(pool);
     const { eligible, skipped } = await resolveBroadcastRecipients(poolId);
     const poolUrl = `${getBroadcastAppBaseUrl()}/pools/${poolId}`;
 
