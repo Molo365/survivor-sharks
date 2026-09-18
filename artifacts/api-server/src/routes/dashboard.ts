@@ -22,6 +22,10 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   fetchGamesForDate,
+  fetchNflGamesByWeek,
+  fetchNhlGamesByWeek,
+  fetchSuperLeagueGamesForDate,
+  getNbaWeekendBounds,
   getSuperLeagueWeekBoundsEt,
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
@@ -61,6 +65,70 @@ function getWeekBoundsEt(dateStr: string): { weekStart: string; weekEnd: string 
 function offsetDateStr(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+type DashboardPickStatus = "pending" | "incomplete" | "submitted";
+
+function datesInRange(start: string, end: string): string[] {
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const finish = new Date(`${end}T00:00:00Z`);
+  const dates: string[] = [];
+  while (cursor <= finish) {
+    dates.push(cursor.toISOString().slice(0, 10).replace(/-/g, ""));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function isDashboardGameLocked(game: { date: string; hasStarted: boolean }): boolean {
+  return game.hasStarted || new Date(game.date).getTime() <= Date.now();
+}
+
+async function getDashboardPickStatus(
+  pool: {
+    poolType: string;
+    sport: string;
+    currentWeek: number;
+    season: number | null;
+    isPreseason: boolean | null;
+    createdAt: Date;
+    pickFrequency: string;
+    initialPeriodStart: string | null;
+  },
+  pickedGameIds: string[],
+): Promise<DashboardPickStatus> {
+  if (pickedGameIds.length === 0) return "pending";
+
+  let games: Awaited<ReturnType<typeof fetchGamesForDate>> = [];
+  if (pool.poolType === "pickem_season") {
+    games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined, pool.isPreseason ? 1 : 2);
+  } else if (pool.poolType === "nba_ats") {
+    const dates = getNbaWeekendBounds(pool.createdAt, pool.currentWeek).espnDates;
+    const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
+    const seen = new Set<string>();
+    games = results.flat().filter((game) => {
+      if (seen.has(game.id)) return false;
+      seen.add(game.id);
+      return true;
+    });
+  } else if (pool.sport === "superleague") {
+    const bounds = getSuperLeagueConfiguredPeriod(pool);
+    const results = await Promise.all(
+      datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate),
+    );
+    const seen = new Set<string>();
+    games = results.flat().filter((game) => {
+      if (seen.has(game.id)) return false;
+      seen.add(game.id);
+      return true;
+    });
+  } else {
+    games = await fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, pool.isPreseason ? 1 : 2);
+  }
+
+  const pickedSet = new Set(pickedGameIds);
+  const openGames = games.filter((game) => !game.isPostponed && !isDashboardGameLocked(game));
+  return openGames.some((game) => !pickedSet.has(game.id)) ? "incomplete" : "submitted";
 }
 
 // Returns the prize per winner, scaled for actual entries vs max capacity.
@@ -159,6 +227,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
       sandboxMode: poolsTable.sandboxMode,
       createdAt: poolsTable.createdAt,
       initialPeriodStart: poolsTable.initialPeriodStart,
+      isPreseason: poolsTable.isPreseason,
     })
     .from(poolsTable)
     .where(and(
@@ -550,11 +619,25 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           );
 
         const myRow = currentRows.find((r) => r.userId === userId) ?? null;
+        const currentPeriodPickRows = pool.isActive
+          ? await db
+              .select({ gameId: pickemPicksTable.gameId })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+              ))
+          : [];
+        const pickStatus = pool.isActive
+          ? await getDashboardPickStatus(pool, currentPeriodPickRows.map((row) => row.gameId))
+          : undefined;
 
         return {
           poolId: pool.id,
           isActive: pool.isActive,
           poolType,
+          ...(pickStatus ? { pickStatus } : {}),
           lastWinners,
           myStanding: {
             rank: computeRank(currentRows.map((r) => ({ ...r, score: Number(r.correct) })), userId),
@@ -1234,6 +1317,19 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
         const scoredCurrent = currentRows.map((r) => ({ ...r, score: Number(r.correct) }));
         const myRow = scoredCurrent.find((r) => r.userId === userId) ?? null;
+        const currentPeriodPickRows = pool.isActive
+          ? await db
+              .select({ gameId: pickemPicksTable.gameId })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+                eq(pickemPicksTable.week, week),
+              ))
+          : [];
+        const pickStatus = pool.isActive
+          ? await getDashboardPickStatus(pool, currentPeriodPickRows.map((row) => row.gameId))
+          : undefined;
 
         // lastWinners: finalWinner flag when pool ended; previous-week top scorer(s) while active
         let lastWinners = null;
@@ -1296,6 +1392,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           isActive: pool.isActive,
           poolName: pool.name,
           poolType,
+          ...(pickStatus ? { pickStatus } : {}),
           sport: pool.sport as string,
           totalPlayers: memberCountMap.get(pool.id) ?? 0,
           lastWinners,
@@ -1597,6 +1694,24 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           ),
       ]);
 
+      const dashboardPartialPool = pool.isActive && (
+        isSuperLeagueWeekly
+        || (pool.sport === "nhl" && isWeekly)
+      );
+      const currentPeriodPickRows = dashboardPartialPool
+        ? await db
+            .select({ gameId: pickemPicksTable.gameId })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, pool.id),
+              eq(pickemPicksTable.userId, userId),
+              pool.sport === "nhl" ? eq(pickemPicksTable.week, pool.currentWeek) : currentWhere,
+            ))
+        : [];
+      const pickStatus = dashboardPartialPool
+        ? await getDashboardPickStatus(pool, currentPeriodPickRows.map((row) => row.gameId))
+        : undefined;
+
       const allGradedPrev = prevRows.length > 0 && prevRows.every((r) => Number(r.graded) === Number(r.picked));
       const topCorrect = prevRows.length > 0 ? Number(prevRows[0].correct) : 0;
       let tiedPrevRows = allGradedPrev ? prevRows.filter(r => Number(r.correct) === topCorrect) : [];
@@ -1694,6 +1809,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         isActive: pool.isActive,
         poolName: pool.name,
         poolType,
+        ...(pickStatus ? { pickStatus } : {}),
         sport: pool.sport as string,
         totalPlayers: memberCountMap.get(pool.id) ?? 0,
         lastWinners,

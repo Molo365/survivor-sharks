@@ -2904,6 +2904,10 @@ components:
           type: integer
         poolType:
           type: string
+        pickStatus:
+          type: string
+          enum: [pending, incomplete, submitted]
+          description: Current-period pick state for pool types that support partial picks
         lastWinners:
           type: array
           nullable: true

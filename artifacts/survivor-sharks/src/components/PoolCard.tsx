@@ -52,6 +52,10 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const periodLabel = isWeekly ? "this week" : "today";
   const pt = pool.poolType as string;
   const myIsTied = pickEmStat ? !!(pickEmStat.myStanding as any).isTied : false;
+  const hasPartialPickStatus =
+    pt === "pickem_season"
+    || pt === "nba_ats"
+    || (pt === "pickem" && isWeekly && (pool.sport === "superleague" || pool.sport === "nhl"));
 
   return (
     <Link href={`/pools/${pool.id}`} className="block h-full group" data-testid={`card-pool-${pool.id}`}>
@@ -398,6 +402,16 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
+              ) : hasPartialPickStatus && pickEmStat.pickStatus === "incomplete" ? (
+                <div className="flex items-center gap-1.5 text-xs text-blue-400">
+                  <span aria-hidden>●</span>
+                  <span>Picks incomplete</span>
+                </div>
+              ) : hasPartialPickStatus && pickEmStat.pickStatus === "pending" ? (
+                <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                  <span aria-hidden>⚠️</span>
+                  <span>Picks needed</span>
+                </div>
               ) : (pt === "nhl_division_predictor" || pt === "mlb_bracket" || pt === "group_stage_predictor") && pickEmStat.myStanding.status === "closed" ? (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
                   <span aria-hidden>🔒</span>

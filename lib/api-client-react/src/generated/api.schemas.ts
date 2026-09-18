@@ -325,6 +325,8 @@ export type PoolPickEmStatMyStanding = {
 export interface PoolPickEmStat {
   poolId: number;
   poolType: string;
+  /** Current-period pick state for pool types that support partial picks. */
+  pickStatus?: "pending" | "incomplete" | "submitted";
   /** All tied top scorers from the previous period; null if no graded results yet */
   lastWinners?: PoolPickEmStatLastWinnersItem[] | null;
   myStanding: PoolPickEmStatMyStanding;
