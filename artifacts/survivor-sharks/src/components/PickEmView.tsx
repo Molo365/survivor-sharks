@@ -2435,6 +2435,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     query: { queryKey: getGetPoolQueryKey(poolId), staleTime: 5 * 60 * 1000 },
   });
   const isSandbox = poolDetail?.sandboxMode === true;
+  const isLiveNhlWeekly = isNhlWeekly && !isSandbox;
   const isNbaAts = (poolDetail?.poolType as string) === "nba_ats";
   const weeklyStartsAt = (isMlb || sport === "mls") && isWeekly ? poolDetail?.initialPeriodStart : null;
 
@@ -2600,6 +2601,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isRelevantDay = isToday || (isSandbox && (isMlb || isNhl) && isWeekly);
   const isLastDayOfWeek = (isMlb || isNhl) && isWeekly && isRelevantDay && (isSandbox || weekSunday === todayEt);
   const needsTiebreaker = (isMlb || isNhl) && isRelevantDay && (!isWeekly || isLastDayOfWeek);
+  const currentNhlTiebreakerGuess = isLiveNhlWeekly
+    ? leaderboard?.entries.find((entry) => entry.userId === user?.id)
+    : undefined;
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -2754,8 +2758,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       return;
     }
 
-    // On Sunday (isLastDayOfWeek): intercept to collect tiebreaker before submitting Sunday picks.
-    if (needsTiebreaker && sunPicks.length > 0) {
+    // Live NHL weekly picks that include Sunday's games always collect the
+    // tiebreaker, even when submitted before Sunday. Sandbox keeps its existing
+    // Sunday-only behavior through needsTiebreaker.
+    if ((isLiveNhlWeekly || needsTiebreaker) && sunPicks.length > 0) {
       // Submit Saturday picks immediately (no tiebreaker needed for Saturday).
       if (satPicks.length > 0 && satDate) {
         submitPicks.mutate({ poolId, data: { picks: satPicks, date: satDate } }, {
@@ -2765,8 +2771,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       }
       pendingPicksRef.current = sunPicks;
       pendingDateRef.current = sunDate;
-      setTbShots("");
-      setTbPim("");
+      setTbShots(currentNhlTiebreakerGuess?.tiebreakerShotsOnGoalGuess != null
+        ? String(currentNhlTiebreakerGuess.tiebreakerShotsOnGoalGuess)
+        : "");
+      setTbPim(currentNhlTiebreakerGuess?.tiebreakerPenaltyMinutesGuess != null
+        ? String(currentNhlTiebreakerGuess.tiebreakerPenaltyMinutesGuess)
+        : "");
       setShowNhlTiebreaker(true);
       return;
     }
@@ -3084,9 +3094,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             Tiebreaker Guess
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground leading-snug">
-            It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner.
+            {isLiveNhlWeekly
+              ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
+              : "It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
             <br />
-            Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest combined error wins.
+            {isLiveNhlWeekly
+              ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on Sunday&apos;s slate. Closest combined error wins.</>
+              : <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest combined error wins.</>}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -3262,16 +3276,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : isNhlWeekly ? (
             <div className="space-y-6">
-              {/* Tiebreaker banner — Sunday only */}
-              {isLastDayOfWeek && !slateLocked && (
+              {/* Live NHL tiebreaker banner — shown while Sunday games remain open */}
+              {isLiveNhlWeekly && (sunSlate?.games ?? []).some((game) => !game.deadlinePassed) && !slateLocked && (
                 <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
                   <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-yellow-200 leading-snug">
-                      Final day of the week — tiebreaker required
+                      Sunday picks require a tiebreaker guess
                     </p>
                     <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
-                      When you submit today you&apos;ll be asked to guess combined shots on goal + penalty minutes for the last game on Sunday&apos;s slate.
+                      Picks that include Sunday&apos;s games need a tiebreaker guess on the last game of Sunday&apos;s slate.
                     </p>
                   </div>
                 </div>
