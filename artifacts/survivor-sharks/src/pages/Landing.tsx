@@ -14,12 +14,18 @@ function useCountdown(target: Date) {
     hours: Math.floor((diff % 86_400_000) / 3_600_000),
     mins:  Math.floor((diff % 3_600_000)  / 60_000),
     secs:  Math.floor((diff % 60_000)     / 1_000),
+    expired: diff === 0,
   };
 }
 
+// Manual event configuration: update these values together for the next featured event.
+const NFL_KICKOFF_TARGET = new Date("2026-09-09T20:20:00-04:00");
+const NFL_KICKOFF_LABEL = "NFL Season Kickoff · September 9, 2026";
+const NFL_KICKOFF_PASSED_MESSAGE = "🏈 NFL KICK-OFF!";
+
 export default function Landing() {
   const { user, isLoading } = useAuth();
-  const countdown = useCountdown(new Date("2026-09-09T20:20:00-04:00"));
+  const countdown = useCountdown(NFL_KICKOFF_TARGET);
 
   if (!isLoading && user) return <Redirect to="/dashboard" />;
 
@@ -65,7 +71,13 @@ export default function Landing() {
             style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="flex items-center gap-1.5 mb-0.5">
               <Timer className="w-3 h-3 text-primary" />
-              <span className="text-[9px] font-bold tracking-[0.25em] text-primary uppercase">NFL Season Kickoff · September 9, 2026</span>
+              <span
+                className={countdown.expired
+                  ? "text-sm font-black tracking-[0.18em] text-primary uppercase"
+                  : "text-[9px] font-bold tracking-[0.25em] text-primary uppercase"}
+              >
+                {countdown.expired ? NFL_KICKOFF_PASSED_MESSAGE : NFL_KICKOFF_LABEL}
+              </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
               {[
