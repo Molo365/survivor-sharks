@@ -686,6 +686,11 @@ router.post("/picks", requireAuth, async (req, res) => {
   const isChampionsLeague = sport === "championsleague";
   const is3way = isWc || isIntl || isMls || isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
+  const isLiveNhlWeekly =
+    !pool.sandboxMode
+    && pool.poolType === "pickem"
+    && sport === "nhl"
+    && pool.pickFrequency === "weekly";
   const isWeeklySoccer = (isMls || isChampionsLeague) && pool.pickFrequency === "weekly";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -898,11 +903,14 @@ router.post("/picks", requireAuth, async (req, res) => {
       ? (WC_PICK_LABELS[pick.pickedTeamId as WcPickOption] ?? pick.pickedTeamName)
       : pick.pickedTeamName;
 
-    // For 3-way picks: use the game-specific date.
+    // For live NHL weekly picks: use the game's own Eastern calendar date.
+    // For 3-way picks: use the submitted game-specific date.
     // For NHL/NBA weekly sandbox pools: use the anchor date captured during game-ID validation
     // (e.g. "2025-10-11" for the sandbox Saturday) so all read paths can find picks by game date.
     // For all other sports: fall back to today.
-    const gameDate = (is3way || isAts) && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
+    const gameDate = isLiveNhlWeekly
+      ? formatDateEtDash(new Date(gameMap.get(pick.gameId)!.date))
+      : (is3way || isAts) && pick.gameDate ? pick.gameDate : (anchorGameDate ?? todayEt);
 
     await tx
       .insert(pickemPicksTable)
@@ -919,6 +927,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       .onConflictDoUpdate({
         target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
         set: {
+          ...(isLiveNhlWeekly ? { gameDate } : {}),
           pickedTeamId: resolvedTeamId,
           pickedTeamName,
           result: "pending",
