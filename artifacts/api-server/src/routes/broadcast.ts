@@ -3,6 +3,7 @@ import { db, poolsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireCommissioner } from "../middlewares/auth";
 import {
+  BroadcastStandingsFetchError,
   getBroadcastStandings,
   isMessageOnlyBroadcastPool,
   isSupportedBroadcastPool,
@@ -68,7 +69,10 @@ router.post("/", requireAuth, requireCommissioner, async (req, res) => {
   try {
     const standingsSnapshot = isMessageOnlyBroadcastPool(pool)
       ? undefined
-      : await getBroadcastStandings(pool);
+      : await getBroadcastStandings(pool, {
+          authorization: typeof req.headers.authorization === "string" ? req.headers.authorization : undefined,
+          cookie: typeof req.headers.cookie === "string" ? req.headers.cookie : undefined,
+        });
     const { eligible, skipped } = await resolveBroadcastRecipients(poolId);
     const poolUrl = `${getBroadcastAppBaseUrl()}/pools/${poolId}`;
 
@@ -97,6 +101,10 @@ router.post("/", requireAuth, requireCommissioner, async (req, res) => {
     res.json({ sent, skipped, failed });
   } catch (error) {
     req.log.error({ err: error, poolId }, "Commissioner broadcast email failed");
+    if (error instanceof BroadcastStandingsFetchError) {
+      res.status(500).json({ error: "Couldn't load standings, please try again" });
+      return;
+    }
     res.status(500).json({ error: "Failed to send commissioner broadcast" });
   }
 });

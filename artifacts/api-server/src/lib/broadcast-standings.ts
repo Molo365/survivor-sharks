@@ -32,6 +32,10 @@ export type BroadcastStandings = { summary: BroadcastSummary; rows: BroadcastRow
 export type BroadcastStandingsSnapshot = BroadcastStandings;
 
 export type BroadcastPool = Pick<typeof poolsTable.$inferSelect, "id" | "sport" | "poolType" | "currentWeek" | "isActive">;
+export type BroadcastRequestContext = {
+  authorization?: string;
+  cookie?: string;
+};
 
 export class UnsupportedBroadcastPoolError extends Error {
   readonly code = "UNSUPPORTED_BROADCAST_POOL";
@@ -42,7 +46,7 @@ export class UnsupportedBroadcastPoolError extends Error {
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
-const MESSAGE_ONLY_BROADCAST_POOL_KEYS = new Set([
+const PICKEM_LEADERBOARD_POOL_KEYS = new Set([
   "nhl:pickem",
   "mlb:pickem",
   "mls:pickem",
@@ -50,9 +54,13 @@ const MESSAGE_ONLY_BROADCAST_POOL_KEYS = new Set([
   "championsleague:pickem",
   "worldcup:pickem",
   "nba:nba_ats",
+]);
+const SEASON_LEADERBOARD_POOL_KEYS = new Set([
   "nhl:season",
   "nba:season",
   "superleague:season",
+]);
+const MESSAGE_ONLY_BROADCAST_POOL_KEYS = new Set([
   "nhl:crazy_8s",
   "mlb:crazy_8s",
   "nba:crazy_8s",
@@ -66,6 +74,8 @@ export function isSupportedNflBroadcastPool(pool: Pick<BroadcastPool, "sport" | 
 export function isSupportedBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
   return isSupportedNflBroadcastPool(pool)
     || (pool.sport === "nhl" && String(pool.poolType) === "nhl_division_predictor")
+    || PICKEM_LEADERBOARD_POOL_KEYS.has(`${pool.sport}:${pool.poolType}`)
+    || SEASON_LEADERBOARD_POOL_KEYS.has(`${pool.sport}:${pool.poolType}`)
     || MESSAGE_ONLY_BROADCAST_POOL_KEYS.has(`${pool.sport}:${pool.poolType}`);
 }
 export function isMessageOnlyBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
@@ -85,6 +95,206 @@ function rankRows<T extends { score: number }>(items: T[]): Array<T & { rank: nu
     if (i > 0 && item.score < sorted[i - 1].score) rank = i + 1;
     return { ...item, rank };
   });
+}
+
+export class BroadcastStandingsFetchError extends Error {
+  readonly code = "BROADCAST_STANDINGS_FETCH_FAILED";
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "BroadcastStandingsFetchError";
+  }
+}
+
+type PickemLeaderboardEntry = {
+  rank?: number;
+  displayName?: string | null;
+  correct?: number;
+  picked?: number;
+  tiebreakerRunsGuess?: number | null;
+  tiebreakerRunsDiff?: number | null;
+  tiebreakerShotsOnGoalGuess?: number | null;
+  tiebreakerNhlDiff?: number | null;
+  atsTiebreakerMargin?: number | null;
+};
+
+type PickemLeaderboardResponse = {
+  week?: number;
+  isWeekly?: boolean;
+  weekStart?: string | null;
+  weekEnd?: string | null;
+  phase?: string | null;
+  poolNotStarted?: boolean;
+  startsAt?: string | null;
+  entries?: PickemLeaderboardEntry[];
+};
+
+type SeasonLeaderboardEntry = {
+  rank?: number;
+  displayName?: string | null;
+  status?: string;
+  weeksAlive?: number;
+  eliminatedWeek?: number | null;
+  streak?: number | null;
+  sovTotal?: number | null;
+};
+
+type SeasonLeaderboardResponse = {
+  currentWeek?: number;
+  viewWeek?: number;
+  isHistorical?: boolean;
+  active?: SeasonLeaderboardEntry[];
+  eliminated?: SeasonLeaderboardEntry[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function fetchInternalLeaderboard<T>(
+  path: string,
+  requestContext: BroadcastRequestContext,
+): Promise<T> {
+  const port = process.env.PORT?.trim();
+  if (!port) {
+    throw new BroadcastStandingsFetchError("PORT must be configured for broadcast standings");
+  }
+
+  const headers: Record<string, string> = {};
+  if (requestContext.authorization) headers.Authorization = requestContext.authorization;
+  if (requestContext.cookie) headers.Cookie = requestContext.cookie;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+      headers,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Leaderboard endpoint returned HTTP ${response.status}`);
+    }
+    return await response.json() as T;
+  } catch (error) {
+    if (error instanceof BroadcastStandingsFetchError) throw error;
+    throw new BroadcastStandingsFetchError(`Unable to load leaderboard: ${path}`, { cause: error });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sportLabel(sport: string): string {
+  switch (sport) {
+    case "mlb": return "MLB";
+    case "nba": return "NBA";
+    case "nhl": return "NHL";
+    case "mls": return "MLS";
+    case "superleague": return "Super League";
+    case "championsleague": return "Champions League";
+    case "worldcup": return "World Cup";
+    default: return sport.toUpperCase();
+  }
+}
+
+function pickemPeriodLabel(pool: BroadcastPool, response: PickemLeaderboardResponse): string {
+  if (response.poolNotStarted && response.startsAt) {
+    return `starts ${response.startsAt}`;
+  }
+  if (response.phase) {
+    return `${response.phase.replace(/_/g, " ")} phase`;
+  }
+  if (response.weekStart && response.weekEnd) {
+    return `${response.weekStart} to ${response.weekEnd}`;
+  }
+  if (response.isWeekly) {
+    return `Week ${response.week ?? pool.currentWeek}`;
+  }
+  return "today";
+}
+
+function pickemTiebreaker(entry: PickemLeaderboardEntry, sport: string, poolType: string): {
+  value: number | null;
+  label: string | undefined;
+} {
+  if (poolType === "nba_ats" && entry.atsTiebreakerMargin != null) {
+    return { value: entry.atsTiebreakerMargin, label: "Margin tiebreaker" };
+  }
+  if (sport === "mlb" && entry.tiebreakerRunsDiff != null) {
+    return { value: entry.tiebreakerRunsDiff, label: "Tiebreaker difference" };
+  }
+  if (sport === "nhl" && entry.tiebreakerNhlDiff != null) {
+    return { value: entry.tiebreakerNhlDiff, label: "Tiebreaker difference" };
+  }
+  if (sport === "mlb" && entry.tiebreakerRunsGuess != null) {
+    return { value: entry.tiebreakerRunsGuess, label: "Runs guess" };
+  }
+  if (sport === "nhl" && entry.tiebreakerShotsOnGoalGuess != null) {
+    return { value: entry.tiebreakerShotsOnGoalGuess, label: "Shots on goal guess" };
+  }
+  return { value: null, label: undefined };
+}
+
+async function pickem(pool: BroadcastPool, requestContext: BroadcastRequestContext): Promise<BroadcastStandings> {
+  const response = await fetchInternalLeaderboard<PickemLeaderboardResponse>(
+    `/api/pools/${pool.id}/pickem/leaderboard`,
+    requestContext,
+  );
+  if (!isRecord(response) || !Array.isArray(response.entries)) {
+    throw new BroadcastStandingsFetchError("Pick-Em leaderboard response was invalid");
+  }
+
+  const rows = response.entries.map((entry, index) => {
+    const tiebreaker = pickemTiebreaker(entry, String(pool.sport), String(pool.poolType));
+    return {
+      rank: typeof entry.rank === "number" ? entry.rank : index + 1,
+      displayName: entry.displayName?.trim() || "Player",
+      status: pool.isActive ? "Active" as const : "Final" as const,
+      primaryValue: Number(entry.correct ?? 0),
+      primaryLabel: "Correct picks",
+      secondaryValue: tiebreaker.value ?? Number(entry.picked ?? 0),
+      secondaryLabel: tiebreaker.label ?? "Picks",
+    };
+  });
+
+  return {
+    summary: {
+      title: `${sportLabel(String(pool.sport))} Pick'em standings — ${pickemPeriodLabel(pool, response)}`,
+      asOf: new Date().toISOString(),
+    },
+    rows,
+  };
+}
+
+async function seasonLeaderboard(pool: BroadcastPool, requestContext: BroadcastRequestContext): Promise<BroadcastStandings> {
+  const response = await fetchInternalLeaderboard<SeasonLeaderboardResponse>(
+    `/api/pools/${pool.id}/leaderboard`,
+    requestContext,
+  );
+  if (!isRecord(response) || !Array.isArray(response.active) || !Array.isArray(response.eliminated)) {
+    throw new BroadcastStandingsFetchError("Season leaderboard response was invalid");
+  }
+
+  const rows = [...response.active, ...response.eliminated].map((entry, index) => {
+    const hasSov = entry.sovTotal != null;
+    return {
+      rank: typeof entry.rank === "number" ? entry.rank : index + 1,
+      displayName: entry.displayName?.trim() || "Player",
+      status: entry.status === "eliminated"
+        ? "Eliminated" as const
+        : pool.isActive ? "Active" as const : "Winner" as const,
+      primaryValue: Number(hasSov ? entry.sovTotal : entry.weeksAlive ?? 0),
+      primaryLabel: hasSov ? "Strength of victory" : "Weeks alive",
+      secondaryValue: entry.streak ?? null,
+      secondaryLabel: entry.streak != null ? "Streak" : undefined,
+    };
+  });
+
+  return {
+    summary: {
+      title: `${sportLabel(String(pool.sport))} Survivor standings — Week ${response.viewWeek ?? response.currentWeek ?? pool.currentWeek}`,
+      asOf: new Date().toISOString(),
+    },
+    rows,
+  };
 }
 
 async function survivor(pool: BroadcastPool): Promise<BroadcastStandings> {
@@ -115,7 +325,7 @@ async function survivor(pool: BroadcastPool): Promise<BroadcastStandings> {
   return { summary: { title: "NFL Survivor standings", asOf: new Date().toISOString() }, rows };
 }
 
-async function pickem(pool: BroadcastPool): Promise<BroadcastStandings> {
+async function nflPickem(pool: BroadcastPool): Promise<BroadcastStandings> {
   const [rows, weeklyRows, tiebreakers, actualRows, storedGameCounts, fallbackDistinctCounts] = await Promise.all([db.select({
     userId: pickemPicksTable.userId, username: usersTable.username, displayName: usersTable.displayName,
     correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
@@ -295,13 +505,19 @@ async function nhlNdp(pool: BroadcastPool): Promise<BroadcastStandings> {
   };
 }
 
-export async function getBroadcastStandings(pool: BroadcastPool): Promise<BroadcastStandings> {
+export async function getBroadcastStandings(
+  pool: BroadcastPool,
+  requestContext: BroadcastRequestContext = {},
+): Promise<BroadcastStandings> {
   const type = String(pool.poolType);
+  const poolKey = `${pool.sport}:${type}`;
+  if (PICKEM_LEADERBOARD_POOL_KEYS.has(poolKey)) return pickem(pool, requestContext);
+  if (SEASON_LEADERBOARD_POOL_KEYS.has(poolKey)) return seasonLeaderboard(pool, requestContext);
   if (pool.sport === "nhl" && type === "nhl_division_predictor") return nhlNdp(pool);
   if (pool.sport !== "nfl") throw new UnsupportedBroadcastPoolError(`Unsupported broadcast sport: ${pool.sport}.`);
   if (!isSupportedNflBroadcastPool(pool)) throw new UnsupportedBroadcastPoolError(`Unsupported NFL broadcast pool type: ${type}.`);
   if (SURVIVOR_TYPES.has(type)) return survivor(pool);
-  if (type === "pickem_season") return pickem(pool);
+  if (type === "pickem_season") return nflPickem(pool);
   if (type === "nfl_confidence") return confidence(pool, false);
   if (type === "nfl_confidence_weekly") return confidence(pool, true);
   return ndp(pool);

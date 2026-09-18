@@ -33,3 +33,4 @@
 - [MLB recurring postseason cutoff](mlb-recurring-postseason-cutoff.md) — live recurring MLB Pick-Em and High Heat wind down after ESPN proves the regular season complete; postseason games never enter their slates.
 - [Pick reminder deadline granularity](pick-reminder-deadline-granularity.md) — per-game Pick-Em reminders follow each user’s next open pick-date; whole-slate pools retain one deadline.
 - [Champions League season-feed pagination](champions-league-season-feed-pagination.md) — a 400 range response plus ESPN’s default 100-event season limit can truncate the next matchday to one fixture.
+- [Broadcast standings source](broadcast-standings-source.md) — reuse authenticated leaderboard endpoints over the local API; fail closed instead of duplicating ranking logic.
