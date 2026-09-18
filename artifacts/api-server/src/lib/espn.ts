@@ -1045,25 +1045,81 @@ export async function fetchGamesForDate(sport: string, dateStr: string, seasonTy
   return (await fetchGamesForDateChecked(sport, dateStr, seasonType)) ?? [];
 }
 
+function getEspnMonthsInRange(startDate: string, endDate: string): string[] | null {
+  if (!/^\d{8}$/.test(startDate) || !/^\d{8}$/.test(endDate) || startDate > endDate) {
+    return null;
+  }
+
+  const startYear = Number(startDate.slice(0, 4));
+  const startMonth = Number(startDate.slice(4, 6));
+  const endYear = Number(endDate.slice(0, 4));
+  const endMonth = Number(endDate.slice(4, 6));
+  if (
+    !Number.isInteger(startYear)
+    || !Number.isInteger(endYear)
+    || startMonth < 1
+    || startMonth > 12
+    || endMonth < 1
+    || endMonth > 12
+  ) {
+    return null;
+  }
+
+  const months: string[] = [];
+  let year = startYear;
+  let month = startMonth;
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    months.push(`${year}${String(month).padStart(2, "0")}`);
+    month++;
+    if (month === 13) {
+      year++;
+      month = 1;
+    }
+  }
+  return months;
+}
+
 /**
- * Fetches an MLB scoreboard date range without applying a season-type filter.
- * Returns null when ESPN fails or omits its events array so season-boundary
- * callers can fail open instead of closing pools from incomplete data.
+ * Fetches an MLB scoreboard date range as ESPN-supported calendar-month
+ * requests without applying a season-type filter. ESPN rejects hyphenated
+ * date ranges on this endpoint but accepts YYYYMM selectors.
+ *
+ * Returns null when any month fails or omits its events array so
+ * season-boundary callers fail open instead of closing pools from incomplete
+ * data.
  */
 export async function fetchMlbGamesForDateRangeChecked(
   startDate: string,
   endDate: string,
 ): Promise<EspnGame[] | null> {
-  const url = `${ESPN_ENDPOINTS.mlb}/scoreboard?dates=${startDate}-${endDate}&limit=1000`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    const data = await res.json() as { events?: EspnEvent[] };
-    if (!Array.isArray(data.events)) return null;
-    return data.events.map(parseGame);
-  } catch {
-    return null;
+  const months = getEspnMonthsInRange(startDate, endDate);
+  if (!months) return null;
+
+  const results = await Promise.all(
+    months.map(async (month): Promise<EspnEvent[] | null> => {
+      const url = `${ESPN_ENDPOINTS.mlb}/scoreboard?dates=${month}&limit=1000`;
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return null;
+        const data = await res.json() as { events?: EspnEvent[] };
+        return Array.isArray(data.events) ? data.events : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  if (results.some((events) => events === null)) return null;
+
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const events of results as EspnEvent[][]) {
+    for (const event of events) {
+      if (seen.has(event.id)) continue;
+      seen.add(event.id);
+      games.push(parseGame(event));
+    }
   }
+  return games;
 }
 
 export interface ChampionsLeagueSlate {

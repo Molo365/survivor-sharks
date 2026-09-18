@@ -7,6 +7,7 @@ import {
 } from "./mlb-season-boundary";
 import {
   fetchGamesForDateChecked,
+  fetchMlbGamesForDateRangeChecked,
   fetchMlbWeekGamesChecked,
 } from "./espn";
 
@@ -53,6 +54,62 @@ test("uses a durable bounded range covering the regular-season finish and postse
     getMlbSeasonBoundaryWindow(2026),
     { startDate: "20260901", endDate: "20261231" },
   );
+});
+
+test("fetches the boundary window through ESPN-supported month selectors", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedDates: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    const dates = url.searchParams.get("dates") ?? "";
+    requestedDates.push(dates);
+    return new Response(JSON.stringify({
+      events: dates === "202609"
+        ? [
+            { id: "regular", date: "2026-09-27T19:05:00Z", season: { year: 2026, type: 2 } },
+            { id: "duplicate", date: "2026-09-30T04:00:00Z", season: { year: 2026, type: 3 } },
+          ]
+        : dates === "202610"
+        ? [
+            { id: "duplicate", date: "2026-09-30T04:00:00Z", season: { year: 2026, type: 3 } },
+            { id: "postseason", date: "2026-10-01T04:00:00Z", season: { year: 2026, type: 3 } },
+          ]
+        : [],
+    }), { status: 200 });
+  };
+  try {
+    const games = await fetchMlbGamesForDateRangeChecked("20260901", "20261231");
+    assert.deepEqual(requestedDates.sort(), ["202609", "202610", "202611", "202612"]);
+    assert.deepEqual(games?.map((item) => item.id), ["regular", "duplicate", "postseason"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("monthly boundary fetch fails open when any month fails or is malformed", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (input) => {
+      const dates = new URL(String(input)).searchParams.get("dates");
+      if (dates === "202610") return new Response("unavailable", { status: 503 });
+      return new Response(JSON.stringify({ events: [] }), { status: 200 });
+    };
+    assert.equal(
+      await fetchMlbGamesForDateRangeChecked("20260901", "20261231"),
+      null,
+    );
+
+    globalThis.fetch = async (input) => {
+      const dates = new URL(String(input)).searchParams.get("dates");
+      return new Response(JSON.stringify(dates === "202611" ? {} : { events: [] }), { status: 200 });
+    };
+    assert.equal(
+      await fetchMlbGamesForDateRangeChecked("20260901", "20261231"),
+      null,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("locally filters MLB date responses by parsed ESPN season type", async () => {

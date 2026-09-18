@@ -1,10 +1,10 @@
 ---
 name: MLB boundary range limit
-description: ESPN scoreboard date-range behavior affecting the recurring MLB season-end detector
+description: ESPN scoreboard date-selector behavior used by the recurring MLB season-end detector
 ---
 
-The ESPN MLB scoreboard endpoint currently rejects the multi-month September–December range used by the season-boundary detector, while individual daily requests work. A fail-open detector therefore remains safe against premature closure but cannot detect the season end until the range strategy is changed.
+The ESPN MLB scoreboard endpoint rejects hyphenated `start-end` date selectors, even for short spans, but accepts compact `YYYYMM` month selectors. Season-boundary fetches should aggregate September–December month responses and treat any failed or malformed month as unavailable.
 
-**Why:** A live 2026 check returned HTTP 400 for the boundary range, while daily September–December queries returned valid regular-season and postseason events.
+**Why:** Live 2026 checks returned HTTP 400 for every hyphenated range tested, while four monthly requests returned the complete regular-season and postseason boundary data.
 
-**How to apply:** Treat a zero wind-down count as inconclusive when the boundary range request fails; validate the boundary with checked daily requests or another bounded-range strategy before relying on automatic recurring-pool closure.
+**How to apply:** Preserve all-or-nothing checked aggregation and event-ID deduplication; never interpret a partial month set as proof that the regular season ended.
