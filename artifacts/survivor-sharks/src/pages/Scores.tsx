@@ -241,6 +241,12 @@ function GameStatus({ game }: { game: EspnGame }) {
 
 // ── ScoreTeamRow ───────────────────────────────────────────────────────────────
 
+function getDarkLogoUrl(logo: string): string | null {
+  return logo.includes("/500/")
+    ? logo.replace("/500/", "/500-dark/")
+    : null;
+}
+
 function ScoreTeamRow({
   team,
   record,
@@ -254,13 +260,21 @@ function ScoreTeamRow({
   hasStarted: boolean;
   isDimmed?: boolean;
 }) {
+  const darkLogoUrl = team.logo ? getDarkLogoUrl(team.logo) : null;
+
   return (
     <div className={cn("flex min-w-0 items-center gap-2", isDimmed && "opacity-60")}>
       {team.logo ? (
         <img
-          src={team.logo}
+          src={darkLogoUrl ?? team.logo}
           alt={team.abbreviation}
           className="h-8 w-8 object-contain flex-shrink-0"
+          onError={(event) => {
+            if (darkLogoUrl) {
+              event.currentTarget.src = team.logo!;
+              event.currentTarget.onerror = null;
+            }
+          }}
         />
       ) : (
         <div className="h-8 w-8 rounded-full bg-muted/20 flex-shrink-0" />
@@ -273,14 +287,11 @@ function ScoreTeamRow({
           {record}
         </span>
       )}
-      <span
-        className={cn(
-          "ml-auto shrink-0 text-lg font-bold leading-none tabular-nums",
-          hasStarted ? "text-foreground" : "text-muted-foreground/30",
-        )}
-      >
-        {hasStarted && score !== null ? score : "—"}
-      </span>
+      {hasStarted && (
+        <span className="ml-auto shrink-0 text-lg font-bold leading-none tabular-nums text-foreground">
+          {score !== null ? score : "—"}
+        </span>
+      )}
     </div>
   );
 }
