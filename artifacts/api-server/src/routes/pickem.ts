@@ -151,6 +151,8 @@ router.get("/games", requireAuth, async (req, res) => {
     ? await fetchIntlGamesForDate(espnDate)
     : sport === "superleague"
       ? await fetchSuperLeagueGamesForDate(espnDate)
+      : sport === "nhl" && pool.poolType === "pickem" && !pool.sandboxMode
+        ? await fetchGamesForDate(sport, espnDate, pool.isPreseason ? 1 : 2)
       : await fetchGamesForDate(sport, espnDate);
   allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -779,6 +781,14 @@ router.post("/picks", requireAuth, async (req, res) => {
     anchorGameDate = sandboxDay;
     const anchorGames = await fetchGamesForDate("nhl", sandboxDay.replace(/-/g, ""), pool.isPreseason ? 1 : 2);
     for (const g of anchorGames) gameMap.set(g.id, { date: g.date });
+  } else if (!pool.sandboxMode && pool.poolType === "pickem" && sport === "nhl" && pool.pickFrequency === "weekly") {
+    // Live NHL weekly Pick'em: validate against the current Sat+Sun pool window.
+    const liveNhlGames = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+    );
+    for (const g of liveNhlGames) gameMap.set(g.id, { date: g.date });
   } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
     // NBA sandbox weekly (non-ATS): map today's day-of-week onto the anchor week.
     // nba_ats sandbox pools skip this branch — they need the full weekend slate, not a

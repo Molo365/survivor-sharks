@@ -2394,6 +2394,7 @@ export async function processPickEmResults(): Promise<{
   const wcPools = pickemPools.filter((p) => p.sport === "worldcup");
   const intlPools = pickemPools.filter((p) => p.sport === "intl");
   const mlsPools = pickemPools.filter((p) => p.sport === "mls");
+  const nhlPools = pickemPools.filter((p) => p.sport === "nhl" && p.pickFrequency === "weekly");
   const superleaguePools = pickemPools.filter((p) => p.sport === "superleague");
   const championsLeaguePools = pickemPools.filter((p) => p.sport === "championsleague");
 
@@ -2723,6 +2724,80 @@ export async function processPickEmResults(): Promise<{
         if (updated.length > 0) {
           logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em mls: marked picks as postponed");
         }
+      }
+    }
+  }
+
+  // ── NHL grading (2-way: higher final score wins) ──────────────────────────
+
+  if (nhlPools.length > 0) {
+    for (const pool of nhlPools) {
+      try {
+        const seasonType = pool.isPreseason ? 1 : 2;
+        const nhlWeekGames = await fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, seasonType);
+        const completedNhlGames = nhlWeekGames.filter(
+          (g) => g.isCompleted && g.homeScore != null && g.awayScore != null && g.homeScore !== g.awayScore,
+        );
+
+        const winnerByNhlGameId = new Map<string, string>();
+        for (const game of completedNhlGames) {
+          const winningTeamId =
+            game.homeScore! > game.awayScore! ? game.homeTeam.id : game.awayTeam.id;
+          winnerByNhlGameId.set(game.id, winningTeamId);
+        }
+
+        const nhlPostponedIds = nhlWeekGames.filter((g) => g.isPostponed).map((g) => g.id);
+
+        for (const [gameId, winningTeamId] of winnerByNhlGameId) {
+          const gamePicks = await db
+            .select()
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, gameId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            );
+
+          for (const pick of gamePicks) {
+            const result: "correct" | "incorrect" =
+              pick.pickedTeamId === winningTeamId ? "correct" : "incorrect";
+
+            await db
+              .update(pickemPicksTable)
+              .set({ result, updatedAt: new Date() })
+              .where(eq(pickemPicksTable.id, pick.id));
+
+            picksGraded++;
+            logger.info(
+              { poolId: pool.id, userId: pick.userId, gameId, pickedTeamId: pick.pickedTeamId, winningTeamId, result },
+              "Auto-graded nhl pickem pick",
+            );
+          }
+        }
+
+        for (const gameId of nhlPostponedIds) {
+          const updated = await db
+            .update(pickemPicksTable)
+            .set({ result: "postponed", updatedAt: new Date() })
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, gameId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            )
+            .returning({ id: pickemPicksTable.id });
+
+          if (updated.length > 0) {
+            logger.info({ poolId: pool.id, gameId, count: updated.length }, "Pick-Em NHL: marked picks as postponed");
+          }
+        }
+      } catch (err) {
+        logger.error({ poolId: pool.id, week: pool.currentWeek, err }, "Pick-Em NHL grading error");
       }
     }
   }
