@@ -1079,6 +1079,7 @@ export interface ChampionsLeagueSlate {
 
 const CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS = 60;
 const CHAMPIONS_LEAGUE_PERIOD_MAX_GAP_DAYS = 3;
+const CHAMPIONS_LEAGUE_SEASON_FEED_LIMIT = 1000;
 
 function eventEtDate(date: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1151,13 +1152,21 @@ export function resolveCurrentChampionsLeagueSlate(
   const gamesInPeriod = currentOrUpcoming ?? periods[periods.length - 1]!;
   const seed = gamesInPeriod.find((game) => game.matchday != null || game.legNumber != null)
     ?? gamesInPeriod[0]!;
+  const periodDates = [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))];
+  if (seed.phaseSlug === "league-phase" && periodDates.length === 1 && gamesInPeriod.length <= 2) {
+    console.warn(
+      `[Champions League] Suspiciously small league-phase period: ` +
+      `${gamesInPeriod.length} game(s) on ${periodDates[0]}. ` +
+      "The ESPN response may be truncated.",
+    );
+  }
 
   return {
     phaseSlug: seed.phaseSlug!,
     phaseLabel: seed.phaseLabel ?? CHAMPIONS_LEAGUE_PHASE_LABELS[seed.phaseSlug!],
     ...(seed.matchday != null ? { matchday: seed.matchday } : {}),
     ...(seed.legNumber != null ? { legNumber: seed.legNumber, legLabel: seed.legLabel } : {}),
-    dates: [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))],
+    dates: periodDates,
     games: gamesInPeriod,
   };
 }
@@ -1178,11 +1187,19 @@ export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promis
   const rangeEnd = dateAtOffset(CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS);
   let games = await fetchGamesForDate("championsleague", `${rangeStart}-${rangeEnd}`, 2);
 
-  // ESPN occasionally returns an empty range response even though the season
-  // feed already contains scheduled fixtures. Retry once through the season
-  // feed and retain only events inside the same display window.
+  // ESPN's Champions League scoreboard accepts a single date but currently
+  // returns HTTP 400 for date ranges. Retry through the season feed and retain
+  // only events inside the same display window. Use a high limit because the
+  // default 100-event response can end at the first fixture of the next
+  // matchday, silently truncating the period.
   if (games.length === 0) {
-    const seasonGames = await fetchGamesForDate("championsleague", String(now.getUTCFullYear()), 2);
+    const seasonGames = await fetchGamesForDateChecked(
+      "championsleague",
+      String(now.getUTCFullYear()),
+      2,
+      false,
+      CHAMPIONS_LEAGUE_SEASON_FEED_LIMIT,
+    ) ?? [];
     games = seasonGames.filter((game) => {
       const eventDate = eventEtDate(game.date).replace(/-/g, "");
       return eventDate >= rangeStart && eventDate <= rangeEnd;
