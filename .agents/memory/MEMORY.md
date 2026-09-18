@@ -20,6 +20,7 @@
 - [Drizzle migration drift](drizzle-migration-drift.md) — dev may be push-applied ahead of checked-in migration history; scope generated migrations before external production use.
 - [High Heat weekly closure](crazy-eights-weekly-closure.md) — MLB weekly Crazy 8s must not use the daily resolver or open-pool pick endpoints after closure.
 - [MLB postseason bracket data](mlb-postseason-bracket-data.md) — ESPN uses abbreviated round notes; confirm the field from seeded standings and map game series through the persisted feeder graph.
+- [MLB boundary range limit](mlb-boundary-range-limit.md) — ESPN rejects the season-boundary multi-month scoreboard range; daily checked queries are needed to prove regular-season completion.
 - [Pool late-join policy](pool-late-join-policy.md) — Survivor start blocks joining; non-Survivor start only warns. Pending picks are never proof of start; preview and POST share one resolver.
 - [MLB High Heat status](mlb-high-heat-status.md) — active High Heat completeness is daily and ET-slate-scoped; weekly rows remain for scoring only.
 - [Survivor mass-elimination paths](survivor-mass-elimination-paths.md) — live wipeouts settle only after full slates; calendar terminals require complete schedule proof and atomic co-winner closure.
