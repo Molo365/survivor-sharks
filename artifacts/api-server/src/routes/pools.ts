@@ -584,6 +584,15 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     .select({ playerCount: count() })
     .from(entriesTable)
     .where(eq(entriesTable.poolId, pool.id));
+  let isMember = false;
+  if (req.user) {
+    const [existing] = await db
+      .select({ id: entriesTable.id })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.userId, req.user.id)))
+      .limit(1);
+    isMember = !!existing;
+  }
   const startState = await getPoolStartState(pool);
   res.json({
     id: pool.id,
@@ -598,6 +607,7 @@ router.get("/invite/:inviteCode/preview", async (req, res) => {
     minEntries: pool.minEntries ?? null,
     maxEntries: pool.maxEntries ?? null,
     playerCount: Number(playerCount),
+    isMember,
     description: pool.description ?? null,
     season: pool.season ?? null,
     commissionerCut: pool.commissionerCut ?? 0,

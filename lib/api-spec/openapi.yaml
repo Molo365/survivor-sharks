@@ -2868,7 +2868,7 @@ components:
 
     PoolInvitePreview:
       type: object
-      required: [id, name, sport, poolType, pickFrequency, playerCount, commissionerCut, showCommissionerCut, hasStarted, joinBlockedReason]
+      required: [id, name, sport, poolType, pickFrequency, playerCount, isMember, commissionerCut, showCommissionerCut, hasStarted, joinBlockedReason]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -2884,6 +2884,9 @@ components:
         minEntries: { type: ["integer", "null"] }
         maxEntries: { type: ["integer", "null"] }
         playerCount: { type: integer }
+        isMember:
+          type: boolean
+          description: True when the currently authenticated visitor already has an entry in this pool.
         description: { type: ["string", "null"] }
         season: { type: ["integer", "null"] }
         commissionerCut: { type: integer }

@@ -227,7 +227,23 @@ export default function JoinInvite() {
             </Link>
           </div>
         ) : pool ? (
-          step === 1 ? (
+          pool.isMember ? (
+            <div className="w-full max-w-md flex flex-col items-center gap-6 text-center">
+              <div className="w-16 h-16 rounded-full border border-primary/30 bg-primary/10 flex items-center justify-center">
+                <Users className="w-7 h-7 text-primary" />
+              </div>
+              <div>
+                <h1 className="font-bebas text-4xl tracking-wide text-foreground">You're already in this pool</h1>
+                <p className="text-sm text-muted-foreground mt-2">{pool.name}</p>
+              </div>
+              <Button
+                className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
+                onClick={() => setLocation(`/pools/${pool.id}`)}
+              >
+                Go to Pool →
+              </Button>
+            </div>
+          ) : step === 1 ? (
             <div className="w-full max-w-lg flex flex-col items-center gap-8">
 
               {/* Branding */}

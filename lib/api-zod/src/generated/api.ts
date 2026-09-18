@@ -176,6 +176,7 @@ export const SendFeedbackResponse = zod.object({
 export const GetPickEmDashboardStatsResponseItem = zod.object({
   "poolId": zod.number(),
   "poolType": zod.string(),
+  "pickStatus": zod.enum(['pending', 'incomplete', 'submitted']).optional().describe('Current-period pick state for pool types that support partial picks'),
   "lastWinners": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
@@ -355,6 +356,7 @@ export const GetPoolInvitePreviewResponse = zod.object({
   "minEntries": zod.number().nullish(),
   "maxEntries": zod.number().nullish(),
   "playerCount": zod.number(),
+  "isMember": zod.boolean().describe('True when the currently authenticated visitor already has an entry in this pool.'),
   "description": zod.string().nullish(),
   "season": zod.number().nullish(),
   "commissionerCut": zod.number(),

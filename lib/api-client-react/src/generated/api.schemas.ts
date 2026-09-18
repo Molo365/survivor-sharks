@@ -275,6 +275,8 @@ export interface PoolInvitePreview {
   /** @nullable */
   maxEntries?: number | null;
   playerCount: number;
+  /** True when the currently authenticated visitor already has an entry in this pool. */
+  isMember: boolean;
   /** @nullable */
   description?: string | null;
   /** @nullable */
@@ -289,6 +291,18 @@ export interface PoolInvitePreview {
      */
   joinBlockedReason: PoolInvitePreviewJoinBlockedReason;
 }
+
+/**
+ * Current-period pick state for pool types that support partial picks
+ */
+export type PoolPickEmStatPickStatus = typeof PoolPickEmStatPickStatus[keyof typeof PoolPickEmStatPickStatus];
+
+
+export const PoolPickEmStatPickStatus = {
+  pending: 'pending',
+  incomplete: 'incomplete',
+  submitted: 'submitted',
+} as const;
 
 export type PoolPickEmStatLastWinnersItem = {
   userId: number;
@@ -325,8 +339,8 @@ export type PoolPickEmStatMyStanding = {
 export interface PoolPickEmStat {
   poolId: number;
   poolType: string;
-  /** Current-period pick state for pool types that support partial picks. */
-  pickStatus?: "pending" | "incomplete" | "submitted";
+  /** Current-period pick state for pool types that support partial picks */
+  pickStatus?: PoolPickEmStatPickStatus;
   /** All tied top scorers from the previous period; null if no graded results yet */
   lastWinners?: PoolPickEmStatLastWinnersItem[] | null;
   myStanding: PoolPickEmStatMyStanding;
