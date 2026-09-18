@@ -119,7 +119,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
 
           {pickEmStat && (
             <div className="mt-2 space-y-1 border-t border-border/20 pt-2">
-              {/* Last winner(s) — clickable: navigates to pool page and auto-opens Final Results modal */}
+              {/* Last week's winners — clickable: navigates to pool page and auto-opens Final Results modal */}
               {pickEmStat.lastWinners && pickEmStat.lastWinners.length > 0 && (
                 <Link
                   href={`/pools/${pool.id}?results=true`}
@@ -128,7 +128,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 >
                   <span aria-hidden>🏆</span>
                   <span className="group-hover/winner:underline underline-offset-2">
-                    Last winner{pickEmStat.lastWinners.length > 1 ? "s" : ""}:{" "}
+                    <span className="shrink-0 whitespace-nowrap">Last week&apos;s winners:</span>{" "}
                     <span className="text-foreground/70 font-medium">
                       {pickEmStat.lastWinners.map(w => w.displayName || w.username).join(" & ")}
                     </span>
