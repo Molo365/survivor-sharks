@@ -1122,11 +1122,16 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
       const todayCorrect = snapshotGames.filter((g) => pickMap.get(g.id)?.result === "correct").length;
       const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
       const pct = todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
-      const pickCells = snapshotGames.map((g) => {
+        const pickCells = snapshotGames.map((g) => {
         const pick = pickMap.get(g.id);
         if (!pick) return "—";
         const isAway = pick.pickedTeamId === g.awayTeam.id;
-        const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
+         const isDraw = pick.pickedTeamId === "draw";
+         const abbrev = isDraw
+           ? "DRAW"
+           : pick.pickedTeamId === "away_win" || isAway
+             ? g.awayTeam.abbreviation
+             : g.homeTeam.abbreviation;
         const suffix =
           pick.result === "correct" ? " W"
           : pick.result === "incorrect" ? " L"
@@ -1299,7 +1304,10 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                           );
                         }
                         const isAway = pick.pickedTeamId === game.awayTeam.id;
-                        const team = isAway ? game.awayTeam : game.homeTeam;
+                        const isDraw = pick.pickedTeamId === "draw";
+                        const team = pick.pickedTeamId === "away_win" || isAway
+                          ? game.awayTeam
+                          : game.homeTeam;
 
                         return (
                           <td key={game.id} className="px-1 py-2 text-center">
@@ -1317,15 +1325,15 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                                   : "border-border/30 bg-muted/10",
                               )}
                             >
-                              {team.logoUrl && (
-                                <div className="rounded-full bg-white/90 p-0.5 shrink-0">
-                                  <img
-                                    src={team.logoUrl}
-                                    alt={team.abbreviation}
-                                    className="w-4 h-4 object-contain"
-                                  />
-                                </div>
-                              )}
+                              {!isDraw && team.logoUrl && (
+                                  <div className="rounded-full bg-white/90 p-0.5 shrink-0">
+                                    <img
+                                      src={team.logoUrl}
+                                      alt={team.abbreviation}
+                                      className="w-4 h-4 object-contain"
+                                    />
+                                  </div>
+                                )}
                               <span
                                 className={cn(
                                   "font-bebas text-[11px] tracking-wide leading-none",
@@ -1336,7 +1344,7 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                                   : "text-muted-foreground/70",
                                 )}
                               >
-                                {team.abbreviation}
+                                {isDraw ? "DRAW" : team.abbreviation}
                               </span>
                               {pick.result === "correct" && (
                                 <Check className="w-2.5 h-2.5 text-green-400" />
