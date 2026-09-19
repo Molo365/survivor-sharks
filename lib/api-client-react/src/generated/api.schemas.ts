@@ -1257,6 +1257,8 @@ export interface PickEmPickInput {
   tiebreakerPenaltyMinutes?: number;
   /** The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games */
   date?: string;
+  /** Request one pick confirmation email after the final request of a live NHL weekly submission */
+  sendConfirmation?: boolean;
 }
 
 export interface PickEmPicksResult {

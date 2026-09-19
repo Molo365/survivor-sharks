@@ -41,6 +41,7 @@ import {
 import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
 import {
   buildThreeWayPickConfirmationItems,
+  buildTeamPickConfirmationItems,
   deliverPickConfirmation,
   insertPickConfirmation,
   isSharedPickConfirmationSport,
@@ -635,6 +636,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerShotsOnGoal,
     tiebreakerPenaltyMinutes,
     date: submittedDate,
+    sendConfirmation,
   } = req.body as {
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
     tiebreakerRuns?: number;
@@ -642,6 +644,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
     date?: string;
+    sendConfirmation?: boolean;
   };
 
   if (!Array.isArray(picks) || picks.length === 0) {
@@ -793,7 +796,10 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.currentWeek,
       pool.isPreseason ? 1 : 2,
     );
-    for (const g of liveNhlGames) gameMap.set(g.id, { date: g.date });
+    for (const g of liveNhlGames) {
+      gameMap.set(g.id, { date: g.date });
+      confirmationGameMap.set(g.id, g);
+    }
   } else if (pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
     // NBA sandbox weekly (non-ATS): map today's day-of-week onto the anchor week.
     // nba_ats sandbox pools skip this branch — they need the full weekend slate, not a
@@ -982,6 +988,27 @@ router.post("/picks", requireAuth, async (req, res) => {
       periodKey: soccerPeriodBounds
         ? `${soccerPeriodBounds.weekStart}:${soccerPeriodBounds.weekEnd}`
         : (submittedDate ?? picks[0]?.gameDate ?? todayEt),
+    });
+  }
+  if (isLiveNhlWeekly && sendConfirmation === true) {
+    const currentPicks = await tx.select({
+      gameId: pickemPicksTable.gameId,
+      pickedTeamId: pickemPicksTable.pickedTeamId,
+      pickedTeamName: pickemPicksTable.pickedTeamName,
+    }).from(pickemPicksTable).where(and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.userId, userId),
+      eq(pickemPicksTable.week, pool.currentWeek),
+    ));
+    sharedConfirmation = makePickConfirmation({
+      toEmail: req.user!.email,
+      username: req.user!.username,
+      poolName: pool.name,
+      picks: buildTeamPickConfirmationItems(currentPicks, [...confirmationGameMap.values()]),
+    });
+    await insertPickConfirmation(tx, sharedConfirmation, {
+      userId, poolId, poolType: String(pool.poolType), sport,
+      periodKey: `nhl-week-${pool.currentWeek}`,
     });
   }
   });

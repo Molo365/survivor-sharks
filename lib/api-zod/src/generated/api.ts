@@ -1499,7 +1499,8 @@ export const SubmitPickEmPicksBody = zod.object({
   "tiebreakerStrikeouts": zod.number().optional().describe('MLB tiebreaker — total strikeouts guess for the tiebreaker game (last game on the slate)'),
   "tiebreakerShotsOnGoal": zod.number().optional().describe('NHL weekly tiebreaker — combined shots on goal guess for the last game of the week'),
   "tiebreakerPenaltyMinutes": zod.number().optional().describe('NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week'),
-  "date": zod.string().optional().describe('The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day\'s games')
+  "date": zod.string().optional().describe('The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day\'s games'),
+  "sendConfirmation": zod.boolean().optional().describe('Request one pick confirmation email after the final request of a live NHL weekly submission')
 })
 
 

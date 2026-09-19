@@ -2785,7 +2785,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     let totalSaved = 0;
     if (satPicks.length > 0 && satDate) {
       try {
-        const res = await submitPicks.mutateAsync({ poolId, data: { picks: satPicks, date: satDate } });
+        const res = await submitPicks.mutateAsync({
+          poolId,
+          data: {
+            picks: satPicks,
+            date: satDate,
+            ...(isLiveNhlWeekly && sunPicks.length === 0 ? { sendConfirmation: true } : {}),
+          },
+        });
         totalSaved += res.saved;
       } catch {
         toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
@@ -2794,7 +2801,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     }
     if (sunPicks.length > 0 && sunDate) {
       try {
-        const res = await submitPicks.mutateAsync({ poolId, data: { picks: sunPicks, date: sunDate } });
+        const res = await submitPicks.mutateAsync({
+          poolId,
+          data: {
+            picks: sunPicks,
+            date: sunDate,
+            ...(isLiveNhlWeekly ? { sendConfirmation: true } : {}),
+          },
+        });
         totalSaved += res.saved;
       } catch {
         toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
@@ -2888,6 +2902,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ...(tiebreakerShotsOnGoal !== undefined && tiebreakerPenaltyMinutes !== undefined
             ? { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes }
             : {}),
+          ...(isLiveNhlWeekly ? { sendConfirmation: true } : {}),
         },
       },
       {
