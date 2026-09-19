@@ -2416,7 +2416,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isMlb = sport === "mlb" && !is3way;
   const isNhl = sport === "nhl" && !is3way;
   const isNhlWeekly = isNhl && isWeekly;
-  const showSoccerHomeAwayLabels = sport === "superleague" || sport === "championsleague";
+  const showSoccerHomeAwayLabels = sport === "mls" || sport === "superleague" || sport === "championsleague";
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
   const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
