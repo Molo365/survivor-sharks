@@ -30,6 +30,14 @@ test("returns rules for NHL Survivor Season", () => {
   assert.equal(rules.sections.length, 5);
 });
 
+test("includes NHL Survivor season reuse and lock rules", () => {
+  const rules = getPoolRules({ poolType: "season", sport: "nhl" });
+  assert.ok(rules);
+  const items = rules.sections.flatMap((section) => section.items);
+  assert.ok(items.includes("Each team can be used only once per season."));
+  assert.ok(items.includes("You can change your pick until that team's game starts. Then the pick locks."));
+});
+
 test("keeps NHL daily Pick-Em without rules", () => {
   assert.equal(getPoolRules({ poolType: "pickem", sport: "nhl", pickFrequency: "daily" }), null);
 });

@@ -102,18 +102,19 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Scoring or elimination",
           items: [
             "Each correct pick is worth one point.",
-            "The player with the most correct picks has the best weekly score.",
+            "The player with the most correct picks over the weekend finishes first.",
             "A postponed game is marked postponed and does not add a correct point.",
-            "Non-recurring pools close after the week's picks are graded. Recurring pools stay open for the next week.",
+            "A non-recurring pool closes automatically once the weekend's games are graded, and prizes are assigned.",
           ],
         },
         {
           heading: "Tiebreakers",
           items: [
-            "For a tie, use shots on goal in the last completed game of the weekend.",
-            "Penalty minutes break an exact shots-on-goal tie.",
-            "If neither tiebreaker separates the tied players, the prize is split evenly.",
-            "Other players' guesses stay hidden until the tiebreaker game starts.",
+            "If picks include Sunday games, you will be asked to guess the shots on goal and penalty minutes for the last game of Sunday's slate.",
+            "The closest shots-on-goal guess wins.",
+            "Penalty minutes only break an exact shots-on-goal tie.",
+            "If both are tied, the prize is split evenly.",
+            "Other players' guesses stay hidden until that game starts.",
           ],
         },
         {
@@ -132,20 +133,22 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "How it works",
           items: [
             "Pick one NHL team from Saturday's games each week.",
-            "The week settles after the Saturday slate is complete, then the pool moves to the next week.",
+            "Each team can be used only once per season.",
           ],
         },
         {
           heading: "Picks and deadlines",
           items: [
-            "A missing pick is treated as a loss for that week.",
+            "You can change your pick until that team's game starts. Then the pick locks.",
+            "A missed pick counts as a loss for that week.",
+            "You have three lives. A loss costs one life; your third loss eliminates you.",
             "A postponed pick is a push and does not cost a life.",
+            "A Survivor pool that has already started cannot be joined.",
           ],
         },
         {
           heading: "Scoring or elimination",
           items: [
-            "You have three lives. A loss costs one life; your third loss eliminates you.",
             "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
             "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
             "When one player remains, that player wins the pool.",
@@ -153,9 +156,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         },
         {
           heading: "Tiebreakers",
-          items: [
-            "Weekly Survivor results use win, loss, and push outcomes.",
-          ],
+          items: [],
         },
         {
           heading: "Prizes",
