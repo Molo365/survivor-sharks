@@ -88,6 +88,8 @@ import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
+import { LeaderChips } from "@/components/LeaderChips";
+import { getLeaders } from "@/lib/leaderChips";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
@@ -1227,6 +1229,7 @@ export function PickEmSeasonView({
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const [displayWeek, setDisplayWeek] = useState<number>(currentWeek);
+  const [activeTab, setActiveTab] = useState("picks");
 
   // Sync displayWeek when currentWeek changes — guards against React Query serving
   // stale pool data (old currentWeek) on mount and then delivering a higher currentWeek
@@ -1293,6 +1296,7 @@ export function PickEmSeasonView({
       query: {
         queryKey: getGetNflPickEmSeasonLeaderboardQueryKey(poolId),
         staleTime: 60 * 1000,
+        refetchInterval: 60_000,
       },
     });
 
@@ -1729,7 +1733,21 @@ export function PickEmSeasonView({
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="picks" className="w-full">
+      {!lbLoading && leaderboard && entries.length > 0 && (
+        <div className="mb-3">
+          <LeaderChips
+            leaders={getLeaders(entries, leaderboard.currentWeek)}
+            currentWeek={leaderboard.currentWeek}
+            onSelect={() => setActiveTab("leaderboard")}
+          />
+        </div>
+      )}
+
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <div className="relative">
           <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
