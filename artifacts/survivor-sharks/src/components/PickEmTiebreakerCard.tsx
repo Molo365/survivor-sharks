@@ -7,7 +7,6 @@ interface TiedPickEmPlayer {
   tiebreakerRunsDiff?: number | null;
   tiebreakerShotsOnGoalGuess?: number | null;
   tiebreakerPenaltyMinutesGuess?: number | null;
-  tiebreakerNhlDiff?: number | null;
 }
 
 interface PickEmTiebreakerCardProps {
@@ -66,7 +65,7 @@ export function PickEmTiebreakerCard({
       {hasTie && (
         <div className="pt-2 border-t border-yellow-500/20 space-y-1.5 mt-2">
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest font-semibold pb-0.5">
-            Tied players — tiebreaker guesses
+            Tiebreaker guesses
           </p>
           {tiedPlayers.map((p) => (
             <div key={p.userId} className="flex items-center gap-3 text-xs">
@@ -78,12 +77,15 @@ export function PickEmTiebreakerCard({
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">SOG </span>
                     <span className="text-foreground/80">{p.tiebreakerShotsOnGoalGuess ?? "—"}</span>
+                     {actualShotsOnGoal != null && p.tiebreakerShotsOnGoalGuess != null && (
+                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerShotsOnGoalGuess - actualShotsOnGoal)})</span>
+                     )}
                   </span>
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">PIM </span>
                     <span className="text-foreground/80">{p.tiebreakerPenaltyMinutesGuess ?? "—"}</span>
-                    {p.tiebreakerNhlDiff != null && (
-                      <span className="text-yellow-400/70"> (Δ{p.tiebreakerNhlDiff})</span>
+                     {actualPenaltyMinutes != null && p.tiebreakerPenaltyMinutesGuess != null && (
+                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerPenaltyMinutesGuess - actualPenaltyMinutes)})</span>
                     )}
                   </span>
                 </>
@@ -93,14 +95,14 @@ export function PickEmTiebreakerCard({
                     <span className="text-muted-foreground/40">Runs </span>
                     <span className="text-foreground/80">{p.tiebreakerRunsGuess ?? "—"}</span>
                     {p.tiebreakerRunsDiff != null && (
-                      <span className="text-yellow-400/70"> (Δ{p.tiebreakerRunsDiff})</span>
+                       <span className="text-yellow-400/70"> (off by {p.tiebreakerRunsDiff})</span>
                     )}
                   </span>
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">K </span>
                     <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
                     {actualStrikeouts != null && p.tiebreakerStrikeoutsGuess != null && (
-                      <span className="text-yellow-400/70"> (Δ{Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
+                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
                     )}
                   </span>
                 </>

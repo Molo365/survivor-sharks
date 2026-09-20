@@ -74,13 +74,15 @@ export function shouldRevealTiebreakerGuess({
   rowUserId,
   poolIsActive,
   actualsKnown,
+  gameStarted,
 }: {
   requesterUserId: number;
   rowUserId: number;
   poolIsActive: boolean;
   actualsKnown: boolean;
+  gameStarted: boolean;
 }): boolean {
-  return requesterUserId === rowUserId || actualsKnown || !poolIsActive;
+  return requesterUserId === rowUserId || actualsKnown || gameStarted || !poolIsActive;
 }
 
 function wcOutcome(homeScore: number, awayScore: number): WcPickOption {
@@ -1608,9 +1610,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
+  let tiebreakerGameStarted = false;
   if (isNhl && !pool.sandboxMode && prevSundayGames && prevSundayGames.length > 0) {
     const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = sorted[sorted.length - 1]!;
+    tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
     if (tiebreakerGame.isCompleted) {
       const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
       tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
@@ -1745,6 +1749,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       rowUserId: row.userId,
       poolIsActive: pool.isActive,
       actualsKnown: tiebreakerActualsKnown,
+      gameStarted: tiebreakerGameStarted,
     });
     return {
       rank: weekRank,
@@ -2094,8 +2099,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // Mirrors NFL Confidence's pattern of isolating a single tiebreakerGame.
   let tiebreakerActualRuns: number | null = null;
   let tiebreakerActualStrikeouts: number | null = null;
+  let tiebreakerGameStarted = false;
   if (isMlb && espnGames.length > 0) {
     const tiebreakerGame = espnGames[espnGames.length - 1];
+    if (!pool.sandboxMode) {
+      tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+    }
     if (tiebreakerGame.isCompleted) {
       tiebreakerActualRuns = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
       // Fetch strikeouts from MLB Stats API for this game only; returns null on any failure
@@ -2113,6 +2122,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     (pool.sandboxMode ? true : todayEt === weekBounds.weekEnd);
   if (nhlTiebreakerApplicable) {
     const tiebreakerGame = espnGames[espnGames.length - 1];
+    if (!pool.sandboxMode) {
+      tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+    }
     // Sandbox: gate on sandboxGameScoresTable existence, not ESPN completion status.
     // The anchor-week game ID is a real historical ESPN event — fetchNhlTiebreakerStats
     // will return real shots-on-goal and penalty-minutes for it once grading runs.
@@ -2204,6 +2216,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       rowUserId: row.userId,
       poolIsActive: pool.isActive,
       actualsKnown: tiebreakerActualsKnown,
+      gameStarted: tiebreakerGameStarted,
     });
     return {
       rank: lbRank,
