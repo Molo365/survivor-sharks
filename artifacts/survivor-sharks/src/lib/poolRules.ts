@@ -96,8 +96,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Scoring or elimination",
           items: [
             "A loss eliminates you. NFL Survivor uses one life.",
-            "If an NFL game ends tied, the current grading rule gives the result to the away team.",
-            "If everyone alive loses in the same week before Week 18, that week is voided.",
+            "NFL ties are very rare. If a game ends in a tie, that pick is settled manually and the week's results wait until then.",
+            "If everyone still alive loses in the same week before Week 18, that week is voided: nobody is eliminated and the pool continues.",
             "If everyone alive loses in Week 18, all remaining players become co-winners.",
             "When one player remains, that player wins the pool.",
           ],
@@ -105,8 +105,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Tiebreakers",
           items: [
-            "If more than one player survives after Week 18, total margin of victory across their picks is recorded for each survivor.",
-            "The surviving players are all marked as winners when the pool closes.",
+            "If more than one player is still alive after Week 18, they all win and split the first-place prize evenly.",
           ],
         },
         {
