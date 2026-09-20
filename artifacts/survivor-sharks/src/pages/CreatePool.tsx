@@ -115,7 +115,7 @@ const POOL_TYPES = [
     icon: Trophy,
     tagline: "Last One Standing Wins",
     description:
-      "Pick one NHL team from the weekend slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot.",
+      "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot.",
     badge: "",
     badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
     cardClass: "border-amber-500/60 bg-[linear-gradient(145deg,rgba(245,158,11,0.10)_0%,transparent_100%)]",
@@ -1200,7 +1200,7 @@ export default function CreatePool() {
                                             ? selectedSport === PoolInputSport.nfl
                                               ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot."
                                               : selectedSport === PoolInputSport.nhl
-                                                ? "Pick one NHL team from the weekend slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                                                ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                                                 : selectedSport === PoolInputSport.nba
                                                   ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                                                   : (selectedSport as string) === "superleague"

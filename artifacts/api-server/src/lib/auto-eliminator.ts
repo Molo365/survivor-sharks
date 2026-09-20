@@ -96,6 +96,7 @@ import {
   survivorStateEffect,
 } from "./survivor-week-settlement";
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
+import { nhlSurvivorSlateForSettlement } from "./nhl-survivor-slate";
 import {
   isThreeWayPickEmSport,
   threeWayPickEmOutcome,
@@ -173,10 +174,11 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
     const expectedSeasonType = pool.sport === "nhl" && pool.isPreseason ? 1 : 2;
     if (pool.sport === "nhl" && pool.isPreseason) {
       const slate = await fetchNhlGamesByWeekWithStatus(anchor!, pool.currentWeek, expectedSeasonType);
-      return slate.available && isCompleteRegularSeasonSlate(slate.games, expectedSeasonType);
+      const settlementGames = nhlSurvivorSlateForSettlement(slate.games);
+      return slate.available && isCompleteRegularSeasonSlate(settlementGames, expectedSeasonType);
     }
     const games = pool.sport === "nhl"
-      ? await fetchNhlGamesByWeek(anchor!, pool.currentWeek, expectedSeasonType)
+      ? nhlSurvivorSlateForSettlement(await fetchNhlGamesByWeek(anchor!, pool.currentWeek, expectedSeasonType))
       : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
     return isCompleteRegularSeasonSlate(games, expectedSeasonType);
   }
