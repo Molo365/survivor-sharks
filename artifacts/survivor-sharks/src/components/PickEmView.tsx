@@ -3267,7 +3267,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       ? (isNbaAts
                           ? "Pick every game on the Friday–Sunday NBA slate against the spread. The commissioner sets the spread line for each game — pick the favourite to cover or the underdog to beat the number. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
                           : isNhl
-                          ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at puck drop. Good luck! 🏒✏️"
+                          ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                           : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
                       : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
                   </p>

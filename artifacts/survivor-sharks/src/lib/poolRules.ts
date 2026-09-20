@@ -11,6 +11,7 @@ export interface PoolRules {
 export interface PoolRulesPool {
   poolType?: string | null;
   sport?: string | null;
+  pickFrequency?: string | null;
   prizeStructure?: Array<{ place: number; amount: number }> | null;
   prizeMode?: string | null;
   commissionerCut?: number | null;
@@ -71,7 +72,100 @@ function ordinalSuffix(place: number): string {
 }
 
 export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules | null {
-  if (!pool || pool.sport !== "nfl") return null;
+  if (!pool) return null;
+
+  const isNhlWeekendPickem =
+    pool.sport === "nhl" &&
+    pool.poolType === "pickem" &&
+    pool.pickFrequency === "weekly";
+  const isNhlSurvivorSeason = pool.sport === "nhl" && pool.poolType === "season";
+
+  if (isNhlWeekendPickem) {
+    return {
+      title: "NHL Weekend Pick-Ems Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Pick the winner of each NHL game on Saturday and Sunday.",
+            "You do not have to pick every game. An unpicked game earns no points.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: [
+            "Each game locks 5 minutes before puck drop. Other games stay open until their own lock.",
+            "Other players can see a pick when that game's puck drop has passed.",
+          ],
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "Each correct pick is worth one point.",
+            "The player with the most correct picks has the best weekly score.",
+            "A postponed game is marked postponed and does not add a correct point.",
+            "Non-recurring pools close after the week's picks are graded. Recurring pools stay open for the next week.",
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            "For a tie, use shots on goal in the last completed game of the weekend.",
+            "Penalty minutes break an exact shots-on-goal tie.",
+            "If neither tiebreaker separates the tied players, the prize is split evenly.",
+            "Other players' guesses stay hidden until the tiebreaker game starts.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: prizeItems(pool),
+        },
+      ],
+    };
+  }
+
+  if (isNhlSurvivorSeason) {
+    return {
+      title: "NHL Survivor Season Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Pick one NHL team from Saturday's games each week.",
+            "The week settles after the Saturday slate is complete, then the pool moves to the next week.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: [
+            "A missing pick is treated as a loss for that week.",
+            "A postponed pick is a push and does not cost a life.",
+          ],
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "You have three lives. A loss costs one life; your third loss eliminates you.",
+            "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
+            "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
+            "When one player remains, that player wins the pool.",
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            "Weekly Survivor results use win, loss, and push outcomes.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: prizeItems(pool),
+        },
+      ],
+    };
+  }
+
+  if (pool.sport !== "nfl") return null;
 
   if (pool.poolType === "season") {
     return {
