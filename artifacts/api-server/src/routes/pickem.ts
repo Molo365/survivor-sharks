@@ -69,6 +69,20 @@ function hasGameStarted(gameStartIso: string): boolean {
   return new Date(gameStartIso).getTime() <= Date.now();
 }
 
+export function shouldRevealTiebreakerGuess({
+  requesterUserId,
+  rowUserId,
+  poolIsActive,
+  actualsKnown,
+}: {
+  requesterUserId: number;
+  rowUserId: number;
+  poolIsActive: boolean;
+  actualsKnown: boolean;
+}): boolean {
+  return requesterUserId === rowUserId || actualsKnown || !poolIsActive;
+}
+
 function wcOutcome(homeScore: number, awayScore: number): WcPickOption {
   if (homeScore > awayScore) return "home_win";
   if (awayScore > homeScore) return "away_win";
@@ -1702,6 +1716,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
 
   let weekRank = 1;
+  const tiebreakerActualsKnown = isMlb
+    ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
+    : isNhl
+      ? tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null
+      : false;
   const entries = aggregates.map((row, i) => {
     if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
       // tiebreaker resolved: confirmed winners keep rank 1; tied-on-picks losers drop to rank (winners + 1)
@@ -1721,6 +1740,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     const pimGuess = nhlTb?.tiebreakerPenaltyMinutes ?? null;
     const nhlDiff = isNhl && tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null && shotsGuess != null && pimGuess != null
       ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes) : null;
+    const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
+      requesterUserId: userId,
+      rowUserId: row.userId,
+      poolIsActive: pool.isActive,
+      actualsKnown: tiebreakerActualsKnown,
+    });
     return {
       rank: weekRank,
       userId: row.userId,
@@ -1731,11 +1756,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
       prizeWon: prizeWonByUser.get(row.userId) ?? null,
-      tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
-      tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
+      tiebreakerRunsGuess: isMlb ? (revealTiebreakerGuess ? runsGuess : null) : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? (revealTiebreakerGuess ? strikesGuess : null) : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
-      tiebreakerShotsOnGoalGuess: isNhl ? shotsGuess : undefined,
-      tiebreakerPenaltyMinutesGuess: isNhl ? pimGuess : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? (revealTiebreakerGuess ? shotsGuess : null) : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? (revealTiebreakerGuess ? pimGuess : null) : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
     };
   });
@@ -2144,6 +2169,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }
 
   let lbRank = 1;
+  const tiebreakerActualsKnown = isMlb
+    ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
+    : isNhl
+      ? tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null
+      : false;
   const entries = aggregates.map((row, i) => {
     if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
       // same correct count as previous player — keep rank unchanged (tie)
@@ -2169,6 +2199,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       pimGuess != null
         ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes)
         : null;
+    const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
+      requesterUserId: userId,
+      rowUserId: row.userId,
+      poolIsActive: pool.isActive,
+      actualsKnown: tiebreakerActualsKnown,
+    });
     return {
       rank: lbRank,
       userId: row.userId,
@@ -2202,11 +2238,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         };
       }),
       dailyBreakdown: isWeekly ? (dailyByUser.get(row.userId) ?? []) : undefined,
-      tiebreakerRunsGuess: isMlb ? runsGuess : undefined,
-      tiebreakerStrikeoutsGuess: isMlb ? strikesGuess : undefined,
+      tiebreakerRunsGuess: isMlb ? (revealTiebreakerGuess ? runsGuess : null) : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? (revealTiebreakerGuess ? strikesGuess : null) : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
-      tiebreakerShotsOnGoalGuess: isNhl ? shotsGuess : undefined,
-      tiebreakerPenaltyMinutesGuess: isNhl ? pimGuess : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? (revealTiebreakerGuess ? shotsGuess : null) : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? (revealTiebreakerGuess ? pimGuess : null) : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
       atsTiebreakerMargin: isAts && !pool.isActive ? (atsTiebreakerMarginByUser.get(row.userId) ?? 0) : undefined,
     };

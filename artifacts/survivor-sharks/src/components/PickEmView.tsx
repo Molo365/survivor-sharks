@@ -3122,8 +3122,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               : "It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
             <br />
             {isLiveNhlWeekly
-              ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on Sunday&apos;s slate. Closest combined error wins.</>
-              : <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest combined error wins.</>}
+               ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on Sunday&apos;s slate. Closest shots on goal wins. Penalty minutes only break an exact tie.</>
+               : <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest shots on goal wins. Penalty minutes only break an exact tie.</>}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">

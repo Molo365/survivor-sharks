@@ -224,12 +224,6 @@ function pickemTiebreaker(entry: PickemLeaderboardEntry, sport: string, poolType
   if (sport === "nhl" && entry.tiebreakerNhlDiff != null) {
     return { value: entry.tiebreakerNhlDiff, label: "Tiebreaker difference" };
   }
-  if (sport === "mlb" && entry.tiebreakerRunsGuess != null) {
-    return { value: entry.tiebreakerRunsGuess, label: "Runs guess" };
-  }
-  if (sport === "nhl" && entry.tiebreakerShotsOnGoalGuess != null) {
-    return { value: entry.tiebreakerShotsOnGoalGuess, label: "Shots on goal guess" };
-  }
   return { value: null, label: undefined };
 }
 
