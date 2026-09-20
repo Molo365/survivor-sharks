@@ -327,8 +327,8 @@ router.get("/games", requireAuth, async (req, res) => {
     if (!is3way) {
       return {
         ...base,
-        liveOuts: g.liveState?.outs ?? null,
-        liveBaseRunners: g.liveState
+        liveOuts: sport === "mlb" ? (g.liveState?.outs ?? null) : null,
+        liveBaseRunners: sport === "mlb" && g.liveState
           ? { onFirst: g.liveState.onFirst, onSecond: g.liveState.onSecond, onThird: g.liveState.onThird }
           : null,
         homePitcher: g.homeStartingPitcher
