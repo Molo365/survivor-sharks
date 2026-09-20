@@ -105,9 +105,16 @@ test("only scoped active recurring pools and incomplete eligible members are sel
   for (const poolType of ["pickem", "pickem_season", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "nba_ats"]) {
     assert.equal(isReminderEligiblePool({ poolType, isActive: true, isRecurring: true, sandboxMode: false }), true);
   }
+  assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: false, sandboxMode: false }), true);
+  assert.equal(isReminderEligiblePool({ poolType: "nba_ats", isActive: true, isRecurring: false, sandboxMode: false }), true);
   assert.equal(isReminderEligiblePool({ poolType: "mlb_bracket", isActive: true, isRecurring: true }), false);
   assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: false, isRecurring: true }), false);
-  assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "pickem_season", isActive: true, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "season", isActive: true, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "weekly", isActive: true, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "nfl_confidence", isActive: true, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: false, isRecurring: false }), false);
+  assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: false, sandboxMode: true }), false);
   assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: true, sandboxMode: true }), false);
   assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: true, sandboxMode: true }, true), true);
   const members = [

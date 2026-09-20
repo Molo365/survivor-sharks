@@ -1,5 +1,5 @@
 import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable } from "@workspace/db";
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { getDailyPickDeadline, getMlbWeekBounds, getTodayEtDate, fetchGamesForDate, fetchNbaGamesByWeek, fetchNflGamesByWeek, fetchNhlGamesByWeek, NBA_SANDBOX_ANCHOR, NHL_SANDBOX_ANCHOR, type EspnGame } from "./espn";
 import { sendPickReminderEmail } from "./mailer";
 import { countSubmittedPickemGames, resolveNflGameIds, resolveNflSelectableGames, resolvePickemPeriod, type PickemPeriod } from "../routes/pick-status";
@@ -211,7 +211,14 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
   const appUrl = (options.appUrl ?? process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   let claimed = 0, sent = 0, failed = 0;
   if (options.poolIds && options.poolIds.length === 0) return { claimed, sent, failed };
-  const pools = await db.select().from(poolsTable).where(and(eq(poolsTable.isActive, true), eq(poolsTable.isRecurring, true), options.poolIds ? inArray(poolsTable.id, options.poolIds) : undefined));
+  const pools = await db.select().from(poolsTable).where(and(
+    eq(poolsTable.isActive, true),
+    or(
+      eq(poolsTable.isRecurring, true),
+      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats"])),
+    ),
+    options.poolIds ? inArray(poolsTable.id, options.poolIds) : undefined,
+  ));
   for (const pool of pools) {
     // Sandbox schedules are historical and their UIs may bypass timing locks. Never
     // email them by default; only explicit development/test callers may opt in.
