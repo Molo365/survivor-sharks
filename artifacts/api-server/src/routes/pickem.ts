@@ -1600,9 +1600,13 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   // Compute tiebreaker actuals from the previous week's last game on Sunday
   let tiebreakerActualRuns: number | null = null;
   let tiebreakerActualStrikeouts: number | null = null;
+  let tiebreakerGameStarted = false;
   if (isMlb && prevSundayGames && prevSundayGames.length > 0) {
     const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = sorted[sorted.length - 1]!;
+    if (!pool.sandboxMode) {
+      tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+    }
     if (tiebreakerGame.isCompleted) {
       tiebreakerActualRuns = (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0);
       tiebreakerActualStrikeouts = await fetchDailyStrikeouts([tiebreakerGame], prevWeekBounds.weekEnd);
@@ -1610,7 +1614,6 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
-  let tiebreakerGameStarted = false;
   if (isNhl && !pool.sandboxMode && prevSundayGames && prevSundayGames.length > 0) {
     const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = sorted[sorted.length - 1]!;

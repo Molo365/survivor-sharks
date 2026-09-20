@@ -77,15 +77,15 @@ export function PickEmTiebreakerCard({
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">SOG </span>
                     <span className="text-foreground/80">{p.tiebreakerShotsOnGoalGuess ?? "—"}</span>
-                     {actualShotsOnGoal != null && p.tiebreakerShotsOnGoalGuess != null && (
-                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerShotsOnGoalGuess - actualShotsOnGoal)})</span>
-                     )}
+                    {actualShotsOnGoal != null && p.tiebreakerShotsOnGoalGuess != null && (
+                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerShotsOnGoalGuess - actualShotsOnGoal)})</span>
+                    )}
                   </span>
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">PIM </span>
                     <span className="text-foreground/80">{p.tiebreakerPenaltyMinutesGuess ?? "—"}</span>
-                     {actualPenaltyMinutes != null && p.tiebreakerPenaltyMinutesGuess != null && (
-                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerPenaltyMinutesGuess - actualPenaltyMinutes)})</span>
+                    {actualPenaltyMinutes != null && p.tiebreakerPenaltyMinutesGuess != null && (
+                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerPenaltyMinutesGuess - actualPenaltyMinutes)})</span>
                     )}
                   </span>
                 </>
@@ -95,14 +95,14 @@ export function PickEmTiebreakerCard({
                     <span className="text-muted-foreground/40">Runs </span>
                     <span className="text-foreground/80">{p.tiebreakerRunsGuess ?? "—"}</span>
                     {p.tiebreakerRunsDiff != null && (
-                       <span className="text-yellow-400/70"> (off by {p.tiebreakerRunsDiff})</span>
+                      <span className="text-yellow-400/70"> (off by {p.tiebreakerRunsDiff})</span>
                     )}
                   </span>
                   <span className="tabular-nums text-muted-foreground/60 shrink-0">
                     <span className="text-muted-foreground/40">K </span>
                     <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
                     {actualStrikeouts != null && p.tiebreakerStrikeoutsGuess != null && (
-                       <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
+                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
                     )}
                   </span>
                 </>
