@@ -44,8 +44,10 @@ import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { SportLogo } from "@/components/SportLogo";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
+import { PoolRulesSheet } from "@/components/PoolRulesSheet";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
+import { getPoolRules } from "@/lib/poolRules";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -92,6 +94,7 @@ export default function PoolHome() {
   const isNflSurvivor =
     pool?.sport === "nfl" &&
     ["season", "weekly", "mid_season"].includes(pool.poolType);
+  const poolRules = getPoolRules(pool);
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       enabled: isPickEm && !!poolId,
@@ -187,7 +190,10 @@ export default function PoolHome() {
           <div className="space-y-2 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0">
-                <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
+                  {poolRules && <PoolRulesSheet rules={poolRules} />}
+                </div>
                 {mobilePrizeData?.breakdown && mobilePrizeData.breakdown.length > 0 ? (
                   <div className="md:hidden flex items-center flex-wrap gap-x-1 gap-y-0.5 text-sm font-semibold text-yellow-400 mt-1">
                     <Trophy className="w-3.5 h-3.5 shrink-0 mr-0.5" />
