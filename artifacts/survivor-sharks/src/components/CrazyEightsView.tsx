@@ -10,6 +10,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock, Snowflake } from "lucide-react";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
+import {
+  CrazyEightsPeriodResults,
+  useCrazyEightsPeriodResults,
+} from "@/components/CrazyEightsPeriodResults";
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -807,6 +811,9 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActi
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: periodResults = [] } = useCrazyEightsPeriodResults(poolId, sport);
+  const hasRecordedPeriodResults = isWeekendSport && periodResults.length > 0;
+
   const myPicksKey = ["crazy-eights-picks", poolId];
 
   const { data: myPicksData, isLoading: picksLoading } = useQuery<SubmittedPicksResponse>({
@@ -1158,8 +1165,13 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActi
         </div>
       </div>
 
+      {/* Recorded NHL/NBA period results take precedence over the legacy fallback. */}
+      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} />}
+
       {/* Prior period winner banner */}
-      {yesterdayWinner?.hasResults && yesterdayWinner.winners.length > 0 && (
+      {(!isWeekendSport || !hasRecordedPeriodResults) &&
+        yesterdayWinner?.hasResults &&
+        yesterdayWinner.winners.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
           <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
           <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
