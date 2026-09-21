@@ -41,7 +41,7 @@ export function PoolRulesSheet({ rules }: PoolRulesSheetProps) {
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-6">
-          {rules.sections.map((section) => (
+          {rules.sections.filter((section) => section.items.length > 0).map((section) => (
             <section key={section.heading} className="space-y-2">
               <h2 className="font-bebas text-xl tracking-wide text-foreground">
                 {section.heading}

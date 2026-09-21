@@ -102,7 +102,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Picks and deadlines",
           items: [
             "Submit all your picks together before the first game you picked starts.",
-            "The app shows your submitted picks as locked. You can replace the submission only before the earliest selected game starts.",
+            "Once you submit, your picks are locked in. A second submission is refused.",
           ],
         },
         {
@@ -209,14 +209,11 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Scoring or elimination",
           items: [
+            "The week settles after all of Saturday's games finish, then the pool moves to the next week.",
             "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
             "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
             "When one player remains, that player wins the pool.",
           ],
-        },
-        {
-          heading: "Tiebreakers",
-          items: [],
         },
         {
           heading: "Prizes",

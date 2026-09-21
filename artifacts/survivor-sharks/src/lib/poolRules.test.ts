@@ -59,7 +59,7 @@ test("returns rules for NHL Survivor Season", () => {
   const rules = getPoolRules({ poolType: "season", sport: "nhl" });
   assert.ok(rules);
   assert.equal(rules.title, "NHL Survivor Season Rules");
-  assert.equal(rules.sections.length, 5);
+  assert.equal(rules.sections.length, 4);
 });
 
 test("includes NHL Survivor season reuse and lock rules", () => {
@@ -68,6 +68,22 @@ test("includes NHL Survivor season reuse and lock rules", () => {
   const items = rules.sections.flatMap((section) => section.items);
   assert.ok(items.includes("Each team can be used only once per season."));
   assert.ok(items.includes("You can change your pick until that team's game starts. Then the pick locks."));
+  assert.equal(
+    rules.sections.find((section) => section.heading === "Scoring or elimination")?.items[0],
+    "The week settles after all of Saturday's games finish, then the pool moves to the next week.",
+  );
+});
+
+test("uses locked submission wording for NHL and NBA Hit the Ice", () => {
+  for (const sport of ["nhl", "nba"] as const) {
+    const rules = getPoolRules({ poolType: "crazy_8s", sport });
+    assert.ok(rules);
+    const picksAndDeadlines = rules.sections.find((section) => section.heading === "Picks and deadlines");
+    assert.deepEqual(picksAndDeadlines?.items, [
+      "Submit all your picks together before the first game you picked starts.",
+      "Once you submit, your picks are locked in. A second submission is refused.",
+    ]);
+  }
 });
 
 test("keeps NHL daily Pick-Em without rules", () => {
@@ -90,4 +106,21 @@ test("keeps the NFL rules unchanged", () => {
   assert.equal(survivor?.sections.length, 5);
   assert.equal(pickEm?.title, "NFL Pick-Ems Season Rules");
   assert.equal(pickEm?.sections.length, 5);
+});
+
+test("returns no empty sections for every supported pool type", () => {
+  const supportedPools = [
+    { poolType: "season", sport: "nfl" },
+    { poolType: "pickem_season", sport: "nfl" },
+    { poolType: "pickem", sport: "nhl", pickFrequency: "weekly" },
+    { poolType: "crazy_8s", sport: "nhl" },
+    { poolType: "season", sport: "nhl" },
+    { poolType: "crazy_8s", sport: "nba" },
+  ];
+
+  for (const pool of supportedPools) {
+    const rules = getPoolRules(pool);
+    assert.ok(rules);
+    assert.ok(rules.sections.every((section) => section.items.length > 0));
+  }
 });
