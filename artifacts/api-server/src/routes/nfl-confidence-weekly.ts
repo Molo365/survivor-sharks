@@ -7,6 +7,7 @@ import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShap
 import { fetchNflGamesByWeek } from "../lib/espn";
 import { calcPrize } from "../lib/prizeCalc";
 import { settleNflConfidenceWeeklyPool } from "../lib/auto-eliminator";
+import { sortConfidenceGamesByKickoff, validateConfidenceSubmission } from "../lib/confidence-submission";
 
 const router = Router({ mergeParams: true });
 
@@ -53,7 +54,7 @@ router.get("/games", requireAuth, async (req, res) => {
   // Live mode: fetch from ESPN
   const nflSeasonType = pool.isPreseason ? 1 : 2;
   const espnGames = await fetchNflGamesByWeek(week, pool.season, nflSeasonType);
-  const games = espnGames.map((g) => ({
+  const games = sortConfidenceGamesByKickoff(espnGames).map((g) => ({
     id: g.id,
     startTime: g.date,
     status: g.status,
@@ -230,6 +231,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   // Validate game IDs — use replay game IDs if armed, else static sandbox schedule
   let validGameIds = new Set<string>();
   let expectedCount = 0;
+  let liveGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
   if (isSandbox) {
     const replayRows = await db
       .select({ gameId: sandboxGameScoresTable.gameId })
@@ -267,6 +269,29 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: `Confidence points 1-${expectedCount} must each be used exactly once` });
       return;
     }
+  } else {
+    if (
+      typeof tiebreakerPassingYards !== "number"
+      || !Number.isInteger(tiebreakerPassingYards)
+      || tiebreakerPassingYards < 0
+    ) {
+      res.status(400).json({ error: "tiebreakerPassingYards is required and must be a non-negative integer" });
+      return;
+    }
+    if (
+      typeof tiebreakerRushingYards !== "number"
+      || !Number.isInteger(tiebreakerRushingYards)
+      || tiebreakerRushingYards < 0
+    ) {
+      res.status(400).json({ error: "tiebreakerRushingYards is required and must be a non-negative integer" });
+      return;
+    }
+
+    liveGames = sortConfidenceGamesByKickoff(await fetchNflGamesByWeek(
+      week,
+      pool.season,
+      pool.isPreseason ? 1 : 2,
+    ));
   }
 
   const weekSundayOffsets = [
@@ -278,42 +303,82 @@ router.post("/picks", requireAuth, async (req, res) => {
   ];
   const gameDate = weekSundayOffsets[week] ?? `2025-week-${week}`;
 
-  let saved = 0;
-  for (const pick of picks) {
-    const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
-    await db
-      .insert(pickemPicksTable)
-      .values({
-        poolId,
-        userId,
-        gameId: pick.gameId,
-        gameDate,
-        week,
-        pickedTeamId: resolvedTeamId,
-        pickedTeamName: pick.pickedTeamName,
-        confidencePoints: pick.confidencePoints,
-        result: "pending",
-      } as any)
-      .onConflictDoUpdate({
-        target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-        set: {
+  const saveResult = await db.transaction(async (tx) => {
+    if (!isSandbox) {
+      const [lockedPool] = await tx
+        .select({ currentWeek: poolsTable.currentWeek })
+        .from(poolsTable)
+        .where(eq(poolsTable.id, poolId))
+        .for("update")
+        .limit(1);
+      if (!lockedPool || lockedPool.currentWeek !== week) {
+        return { ok: false as const, error: "The pool week has changed. Refresh and submit the current slate." };
+      }
+
+      const tiebreakerGame = liveGames.at(-1);
+      if (tiebreakerGame && new Date(tiebreakerGame.date).getTime() <= Date.now()) {
+        return {
+          ok: false as const,
+          error: "The weekly tiebreaker is locked because its target game has started",
+        };
+      }
+
+      const normalizedPicks = picks.map((pick) => ({
+        ...pick,
+        pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId,
+      }));
+      const validation = validateConfidenceSubmission({
+        picks: normalizedPicks,
+        games: liveGames,
+      });
+      if (!validation.ok) {
+        return { ok: false as const, error: validation.error };
+      }
+    }
+
+    let saved = 0;
+    for (const pick of picks) {
+      const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
+      await tx
+        .insert(pickemPicksTable)
+        .values({
+          poolId,
+          userId,
+          gameId: pick.gameId,
+          gameDate,
+          week,
           pickedTeamId: resolvedTeamId,
           pickedTeamName: pick.pickedTeamName,
           confidencePoints: pick.confidencePoints,
           result: "pending",
-          updatedAt: new Date(),
-        } as any,
-      });
-    saved++;
+        } as any)
+        .onConflictDoUpdate({
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+          set: {
+            pickedTeamId: resolvedTeamId,
+            pickedTeamName: pick.pickedTeamName,
+            confidencePoints: pick.confidencePoints,
+            result: "pending",
+            updatedAt: new Date(),
+          } as any,
+        });
+      saved++;
+    }
+
+    await tx
+      .update(entriesTable)
+      .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
+      .where(eq(entriesTable.id, entry.id));
+
+    return { ok: true as const, saved };
+  });
+  if (!saveResult.ok) {
+    res.status(400).json({ error: saveResult.error });
+    return;
   }
 
-  await db
-    .update(entriesTable)
-    .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
-    .where(eq(entriesTable.id, entry.id));
-
-  req.log.info({ poolId, userId, week, saved }, "NFL Confidence Weekly picks submitted");
-  res.status(201).json({ ok: true, saved, message: "NFL Confidence Weekly picks submitted successfully" });
+  req.log.info({ poolId, userId, week, saved: saveResult.saved }, "NFL Confidence Weekly picks submitted");
+  res.status(201).json({ ok: true, saved: saveResult.saved, message: "NFL Confidence Weekly picks submitted successfully" });
 });
 
 // GET /api/pools/:poolId/nfl-confidence-weekly/grid?week=W
