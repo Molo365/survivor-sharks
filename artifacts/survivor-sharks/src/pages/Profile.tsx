@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, MessageSquare, Trophy, Wallet, User, History } from "lucide-react";
+import { KeyRound, MessageSquare, Pencil, Trophy, Wallet, User, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SportLogo } from "@/components/SportLogo";
 import { SPORT_LABELS } from "@/lib/sport-branding";
@@ -405,22 +405,25 @@ export default function Profile() {
                 )}
               </>
             ) : (
-              <div className="flex items-center justify-center gap-2">
-                <p className="font-bebas text-3xl tracking-wide text-foreground">
-                  {user?.displayName ?? user?.username}
-                </p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={startEditingDisplayName}
-                  disabled={!user}
-                  data-testid="button-edit-display-name"
-                >
-                  Edit
-                </Button>
-              </div>
+              <>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <p className="font-bebas text-3xl tracking-wide text-foreground">
+                    {user?.displayName ?? user?.username}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={startEditingDisplayName}
+                    disabled={!user}
+                    data-testid="button-edit-display-name"
+                  >
+                    <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    Edit display name
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">This is the name other players see.</p>
+              </>
             )}
             {user?.displayName && (
               <p className="text-sm text-muted-foreground">@{user.username}</p>
