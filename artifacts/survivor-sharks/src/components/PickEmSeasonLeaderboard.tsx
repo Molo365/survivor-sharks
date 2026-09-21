@@ -331,6 +331,11 @@ export function PickEmSeasonLeaderboard({
             {pct}%
           </div>
         )}
+        {(player.liveCorrect ?? 0) > 0 && (
+          <div className="text-[10px] font-semibold text-green-400 leading-none mt-0.5">
+            +{player.liveCorrect} live
+          </div>
+        )}
         {player.potSplit && (
           <div className="text-[9px] font-bold uppercase tracking-wide text-yellow-400/80 leading-none mt-0.5">
             Split

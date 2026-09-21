@@ -5106,6 +5106,8 @@ components:
           nullable: true
         seasonCorrect:
           type: integer
+        liveCorrect:
+          type: integer
         seasonTotal:
           type: integer
         tiebreakerPassingYards:
@@ -5152,6 +5154,8 @@ components:
           type: integer
           nullable: true
           description: "Week 18 tiebreaker actual rushing yards (null if not yet resolved)"
+        liveGamesInProgress:
+          type: integer
         entries:
           type: array
           items:

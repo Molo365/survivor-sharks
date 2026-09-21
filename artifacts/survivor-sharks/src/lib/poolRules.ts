@@ -243,6 +243,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "Each correct pick is worth one point.",
             "The season winner is the player with the most correct picks.",
+            "While games are in progress, standings may show live points for picks whose team is ahead. Live points are provisional and only final results count.",
             ...(pool.weeklyBonusEnabled ? items : []),
           ],
         },

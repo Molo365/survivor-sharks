@@ -2022,6 +2022,7 @@ export interface NflPickEmSeasonLeaderboardEntry {
   username: string;
   displayName?: string | null;
   seasonCorrect: number;
+  liveCorrect?: number;
   seasonTotal: number;
   tiebreakerPassingYards?: number | null;
   tiebreakerRushingYards?: number | null;
@@ -2041,6 +2042,7 @@ export interface NflPickEmSeasonLeaderboard {
   actualPassingYards?: number | null;
   /** Week 18 tiebreaker actual rushing yards (null if not yet resolved) */
   actualRushingYards?: number | null;
+  liveGamesInProgress?: number;
   entries: NflPickEmSeasonLeaderboardEntry[];
 }
 

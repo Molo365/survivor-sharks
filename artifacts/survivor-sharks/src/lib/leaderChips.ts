@@ -3,6 +3,7 @@ import type { NflPickEmSeasonLeaderboardEntry } from "@workspace/api-client-reac
 export interface LeaderChipSummary {
   names: string[];
   points: number;
+  live: number;
 }
 
 export interface LeaderChipLeaders {
@@ -19,7 +20,14 @@ function summarizeLeaders(
   getPoints: (entry: NflPickEmSeasonLeaderboardEntry) => number | undefined,
 ): LeaderChipSummary | null {
   const scoredEntries = entries
-    .map((entry) => ({ entry, points: getPoints(entry) }))
+    .map((entry) => {
+      const live = entry.liveCorrect ?? 0;
+      return {
+        entry,
+        live,
+        points: (getPoints(entry) ?? 0) + live,
+      };
+    })
     .filter(({ points }) => points != null && Number.isFinite(points));
 
   if (scoredEntries.length === 0) return null;
@@ -32,6 +40,11 @@ function summarizeLeaders(
       .filter(({ points }) => points === highestPoints)
       .map(({ entry }) => playerName(entry)),
     points: highestPoints,
+    live: Math.max(
+      ...scoredEntries
+        .filter(({ points }) => points === highestPoints)
+        .map(({ live }) => live),
+    ),
   };
 }
 

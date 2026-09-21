@@ -4,6 +4,7 @@ import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceRe
 import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
+import { computeLiveCorrect, getLiveGamesCached } from "../lib/nfl-live-picks";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "../lib/pickem-season-closure";
 import {
@@ -843,6 +844,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     tiebreakerDiff2: number | null;
     potSplit: boolean;
     weeklyScores: Record<string, { correct: number; total: number }>;
+    liveCorrect: number;
   };
   const entries: LeaderboardEntry[] = [];
   let currentRank = 1;
@@ -867,6 +869,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           tiebreakerDiff2: null,
           potSplit: group.length > 1,
           weeklyScores: weeklyMap.get(u.userId) ?? {},
+           liveCorrect: 0,
         });
       }
       currentRank += group.length;
@@ -911,6 +914,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           tiebreakerDiff2: isFinite(d2) ? d2 : null,
           potSplit,
           weeklyScores: weeklyMap.get(u.userId) ?? {},
+           liveCorrect: 0,
         });
       }
       i = j;
@@ -918,7 +922,51 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     currentRank += group.length;
   }
 
-  res.json({ currentWeek: pool.currentWeek, totalWeeks: NFL_TOTAL_WEEKS, actualPassingYards, actualRushingYards, entries });
+  let liveGamesInProgress = 0;
+  if (!pool.sandboxMode) {
+    try {
+      const pendingPicks = await db
+        .select({
+          userId: pickemPicksTable.userId,
+          gameId: pickemPicksTable.gameId,
+          pickedTeamId: pickemPicksTable.pickedTeamId,
+        })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.week, pool.currentWeek),
+          eq(pickemPicksTable.result, "pending"),
+        ));
+
+      if (pendingPicks.length > 0) {
+        const liveGames = await getLiveGamesCached(
+          pool.currentWeek,
+          pool.season ?? undefined,
+          pool.isPreseason ? 1 : 2,
+        );
+        const live = computeLiveCorrect(liveGames, pendingPicks);
+        liveGamesInProgress = live.liveGamesInProgress;
+        for (const leaderboardEntry of entries) {
+          leaderboardEntry.liveCorrect =
+            live.liveByUser.get(leaderboardEntry.userId) ?? 0;
+        }
+      }
+    } catch {
+      liveGamesInProgress = 0;
+      for (const leaderboardEntry of entries) {
+        leaderboardEntry.liveCorrect = 0;
+      }
+    }
+  }
+
+  res.json({
+    currentWeek: pool.currentWeek,
+    totalWeeks: NFL_TOTAL_WEEKS,
+    actualPassingYards,
+    actualRushingYards,
+    liveGamesInProgress,
+    entries,
+  });
 });
 
 // POST /api/pools/:poolId/pickem-season/process-results

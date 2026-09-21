@@ -28,7 +28,7 @@ test("returns a single season leader", () => {
     3,
   );
 
-  assert.deepEqual(leaders.season, { names: ["username"], points: 8 });
+  assert.deepEqual(leaders.season, { names: ["username"], points: 8, live: 0 });
 });
 
 test("returns all tied season leaders", () => {
@@ -43,6 +43,7 @@ test("returns all tied season leaders", () => {
   assert.deepEqual(leaders.season, {
     names: ["username", "co-leader"],
     points: 8,
+    live: 0,
   });
 });
 
@@ -72,6 +73,7 @@ test("gets the week leader from the requested week", () => {
   assert.deepEqual(leaders.week, {
     names: ["week-leader"],
     points: 5,
+    live: 0,
   });
 });
 
@@ -84,5 +86,46 @@ test("prefers displayName over username", () => {
   assert.deepEqual(leaders.season, {
     names: ["Display Name"],
     points: 3,
+    live: 0,
+  });
+});
+
+test("adds live points to the season leader total", () => {
+  const leaders = getLeaders(
+    [
+      entry({ seasonCorrect: 8, liveCorrect: 2 }),
+      entry({ userId: 2, username: "official-leader", seasonCorrect: 9 }),
+    ],
+    3,
+  );
+
+  assert.deepEqual(leaders.season, {
+    names: ["username"],
+    points: 10,
+    live: 2,
+  });
+});
+
+test("uses live points for week leaders and keeps the largest tied live value", () => {
+  const leaders = getLeaders(
+    [
+      entry({
+        weeklyScores: { "3": { correct: 3, total: 5 } },
+        liveCorrect: 2,
+      }),
+      entry({
+        userId: 2,
+        username: "tied-week-leader",
+        weeklyScores: { "3": { correct: 4, total: 5 } },
+        liveCorrect: 1,
+      }),
+    ],
+    3,
+  );
+
+  assert.deepEqual(leaders.week, {
+    names: ["username", "tied-week-leader"],
+    points: 5,
+    live: 2,
   });
 });

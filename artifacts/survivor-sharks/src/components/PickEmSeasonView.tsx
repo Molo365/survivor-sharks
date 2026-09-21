@@ -1296,7 +1296,10 @@ export function PickEmSeasonView({
       query: {
         queryKey: getGetNflPickEmSeasonLeaderboardQueryKey(poolId),
         staleTime: 60 * 1000,
-        refetchInterval: 60_000,
+        refetchInterval: (query) =>
+          query.state.data?.liveGamesInProgress
+            ? 30_000
+            : 60_000,
       },
     });
 
@@ -1738,6 +1741,7 @@ export function PickEmSeasonView({
           <LeaderChips
             leaders={getLeaders(entries, leaderboard.currentWeek)}
             currentWeek={leaderboard.currentWeek}
+            liveGamesInProgress={leaderboard.liveGamesInProgress ?? 0}
             onSelect={() => setActiveTab("leaderboard")}
           />
         </div>
@@ -2087,6 +2091,11 @@ export function PickEmSeasonView({
             className="m-0 focus-visible:outline-none"
           >
             <div className="space-y-3">
+              {(leaderboard?.liveGamesInProgress ?? 0) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Live points are provisional. Only final results count.
+                </p>
+              )}
               <PickVisibilityNotice kind="pickem-season" />
               <div className="flex items-center justify-between">
                 <h3 className="font-bebas text-2xl tracking-wide">
