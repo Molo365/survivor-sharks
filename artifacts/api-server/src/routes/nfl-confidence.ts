@@ -11,6 +11,7 @@ import {
   type NflScheduledGame,
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
+import { validateConfidenceSubmission } from "../lib/confidence-submission";
 
 const router = Router({ mergeParams: true });
 type NflConfidenceTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -306,7 +307,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     weeklyTiebreakerGuess?: number;
   };
 
-  if (!Array.isArray(picks) || picks.length === 0) {
+  if (!Array.isArray(picks)) {
     res.status(400).json({ error: "picks array is required" });
     return;
   }
@@ -349,6 +350,8 @@ router.post("/picks", requireAuth, async (req, res) => {
   // Validate game IDs — use replay game IDs if armed, else static sandbox schedule
   let validGameIds = new Set<string>();
   let expectedCount = 0;
+  let openGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
+  let startedGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
   if (isSandbox) {
     const replayRows = await db
       .select({ gameId: sandboxGameScoresTable.gameId })
@@ -387,40 +390,19 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.season,
       pool.isPreseason ? 1 : 2,
     );
-    const gameMap = new Map(liveGames.map((game) => [game.id, game]));
-    expectedCount = liveGames.length;
-
-    if (expectedCount === 0) {
-      res.status(400).json({ error: "The NFL schedule is not available yet" });
-      return;
-    }
-    if (picks.length !== expectedCount) {
-      res.status(400).json({ error: `Expected ${expectedCount} picks, got ${picks.length}` });
-      return;
-    }
-    for (const pick of picks) {
-      const game = gameMap.get(pick.gameId);
-      if (!game) {
-        res.status(400).json({ error: `Unknown game: ${pick.gameId}` });
-        return;
-      }
-      if (new Date(game.date).getTime() <= Date.now()) {
-        res.status(400).json({ error: `Game ${pick.gameId} has already locked` });
-        return;
-      }
-      const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
-      if (resolvedTeamId !== game.homeTeam.id && resolvedTeamId !== game.awayTeam.id) {
-        res.status(400).json({ error: `Invalid team for game ${pick.gameId}` });
-        return;
-      }
-    }
+    const nowMs = Date.now();
+    openGames = liveGames.filter((game) => new Date(game.date).getTime() > nowMs);
+    startedGames = liveGames.filter((game) => new Date(game.date).getTime() <= nowMs);
+    expectedCount = openGames.length;
   }
 
   // Validate confidence points 1-N each used exactly once for every environment.
-  const cpSorted = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
-  if (!cpSorted.every((v, i) => v === i + 1)) {
-    res.status(400).json({ error: `Confidence points 1-${expectedCount} must each be used exactly once` });
-    return;
+  if (isSandbox) {
+    const cpSorted = picks.map(p => p.confidencePoints).sort((a, b) => a - b);
+    if (!cpSorted.every((v, i) => v === i + 1)) {
+      res.status(400).json({ error: `Confidence points 1-${expectedCount} must each be used exactly once` });
+      return;
+    }
   }
 
   // Existing Week 18 season tiebreaker remains separate, but all validation
@@ -440,8 +422,68 @@ router.post("/picks", requireAuth, async (req, res) => {
   ];
   const gameDate = weekSundayOffsets[week] ?? `2025-week-${week}`;
 
-  let saved = 0;
-  await db.transaction(async (tx) => {
+  const saveResult = await db.transaction(async (tx) => {
+    if (!isSandbox) {
+      await tx
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(eq(entriesTable.id, entry.id))
+        .for("update");
+
+      const existingPicks = await tx
+        .select({ id: pickemPicksTable.id })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, week),
+        ))
+        .limit(1);
+      if (existingPicks.length > 0) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: "Your picks are already submitted and locked for this week.",
+        };
+      }
+
+      const [lockedPool] = await tx
+        .select({ currentWeek: poolsTable.currentWeek })
+        .from(poolsTable)
+        .where(eq(poolsTable.id, poolId))
+        .for("update")
+        .limit(1);
+      if (!lockedPool || lockedPool.currentWeek !== week) {
+        return {
+          ok: false as const,
+          status: 400,
+          error: "The pool week has changed. Refresh and submit the current slate.",
+        };
+      }
+
+      const normalizedPicks = picks.map((pick) => ({
+        ...pick,
+        pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId,
+      }));
+      const startedGameIds = new Set(startedGames.map((game) => game.id));
+      const startedPick = normalizedPicks.find((pick) => startedGameIds.has(pick.gameId));
+      if (startedPick) {
+        return {
+          ok: false as const,
+          status: 400,
+          error: `Game ${startedPick.gameId} has already locked`,
+        };
+      }
+      const validation = validateConfidenceSubmission({
+        picks: normalizedPicks,
+        games: openGames,
+      });
+      if (!validation.ok) {
+        return { ok: false as const, status: 400, error: validation.error };
+      }
+    }
+
+    let saved = 0;
     for (const pick of picks) {
       const resolvedTeamId = NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId;
       await tx
@@ -488,10 +530,16 @@ router.post("/picks", requireAuth, async (req, res) => {
         .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
         .where(eq(entriesTable.id, entry.id));
     }
-  });
 
-  req.log.info({ poolId, userId, week, saved }, "NFL Confidence picks submitted");
-  res.status(201).json({ ok: true, saved, message: "NFL Confidence picks submitted successfully" });
+    return { ok: true as const, saved };
+  });
+  if (!saveResult.ok) {
+    res.status(saveResult.status).json({ error: saveResult.error });
+    return;
+  }
+
+  req.log.info({ poolId, userId, week, saved: saveResult.saved }, "NFL Confidence picks submitted");
+  res.status(201).json({ ok: true, saved: saveResult.saved, message: "NFL Confidence picks submitted successfully" });
 });
 
 // GET /api/pools/:poolId/nfl-confidence/grid?week=W

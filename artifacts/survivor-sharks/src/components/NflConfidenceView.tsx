@@ -339,7 +339,10 @@ function GameCard({
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
   const isPostponed = !isFinal && game.status === "postponed";
   const isSuspended = !isFinal && game.status === "suspended";
-  const isGameLocked = isSuspended || isLocked || (gameHasStarted && !isSelected);
+  const isGameLocked =
+    isSuspended ||
+    isLocked ||
+    (gameHasStarted && (!sandboxMode || !isSelected));
 
   function teamSide(team: PickEmGame["awayTeam"], side: "away" | "home") {
     const isHome = side === "home";
@@ -982,7 +985,13 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   );
 
   const games: PickEmGame[] = slate?.games ?? [];
-  const maxConfidence = games.length;
+  const isSandbox = slate?.sandboxMode ?? false;
+  const nowMs = Date.now();
+  const openGames = isSandbox
+    ? games
+    : games.filter((game) => new Date(game.startTime).getTime() > nowMs);
+  const openGameIds = new Set(openGames.map((game) => game.id));
+  const maxConfidence = openGames.length;
 
   const existingPicks = myPicksData?.picks ?? [];
   const hasPicks = existingPicks.length > 0;
@@ -996,29 +1005,25 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
     );
   }, [myPicksData?.weeklyTiebreakerGuess, weeklyBonusEnabled]);
 
-  // Lock at first game kickoff
-  const firstGameStart = useMemo(() => {
-    if (games.length === 0) return Infinity;
-    const times = games.map((g) => new Date(g.startTime).getTime()).filter((t) => !isNaN(t));
-    return times.length > 0 ? Math.min(...times) : Infinity;
-  }, [games]);
+  const isLocked = !isSandbox && openGames.length === 0;
 
-  const isLocked = !slate?.sandboxMode && Date.now() >= firstGameStart;
-
-  const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
+  const usedPoints = useMemo(
+    () => new Set(openGames.map((game) => confidence[game.id]).filter((value): value is number => value !== undefined)),
+    [confidence, openGames],
+  );
 
   // "selected" = has a team been picked for this game
-  const pickedCount = Object.keys(pickedTeams).length;
+  const pickedCount = openGames.filter((game) => pickedTeams[game.id]).length;
   const allPicked = pickedCount === maxConfidence && maxConfidence > 0;
   const allReady =
     allPicked &&
-    games.every((g) => confidence[g.id] !== undefined);
+    openGames.every((g) => confidence[g.id] !== undefined);
 
   // The last game is only the tiebreaker in Week 18 — never highlight it on other weeks
   const tiebreakerGameId = currentWeek === 18 ? (games.at(-1)?.id ?? null) : null;
 
   function handleTeamClick(gameId: string, teamId: string) {
-    if (isLocked) return;
+    if (isLocked || !openGameIds.has(gameId)) return;
     if (pickedTeams[gameId] === teamId) {
       // Re-click own pick → deselect
       setPickedTeams((prev) => { const p = { ...prev }; delete p[gameId]; return p; });
@@ -1029,7 +1034,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   }
 
   function assignConfidence(gameId: string, pts: number) {
-    if (isLocked) return;
+    if (isLocked || !openGameIds.has(gameId)) return;
     setConfidence((prev) => {
       const c = { ...prev };
       const prevHolder = Object.keys(c).find((k) => c[k] === pts && k !== gameId);
@@ -1045,7 +1050,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   ) {
     setSubmitting(true);
     try {
-      const picks = games.map((g) => {
+      const picks = openGames.map((g) => {
         const pickedTeamId = pickedTeams[g.id] ?? "";
         const pickedTeam = pickedTeamId === g.homeTeam.id ? g.homeTeam : g.awayTeam;
         return {
@@ -1089,11 +1094,11 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   }
 
   function handleSubmitClick() {
-    const unpicked = games.filter((g) => !pickedTeams[g.id]);
+    const unpicked = openGames.filter((g) => !pickedTeams[g.id]);
     if (unpicked.length > 0) {
       toast({
         title: `${unpicked.length} game${unpicked.length === 1 ? "" : "s"} need a pick`,
-        description: "Pick a winner for every game on the slate.",
+        description: "Pick a winner for every open game on the slate.",
         variant: "destructive",
       });
       return;
@@ -1101,7 +1106,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
     if (!allReady) {
       toast({
         title: "Assign all confidence points",
-        description: `Each game needs a point value from 1–${maxConfidence}.`,
+        description: `Each open game needs a point value from 1–${maxConfidence}.`,
         variant: "destructive",
       });
       return;
@@ -1173,10 +1178,19 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
     );
   }
 
+  if (openGames.length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
+        <p className="text-sm">All of this week's games have already started</p>
+      </div>
+    );
+  }
+
   // ── Open selection UI ───────────────────────────────────────────────────────
 
-  const missingPicks = games.filter((g) => !pickedTeams[g.id]).length;
-  const missingPoints = games.filter((g) => confidence[g.id] === undefined).length;
+  const missingPicks = openGames.filter((g) => !pickedTeams[g.id]).length;
+  const missingPoints = openGames.filter((g) => confidence[g.id] === undefined).length;
   const weeklyTiebreakerGame = weeklyBonusEnabled
     ? games.find((game) => game.id === myPicksData?.weeklyTiebreakerTargetGameId) ?? games.at(-1) ?? null
     : null;
@@ -1191,7 +1205,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
             NFL Confidence — Week {currentWeek ?? "?"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Pick every game, assign confidence points 1–{maxConfidence}. Highest total wins.
+            Pick every open game, assign confidence points 1–{maxConfidence}. Highest total wins.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1287,7 +1301,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
               How confidence picks work
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick a winner for every game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks at kickoff. In Week 18, you'll also enter a passing &amp; rushing yards tiebreaker.
+              Pick a winner for every open game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks at kickoff. In Week 18, you'll also enter a passing &amp; rushing yards tiebreaker.
             </p>
           </div>
           <button

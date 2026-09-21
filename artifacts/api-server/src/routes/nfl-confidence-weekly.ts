@@ -206,7 +206,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerRushingYards: number;
   };
 
-  if (!Array.isArray(picks) || picks.length === 0) {
+  if (!Array.isArray(picks)) {
     res.status(400).json({ error: "picks array is required" });
     return;
   }
@@ -232,6 +232,8 @@ router.post("/picks", requireAuth, async (req, res) => {
   let validGameIds = new Set<string>();
   let expectedCount = 0;
   let liveGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
+  let openGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
+  let startedGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
   if (isSandbox) {
     const replayRows = await db
       .select({ gameId: sandboxGameScoresTable.gameId })
@@ -292,6 +294,9 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.season,
       pool.isPreseason ? 1 : 2,
     ));
+    const nowMs = Date.now();
+    openGames = liveGames.filter((game) => new Date(game.date).getTime() > nowMs);
+    startedGames = liveGames.filter((game) => new Date(game.date).getTime() <= nowMs);
   }
 
   const weekSundayOffsets = [
@@ -305,6 +310,29 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   const saveResult = await db.transaction(async (tx) => {
     if (!isSandbox) {
+      await tx
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(eq(entriesTable.id, entry.id))
+        .for("update");
+
+      const existingPicks = await tx
+        .select({ id: pickemPicksTable.id })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, week),
+        ))
+        .limit(1);
+      if (existingPicks.length > 0) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: "Your picks are already submitted and locked for this week.",
+        };
+      }
+
       const [lockedPool] = await tx
         .select({ currentWeek: poolsTable.currentWeek })
         .from(poolsTable)
@@ -312,13 +340,14 @@ router.post("/picks", requireAuth, async (req, res) => {
         .for("update")
         .limit(1);
       if (!lockedPool || lockedPool.currentWeek !== week) {
-        return { ok: false as const, error: "The pool week has changed. Refresh and submit the current slate." };
+        return { ok: false as const, status: 400, error: "The pool week has changed. Refresh and submit the current slate." };
       }
 
       const tiebreakerGame = liveGames.at(-1);
       if (tiebreakerGame && new Date(tiebreakerGame.date).getTime() <= Date.now()) {
         return {
           ok: false as const,
+          status: 400,
           error: "The weekly tiebreaker is locked because its target game has started",
         };
       }
@@ -327,12 +356,21 @@ router.post("/picks", requireAuth, async (req, res) => {
         ...pick,
         pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId,
       }));
+      const startedGameIds = new Set(startedGames.map((game) => game.id));
+      const startedPick = normalizedPicks.find((pick) => startedGameIds.has(pick.gameId));
+      if (startedPick) {
+        return {
+          ok: false as const,
+          status: 400,
+          error: `Game ${startedPick.gameId} has already locked`,
+        };
+      }
       const validation = validateConfidenceSubmission({
         picks: normalizedPicks,
-        games: liveGames,
+        games: openGames,
       });
       if (!validation.ok) {
-        return { ok: false as const, error: validation.error };
+        return { ok: false as const, status: 400, error: validation.error };
       }
     }
 
@@ -373,7 +411,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     return { ok: true as const, saved };
   });
   if (!saveResult.ok) {
-    res.status(400).json({ error: saveResult.error });
+    res.status(saveResult.status).json({ error: saveResult.error });
     return;
   }
 

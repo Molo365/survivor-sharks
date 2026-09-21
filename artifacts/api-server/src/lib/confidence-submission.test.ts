@@ -39,6 +39,24 @@ test("accepts a correct confidence submission", () => {
   assert.deepEqual(validateConfidenceSubmission({ picks: validPicks(), games, nowMs }), { ok: true });
 });
 
+test("accepts picks for a reduced open-game slate", () => {
+  assert.deepEqual(
+    validateConfidenceSubmission({
+      picks: [{ gameId: "game-2", pickedTeamId: "away-2", confidencePoints: 1 }],
+      games: [games[1]],
+      nowMs,
+    }),
+    { ok: true },
+  );
+});
+
+test("rejects a submission when no games remain open", () => {
+  assert.deepEqual(
+    validateConfidenceSubmission({ picks: [], games: [], nowMs }),
+    { ok: false, error: "All of this week's games have already started." },
+  );
+});
+
 test("rejects the wrong pick count", () => {
   assert.deepEqual(
     validateConfidenceSubmission({ picks: validPicks().slice(0, 1), games, nowMs }),

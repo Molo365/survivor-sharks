@@ -30,7 +30,7 @@ export function validateConfidenceSubmission({
 }): ConfidenceSubmissionValidation {
   const expectedCount = games.length;
   if (expectedCount === 0) {
-    return { ok: false, error: "The NFL schedule is not available yet" };
+    return { ok: false, error: "All of this week's games have already started." };
   }
   if (picks.length !== expectedCount) {
     return { ok: false, error: `Expected ${expectedCount} picks, got ${picks.length}` };
