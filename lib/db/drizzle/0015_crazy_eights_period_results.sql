@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS "crazy_eights_period_results" ("id" serial PRIMARY KEY NOT NULL, "pool_id" integer NOT NULL REFERENCES "pools"("id") ON DELETE cascade, "week" integer NOT NULL, "groups" jsonb NOT NULL, "reason" text NOT NULL, "resolved_at" timestamp DEFAULT now() NOT NULL, CONSTRAINT "crazy_eights_period_results_pool_week_uniq" UNIQUE("pool_id","week"));

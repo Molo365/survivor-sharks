@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScoresTable } from "@workspace/db";
-import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
+import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScoresTable, crazyEightsPeriodResultsTable } from "@workspace/db";
+import { eq, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, getNbaWeekendBounds, NBA_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
@@ -11,6 +11,54 @@ import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 
 const router = Router({ mergeParams: true });
+
+router.get("/period-results", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select({ id: poolsTable.id }).from(poolsTable)
+    .where(eq(poolsTable.id, poolId))
+    .limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const results = await db.select().from(crazyEightsPeriodResultsTable)
+    .where(eq(crazyEightsPeriodResultsTable.poolId, poolId))
+    .orderBy(desc(crazyEightsPeriodResultsTable.resolvedAt));
+
+  const userIds = [...new Set(results.flatMap((result) =>
+    result.groups.flatMap((group) => group.userIds),
+  ))];
+  const users = userIds.length > 0
+    ? await db.select({
+      id: usersTable.id,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+    }).from(usersTable).where(inArray(usersTable.id, userIds))
+    : [];
+  const nameByUserId = new Map(users.map((user) => [
+    user.id,
+    user.displayName ?? user.username,
+  ]));
+
+  res.json(results.map((result) => ({
+    week: result.week,
+    resolvedAt: result.resolvedAt,
+    reason: result.reason,
+    groups: result.groups.map((group) => ({
+      position: group.position,
+      prize: group.prize,
+      players: group.userIds.map((playerUserId) => ({
+        userId: playerUserId,
+        username: nameByUserId.get(playerUserId) ?? "Unknown player",
+      })),
+    })),
+  })));
+});
 
 function isGridPickRevealed(opts: {
   isOwnPick: boolean;

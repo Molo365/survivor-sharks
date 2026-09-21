@@ -34,3 +34,4 @@
 - [Pick reminder deadline granularity](pick-reminder-deadline-granularity.md) — per-game Pick-Em reminders follow each user’s next open pick-date; whole-slate pools retain one deadline.
 - [Champions League season-feed pagination](champions-league-season-feed-pagination.md) — a 400 range response plus ESPN’s default 100-event season limit can truncate the next matchday to one fixture.
 - [Broadcast standings source](broadcast-standings-source.md) — reuse authenticated leaderboard endpoints over the local API; fail closed instead of duplicating ranking logic.
+- [Recurring Hit the Ice settlement](recurring-hit-the-ice-settlement.md) — recurring NHL/NBA periods persist separately and advance atomically; End Recurring must close safely across rollover races.

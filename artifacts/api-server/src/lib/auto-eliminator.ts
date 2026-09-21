@@ -18,9 +18,18 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable, crazyEightsPeriodResultsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql, desc } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
+import {
+  isCrazyEightsPeriodAlreadyResolved,
+  isRecurringNhlOrNbaCrazyEights,
+  shouldRecordEmptyCrazyEightsPeriod,
+} from "./crazy-eights-recurring-policy";
+import {
+  closeCrazyEightsPool,
+  recordCrazyEightsPeriodAndAdvance,
+} from "./crazy-eights-recurring-settlement";
 import { applyChampionsLeagueClosure } from "./champions-league-closure";
 import {
   fetchGames,
@@ -5128,69 +5137,30 @@ async function resolveGroupIteratively(
  *                the next finishPosition, with coWinners > 1 only when the
  *                tiebreaker could not differentiate them.
  */
-async function declareCrazyEightsWinners(
+export async function declareCrazyEightsWinners(
   pool: typeof poolsTable.$inferSelect,
   groups: number[][],
   reason: string,
 ): Promise<void> {
-  // 1. Total entries for calcPrize.
-  const allEntries = await db
-    .select({ userId: entriesTable.userId })
-    .from(entriesTable)
-    .where(eq(entriesTable.poolId, pool.id));
-  const totalEntries = allEntries.length;
-
-  const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
-  let placeIndex = 0;
-
-  for (const group of groups) {
-    const finishPosition = placeIndex + 1;
-    const prize = calcPrize({
-      prizeStructure: ps,
-      prizeMode: pool.prizeMode,
-      entryFee: pool.entryFee,
-      prizePot: pool.prizePot,
-      totalEntries,
-      maxEntries: pool.maxEntries,
-      placeIndex,
-      coWinners: group.length,
-    });
-
-    await db
-      .update(entriesTable)
-      .set({
-        finishPosition,
-        prizeAmount: prize,
-        ...(finishPosition === 1 ? { finalWinner: true } : {}),
-      })
-      .where(and(eq(entriesTable.poolId, pool.id), inArray(entriesTable.userId, group)));
-
-    placeIndex += group.length;
+  if (isRecurringNhlOrNbaCrazyEights(pool)) {
+    const recorded = await recordCrazyEightsPeriodAndAdvance(pool, groups, reason);
+    logger.info(
+      { poolId: pool.id, week: pool.currentWeek, reason, recorded, groups: groups.length },
+      recorded
+        ? "Crazy 8's: recurring period recorded and pool advanced"
+        : "Crazy 8's: recurring period was already recorded",
+    );
+    return;
   }
 
-  // 2. Determine closureReason: winner's displayName/username, or "co_winners".
-  const winnerIds = groups[0];
-  let closureReason = "co_winners";
-  if (winnerIds.length === 1) {
-    const [winnerUser] = await db
-      .select({ displayName: usersTable.displayName, username: usersTable.username })
-      .from(usersTable)
-      .where(eq(usersTable.id, winnerIds[0]))
-      .limit(1);
-    if (winnerUser) {
-      closureReason = winnerUser.displayName ?? winnerUser.username;
-    }
-  }
-
-  // 3. Close the pool.
-  await db
-    .update(poolsTable)
-    .set({ isActive: false, endedAt: new Date(), closureReason })
-    .where(eq(poolsTable.id, pool.id));
+  const closed = await closeCrazyEightsPool(pool, groups);
+  const winnerIds = groups[0] ?? [];
 
   logger.info(
-    { poolId: pool.id, winnerIds, isTie: winnerIds.length > 1, reason, totalEntries, groups: groups.length },
-    "Crazy 8's: period winner(s) declared and pool closed",
+    { poolId: pool.id, winnerIds, isTie: winnerIds.length > 1, reason, closed, groups: groups.length },
+    closed
+      ? "Crazy 8's: period winner(s) declared and pool closed"
+      : "Crazy 8's: final settlement was already completed or pool remains recurring",
   );
 }
 
@@ -5296,7 +5266,7 @@ async function resolveNbaTiebreakerForPeriod(
  *                     NHL: weekend pair [satDate, sunDate]
  * @param periodGames  Pre-fetched EspnGames for these dates.
  */
-async function resolveCrazyEightsPeriod(
+export async function resolveCrazyEightsPeriod(
   pool: typeof poolsTable.$inferSelect,
   periodDates: string[],
   periodGames: EspnGame[],
@@ -5306,6 +5276,25 @@ async function resolveCrazyEightsPeriod(
   // automatic MLB season boundary both flip isRecurring to false; this same
   // resolver then settles and closes that final in-progress period.
   if (pool.sport === "mlb" && pool.isRecurring) return;
+  const inRecurringScope = isRecurringNhlOrNbaCrazyEights(pool);
+
+  let hasPeriodResult = false;
+  if (inRecurringScope) {
+    const existingPeriod = await db
+      .select({ id: crazyEightsPeriodResultsTable.id })
+      .from(crazyEightsPeriodResultsTable)
+      .where(and(
+        eq(crazyEightsPeriodResultsTable.poolId, pool.id),
+        eq(crazyEightsPeriodResultsTable.week, pool.currentWeek),
+      ))
+      .limit(1);
+    hasPeriodResult = existingPeriod.length > 0;
+  }
+  if (isCrazyEightsPeriodAlreadyResolved({
+    inRecurringScope,
+    hasPeriodResult,
+    hasLegacyWinner: false,
+  })) return;
 
   // A weekly MLB High Heat pool must be resolved against the entire Mon–Sun
   // period. This guard prevents any caller from accidentally closing it from
@@ -5323,12 +5312,47 @@ async function resolveCrazyEightsPeriod(
     .select({ total: count() })
     .from(pickemPicksTable)
     .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)));
-  if (total === 0) return;
+  if (
+    total === 0
+    && !inRecurringScope
+    && !pool.isRecurring
+    && !pool.sandboxMode
+    && (pool.sport === "nhl" || pool.sport === "nba")
+  ) {
+    const [previousPeriod] = await db
+      .select({ week: crazyEightsPeriodResultsTable.week, groups: crazyEightsPeriodResultsTable.groups })
+      .from(crazyEightsPeriodResultsTable)
+      .where(and(
+        eq(crazyEightsPeriodResultsTable.poolId, pool.id),
+        eq(crazyEightsPeriodResultsTable.week, pool.currentWeek - 1),
+      ))
+      .limit(1);
+    if (previousPeriod) {
+      await declareCrazyEightsWinners(
+        pool,
+        previousPeriod.groups.map((group) => group.userIds),
+        `manual end after completed week ${previousPeriod.week}`,
+      );
+      return;
+    }
+  }
   if (periodGames.length === 0) {
     logger.warn(
       { poolId: pool.id, sport: pool.sport, periodDates },
       "Crazy 8's: skipping resolution — period schedule is unavailable",
     );
+    return;
+  }
+  const hasUnfinished = periodGames.some((g) => !g.isCompleted && !g.isPostponed);
+  if (total === 0) {
+    if (shouldRecordEmptyCrazyEightsPeriod({
+      inRecurringScope,
+      totalPicks: total,
+      scheduleAvailable: true,
+      hasUnfinishedGames: hasUnfinished,
+    })) {
+      await recordCrazyEightsPeriodAndAdvance(pool, [], "no picks");
+    }
     return;
   }
 
@@ -5347,7 +5371,6 @@ async function resolveCrazyEightsPeriod(
   //     or postponed before we resolve — even if all submitted picks are already
   //     graded. This prevents premature closure when a live game has no picks yet.
   //     MLB: single-day check. NHL: Sat+Sun weekend check (all games in both days).
-  const hasUnfinished = periodGames.some((g) => !g.isCompleted && !g.isPostponed);
   if (hasUnfinished) {
     logger.info(
       { poolId: pool.id, sport: pool.sport, periodDates },
@@ -5357,20 +5380,26 @@ async function resolveCrazyEightsPeriod(
   }
 
   // 3. Idempotency: already resolved for this period?
-  const alreadyResolved = await db
-    .selectDistinct({ userId: pickemPicksTable.userId })
-    .from(pickemPicksTable)
-    .innerJoin(
-      entriesTable,
-      and(
-        eq(entriesTable.userId, pickemPicksTable.userId),
-        eq(entriesTable.poolId, pool.id),
-        eq(entriesTable.finalWinner, true),
-      ),
-    )
-    .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)))
-    .limit(1);
-  if (alreadyResolved.length > 0) return;
+  if (!inRecurringScope) {
+    const alreadyResolved = await db
+      .selectDistinct({ userId: pickemPicksTable.userId })
+      .from(pickemPicksTable)
+      .innerJoin(
+        entriesTable,
+        and(
+          eq(entriesTable.userId, pickemPicksTable.userId),
+          eq(entriesTable.poolId, pool.id),
+          eq(entriesTable.finalWinner, true),
+        ),
+      )
+      .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)))
+      .limit(1);
+    if (isCrazyEightsPeriodAlreadyResolved({
+      inRecurringScope,
+      hasPeriodResult: false,
+      hasLegacyWinner: alreadyResolved.length > 0,
+    })) return;
+  }
 
   // 4. Compute per-user confidence-point totals in JS (avoids sql`` dependency)
   const allPicks = await db
