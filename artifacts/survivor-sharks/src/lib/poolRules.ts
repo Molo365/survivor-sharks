@@ -79,6 +79,66 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
     pool.poolType === "pickem" &&
     pool.pickFrequency === "weekly";
   const isNhlSurvivorSeason = pool.sport === "nhl" && pool.poolType === "season";
+  const isNhlHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nhl";
+  const isNbaHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nba";
+
+  if (isNhlHitTheIce || isNbaHitTheIce) {
+    const sportName = isNhlHitTheIce ? "NHL" : "NBA";
+    const gameDays = isNhlHitTheIce ? "Saturday and Sunday" : "Friday, Saturday and Sunday";
+    const primaryTiebreaker = isNhlHitTheIce ? "shots on goal" : "total points";
+    const secondaryTiebreaker = isNhlHitTheIce ? "penalty minutes" : "three-pointers made";
+
+    return {
+      title: `${sportName} Hit the Ice Rules`,
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            `Each weekend, pick the winners of up to 8 ${sportName} games from ${gameDays}. If fewer than 8 games are still open, pick all of them.`,
+            "Give each pick a different confidence number from 1 up to the number of games you are picking. Your highest number is your most confident pick.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: [
+            "Submit all your picks together before the first game you picked starts.",
+            "The app shows your submitted picks as locked. You can replace the submission only before the earliest selected game starts.",
+          ],
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "Each correct pick earns its confidence number. Your weekend score is the total of your correct picks.",
+            "The highest score wins the weekend.",
+            "A postponed game earns no points and does not hold up the results.",
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            `When you submit, enter two guesses for the last game of the weekend: ${primaryTiebreaker} and ${secondaryTiebreaker}, both teams combined.`,
+            `If players tie on points, the closest ${primaryTiebreaker} guess wins. ${secondaryTiebreaker} is used only if ${primaryTiebreaker} is tied exactly.`,
+            "If players are still tied, the prize is split evenly.",
+          ],
+        },
+        {
+          heading: "Every weekend",
+          items: [
+            "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
+            "Your tiebreaker guesses reset each weekend.",
+            "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: [
+            ...prizeItems(pool),
+            "Prizes are worked out for each weekend.",
+          ],
+        },
+      ],
+    };
+  }
 
   if (isNhlWeekendPickem) {
     return {

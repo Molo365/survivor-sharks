@@ -23,6 +23,38 @@ test("returns rules for NHL Weekend Pick-Ems", () => {
   assert.equal(rules.sections.length, 5);
 });
 
+test("returns NHL Hit the Ice rules with weekend days and tiebreakers", () => {
+  const rules = getPoolRules({
+    poolType: "crazy_8s",
+    sport: "nhl",
+    prizeStructure: [{ place: 1, amount: 100 }],
+  });
+  assert.ok(rules);
+  assert.equal(rules.title, "NHL Hit the Ice Rules");
+  assert.equal(rules.sections.length, 6);
+
+  const sections = new Map(rules.sections.map((section) => [section.heading, section.items]));
+  assert.ok(sections.get("How it works")?.[0].includes("Saturday and Sunday"));
+  assert.ok(sections.get("Tiebreakers")?.[0].includes("shots on goal"));
+  assert.ok(sections.get("Tiebreakers")?.[0].includes("penalty minutes"));
+  assert.ok(sections.get("Every weekend")?.some((item) => item.includes("repeats every weekend")));
+  assert.ok(sections.get("Prizes")?.some((item) => item.includes("Prizes are worked out for each weekend.")));
+});
+
+test("returns NBA Hit the Ice rules with weekend days and tiebreakers", () => {
+  const rules = getPoolRules({
+    poolType: "crazy_8s",
+    sport: "nba",
+  });
+  assert.ok(rules);
+  assert.equal(rules.title, "NBA Hit the Ice Rules");
+
+  const items = rules.sections.flatMap((section) => section.items);
+  assert.ok(items.some((item) => item.includes("Friday, Saturday and Sunday")));
+  assert.ok(items.some((item) => item.includes("total points")));
+  assert.ok(items.some((item) => item.includes("three-pointers made")));
+});
+
 test("returns rules for NHL Survivor Season", () => {
   const rules = getPoolRules({ poolType: "season", sport: "nhl" });
   assert.ok(rules);
@@ -44,6 +76,10 @@ test("keeps NHL daily Pick-Em without rules", () => {
 
 test("keeps MLB Pick-Em without rules", () => {
   assert.equal(getPoolRules({ poolType: "pickem", sport: "mlb", pickFrequency: "weekly" }), null);
+});
+
+test("keeps MLB Hit the Ice without rules", () => {
+  assert.equal(getPoolRules({ poolType: "crazy_8s", sport: "mlb" }), null);
 });
 
 test("keeps the NFL rules unchanged", () => {
