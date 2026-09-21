@@ -3,7 +3,7 @@ import test from "node:test";
 import { normalizeDisplayName } from "./display-name";
 
 test("trims and collapses runs of whitespace", () => {
-  assert.deepEqual(normalizeDisplayName("  Loan   Shark \n"), {
+  assert.deepEqual(normalizeDisplayName("  Loan   Shark  "), {
     ok: true,
     value: "Loan Shark",
   });
@@ -24,6 +24,10 @@ test("rejects angle brackets", () => {
 
 test("rejects names without a letter or digit", () => {
   assert.equal(normalizeDisplayName("___").ok, false);
+});
+
+test("rejects control characters", () => {
+  assert.equal(normalizeDisplayName("Loan\nShark").ok, false);
 });
 
 test("accepts names with letters from different alphabets", () => {

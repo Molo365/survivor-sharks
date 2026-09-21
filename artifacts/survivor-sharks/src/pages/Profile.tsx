@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getGetMeQueryKey,
   useGetUserBalance,
+  useUpdateDisplayName,
   useUpdateReminderPreferences,
 } from "@workspace/api-client-react";
 import type { AuthUser, UserBalanceActivePool, UserBalancePastPool } from "@workspace/api-client-react";
@@ -13,6 +14,7 @@ import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -264,8 +266,12 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: balance, isLoading } = useGetUserBalance();
+  const updateDisplayName = useUpdateDisplayName();
   const updateReminderPreferences = useUpdateReminderPreferences();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const remindersEnabled = user?.remindersEnabled ?? false;
 
   const initials = (user?.displayName ?? user?.username ?? "?")
@@ -308,6 +314,40 @@ export default function Profile() {
     );
   };
 
+  const startEditingDisplayName = () => {
+    if (!user || updateDisplayName.isPending) return;
+    setDisplayNameDraft(user.displayName ?? "");
+    setDisplayNameError(null);
+    setEditingDisplayName(true);
+  };
+
+  const cancelEditingDisplayName = () => {
+    if (updateDisplayName.isPending) return;
+    setDisplayNameError(null);
+    setEditingDisplayName(false);
+  };
+
+  const handleDisplayNameSave = () => {
+    if (!user || updateDisplayName.isPending) return;
+
+    setDisplayNameError(null);
+    updateDisplayName.mutate(
+      { data: { displayName: displayNameDraft } },
+      {
+        onSuccess: ({ displayName }) => {
+          queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cachedUser) =>
+            cachedUser ? { ...cachedUser, displayName } : cachedUser,
+          );
+          setEditingDisplayName(false);
+          toast({ title: "Display name updated" });
+        },
+        onError: (error) => {
+          setDisplayNameError(error.message || "Please try again.");
+        },
+      },
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
@@ -325,9 +365,63 @@ export default function Profile() {
             {initials}
           </div>
           <div>
-            <p className="font-bebas text-3xl tracking-wide text-foreground">
-              {user?.displayName ?? user?.username}
-            </p>
+            {editingDisplayName ? (
+              <>
+                <div className="flex items-center justify-center gap-2">
+                  <Input
+                    value={displayNameDraft}
+                    onChange={(event) => setDisplayNameDraft(event.target.value)}
+                    className="h-9 w-52 bg-background/50 text-center"
+                    aria-label="Display name"
+                    autoFocus
+                    disabled={updateDisplayName.isPending}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleDisplayNameSave();
+                      if (event.key === "Escape") cancelEditingDisplayName();
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleDisplayNameSave}
+                    disabled={updateDisplayName.isPending}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={cancelEditingDisplayName}
+                    disabled={updateDisplayName.isPending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {displayNameError && (
+                  <p role="alert" className="mt-1 text-xs text-destructive">
+                    {displayNameError}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <p className="font-bebas text-3xl tracking-wide text-foreground">
+                  {user?.displayName ?? user?.username}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={startEditingDisplayName}
+                  disabled={!user}
+                  data-testid="button-edit-display-name"
+                >
+                  Edit
+                </Button>
+              </div>
+            )}
             {user?.displayName && (
               <p className="text-sm text-muted-foreground">@{user.username}</p>
             )}
