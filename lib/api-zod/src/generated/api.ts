@@ -154,6 +154,18 @@ export const UpdateReminderPreferencesResponse = zod.object({
 
 
 /**
+ * @summary Update the current user's display name
+ */
+export const UpdateDisplayNameBody = zod.object({
+  "displayName": zod.string()
+})
+
+export const UpdateDisplayNameResponse = zod.object({
+  "displayName": zod.string()
+})
+
+
+/**
  * @summary Send feedback to the Survivor Sharks team
  */
 export const sendFeedbackBodyMessageMax = 5000;

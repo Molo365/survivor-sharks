@@ -125,6 +125,8 @@ import type {
   SurvivorGrid,
   Team,
   TeamInjuryReport,
+  UpdateDisplayName200,
+  UpdateDisplayNameBody,
   UpdateReminderPreferences200,
   UpdateReminderPreferencesBody,
   UserBalance,
@@ -894,6 +896,77 @@ export const useUpdateReminderPreferences = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateReminderPreferencesMutationOptions(options));
+    }
+
+export const getUpdateDisplayNameUrl = () => {
+
+
+
+
+  return `/api/users/me/display-name`
+}
+
+/**
+ * @summary Update the current user's display name
+ */
+export const updateDisplayName = async (updateDisplayNameBody: UpdateDisplayNameBody, options?: RequestInit): Promise<UpdateDisplayName200> => {
+
+  return customFetch<UpdateDisplayName200>(getUpdateDisplayNameUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateDisplayNameBody,)
+  }
+);}
+
+
+
+
+export const getUpdateDisplayNameMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDisplayName>>, TError,{data: BodyType<UpdateDisplayNameBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDisplayName>>, TError,{data: BodyType<UpdateDisplayNameBody>}, TContext> => {
+
+const mutationKey = ['updateDisplayName'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDisplayName>>, {data: BodyType<UpdateDisplayNameBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateDisplayName(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDisplayNameMutationResult = NonNullable<Awaited<ReturnType<typeof updateDisplayName>>>
+    export type UpdateDisplayNameMutationBody = BodyType<UpdateDisplayNameBody>
+    export type UpdateDisplayNameMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update the current user's display name
+ */
+export const useUpdateDisplayName = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDisplayName>>, TError,{data: BodyType<UpdateDisplayNameBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDisplayName>>,
+        TError,
+        {data: BodyType<UpdateDisplayNameBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateDisplayNameMutationOptions(options));
     }
 
 export const getSendFeedbackUrl = () => {

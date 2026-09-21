@@ -2551,6 +2551,14 @@ export type UpdateReminderPreferences200 = {
   remindersEnabled: boolean;
 };
 
+export type UpdateDisplayNameBody = {
+  displayName: string;
+};
+
+export type UpdateDisplayName200 = {
+  displayName: string;
+};
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

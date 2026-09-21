@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { entriesTable, poolsTable, usersTable } from "@workspace/db";
-import { eq, inArray, sql, desc, and } from "drizzle-orm";
+import { eq, inArray, sql, desc, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { normalizeDisplayName } from "../lib/display-name";
 
 const router = Router();
 
@@ -18,6 +19,42 @@ router.patch("/me/reminders", requireAuth, async (req, res) => {
     .where(eq(usersTable.id, req.user!.id))
     .returning({ remindersEnabled: usersTable.remindersEnabled });
   res.json({ remindersEnabled: user!.remindersEnabled });
+});
+
+// PATCH /api/users/me/display-name
+router.patch("/me/display-name", requireAuth, async (req, res) => {
+  const normalized = normalizeDisplayName(req.body?.displayName);
+  if (!normalized.ok) {
+    res.status(400).json({ error: normalized.error });
+    return;
+  }
+
+  const [conflict] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(
+      ne(usersTable.id, req.user!.id),
+      sql`(
+        lower(${usersTable.displayName}) = lower(${normalized.value})
+        OR lower(${usersTable.username}) = lower(${normalized.value})
+      )`,
+    ))
+    .limit(1);
+
+  if (conflict) {
+    res.status(409).json({
+      error: "That name is already taken. Please choose another.",
+    });
+    return;
+  }
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ displayName: normalized.value })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning({ displayName: usersTable.displayName });
+
+  res.json({ displayName: user?.displayName ?? normalized.value });
 });
 
 // GET /api/users/me/balance
