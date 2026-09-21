@@ -9,6 +9,7 @@ import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
+import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
 
 const router = Router({ mergeParams: true });
 
@@ -892,45 +893,72 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
-    let saved = 0;
-    for (const pick of picks) {
-      // Bucket by the ET slate day (Sat/Sun) — a UTC slice of game.date would
-      // push Sunday-evening ET games onto Monday and exclude them from all
-      // weekend-window queries (picks/grid/grading/resolution).
-      const gameDate = gameDates.get(pick.gameId) ?? satDate;
-      const teamLabel = pick.pickedTeam ?? "";
-      await db
-        .insert(pickemPicksTable)
-        .values({
-          poolId,
-          userId,
-          gameId: pick.gameId,
-          gameDate,
-          week: pool.currentWeek,
-          pickedTeamId: teamLabel,
-          pickedTeamName: pick.pickedTeamName || teamLabel,
-          confidencePoints: pick.confidencePoints,
-          result: "pending",
-        } as any)
-        .onConflictDoUpdate({
-          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-          set: {
+    const submission = await db.transaction(async (tx) => {
+      await tx
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(eq(entriesTable.id, entry.id))
+        .for("update");
+
+      const existingPicks = await tx
+        .select({ id: pickemPicksTable.id })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, pool.currentWeek),
+        ))
+        .limit(1);
+      if (decideCrazyEightsSubmission({ sandbox: isSandbox, existingPickCount: existingPicks.length }) === "refuse") {
+        return { alreadySubmitted: true as const };
+      }
+
+      let saved = 0;
+      for (const pick of picks) {
+        // Bucket by the ET slate day (Sat/Sun) — a UTC slice of game.date would
+        // push Sunday-evening ET games onto Monday and exclude them from all
+        // weekend-window queries (picks/grid/grading/resolution).
+        const gameDate = gameDates.get(pick.gameId) ?? satDate;
+        const teamLabel = pick.pickedTeam ?? "";
+        await tx
+          .insert(pickemPicksTable)
+          .values({
+            poolId,
+            userId,
+            gameId: pick.gameId,
+            gameDate,
+            week: pool.currentWeek,
             pickedTeamId: teamLabel,
             pickedTeamName: pick.pickedTeamName || teamLabel,
             confidencePoints: pick.confidencePoints,
             result: "pending",
-            updatedAt: new Date(),
-          } as any,
-        });
-      saved++;
+          } as any)
+          .onConflictDoUpdate({
+            target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+            set: {
+              pickedTeamId: teamLabel,
+              pickedTeamName: pick.pickedTeamName || teamLabel,
+              confidencePoints: pick.confidencePoints,
+              result: "pending",
+              updatedAt: new Date(),
+            } as any,
+          });
+        saved++;
+      }
+
+      await tx
+        .update(entriesTable)
+        .set({ tiebreakerShotsOnGoal: tiebreakerShotsOnGoal ?? null, tiebreakerPenaltyMinutes: tiebreakerPenaltyMinutes ?? null } as any)
+        .where(eq(entriesTable.id, entry.id));
+
+      return { alreadySubmitted: false as const, saved };
+    });
+    if (submission.alreadySubmitted) {
+      res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
+      return;
     }
 
-    await db
-      .update(entriesTable)
-      .set({ tiebreakerShotsOnGoal: tiebreakerShotsOnGoal ?? null, tiebreakerPenaltyMinutes: tiebreakerPenaltyMinutes ?? null } as any)
-      .where(eq(entriesTable.id, entry.id));
-
-    res.status(201).json({ ok: true, saved, message: "Hit the Ice! picks submitted successfully" });
+    res.status(201).json({ ok: true, saved: submission.saved, message: "Hit the Ice! picks submitted successfully" });
     return;
   }
 
@@ -980,50 +1008,78 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
-    let saved = 0;
-    for (const pick of picks) {
-      const game = gameMap.get(pick.gameId)!;
-      // Bucket by the ET slate day (Fri/Sat/Sun) — a UTC slice of game.date would
-      // push Sunday-evening ET games onto Monday and exclude them from all
-      // weekend-window queries (picks/grid/grading/resolution).
-      const gameDate = gameDates.get(pick.gameId) ?? friDate;
-      const teamLabel = pick.pickedTeam ?? "";
-      await db
-        .insert(pickemPicksTable)
-        .values({
-          poolId,
-          userId,
-          gameId: pick.gameId,
-          gameDate,
-          week: pool.currentWeek,
-          pickedTeamId: teamLabel,
-          pickedTeamName: pick.pickedTeamName || teamLabel,
-          confidencePoints: pick.confidencePoints,
-          result: "pending",
-        } as any)
-        .onConflictDoUpdate({
-          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-          set: {
+    const submission = await db.transaction(async (tx) => {
+      await tx
+        .select({ id: entriesTable.id })
+        .from(entriesTable)
+        .where(eq(entriesTable.id, entry.id))
+        .for("update");
+
+      const existingPicks = await tx
+        .select({ id: pickemPicksTable.id })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, pool.currentWeek),
+        ))
+        .limit(1);
+      if (decideCrazyEightsSubmission({ sandbox: isSandbox, existingPickCount: existingPicks.length }) === "refuse") {
+        return { alreadySubmitted: true as const };
+      }
+
+      let saved = 0;
+      for (const pick of picks) {
+        const game = gameMap.get(pick.gameId)!;
+        // Bucket by the ET slate day (Fri/Sat/Sun) — a UTC slice of game.date would
+        // push Sunday-evening ET games onto Monday and exclude them from all
+        // weekend-window queries (picks/grid/grading/resolution).
+        const gameDate = gameDates.get(pick.gameId) ?? friDate;
+        const teamLabel = pick.pickedTeam ?? "";
+        await tx
+          .insert(pickemPicksTable)
+          .values({
+            poolId,
+            userId,
+            gameId: pick.gameId,
+            gameDate,
+            week: pool.currentWeek,
             pickedTeamId: teamLabel,
             pickedTeamName: pick.pickedTeamName || teamLabel,
             confidencePoints: pick.confidencePoints,
             result: "pending",
-            updatedAt: new Date(),
-          } as any,
-        });
-      saved++;
+          } as any)
+          .onConflictDoUpdate({
+            target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+            set: {
+              pickedTeamId: teamLabel,
+              pickedTeamName: pick.pickedTeamName || teamLabel,
+              confidencePoints: pick.confidencePoints,
+              result: "pending",
+              updatedAt: new Date(),
+            } as any,
+          });
+        saved++;
+      }
+
+      await tx
+        .update(entriesTable)
+        .set({ tiebreakerPoints: tiebreakerPoints ?? null, tiebreakerThrees: tiebreakerThrees ?? null } as any)
+        .where(eq(entriesTable.id, entry.id));
+
+      return { alreadySubmitted: false as const, saved };
+    });
+    if (submission.alreadySubmitted) {
+      res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
+      return;
     }
 
-    await db
-      .update(entriesTable)
-      .set({ tiebreakerPoints: tiebreakerPoints ?? null, tiebreakerThrees: tiebreakerThrees ?? null } as any)
-      .where(eq(entriesTable.id, entry.id));
-
-    res.status(201).json({ ok: true, saved, message: "Fast Break picks submitted successfully" });
+    res.status(201).json({ ok: true, saved: submission.saved, message: "Fast Break picks submitted successfully" });
     return;
   }
 
   // MLB (continues below)
+  const isSandbox = (pool as any).sandboxMode as boolean;
   const todayEt = getTodayEtDate();
   const todayEspn = todayEt.replace(/-/g, "");
   const games = await fetchGamesForDate("mlb", todayEspn);
@@ -1065,44 +1121,71 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
-  let saved = 0;
-  for (const pick of picks) {
-    const teamLabel = pick.pickedTeam ?? "";
-    await db
-      .insert(pickemPicksTable)
-      .values({
-        poolId,
-        userId,
-        gameId: pick.gameId,
-        gameDate: todayEt,
-        week: pool.currentWeek,
-        pickedTeamId: teamLabel,
-        pickedTeamName: pick.pickedTeamName || teamLabel,
-        confidencePoints: pick.confidencePoints,
-        result: "pending",
-      } as any)
-      .onConflictDoUpdate({
-        target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
-        set: {
+  const submission = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: entriesTable.id })
+      .from(entriesTable)
+      .where(eq(entriesTable.id, entry.id))
+      .for("update");
+
+    const existingPicks = await tx
+      .select({ id: pickemPicksTable.id })
+      .from(pickemPicksTable)
+      .where(and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.userId, userId),
+        eq(pickemPicksTable.gameDate, todayEt),
+      ))
+      .limit(1);
+    if (decideCrazyEightsSubmission({ sandbox: isSandbox, existingPickCount: existingPicks.length }) === "refuse") {
+      return { alreadySubmitted: true as const };
+    }
+
+    let saved = 0;
+    for (const pick of picks) {
+      const teamLabel = pick.pickedTeam ?? "";
+      await tx
+        .insert(pickemPicksTable)
+        .values({
+          poolId,
+          userId,
+          gameId: pick.gameId,
+          gameDate: todayEt,
+          week: pool.currentWeek,
           pickedTeamId: teamLabel,
           pickedTeamName: pick.pickedTeamName || teamLabel,
           confidencePoints: pick.confidencePoints,
           result: "pending",
-          updatedAt: new Date(),
-        } as any,
-      });
-    saved++;
+        } as any)
+        .onConflictDoUpdate({
+          target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+          set: {
+            pickedTeamId: teamLabel,
+            pickedTeamName: pick.pickedTeamName || teamLabel,
+            confidencePoints: pick.confidencePoints,
+            result: "pending",
+            updatedAt: new Date(),
+          } as any,
+        });
+      saved++;
+    }
+
+    await tx
+      .update(entriesTable)
+      .set({
+        tiebreakerRuns: tiebreakerRuns ?? null,
+        tiebreakerStrikeouts: tiebreakerStrikeouts ?? null,
+      } as any)
+      .where(eq(entriesTable.id, entry.id));
+
+    return { alreadySubmitted: false as const, saved };
+  });
+  if (submission.alreadySubmitted) {
+    res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
+    return;
   }
 
-  await db
-    .update(entriesTable)
-    .set({
-      tiebreakerRuns: tiebreakerRuns ?? null,
-      tiebreakerStrikeouts: tiebreakerStrikeouts ?? null,
-    } as any)
-    .where(eq(entriesTable.id, entry.id));
-
-  res.status(201).json({ ok: true, saved, message: "Crazy 8's picks submitted successfully" });
+  res.status(201).json({ ok: true, saved: submission.saved, message: "Crazy 8's picks submitted successfully" });
 });
 
 // ── PATCH /api/pools/:poolId/crazy-eights/tiebreaker ─────────────────────────
