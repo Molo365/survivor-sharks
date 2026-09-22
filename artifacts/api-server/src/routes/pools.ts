@@ -238,6 +238,14 @@ router.get("/", requireAuth, async (req, res) => {
   const hasLiveGamesFor = (pool: PoolRow): boolean => {
     if (pool.sandboxMode) return sandboxLiveSet.has(pool.id);
     if (!pool.isActive) return false;
+    if (pool.sport === "nhl" && (pool.poolType === "season" || pool.poolType === "crazy_8s")) {
+      const weekdayEt = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        weekday: "long",
+      }).format(new Date());
+      if (pool.poolType === "season" && weekdayEt !== "Saturday") return false;
+      if (pool.poolType === "crazy_8s" && weekdayEt !== "Saturday" && weekdayEt !== "Sunday") return false;
+    }
     return sportsWithLive.has(pool.sport);
   };
 
