@@ -74,7 +74,7 @@ router.post("/", requireAuth, requireCommissioner, async (req, res) => {
           cookie: typeof req.headers.cookie === "string" ? req.headers.cookie : undefined,
         });
     const { eligible, skipped } = await resolveBroadcastRecipients(poolId);
-    const poolUrl = `${getBroadcastAppBaseUrl()}/pools/${poolId}`;
+    const poolUrl = `${getBroadcastAppBaseUrl()}/pools/${poolId}?tab=leaderboard`;
 
     const { sent, failed } = await deliverBroadcastEmails(
       eligible,
