@@ -1210,6 +1210,90 @@ interface PickEmSeasonViewProps {
   weeklyBonusEnabled: boolean;
 }
 
+function DetailedSeasonLeaderboard({
+  entries,
+  currentWeek,
+  currentUserId,
+}: {
+  entries: NflPickEmSeasonLeaderboardEntry[];
+  currentWeek: number;
+  currentUserId: number | null;
+}) {
+  const weeks = Array.from({ length: currentWeek }, (_, index) => index + 1);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border/40">
+      <table className="w-full min-w-max border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-border/30 bg-card">
+            <th className="sticky left-0 z-20 w-12 bg-card px-2 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Rank
+            </th>
+            <th className="sticky left-12 z-20 min-w-40 bg-card px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Player
+            </th>
+            {weeks.map((week) => (
+              <th
+                key={week}
+                className="w-12 px-2 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
+              >
+                W{week}
+              </th>
+            ))}
+            <th className="w-16 px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry, index) => {
+            const isMe = entry.userId === currentUserId;
+            const rowBackground = isMe
+              ? "bg-primary/5"
+              : index % 2 === 0
+                ? "bg-transparent"
+                : "bg-muted/[0.03]";
+            const stickyBackground = isMe ? "bg-[color-mix(in_srgb,var(--color-card)_95%,rgba(168,85,247,0.15)_5%)]" : "bg-card";
+
+            return (
+              <tr key={entry.userId} className={cn("border-b border-border/20 last:border-0", rowBackground)}>
+                <td className={cn("sticky left-0 z-10 px-2 py-2.5 text-center font-bebas text-lg", stickyBackground)}>
+                  {entry.rank}
+                </td>
+                <td className={cn("sticky left-12 z-10 min-w-40 px-3 py-2.5", stickyBackground)}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("truncate font-medium", isMe ? "text-primary" : "text-foreground")}>
+                      {entry.displayName || entry.username}
+                    </span>
+                    {isMe && (
+                      <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                        you
+                      </span>
+                    )}
+                  </div>
+                </td>
+                {weeks.map((week) => {
+                  const weekScore = entry.weeklyScores?.[String(week)];
+                  const score = weekScore && weekScore.total > 0 ? weekScore.correct : "-";
+
+                  return (
+                    <td key={week} className="px-2 py-2.5 text-center font-mono tabular-nums text-foreground/80">
+                      {score}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2.5 text-right font-bebas text-lg text-green-400">
+                  {entry.seasonCorrect}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function PickEmSeasonView({
   poolId,
   poolName,
@@ -1230,6 +1314,7 @@ export function PickEmSeasonView({
 
   const [displayWeek, setDisplayWeek] = useState<number>(currentWeek);
   const [activeTab, setActiveTab] = useState("picks");
+  const [showDetailedLeaderboard, setShowDetailedLeaderboard] = useState(false);
 
   // Sync displayWeek when currentWeek changes — guards against React Query serving
   // stale pool data (old currentWeek) on mount and then delivering a higher currentWeek
@@ -2097,25 +2182,45 @@ export function PickEmSeasonView({
                 </p>
               )}
               <PickVisibilityNotice kind="pickem-season" />
-              <div className="flex items-center justify-between">
-                <h3 className="font-bebas text-2xl tracking-wide">
-                  Season Standings
-                </h3>
-                {!lbLoading && entries.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {entries.length} player{entries.length !== 1 ? "s" : ""}
-                  </span>
-                )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <h3 className="font-bebas text-2xl tracking-wide">
+                    Season Standings
+                  </h3>
+                  {!lbLoading && entries.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {entries.length} player{entries.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-pressed={showDetailedLeaderboard}
+                  onClick={() => setShowDetailedLeaderboard((visible) => !visible)}
+                  className="shrink-0"
+                >
+                  Detailed view
+                </Button>
               </div>
-              <PickEmSeasonLeaderboard
-                poolId={poolId}
-                entries={entries}
-                currentWeek={currentWeek}
-                currentUserId={user?.id ?? null}
-                actualPassingYards={actualPassingYards}
-                actualRushingYards={actualRushingYards}
-                isLoading={lbLoading}
-              />
+              {showDetailedLeaderboard ? (
+                <DetailedSeasonLeaderboard
+                  entries={entries}
+                  currentWeek={leaderboard?.currentWeek ?? currentWeek}
+                  currentUserId={user?.id ?? null}
+                />
+              ) : (
+                <PickEmSeasonLeaderboard
+                  poolId={poolId}
+                  entries={entries}
+                  currentWeek={currentWeek}
+                  currentUserId={user?.id ?? null}
+                  actualPassingYards={actualPassingYards}
+                  actualRushingYards={actualRushingYards}
+                  isLoading={lbLoading}
+                />
+              )}
             </div>
           </TabsContent>
 
