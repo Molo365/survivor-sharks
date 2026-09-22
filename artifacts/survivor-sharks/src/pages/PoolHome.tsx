@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe, CheckCircle2, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +55,8 @@ export default function PoolHome() {
   const poolId = parseInt(poolIdStr || "0");
   const { user } = useAuth();
   const [location] = useLocation();
+  const requestedTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
+  const [activeTab, setActiveTab] = useState(requestedTab === "leaderboard" ? "leaderboard" : "picks");
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -94,6 +97,12 @@ export default function PoolHome() {
   const isNflSurvivor =
     pool?.sport === "nfl" &&
     ["season", "weekly", "mid_season"].includes(pool.poolType);
+
+  useEffect(() => {
+    if (!pool || requestedTab === "leaderboard") return;
+    setActiveTab(isCrazyEights && !pool.isActive ? "leaderboard" : isCrazyEights ? "picks" : "pick");
+  }, [isCrazyEights, pool?.id, pool?.isActive, requestedTab]);
+
   const poolRules = getPoolRules(pool);
   const { data: pickemLeaderboard } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
@@ -193,6 +202,16 @@ export default function PoolHome() {
                 <div className="flex items-center gap-2">
                   <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
                   {poolRules && <PoolRulesSheet rules={poolRules} />}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("leaderboard")}
+                    className="h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300"
+                  >
+                    <Trophy className="h-3.5 w-3.5" />
+                    Standings
+                  </Button>
                 </div>
                 {mobilePrizeData?.breakdown && mobilePrizeData.breakdown.length > 0 ? (
                   <div className="md:hidden flex items-center flex-wrap gap-x-1 gap-y-0.5 text-sm font-semibold text-yellow-400 mt-1">
@@ -435,7 +454,7 @@ export default function PoolHome() {
               <NhlDivisionPredictorView poolId={pool.id} isCommissioner={isCommissioner} inviteCode={pool.inviteCode} sandboxMode={(pool as any).sandboxMode ?? false} isSuperAdmin={user?.role === "admin"} />
             ) : isCrazyEights ? (
               <div className="space-y-6">
-              <Tabs defaultValue={!pool.isActive ? "leaderboard" : "picks"} className="w-full">
+               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
@@ -490,7 +509,7 @@ export default function PoolHome() {
             ) : isNflConfidenceWeekly ? (
               <div className="space-y-4">
               <NflConfidenceWeeklyWinnerBanner poolId={pool.id} currentWeek={pool.currentWeek} />
-              <Tabs defaultValue="picks" className="w-full">
+               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
@@ -547,7 +566,7 @@ export default function PoolHome() {
               </Tabs>
               </div>
             ) : isNflConfidence ? (
-              <Tabs defaultValue="picks" className="w-full">
+               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
                   <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
@@ -614,7 +633,7 @@ export default function PoolHome() {
                 poolDescription={pool.description ?? undefined}
               />
             ) : (
-            <Tabs defaultValue="pick" className="w-full">
+             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="relative">
               <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
