@@ -57,6 +57,7 @@ export default function PoolHome() {
   const [location] = useLocation();
   const requestedTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
   const [activeTab, setActiveTab] = useState(requestedTab === "leaderboard" ? "leaderboard" : "picks");
+  const [pickemSeasonDetailedView, setPickemSeasonDetailedView] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -206,7 +207,12 @@ export default function PoolHome() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setActiveTab("leaderboard")}
+                    onClick={() => {
+                      setActiveTab("leaderboard");
+                      if (pool.poolType === "pickem_season") {
+                        setPickemSeasonDetailedView(true);
+                      }
+                    }}
                     className="h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300"
                   >
                     <Trophy className="h-3.5 w-3.5" />
@@ -443,6 +449,10 @@ export default function PoolHome() {
                 isSuperAdmin={user?.role === "admin"}
                 isActive={pool.isActive}
                 weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
+                activeTab={activeTab}
+                onActiveTabChange={setActiveTab}
+                detailedView={pickemSeasonDetailedView}
+                onDetailedViewChange={setPickemSeasonDetailedView}
               />
             ) : ((pool.poolType as string) === "pickem" || isNbaAts) ? (
               <PickEmView poolId={pool.id} poolName={pool.name} poolDescription={pool.description ?? ""} commissionerId={pool.commissionerId} inviteCode={pool.inviteCode} sport={pool.sport} pickFrequency={(pool as any).pickFrequency} isRecurring={pool.isRecurring} entryFee={pool.entryFee} />

@@ -1208,6 +1208,10 @@ interface PickEmSeasonViewProps {
   isSuperAdmin: boolean;
   isActive: boolean;
   weeklyBonusEnabled: boolean;
+  activeTab?: string;
+  onActiveTabChange?: (tab: string) => void;
+  detailedView?: boolean;
+  onDetailedViewChange?: (v: boolean) => void;
 }
 
 function DetailedSeasonLeaderboard({
@@ -1306,6 +1310,10 @@ export function PickEmSeasonView({
   isSuperAdmin,
   isActive,
   weeklyBonusEnabled,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  detailedView: controlledDetailedView,
+  onDetailedViewChange,
 }: PickEmSeasonViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1313,8 +1321,15 @@ export function PickEmSeasonView({
   const isCommissioner = commissionerId === user?.id || user?.role === "admin";
 
   const [displayWeek, setDisplayWeek] = useState<number>(currentWeek);
-  const [activeTab, setActiveTab] = useState("picks");
-  const [showDetailedLeaderboard, setShowDetailedLeaderboard] = useState(false);
+  const [internalActiveTab, setInternalActiveTab] = useState("picks");
+  const [internalDetailedView, setInternalDetailedView] = useState(false);
+  const activeTab = controlledActiveTab ?? internalActiveTab;
+  const showDetailedLeaderboard =
+    controlledDetailedView ?? internalDetailedView;
+  const handleActiveTabChange =
+    onActiveTabChange ?? setInternalActiveTab;
+  const handleDetailedViewChange =
+    onDetailedViewChange ?? setInternalDetailedView;
 
   // Sync displayWeek when currentWeek changes — guards against React Query serving
   // stale pool data (old currentWeek) on mount and then delivering a higher currentWeek
@@ -1827,14 +1842,14 @@ export function PickEmSeasonView({
             leaders={getLeaders(entries, leaderboard.currentWeek)}
             currentWeek={leaderboard.currentWeek}
             liveGamesInProgress={leaderboard.liveGamesInProgress ?? 0}
-            onSelect={() => setActiveTab("leaderboard")}
+            onSelect={() => handleActiveTabChange("leaderboard")}
           />
         </div>
       )}
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleActiveTabChange}
         className="w-full"
       >
         <div className="relative">
@@ -2198,7 +2213,7 @@ export function PickEmSeasonView({
                   variant="outline"
                   size="sm"
                   aria-pressed={showDetailedLeaderboard}
-                  onClick={() => setShowDetailedLeaderboard((visible) => !visible)}
+                  onClick={() => handleDetailedViewChange(!showDetailedLeaderboard)}
                   className="shrink-0"
                 >
                   Detailed view
