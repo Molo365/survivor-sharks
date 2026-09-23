@@ -60,7 +60,7 @@ test("rejects a submission when no games remain open", () => {
 test("rejects the wrong pick count", () => {
   assert.deepEqual(
     validateConfidenceSubmission({ picks: validPicks().slice(0, 1), games, nowMs }),
-    { ok: false, error: "Expected 2 picks, got 1" },
+    { ok: false, error: "You picked 1 of 2 open games. Pick the rest before submitting." },
   );
 });
 

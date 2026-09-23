@@ -33,7 +33,7 @@ export function validateConfidenceSubmission({
     return { ok: false, error: "All of this week's games have already started." };
   }
   if (picks.length !== expectedCount) {
-    return { ok: false, error: `Expected ${expectedCount} picks, got ${picks.length}` };
+    return { ok: false, error: `You picked ${picks.length} of ${expectedCount} open game${expectedCount === 1 ? "" : "s"}. Pick the rest before submitting.` };
   }
 
   const gameMap = new Map(games.map((game) => [game.id, game]));
