@@ -647,7 +647,7 @@ export default function PoolHome() {
               <div className="relative">
               <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-                <TabsTrigger value="pick" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
+                <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
                   <Target className="w-4 h-4 md:w-5 md:h-5" /> Make Pick
                 </TabsTrigger>
                 <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
@@ -667,7 +667,7 @@ export default function PoolHome() {
             </div>
 
               <div className="mt-8">
-                <TabsContent value="pick" className="m-0 focus-visible:outline-none">
+                <TabsContent value="picks" className="m-0 focus-visible:outline-none">
                   {(pool as any).pickFrequency === "daily" ? (
                     <DailyPickGrid poolId={pool.id} />
                   ) : (
