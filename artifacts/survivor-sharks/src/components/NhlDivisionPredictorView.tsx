@@ -55,7 +55,6 @@ import { useGetNhlNdpResults, useSubmitNhlNdpResults, getGetNhlNdpResultsQueryKe
 
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
-import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 
 interface Props {
   poolId: number;
@@ -1391,24 +1390,24 @@ export function NhlDivisionPredictorView({ poolId, isCommissioner, inviteCode, i
 
       <Tabs defaultValue="picks" className="w-full">
         <div className="relative">
-          <ScrollableTabsRow>
-          <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1 gap-1 w-max md:w-full">
-            <TabsTrigger value="picks" data-testid="tab-picks" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+          <div>
+          <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1 gap-1 w-full">
+            <TabsTrigger value="picks" data-testid="tab-picks" className="shrink-0 font-bebas text-sm md:text-lg tracking-wider px-2 md:px-5 py-2 md:py-2.5 gap-2">
               <ListOrdered className="w-4 h-4" /> My Picks
             </TabsTrigger>
-            <TabsTrigger value="leaderboard" data-testid="tab-leaderboard" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+            <TabsTrigger value="leaderboard" data-testid="tab-leaderboard" className="shrink-0 font-bebas text-sm md:text-lg tracking-wider px-2 md:px-5 py-2 md:py-2.5 gap-2">
               <Trophy className="w-4 h-4" /> Leaderboard
             </TabsTrigger>
-            <TabsTrigger value="standings" data-testid="tab-standings" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2">
+            <TabsTrigger value="standings" data-testid="tab-standings" className="shrink-0 font-bebas text-sm md:text-lg tracking-wider px-2 md:px-5 py-2 md:py-2.5 gap-2">
               <Globe className="w-4 h-4" /> Live Standings
             </TabsTrigger>
             {isCommissioner && (
-              <TabsTrigger value="commissioner" data-testid="tab-commissioner" className="shrink-0 font-bebas text-base md:text-lg tracking-wider px-3 md:px-5 py-2 md:py-2.5 gap-2 text-muted-foreground hover:text-foreground md:ml-auto">
+              <TabsTrigger value="commissioner" data-testid="tab-commissioner" className="shrink-0 font-bebas text-sm md:text-lg tracking-wider px-2 md:px-5 py-2 md:py-2.5 gap-2 text-muted-foreground hover:text-foreground md:ml-auto">
                 <ShieldAlert className="w-4 h-4" /> Commissioner
               </TabsTrigger>
             )}
           </TabsList>
-          </ScrollableTabsRow>
+          </div>
         </div>
 
         <TabsContent value="picks" className="m-0 focus-visible:outline-none">

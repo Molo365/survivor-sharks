@@ -39,7 +39,6 @@ import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
 import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
-import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 import { WcBracketView } from "@/components/WcBracketView";
 import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
@@ -467,27 +466,27 @@ export default function PoolHome() {
               <div className="space-y-6">
                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
-                  <ScrollableTabsRow>
-                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
+                  <div>
+                    <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
                         <Dice5 className="w-4 h-4 md:w-5 md:h-5" /> {pool.sport === "nhl" ? "Weekend Picks" : "Today's Picks"}
                       </TabsTrigger>
-                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                         <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                       </TabsTrigger>
-                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         {pool.sport === "nhl" ? "Weekend Grid" : "Daily Grid"}
                       </TabsTrigger>
-                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
                       </TabsTrigger>
                       {isCommissioner && (
-                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                         </TabsTrigger>
                       )}
                     </TabsList>
-                  </ScrollableTabsRow>
+                  </div>
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
@@ -521,27 +520,27 @@ export default function PoolHome() {
               <NflConfidenceWeeklyWinnerBanner poolId={pool.id} currentWeek={pool.currentWeek} />
                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
-                  <ScrollableTabsRow>
-                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400 flex gap-2">
+                  <div>
+                    <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400 flex gap-2">
                         <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
                       </TabsTrigger>
-                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                         <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                       </TabsTrigger>
-                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Weekly Grid
                       </TabsTrigger>
-                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
                       </TabsTrigger>
                       {isCommissioner && (
-                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                         </TabsTrigger>
                       )}
                     </TabsList>
-                  </ScrollableTabsRow>
+                  </div>
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
@@ -577,27 +576,27 @@ export default function PoolHome() {
             ) : isNflConfidence ? (
                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="relative">
-                  <ScrollableTabsRow>
-                    <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
+                  <div>
+                    <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
+                      <TabsTrigger value="picks" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400 flex gap-2">
                         <Zap className="w-4 h-4 md:w-5 md:h-5" /> This Week's Picks
                       </TabsTrigger>
-                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                      <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                         <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                       </TabsTrigger>
-                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="grid" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         Weekly Grid
                       </TabsTrigger>
-                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                      <TabsTrigger value="snapshot" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                         <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
                       </TabsTrigger>
                       {isCommissioner && (
-                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                        <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                           <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                         </TabsTrigger>
                       )}
                     </TabsList>
-                  </ScrollableTabsRow>
+                  </div>
                 </div>
                 <div className="mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
@@ -643,24 +642,24 @@ export default function PoolHome() {
             ) : (
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="relative">
-              <ScrollableTabsRow>
-              <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
-                <TabsTrigger value="picks" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
+              <div>
+              <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
+                <TabsTrigger value="picks" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
                   <Target className="w-4 h-4 md:w-5 md:h-5" /> Make Pick
                 </TabsTrigger>
-                <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
+                <TabsTrigger value="leaderboard" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
                   <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
                 </TabsTrigger>
-                <TabsTrigger value="grid" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2">
+                <TabsTrigger value="grid" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2">
                   Grid
                 </TabsTrigger>
                 {isCommissioner && (
-                  <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
+                  <TabsTrigger value="commissioner" className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2">
                     <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                   </TabsTrigger>
                 )}
               </TabsList>
-              </ScrollableTabsRow>
+              </div>
             </div>
 
               <div className="mt-8">
