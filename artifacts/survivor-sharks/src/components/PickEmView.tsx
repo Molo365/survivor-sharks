@@ -56,6 +56,7 @@ import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
+import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 
 type PrevWeekWinnerGroup = {
   entries: PickEmLeaderboardEntry[];
@@ -3200,7 +3201,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
-        <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <ScrollableTabsRow>
         <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
           <TabsTrigger
             value="picks"
@@ -3237,8 +3238,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </TabsTrigger>
           )}
         </TabsList>
-        </div>
-        <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+        </ScrollableTabsRow>
       </div>
 
 

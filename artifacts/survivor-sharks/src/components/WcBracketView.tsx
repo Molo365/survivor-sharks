@@ -18,6 +18,7 @@ import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
+import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1162,7 +1163,7 @@ export function WcBracketView({
       <Tabs defaultValue="matches" className="w-full">
         {/* Tab nav */}
         <div className="relative">
-          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ScrollableTabsRow>
             <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
               <TabsTrigger
                 value="matches"
@@ -1197,8 +1198,7 @@ export function WcBracketView({
                 </TabsTrigger>
               )}
             </TabsList>
-          </div>
-          <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+          </ScrollableTabsRow>
         </div>
 
         <div className="mt-8">

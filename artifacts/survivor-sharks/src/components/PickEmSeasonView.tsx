@@ -88,6 +88,7 @@ import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
+import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 import { LeaderChips } from "@/components/LeaderChips";
 import { getLeaders } from "@/lib/leaderChips";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
@@ -1853,7 +1854,7 @@ export function PickEmSeasonView({
         className="w-full"
       >
         <div className="relative">
-          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ScrollableTabsRow>
             <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
               <TabsTrigger
                 value="picks"
@@ -1889,8 +1890,7 @@ export function PickEmSeasonView({
                 </TabsTrigger>
               )}
             </TabsList>
-          </div>
-          <div className="md:hidden pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-card to-transparent rounded-r-lg z-10" />
+          </ScrollableTabsRow>
         </div>
 
         <div className="mt-6">
