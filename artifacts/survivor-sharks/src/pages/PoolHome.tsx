@@ -101,7 +101,7 @@ export default function PoolHome() {
 
   useEffect(() => {
     if (!pool || requestedTab === "leaderboard") return;
-    setActiveTab(isCrazyEights && !pool.isActive ? "leaderboard" : isCrazyEights ? "picks" : "pick");
+    setActiveTab(isCrazyEights && !pool.isActive ? "leaderboard" : "picks");
   }, [isCrazyEights, pool?.id, pool?.isActive, requestedTab]);
 
   const poolRules = getPoolRules(pool);
