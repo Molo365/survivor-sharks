@@ -56,7 +56,6 @@ import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
-import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 
 type PrevWeekWinnerGroup = {
   entries: PickEmLeaderboardEntry[];
@@ -3201,30 +3200,30 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
-        <ScrollableTabsRow>
-        <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+        <div>
+        <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
           <TabsTrigger
             value="picks"
-            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+            className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
           >
             <Target className="w-4 h-4 md:w-5 md:h-5" /> Today's Picks
           </TabsTrigger>
           <TabsTrigger
             value="leaderboard"
-            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
+            className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
           >
             <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
           </TabsTrigger>
           <TabsTrigger
             value="grid"
-            className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+            className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
           >
             <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
           </TabsTrigger>
           {!isWc && (myPickCount > 0 || slateLocked) && (leaderboard?.entries.length ?? 0) > 0 && (
             <TabsTrigger
               value="snapshot"
-              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+              className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
             >
               <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
             </TabsTrigger>
@@ -3232,13 +3231,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           {isCommissioner && (
             <TabsTrigger
               value="commissioner"
-              className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
+              className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
             >
               <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
             </TabsTrigger>
           )}
         </TabsList>
-        </ScrollableTabsRow>
+        </div>
       </div>
 
 

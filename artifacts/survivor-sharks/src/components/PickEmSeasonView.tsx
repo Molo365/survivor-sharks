@@ -88,7 +88,6 @@ import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
-import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 import { LeaderChips } from "@/components/LeaderChips";
 import { getLeaders } from "@/lib/leaderChips";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
@@ -1854,43 +1853,43 @@ export function PickEmSeasonView({
         className="w-full"
       >
         <div className="relative">
-          <ScrollableTabsRow>
-            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+          <div>
+            <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
               <TabsTrigger
                 value="picks"
                 onClick={() => setDisplayWeek(currentWeek)}
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
               >
                 <Target className="w-4 h-4 md:w-5 md:h-5" /> This Week&apos;s Picks
               </TabsTrigger>
               <TabsTrigger
                 value="leaderboard"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
               >
                 <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
               </TabsTrigger>
               <TabsTrigger
                 value="grid"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
               >
                 <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Weekly Grid
               </TabsTrigger>
               <TabsTrigger
                 value="snapshot"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 flex gap-2"
               >
                 <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
               </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
                   value="commissioner"
-                  className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
+                  className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
                 >
                   <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                 </TabsTrigger>
               )}
             </TabsList>
-          </ScrollableTabsRow>
+          </div>
         </div>
 
         <div className="mt-6">

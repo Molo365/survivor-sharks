@@ -18,7 +18,6 @@ import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
-import { ScrollableTabsRow } from "@/components/ScrollableTabsRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1163,42 +1162,42 @@ export function WcBracketView({
       <Tabs defaultValue="matches" className="w-full">
         {/* Tab nav */}
         <div className="relative">
-          <ScrollableTabsRow>
-            <TabsList className="bg-card border border-border flex flex-nowrap md:flex-wrap h-auto p-1.5 gap-1 shadow-sm w-max md:w-full">
+          <div>
+            <TabsList className="bg-card border border-border flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
               <TabsTrigger
                 value="matches"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-400 flex gap-2"
               >
                 <Target className="w-4 h-4 md:w-5 md:h-5" /> Matches
               </TabsTrigger>
               <TabsTrigger
                 value="leaderboard"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
               >
                 <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
               </TabsTrigger>
               <TabsTrigger
                 value="grid"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-400 flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-400 flex gap-2"
               >
                 <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> Grid
               </TabsTrigger>
               <TabsTrigger
                 value="bracket"
-                className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+                className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
               >
                 <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Bracket
               </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
                   value="commissioner"
-                  className="shrink-0 font-bebas text-base md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
+                  className="shrink-0 font-bebas text-sm md:text-xl tracking-wider px-2 md:px-5 py-2 md:py-2.5 text-muted-foreground hover:text-foreground md:ml-auto flex gap-2"
                 >
                   <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
                 </TabsTrigger>
               )}
             </TabsList>
-          </ScrollableTabsRow>
+          </div>
         </div>
 
         <div className="mt-8">
