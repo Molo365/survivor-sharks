@@ -2,6 +2,7 @@ import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-cli
 import { Skeleton } from "@/components/ui/skeleton";
 import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Swords, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
@@ -13,6 +14,7 @@ type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: numbe
 export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries, totalMembers, prizeMode, entryFee }: { poolId: number; sport?: string; poolType?: string; pickFrequency?: string; maxEntries?: number | null; totalMembers?: number; prizeMode?: "fixed" | "pct"; entryFee?: number | null }) {
   const [expandedSOV, setExpandedSOV] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [compactRows, setCompactRows] = useState(true);
   const isNflSurvivor = sport === "nfl" && poolType === "season";
   const selectedWeekParam = isNflSurvivor ? (selectedWeek ?? undefined) : undefined;
 
@@ -239,82 +241,123 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
       )}
 
       <div>
+        <div className="mb-3 flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-pressed={compactRows}
+            onClick={() => setCompactRows((compact) => !compact)}
+            className="shrink-0"
+          >
+            {compactRows ? "Detailed cards" : "Compact rows"}
+          </Button>
+        </div>
         <h3 className="font-bebas text-3xl text-primary flex items-center gap-3 mb-6 tracking-wide">
           <Activity className="w-7 h-7" /> {coWinners ? "CO-CHAMPIONS" : "THE SURVIVORS"}
         </h3>
-        <div className="space-y-3">
-          {leaderboard.active.map((entry, idx) => {
-            const streak = entry.streak ?? 0;
-            const strikeCount = entry.strikeCount ?? 0;
-            const hasWon = entry.hasWonThisWeek ?? false;
-            const prizeWon = (entry as any).prizeWon as number | null ?? null;
-            return (
+        <div className={compactRows ? "space-y-1.5" : "space-y-3"}>
+          {compactRows ? (
+            leaderboard.active.map((entry) => (
               <div
                 key={entry.userId}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-5 bg-card border border-border/50 rounded-lg hover:border-primary/50 transition-all shark-card"
+                className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-2.5 py-2 hover:border-primary/50 transition-all shark-card"
               >
-                <div className="flex items-center gap-3 sm:gap-5 mb-2 sm:mb-0">
-                  <div className="font-bebas text-2xl sm:text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
-                  <div>
-                    <div className="font-medium text-base sm:text-xl flex items-center gap-2">
-                      <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                      {entry.displayName || entry.username}
-                      {maxLives > 1 && strikeCount > 0 && (
-                        <span
-                          title={strikeCount >= maxLives - 1
-                            ? "Final warning — one more loss eliminates this player"
-                            : `Warning strike ${strikeCount} of ${maxLives - 1}`}
-                          className="inline-flex items-center gap-0.5 text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30"
-                        >
-                          <Zap className="w-3 h-3" /> {strikeCount === 1 ? "Strike" : `${strikeCount} Strikes`}
-                        </span>
-                      )}
-                    </div>
-                    {streak >= 2 && (
-                      <span className="text-[11px] font-semibold text-orange-400 flex items-center gap-1 mt-0.5">
-                        🔥 {streak}-{unitLabel} streak
-                      </span>
-                    )}
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="w-6 shrink-0 text-center font-bebas text-lg text-primary/40">
+                    {entry.rank}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-medium text-sm">
+                    <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
+                    <span className="truncate">{entry.displayName || entry.username}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 ml-13 sm:ml-0 flex-wrap">
-                  {entry.lastPickTeam && (
-                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                       <span className="uppercase text-xs tracking-wider">
-                         {isHistorical ? `Wk ${viewWeek} pick:` : "Pick:"}
-                       </span>
-                      <span
-                        className={cn(
-                          "font-medium text-foreground bg-muted/30 px-2 py-1 rounded flex items-center gap-1",
-                          hasWon && "bg-green-500/10 text-green-400"
-                        )}
-                      >
-                        {entry.lastPickTeam}
-                        {hasWon && (
-                          <span title="Won a game this week!">
-                            <Check className="w-3.5 h-3.5 text-green-500" />
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {prizeWon !== null && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-yellow-500/10 text-yellow-300 border-yellow-500/30">
-                      <Trophy className="w-3 h-3" /> ${prizeWon}
-                    </span>
-                  )}
-                  <Badge className={cn(
-                    "font-bebas text-sm sm:text-lg px-3 sm:px-4 py-0.5 sm:py-1 tracking-wider",
+                <Badge
+                  className={cn(
+                    "shrink-0 font-bebas text-xs px-2 py-0 tracking-wider",
                     coWinners
                       ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/30"
                       : "bg-accent/10 text-accent border border-accent/30",
-                  )}>
-                    {coWinners ? "CO-CHAMP" : "ALIVE"}
-                  </Badge>
-                </div>
+                  )}
+                >
+                  {coWinners ? "CO-CHAMP" : "ALIVE"}
+                </Badge>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            leaderboard.active.map((entry) => {
+              const streak = entry.streak ?? 0;
+              const strikeCount = entry.strikeCount ?? 0;
+              const hasWon = entry.hasWonThisWeek ?? false;
+              const prizeWon = (entry as any).prizeWon as number | null ?? null;
+              return (
+                <div
+                  key={entry.userId}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-5 bg-card border border-border/50 rounded-lg hover:border-primary/50 transition-all shark-card"
+                >
+                  <div className="flex items-center gap-3 sm:gap-5 mb-2 sm:mb-0">
+                    <div className="font-bebas text-2xl sm:text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
+                    <div>
+                      <div className="font-medium text-base sm:text-xl flex items-center gap-2">
+                        <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
+                        {entry.displayName || entry.username}
+                        {maxLives > 1 && strikeCount > 0 && (
+                          <span
+                            title={strikeCount >= maxLives - 1
+                              ? "Final warning — one more loss eliminates this player"
+                              : `Warning strike ${strikeCount} of ${maxLives - 1}`}
+                            className="inline-flex items-center gap-0.5 text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30"
+                          >
+                            <Zap className="w-3 h-3" /> {strikeCount === 1 ? "Strike" : `${strikeCount} Strikes`}
+                          </span>
+                        )}
+                      </div>
+                      {streak >= 2 && (
+                        <span className="text-[11px] font-semibold text-orange-400 flex items-center gap-1 mt-0.5">
+                          🔥 {streak}-{unitLabel} streak
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 ml-13 sm:ml-0 flex-wrap">
+                    {entry.lastPickTeam && (
+                      <div className="text-sm text-muted-foreground flex items-center gap-2">
+                         <span className="uppercase text-xs tracking-wider">
+                           {isHistorical ? `Wk ${viewWeek} pick:` : "Pick:"}
+                         </span>
+                        <span
+                          className={cn(
+                            "font-medium text-foreground bg-muted/30 px-2 py-1 rounded flex items-center gap-1",
+                            hasWon && "bg-green-500/10 text-green-400"
+                          )}
+                        >
+                          {entry.lastPickTeam}
+                          {hasWon && (
+                            <span title="Won a game this week!">
+                              <Check className="w-3.5 h-3.5 text-green-500" />
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {prizeWon !== null && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-yellow-500/10 text-yellow-300 border-yellow-500/30">
+                        <Trophy className="w-3 h-3" /> ${prizeWon}
+                      </span>
+                    )}
+                    <Badge className={cn(
+                      "font-bebas text-sm sm:text-lg px-3 sm:px-4 py-0.5 sm:py-1 tracking-wider",
+                      coWinners
+                        ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/30"
+                        : "bg-accent/10 text-accent border border-accent/30",
+                    )}>
+                      {coWinners ? "CO-CHAMP" : "ALIVE"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })
+          )}
           {leaderboard.active.length === 0 && (
             <div className="text-muted-foreground p-8 text-center border border-dashed border-border/50 rounded-lg bg-card/30">
               No active members remain.
@@ -328,34 +371,58 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
           <h3 className="font-bebas text-3xl text-destructive flex items-center gap-3 mb-6 tracking-wide">
             <Skull className="w-7 h-7" /> THE FALLEN
           </h3>
-          <div className="space-y-3">
-            {leaderboard.eliminated.map((entry, idx) => (
-              <div
-                key={entry.userId}
-                className="flex items-center justify-between p-3 sm:p-5 bg-destructive/5 border border-destructive/20 rounded-lg opacity-80"
-              >
-                <div className="flex items-center gap-3 sm:gap-5">
-                  <div className="font-bebas text-xl sm:text-2xl text-muted-foreground/50 w-8 text-center">
-                    {entry.rank}
+          <div className={compactRows ? "space-y-1.5" : "space-y-3"}>
+            {compactRows ? (
+              leaderboard.eliminated.map((entry) => (
+                <div
+                  key={entry.userId}
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 opacity-80"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="w-6 shrink-0 text-center font-bebas text-lg text-muted-foreground/50">
+                      {entry.rank}
+                    </div>
+                    <div className="flex min-w-0 items-center gap-1.5 font-medium text-sm text-muted-foreground">
+                      <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
+                      <span className="truncate line-through whitespace-nowrap">
+                        {entry.displayName || entry.username}
+                      </span>
+                    </div>
                   </div>
-                  <div className="font-medium text-sm sm:text-lg line-through text-muted-foreground">
-                    <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                    {entry.displayName || entry.username}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2 text-destructive font-bebas text-lg tracking-wider">
+                  <div className="shrink-0 whitespace-nowrap text-right font-bebas text-xs tracking-wider text-destructive">
                     ELIMINATED {isDaily ? "DAY" : "WK"} {entry.eliminatedWeek}
                   </div>
-                  {entry.lastPickTeam && (
-                    <div className="text-xs text-muted-foreground">
-                      Fatal Pick:{" "}
-                      <span className="font-medium text-foreground/70">{entry.lastPickTeam}</span>
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              leaderboard.eliminated.map((entry) => (
+                <div
+                  key={entry.userId}
+                  className="flex items-center justify-between p-3 sm:p-5 bg-destructive/5 border border-destructive/20 rounded-lg opacity-80"
+                >
+                  <div className="flex items-center gap-3 sm:gap-5">
+                    <div className="font-bebas text-xl sm:text-2xl text-muted-foreground/50 w-8 text-center">
+                      {entry.rank}
+                    </div>
+                    <div className="font-medium text-sm sm:text-lg line-through text-muted-foreground">
+                      <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
+                      {entry.displayName || entry.username}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2 text-destructive font-bebas text-lg tracking-wider">
+                      ELIMINATED {isDaily ? "DAY" : "WK"} {entry.eliminatedWeek}
+                    </div>
+                    {entry.lastPickTeam && (
+                      <div className="text-xs text-muted-foreground">
+                        Fatal Pick:{" "}
+                        <span className="font-medium text-foreground/70">{entry.lastPickTeam}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
