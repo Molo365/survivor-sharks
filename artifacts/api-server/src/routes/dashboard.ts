@@ -1661,7 +1661,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         lte(pickemPicksTable.gameDate, prevEnd),
       );
 
-      const [prevRows, currentRows] = await Promise.all([
+      const [prevRows, currentRows, championsLeagueHasFuturePicks] = await Promise.all([
         db
           .select({
             userId: pickemPicksTable.userId,
@@ -1692,6 +1692,18 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
             sql`COUNT(*) DESC`,
           ),
+        pool.isActive && pool.sport === "championsleague"
+          ? db
+              .select({ gameId: pickemPicksTable.gameId })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+                gte(pickemPicksTable.gameDate, todayEt),
+              ))
+              .limit(1)
+              .then((rows) => rows.length > 0)
+          : Promise.resolve(false),
       ]);
 
       const dashboardPartialPool = pool.isActive && (
@@ -1792,6 +1804,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           : null;
 
       const myIdx = currentRows.findIndex((r) => r.userId === userId);
+      const hasPicks = pool.isActive && pool.sport === "championsleague"
+        ? championsLeagueHasFuturePicks
+        : myIdx >= 0 && Number(currentRows[myIdx].picked) > 0;
       const myStanding =
         myIdx >= 0
           ? {
@@ -1799,10 +1814,10 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               isTied: currentRows.filter(r => Number(r.correct) === Number(currentRows[myIdx].correct)).length > 1,
               correct: Number(currentRows[myIdx].correct),
               picked: Number(currentRows[myIdx].picked),
-              hasPicks: Number(currentRows[myIdx].picked) > 0,
+              hasPicks,
               status: null, eliminatedWeek: null, score: null, maxScore: null,
             }
-          : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks: false, status: null, eliminatedWeek: null, score: null, maxScore: null };
+          : { rank: 0, isTied: false, correct: 0, picked: 0, hasPicks, status: null, eliminatedWeek: null, score: null, maxScore: null };
 
       return {
         poolId: pool.id,
