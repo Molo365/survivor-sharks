@@ -1854,7 +1854,7 @@ export function PickEmSeasonView({
       >
         <div className="relative">
           <div>
-            <TabsList className="bg-transparent border-0 flex flex-wrap h-auto p-1.5 gap-1 shadow-sm w-full">
+            <TabsList className="bg-transparent border-0 grid grid-cols-2 gap-1 h-auto p-1.5 shadow-sm w-full md:flex md:flex-wrap md:gap-1">
               <TabsTrigger
                 value="picks"
                 onClick={() => setDisplayWeek(currentWeek)}

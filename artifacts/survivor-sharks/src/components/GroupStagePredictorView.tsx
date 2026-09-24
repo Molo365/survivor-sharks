@@ -898,7 +898,7 @@ export function GroupStagePredictorView({ poolId, isCommissioner, inviteCode }: 
       <Tabs defaultValue="picks" className="w-full">
         <div className="relative">
           <div>
-          <TabsList className="bg-transparent border-0 flex flex-wrap h-auto p-1 gap-1 w-full">
+          <TabsList className="bg-transparent border-0 grid grid-cols-2 gap-1 h-auto p-1 w-full md:flex md:flex-wrap md:gap-1">
             <TabsTrigger value="picks" className="flex-1 min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
               <ListOrdered className="w-4 h-4" /> My Picks
             </TabsTrigger>
