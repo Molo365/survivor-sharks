@@ -271,7 +271,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
   if (pool.poolType === "pickem_season") {
     const items = [
       "If weekly bonus is enabled and its player threshold is met, the configured weekly bonus is paid to the weekly winner.",
-      "A weekly tie uses the closest guess for combined passing and rushing yards in the week's last scheduled game; tied winners split the bonus.",
+      "A weekly tie uses the closest guess for the combined passing yards of both teams in the week's last scheduled game; tied winners split the bonus.",
       "If a weekly tiebreaker guess or actual is missing, the bonus remains pending.",
     ];
     const weeklyBonusAmount = pool.weeklyBonusAmount == null ? null : Number(pool.weeklyBonusAmount);

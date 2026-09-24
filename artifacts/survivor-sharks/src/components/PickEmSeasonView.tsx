@@ -2090,7 +2090,7 @@ export function PickEmSeasonView({
                        <div>
                          <p className="font-bebas text-lg tracking-wide text-yellow-300">Weekly bonus tiebreaker</p>
                          <p className="text-xs text-muted-foreground leading-relaxed">
-                           Enter the combined passing and rushing yards for the last scheduled game of Week {slate.week}.
+                           Enter the combined passing yards (both teams) for the last scheduled game of Week {slate.week}.
                            This guess is collected now; weekly tiebreaker resolution is handled separately.
                          </p>
                        </div>
@@ -2107,10 +2107,10 @@ export function PickEmSeasonView({
                          min="0"
                          step="1"
                          inputMode="numeric"
-                         placeholder="Combined yards"
+                         placeholder="Combined passing yards"
                          value={weeklyTiebreakerGuess}
                          onChange={(event) => setWeeklyTiebreakerGuess(event.target.value)}
-                         aria-label="Weekly tiebreaker combined yards guess"
+                         aria-label="Weekly tiebreaker combined passing yards guess"
                        />
                      </div>
                    )}

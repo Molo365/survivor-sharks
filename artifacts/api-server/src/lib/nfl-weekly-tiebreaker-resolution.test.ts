@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  combineNflTiebreakerYards,
+  combineNflTiebreakerPassingYards,
   parseNflWeeklyTiebreakerActual,
   resolveWeeklyTiebreaker,
 } from "./nfl-weekly-tiebreaker";
@@ -13,17 +13,16 @@ const leaders = [
   { userId: 3, name: "Linus" },
 ];
 
-test("combines passing and rushing yards into the weekly actual", () => {
+test("uses combined passing yards only for the weekly actual", () => {
   assert.equal(
-    combineNflTiebreakerYards({
+    combineNflTiebreakerPassingYards({
       actualPassingYards: 510,
-      actualRushingYards: 225,
     }),
-    735,
+    510,
   );
 });
 
-test("requires complete passing and rushing stats for both teams", () => {
+test("sums passing stats for both teams without requiring or adding rushing yards", () => {
   assert.equal(
     parseNflWeeklyTiebreakerActual([
       {
@@ -40,7 +39,7 @@ test("requires complete passing and rushing stats for both teams", () => {
         ],
       },
     ]),
-    725,
+    520,
   );
 
   assert.equal(
@@ -48,11 +47,22 @@ test("requires complete passing and rushing stats for both teams", () => {
       {
         statistics: [
           { name: "netPassingYards", displayValue: "240" },
-          { name: "rushingYards", displayValue: "110" },
         ],
       },
       {
         statistics: [{ name: "netPassingYards", displayValue: "280" }],
+      },
+    ]),
+    520,
+  );
+
+  assert.equal(
+    parseNflWeeklyTiebreakerActual([
+      {
+        statistics: [{ name: "netPassingYards", displayValue: "240" }],
+      },
+      {
+        statistics: [{ name: "rushingYards", displayValue: "95" }],
       },
     ]),
     null,

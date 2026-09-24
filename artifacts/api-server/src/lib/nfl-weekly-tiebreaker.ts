@@ -17,11 +17,10 @@ export interface WeeklyTiebreakerResolution<T> {
   winners: T[];
 }
 
-export function combineNflTiebreakerYards(stats: {
+export function combineNflTiebreakerPassingYards(stats: {
   actualPassingYards: number;
-  actualRushingYards: number;
 }): number {
-  return stats.actualPassingYards + stats.actualRushingYards;
+  return stats.actualPassingYards;
 }
 
 export function parseNflWeeklyTiebreakerActual(
@@ -34,7 +33,6 @@ export function parseNflWeeklyTiebreakerActual(
   let total = 0;
   for (const team of teams) {
     let passing: number | null = null;
-    let rushing: number | null = null;
     for (const stat of team.statistics ?? []) {
       if (stat.name === "netPassingYards") {
         const value = parseInt(stat.displayValue, 10);
@@ -42,13 +40,10 @@ export function parseNflWeeklyTiebreakerActual(
       } else if (stat.name === "passingYards" && passing === null) {
         const value = parseInt(stat.displayValue, 10);
         if (!Number.isNaN(value)) passing = value;
-      } else if (stat.name === "rushingYards") {
-        const value = parseInt(stat.displayValue, 10);
-        if (!Number.isNaN(value)) rushing = value;
       }
     }
-    if (passing === null || rushing === null) return null;
-    total += passing + rushing;
+    if (passing === null) return null;
+    total += passing;
   }
 
   return total;
