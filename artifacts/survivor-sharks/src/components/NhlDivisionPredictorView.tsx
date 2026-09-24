@@ -1392,17 +1392,17 @@ export function NhlDivisionPredictorView({ poolId, isCommissioner, inviteCode, i
         <div className="relative">
           <div>
           <TabsList className="bg-transparent border-0 grid grid-cols-2 gap-1 h-auto p-1 w-full md:flex md:flex-wrap md:gap-1">
-            <TabsTrigger value="picks" data-testid="tab-picks" className="flex-1 min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
+            <TabsTrigger value="picks" data-testid="tab-picks" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
               <ListOrdered className="w-4 h-4" /> My Picks
             </TabsTrigger>
-            <TabsTrigger value="leaderboard" data-testid="tab-leaderboard" className="flex-1 min-w-0 rounded-full truncate border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
+            <TabsTrigger value="leaderboard" data-testid="tab-leaderboard" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
               <Trophy className="w-4 h-4" /> Leaderboard
             </TabsTrigger>
-            <TabsTrigger value="standings" data-testid="tab-standings" className="flex-1 min-w-0 rounded-full truncate border border-sky-500/20 bg-sky-500/5 text-sky-400/70 hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-400 font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
+            <TabsTrigger value="standings" data-testid="tab-standings" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-sky-500/20 bg-sky-500/5 text-sky-400/70 hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-400 font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2">
               <Globe className="w-4 h-4" /> Live Standings
             </TabsTrigger>
             {isCommissioner && (
-              <TabsTrigger value="commissioner" data-testid="tab-commissioner" className="flex-1 min-w-0 rounded-full truncate border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2 md:ml-auto">
+              <TabsTrigger value="commissioner" data-testid="tab-commissioner" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 font-bebas text-sm md:text-lg tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 gap-2 md:ml-auto">
                 <ShieldAlert className="w-4 h-4" /> Commissioner
               </TabsTrigger>
             )}
