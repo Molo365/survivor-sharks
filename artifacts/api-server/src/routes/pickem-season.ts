@@ -1055,8 +1055,8 @@ router.post("/process-results", requireAuth, async (req, res) => {
   for (const pick of pendingPicks) {
     const winner = winnerMap.get(pick.gameId);
     if (winner === undefined) continue;
-    const result: "correct" | "incorrect" =
-      winner !== null && pick.pickedTeamId === winner ? "correct" : "incorrect";
+    const result: "correct" | "incorrect" | "push" =
+      winner === null ? "push" : pick.pickedTeamId === winner ? "correct" : "incorrect";
     const scores = gameScoreMap.get(pick.gameId);
     await db
       .update(pickemPicksTable)
