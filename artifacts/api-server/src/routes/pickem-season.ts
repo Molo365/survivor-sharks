@@ -28,6 +28,18 @@ function isGameLocked(startIso: string): boolean {
   return new Date(startIso).getTime() <= Date.now();
 }
 
+function isPayingRank(
+  rank: number,
+  prizeStructure: Array<{ place: number; amount: number }> | null | undefined,
+): boolean {
+  return prizeStructure?.some(
+    (prize) =>
+      prize.place === rank &&
+      Number.isFinite(prize.amount) &&
+      prize.amount > 0,
+  ) ?? false;
+}
+
 async function resolveWeeklyTiebreakerGame(
   pool: typeof poolsTable.$inferSelect,
   week: number,
@@ -867,7 +879,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           tiebreakerRushingYards: tb?.tiebreakerRushingYards ?? null,
           tiebreakerDiff1: null,
           tiebreakerDiff2: null,
-          potSplit: group.length > 1,
+          potSplit: group.length > 1 && isPayingRank(currentRank, pool.prizeStructure),
           weeklyScores: weeklyMap.get(u.userId) ?? {},
            liveCorrect: 0,
         });
@@ -898,7 +910,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         j++;
       }
       const subGroup = group.slice(i, j);
-      const potSplit = subGroup.length > 1;
+      const potSplit = subGroup.length > 1 && isPayingRank(currentRank, pool.prizeStructure);
       for (const u of subGroup) {
         const tb = tiebreakerMap.get(u.userId);
         entries.push({
