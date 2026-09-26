@@ -7,7 +7,7 @@ import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe, CheckCircle2, XCircle } from "lucide-react";
+import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -338,6 +338,10 @@ export default function PoolHome() {
                     </span>
                   )}
                   <span>Season {pool.season}</span>
+                  <span className="flex items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
+                    {pool.isRecurring ? <RefreshCw className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+                    {pool.isRecurring ? "Recurring" : "One-time"}
+                  </span>
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
                   )}
