@@ -448,6 +448,12 @@ export default function CreatePool() {
     }
   }, [form, isWeeklyBonusEligible]);
 
+  useEffect(() => {
+    if (selectedSport === PoolInputSport.nhl && watchedPreseason) {
+      form.setValue("isPreseason", false);
+    }
+  }, [form, selectedSport, watchedPreseason]);
+
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
 
   // ── Progressive-unlock wizard state ──────────────────────────────────────────
@@ -503,8 +509,6 @@ export default function CreatePool() {
 
   // MLB Crazy 8's availability check — fetches today's game count before showing Create button
   const isMlbCrazyEights = selectedType === "crazy_8s" && selectedSport === PoolInputSport.mlb;
-  const isNhlPreseasonPool = selectedSport === PoolInputSport.nhl &&
-    (selectedType === "season" || selectedType === "pickem" || selectedType === "crazy_8s");
   const { data: mlbCheck, isLoading: mlbCheckLoading } = useQuery({
     queryKey: ["crazy-eights-mlb-check"],
     queryFn: async () => {
@@ -1436,11 +1440,9 @@ export default function CreatePool() {
                         />
                       )}
 
-                      {/* ── Preseason Mode — supported NFL and NHL pool types ── */}
-                      {isAdmin && (
-                        (selectedSport === PoolInputSport.nfl && (selectedType === "season" || selectedType === "nfl_confidence" || selectedType === "pickem_season")) ||
-                        isNhlPreseasonPool
-                      ) && (
+                      {/* ── Preseason Mode — supported NFL pool types ── */}
+                      {isAdmin && selectedSport === PoolInputSport.nfl &&
+                        (selectedType === "season" || selectedType === "nfl_confidence" || selectedType === "pickem_season") && (
                         <FormField
                           control={form.control}
                           name="isPreseason"
@@ -1454,11 +1456,9 @@ export default function CreatePool() {
                                       Preseason Mode
                                     </FormLabel>
                                     <FormDescription className="text-xs mt-0.5">
-                                      {selectedSport === PoolInputSport.nhl
-                                        ? "Fetches NHL preseason games instead of regular-season games for this pool's weekend slate."
-                                        : selectedType === "season"
-                                          ? "Fetches NFL preseason games (Hall of Fame Week + Weeks 1–3) instead of regular season. Close manually after Week 3. Week stepper still shows 1–18."
-                                          : "Fetches NFL preseason games instead of regular season. Pool must be closed manually via admin tools after preseason ends — the normal end-of-season closure flow will not fire."}
+                                      {selectedType === "season"
+                                        ? "Fetches NFL preseason games (Hall of Fame Week + Weeks 1–3) instead of regular season. Close manually after Week 3. Week stepper still shows 1–18."
+                                        : "Fetches NFL preseason games instead of regular season. Pool must be closed manually via admin tools after preseason ends — the normal end-of-season closure flow will not fire."}
                                     </FormDescription>
                                   </div>
                                 </div>
