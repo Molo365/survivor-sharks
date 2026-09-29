@@ -9,8 +9,8 @@ import { closePredictorPool, scoreNhlDivisionPositions } from "../lib/closePredi
 import { SubmitNhlNdpPicksBody, SubmitNhlNdpResultsBody } from "@workspace/api-zod";
 
 const router = Router({ mergeParams: true });
-// Atlantic is competitive and familiar to the app's Canadian audience; one
-// combined-points guess is enough to narrow score ties without changing points.
+// The Montreal Canadiens' final regular-season points total is familiar to the
+// app's Canadian audience; one team-specific guess breaks ties without changing division points.
 export const NHL_NDP_TIEBREAKER_DIVISION = "Atlantic";
 const id = (v: string | string[]) => Number(Array.isArray(v) ? v[0] : v);
 type PositionRow = { divisionName: string } & Record<`pos${number}Team`, string>;
@@ -162,7 +162,7 @@ router.post("/results", requireAuth, requireAdmin, async (req, res): Promise<voi
     const tbRows = await db.select().from(nhlDivisionPredictorTiebreakersTable).where(eq(nhlDivisionPredictorTiebreakersTable.poolId, pool.id));
     const actual = tbRows.find((r) => r.tbActual != null)?.tbActual ?? null;
     if (actual === null) {
-      closureWarning = "All division results are saved, but the Atlantic combined-points actual is required before the pool can close.";
+      closureWarning = "All division results are saved, but the Montreal Canadiens' final regular-season points total is required before the pool can close.";
       res.json({ saved: saved.map(row), closedPool, closureWarning });
       return;
     }

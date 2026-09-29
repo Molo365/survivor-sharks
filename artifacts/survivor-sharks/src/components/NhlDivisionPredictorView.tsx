@@ -312,10 +312,10 @@ function LeaderboardTab({ poolId }: { poolId: number }) {
           <Card className="border-yellow-500/30 bg-yellow-500/5" data-testid="card-atlantic-tiebreaker">
             <CardHeader className="pb-2">
               <CardTitle className="font-bebas text-xl tracking-wider text-yellow-400">
-                Atlantic Points Tiebreaker
+                Montreal Canadiens Points Tiebreaker
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Actual combined points: <strong className="text-foreground">{leaderboard.tbActual}</strong>
+                Final regular-season points: <strong className="text-foreground">{leaderboard.tbActual}</strong>
               </p>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -791,7 +791,7 @@ function CommissionerTab({ poolId, inviteCode, isSuperAdmin = false }: {
               <Zap className="w-5 h-5 text-yellow-400" /> Admin Final Results
             </h4>
             <p className="text-sm text-muted-foreground">
-              Enter official division finishes and the Atlantic combined points tiebreaker. When all finishes and tiebreakers are entered, the pool will automatically close and declare winners.
+              Enter official division finishes and the Montreal Canadiens' final regular-season points tiebreaker. When all finishes and the tiebreaker are entered, the pool will automatically close and declare winners.
             </p>
           </div>
 
@@ -858,7 +858,7 @@ function CommissionerTab({ poolId, inviteCode, isSuperAdmin = false }: {
           <div className="rounded-xl border border-yellow-500/20 bg-[linear-gradient(145deg,rgba(234,179,8,0.06)_0%,rgba(10,14,26,1)_100%)] p-4 space-y-3">
             <h5 className="font-bebas text-lg tracking-wider text-yellow-400">Tiebreaker Actual</h5>
             <p className="text-xs text-muted-foreground">
-              Atlantic Division combined points across all 8 teams.
+              Montreal Canadiens' final regular-season points total.
             </p>
             <div className="flex items-center gap-3">
               <Input
@@ -1011,7 +1011,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
     return current.some((t, i) => t !== saved[i]);
   });
 
-  // Tiebreaker: Atlantic points. Prompt fires on first-ever picks submission.
+  // Tiebreaker: Montreal Canadiens' final regular-season points. Prompt fires on first-ever picks submission.
   const needsTb = canEditPicks && myTiebreaker?.tbGuess == null;
 
   useEffect(() => {
@@ -1100,13 +1100,13 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               <Trophy className="w-5 h-5 text-yellow-400" /> Tiebreaker Guess
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-snug">
-              If scores are tied when the pool closes, your guess for the Atlantic Division combined regular-season points decides the winner. Closest guess wins.
+              If scores are tied when the pool closes, your guess for the Montreal Canadiens' final regular-season points total decides the winner. Closest guess wins.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Atlantic Division — Combined Points
+                Montreal Canadiens — Final Regular-Season Points
               </label>
               <Input
                 type="number"
@@ -1128,7 +1128,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               onClick={() => {
                 const g = parseInt(tbGuess, 10);
                 if (isNaN(g) || g < 0) {
-                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Atlantic points guess must be ≥ 0." });
+                  toast({ variant: "destructive", title: "Enter a valid guess", description: "Montreal Canadiens' points guess must be ≥ 0." });
                   return;
                 }
                 setShowTbDialog(false);
@@ -1188,7 +1188,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
           <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-2">Your Tiebreaker Guess</p>
           <div className="flex gap-6">
             <div>
-              <p className="text-[10px] text-muted-foreground/60">Atlantic Division points</p>
+              <p className="text-[10px] text-muted-foreground/60">Canadiens' final regular-season points</p>
               <p className="font-bebas text-xl text-yellow-300">{myTiebreaker.tbGuess}</p>
             </div>
           </div>
@@ -1352,7 +1352,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               </p>
               <p className="text-xs text-muted-foreground">
                 {needsTb && !hasPendingChanges
-                  ? "Add your Atlantic Division points guess to finalise your entry"
+                  ? "Add your Montreal Canadiens' final regular-season points guess to finalise your entry"
                   : "Lock in your picks for all 4 NHL divisions"}
               </p>
             </div>
