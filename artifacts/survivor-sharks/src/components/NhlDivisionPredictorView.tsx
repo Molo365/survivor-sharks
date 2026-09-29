@@ -864,7 +864,7 @@ function CommissionerTab({ poolId, inviteCode, isSuperAdmin = false }: {
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 745"
+                placeholder="e.g. 96"
                 value={localTbActual}
                 onChange={(e) => setLocalTbActual(e.target.value)}
                 className="w-32 h-9 text-sm"
@@ -1111,7 +1111,7 @@ function MyPicksTab({ poolId }: { poolId: number }) {
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 745"
+                placeholder="e.g. 96"
                 value={tbGuess}
                 onChange={(e) => setTbGuess(e.target.value)}
                 className="text-lg font-mono h-12"
