@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { MlbBracketResultsBreakdown } from "@/components/MlbBracketResultsBreakdown";
-import type { MlbBracketResultBreakdownItem } from "@/components/MlbBracketResultsBreakdown";
+import type { MlbBracketLiveGame, MlbBracketResultBreakdownItem } from "@/components/MlbBracketResultsBreakdown";
 import { MlbBracketPickGrid } from "@/components/MlbBracketPickGrid";
 import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
@@ -47,6 +47,8 @@ const SLOT_FEEDERS: Record<string, string[]> = {
 
 type Pick = { predictedWinner: string; predictedLength: number };
 type Leader = { userId: number; username?: string; displayName?: string; rank?: number; points?: number };
+type MlbResultLiveGame = { seriesId: string; liveGame: MlbBracketLiveGame | null };
+type MlbBracketWithResultLiveGames = { myResultLiveGames?: MlbResultLiveGame[] };
 
 function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; eliminatedTeams: Set<string>; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
@@ -198,25 +200,29 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
   const pickedCount = rounds.filter(s => picks[s.seriesId]?.predictedWinner && picks[s.seriesId]?.predictedLength).length;
   const leaderboard = (Array.isArray(rawLeaderboard) ? rawLeaderboard : []) as Leader[];
   const memberRows = memberPicks.data ?? [];
-  const myResultRows = useMemo<MlbBracketResultBreakdownItem[]>(() => rounds.map(series => ({
-    seriesId: series.seriesId,
-    seriesSlot: series.seriesSlot,
-    round: series.round,
-    roundLabel: series.roundLabel ?? ROUND_LABELS[series.round],
-    team1: series.team1,
-    team2: series.team2,
-    team1Wins: series.team1Wins,
-    team2Wins: series.team2Wins,
-    predictedWinner: series.pick?.predictedWinner ?? null,
-    predictedLength: series.pick?.predictedLength ?? null,
-    actualWinner: series.winner ?? null,
-    actualLength: series.actualLength ?? null,
-    winnerCorrect: series.pick?.winnerCorrect ?? null,
-    lengthCorrect: series.pick?.lengthCorrect ?? null,
-    predictedTeamEliminated: series.pick?.predictedWinner ? data?.eliminatedTeams.includes(series.pick.predictedWinner) ?? false : false,
-    pointsEarned: (series.pick?.winnerCorrect ? series.points : 0) + (series.pick?.lengthCorrect ? 1 : 0),
-    possiblePoints: series.points + 1,
-  })), [rounds]);
+  const myResultRows = useMemo<MlbBracketResultBreakdownItem[]>(() => {
+    const myResultLiveGames = (data as MlbBracketWithResultLiveGames | undefined)?.myResultLiveGames ?? [];
+    return rounds.map(series => ({
+      seriesId: series.seriesId,
+      seriesSlot: series.seriesSlot,
+      round: series.round,
+      roundLabel: series.roundLabel ?? ROUND_LABELS[series.round],
+      team1: series.team1,
+      team2: series.team2,
+      team1Wins: series.team1Wins,
+      team2Wins: series.team2Wins,
+      liveGame: myResultLiveGames.find(game => game.seriesId === series.seriesId)?.liveGame ?? null,
+      predictedWinner: series.pick?.predictedWinner ?? null,
+      predictedLength: series.pick?.predictedLength ?? null,
+      actualWinner: series.winner ?? null,
+      actualLength: series.actualLength ?? null,
+      winnerCorrect: series.pick?.winnerCorrect ?? null,
+      lengthCorrect: series.pick?.lengthCorrect ?? null,
+      predictedTeamEliminated: series.pick?.predictedWinner ? data?.eliminatedTeams.includes(series.pick.predictedWinner) ?? false : false,
+      pointsEarned: (series.pick?.winnerCorrect ? series.points : 0) + (series.pick?.lengthCorrect ? 1 : 0),
+      possiblePoints: series.points + 1,
+    }));
+  }, [rounds, data]);
   if (isLoading) return <div className="grid md:grid-cols-2 gap-4">{Array.from({ length: 11 }, (_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}</div>;
   if (error) return <Card className="border-destructive/30"><CardContent className="p-8 text-center text-muted-foreground">Unable to load this postseason bracket. Please try again.</CardContent></Card>;
   if (!data || rounds.length === 0) return <Card><CardContent className="p-10 text-center"><Trophy className="w-9 h-9 mx-auto mb-3 text-muted-foreground/50" /><p className="font-bebas text-2xl">Bracket unavailable</p><p className="text-sm text-muted-foreground mt-1">Bracket opens once the playoff field is set.</p></CardContent></Card>;

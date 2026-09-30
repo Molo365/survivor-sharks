@@ -1,14 +1,32 @@
 import type { MlbBracketResultBreakdownItem as ApiMlbBracketResultBreakdownItem } from "@workspace/api-client-react";
 import { Check, Clock3, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { BaseballLiveState } from "@/components/BaseballLiveState";
 import { cn } from "@/lib/utils";
 import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
+
+export type MlbBracketLiveGame = {
+  awayTeam: { abbreviation: string; displayName: string; logo?: string };
+  homeTeam: { abbreviation: string; displayName: string; logo?: string };
+  awayScore: number | null;
+  homeScore: number | null;
+  liveState: {
+    inning: number;
+    isTopInning: boolean;
+    outs: number;
+    onFirst: boolean;
+    onSecond: boolean;
+    onThird: boolean;
+    shortDetail: string | null;
+  } | null;
+};
 
 export type MlbBracketResultBreakdownItem = ApiMlbBracketResultBreakdownItem & {
   team1?: string | null;
   team2?: string | null;
   team1Wins?: number | null;
   team2Wins?: number | null;
+  liveGame?: MlbBracketLiveGame | null;
 };
 
 const ROUND_ORDER = ["wild_card", "division_series", "league_championship", "world_series"];
@@ -26,6 +44,17 @@ function ResultIndicator({ value, pendingLabel }: { value: boolean | null; pendi
   return value
     ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400"><Check className="h-3.5 w-3.5" />Correct</span>
     : <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><X className="h-3.5 w-3.5" />Incorrect</span>;
+}
+
+function inningLabel(liveGame: MlbBracketLiveGame): string {
+  const state = liveGame.liveState;
+  if (!state) return "Live";
+  if (state.shortDetail) return state.shortDetail;
+  const lastTwo = state.inning % 100;
+  const suffix = lastTwo >= 11 && lastTwo <= 13
+    ? "th"
+    : state.inning % 10 === 1 ? "st" : state.inning % 10 === 2 ? "nd" : state.inning % 10 === 3 ? "rd" : "th";
+  return `${state.isTopInning ? "Top" : "Bot"} ${state.inning}${suffix}`;
 }
 
 export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBreakdownItem[] }) {
@@ -108,6 +137,39 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                             </span>
                           </span>
                         )}
+                      </div>
+                    )}
+                    {row.actualWinner === null && row.liveGame && (
+                      <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2">
+                        <div className="flex items-stretch gap-0">
+                          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                            <span className="truncate text-xs font-semibold text-muted-foreground" title={row.liveGame.awayTeam.displayName}>
+                              {row.liveGame.awayTeam.abbreviation}
+                            </span>
+                            <span className="font-mono text-base font-bold tabular-nums">
+                              {row.liveGame.awayScore ?? "—"}
+                            </span>
+                          </div>
+                          <div className="flex min-w-[72px] flex-col items-center justify-center gap-1 px-2">
+                            <BaseballLiveState
+                              detail={inningLabel(row.liveGame)}
+                              bases={row.liveGame.liveState ? {
+                                onFirst: row.liveGame.liveState.onFirst,
+                                onSecond: row.liveGame.liveState.onSecond,
+                                onThird: row.liveGame.liveState.onThird,
+                              } : null}
+                              outs={row.liveGame.liveState?.outs ?? null}
+                            />
+                          </div>
+                          <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
+                            <span className="font-mono text-base font-bold tabular-nums">
+                              {row.liveGame.homeScore ?? "—"}
+                            </span>
+                            <span className="truncate text-xs font-semibold text-muted-foreground" title={row.liveGame.homeTeam.displayName}>
+                              {row.liveGame.homeTeam.abbreviation}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                     <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:grid-cols-2">

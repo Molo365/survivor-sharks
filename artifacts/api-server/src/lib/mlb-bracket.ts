@@ -1,5 +1,6 @@
 import { ESPN_TEAMS, getTeamLogoUrl } from "./teams-data";
 import { logger } from "./logger";
+import { parseGame, type EspnGame } from "./espn";
 
 /** ESPN publishes MLB postseason as games; this module aggregates them into series. */
 export const MLB_BRACKET_SLOTS = [
@@ -94,6 +95,7 @@ export type MlbSeries = {
   team2: string;
   team1Wins: number;
   team2Wins: number;
+  liveGame: EspnGame | null;
   team1LogoUrl: string | null;
   team2LogoUrl: string | null;
   games: number;
@@ -106,18 +108,15 @@ export type MlbPostseasonFetchResult = {
   series: MlbSeries[];
   failedMonths: string[];
 };
-type Competition = {
-  date?: string;
-  altGameNote?: string;
-  notes?: Array<{ headline?: string }>;
-  status?: { type?: { completed?: boolean } };
-  competitors?: Array<{
-    homeAway?: string;
-    winner?: boolean;
-    team?: { displayName?: string; logo?: string };
+type ParsedEvent = Parameters<typeof parseGame>[0];
+type ParsedCompetition = NonNullable<ParsedEvent["competitions"]>[number];
+type Event = ParsedEvent & {
+  competitions?: Array<ParsedCompetition & {
+    date?: string;
+    altGameNote?: string;
+    competitors?: Array<NonNullable<ParsedCompetition["competitors"]>[number] & { winner?: boolean }>;
   }>;
 };
-type Event = { date?: string; competitions?: Competition[] };
 
 function roundFor(note: string): string | null {
   const n = note.toUpperCase();
@@ -164,6 +163,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
       teams: [string, string];
       logos: Map<string, string>;
       wins: Map<string, number>;
+      liveGame: EspnGame | null;
       completedGames: number;
       startsAt: Date;
       completedAt: Date | null;
@@ -186,6 +186,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
         teams: [away, home],
         logos: new Map(),
         wins: new Map(),
+        liveGame: null,
         completedGames: 0,
         startsAt,
         completedAt: null,
@@ -193,9 +194,10 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
       if (awayTeam.logo) group.logos.set(away, awayTeam.logo);
       if (homeTeam.logo) group.logos.set(home, homeTeam.logo);
       if (startsAt < group.startsAt) group.startsAt = startsAt;
+      if (competition?.status?.type?.state === "in") group.liveGame = parseGame(event);
       if (competition?.status?.type?.completed) {
         group.completedGames++;
-        const winner = competitors.find(c => c.winner)?.team?.displayName;
+        const winner = competitors.find(c => (c as typeof c & { winner?: boolean }).winner)?.team?.displayName;
         if (winner) group.wins.set(winner, (group.wins.get(winner) ?? 0) + 1);
         group.completedAt = new Date(competition.date ?? event.date ?? Date.now());
       }
@@ -219,6 +221,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
         team2: group.teams[1],
         team1Wins: group.wins.get(group.teams[0]) ?? 0,
         team2Wins: group.wins.get(group.teams[1]) ?? 0,
+        liveGame: group.liveGame,
         team1LogoUrl: group.logos.get(group.teams[0]) ?? getMlbTeamLogoUrl(group.teams[0]),
         team2LogoUrl: group.logos.get(group.teams[1]) ?? getMlbTeamLogoUrl(group.teams[1]),
         games: group.completedGames,

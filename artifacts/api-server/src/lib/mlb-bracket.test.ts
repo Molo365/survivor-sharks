@@ -102,6 +102,20 @@ describe("MLB postseason series win counts", () => {
           ? [
               event("2026-10-12T00:00:00Z", "New York Yankees", "Boston Red Sox", "New York Yankees"),
               event("2026-10-13T00:00:00Z", "Boston Red Sox", "New York Yankees", "Boston Red Sox"),
+              {
+                id: "live-alcs-game",
+                date: "2026-10-14T00:00:00Z",
+                competitions: [{
+                  date: "2026-10-14T00:00:00Z",
+                  notes: [{ headline: "ALCS" }],
+                  status: { period: 3, type: { completed: false, state: "in", shortDetail: "Top 3rd" } },
+                  situation: { outs: 1, onFirst: false, onSecond: true, onThird: false },
+                  competitors: [
+                    { homeAway: "away", score: "0", team: { id: "2", abbreviation: "BOS", displayName: "Boston Red Sox" } },
+                    { homeAway: "home", score: "1", team: { id: "1", abbreviation: "NYY", displayName: "New York Yankees" } },
+                  ],
+                }],
+              },
             ]
           : [],
       });
@@ -115,6 +129,12 @@ describe("MLB postseason series win counts", () => {
       assert.equal(series.team2, "Boston Red Sox");
       assert.equal(series.team1Wins, 1);
       assert.equal(series.team2Wins, 1);
+      assert.equal(series.liveGame?.status, "in_progress");
+      assert.equal(series.liveGame?.homeTeam.abbreviation, "NYY");
+      assert.equal(series.liveGame?.homeScore, 1);
+      assert.equal(series.liveGame?.awayScore, 0);
+      assert.equal(series.liveGame?.liveState?.shortDetail, "Top 3rd");
+      assert.equal(series.liveGame?.liveState?.onSecond, true);
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -84,7 +84,25 @@ router.get("/", requireAuth, async (req, res) => {
   ]));
   const eliminatedTeams = [...getEliminatedTeams(results)];
   const picksBySeries = new Map(picks.map(p => [p.seriesId, p]));
-  res.json({ field, teamLogos, eliminatedTeams, isLocked: await pickLocked(ctx, postseason), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
+  const bracketCards = cards(slots, picks, series, results);
+  const myResultLiveGames = bracketCards.map(card => {
+    const team1 = card.team1;
+    const team2 = card.team2;
+    const current = !team1 || !team2 ? undefined : series.find(candidate =>
+      candidate.round === card.round &&
+      new Set([candidate.team1, candidate.team2]).size === 2 &&
+      [candidate.team1, candidate.team2].includes(team1) &&
+      [candidate.team1, candidate.team2].includes(team2));
+    return { seriesId: card.seriesId, liveGame: current?.liveGame ?? null };
+  });
+  res.json({
+    field,
+    teamLogos,
+    eliminatedTeams,
+    isLocked: await pickLocked(ctx, postseason),
+    myResultLiveGames,
+    rounds: bracketCards.map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })),
+  });
 });
 async function submitPicks(req: any, res: any) {
   const ctx = await getContext(req, res); if (!ctx) return;
