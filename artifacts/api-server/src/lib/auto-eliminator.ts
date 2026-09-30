@@ -6145,11 +6145,12 @@ export async function processMlbBracketResults(poolId?: number): Promise<{ picks
     .from(poolsTable).where(poolFilter);
   if (!pools.length) return { picksGraded };
   for (const pool of pools) {
-    const [live, slots, priorResults] = await Promise.all([
-      pool.sandboxMode ? Promise.resolve([]) : fetchMlbPostseasonSeries(pool.season),
+    const [liveFeed, slots, priorResults] = await Promise.all([
+      pool.sandboxMode ? Promise.resolve({ series: [], failedMonths: [] }) : fetchMlbPostseasonSeries(pool.season),
       db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, pool.id)),
       db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, pool.id)),
     ]);
+    const live = liveFeed.series;
     const resultWinners = new Map(priorResults.map(result => [result.seriesSlot, result.winner]));
     const completed = pool.sandboxMode
       ? priorResults
@@ -6171,7 +6172,7 @@ export async function processMlbBracketResults(poolId?: number): Promise<{ picks
       // Sandbox rows are already persisted by the simulation endpoint. Do not
       // reinsert them as ESPN rows or overwrite their deterministic source.
       if (!pool.sandboxMode) {
-        const liveResult = result as Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>[number];
+        const liveResult = result as (typeof live)[number];
         await db.insert(mlbBracketResultsTable).values({
           poolId: pool.id, seriesId: canonicalSlot, round: liveResult.round, seriesSlot: canonicalSlot,
           team1: liveResult.team1, team2: liveResult.team2, winner: liveResult.winner!, actualLength: liveResult.games,

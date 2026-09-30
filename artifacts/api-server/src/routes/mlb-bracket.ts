@@ -3,7 +3,7 @@ import { db, entriesTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBrac
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
-import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD, type MlbSeries } from "../lib/mlb-bracket";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 
 const router = Router({ mergeParams: true });
@@ -26,7 +26,7 @@ async function getContext(req: any, res: any): Promise<Context | null> {
 async function pickLocked(ctx: Context, series?: Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>): Promise<boolean> {
   return isMlbBracketLocked(ctx.poolId, ctx.pool.season, ctx.pool.sandboxMode, series);
 }
-function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Array<typeof mlbBracketPicksTable.$inferSelect>, series: Awaited<ReturnType<typeof fetchMlbPostseasonSeries>>, results: Array<typeof mlbBracketResultsTable.$inferSelect>) {
+function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Array<typeof mlbBracketPicksTable.$inferSelect>, series: MlbSeries[], results: Array<typeof mlbBracketResultsTable.$inferSelect>) {
   const saved = new Map(results.map(r => [r.seriesSlot, r]));
   const pickMap = new Map(picks.map(p => [p.seriesSlot, p.predictedWinner]));
   const resultMap = new Map(results.map(r => [r.seriesSlot, r.winner]));
@@ -64,12 +64,13 @@ function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Ar
 }
 router.get("/", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
-  const [series, picks, results, slots] = await Promise.all([
-    ctx.pool.sandboxMode ? Promise.resolve([]) : fetchMlbPostseasonSeries(ctx.pool.season),
+  const [postseason, picks, results, slots] = await Promise.all([
+    ctx.pool.sandboxMode ? Promise.resolve({ series: [], failedMonths: [] }) : fetchMlbPostseasonSeries(ctx.pool.season),
     db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, req.user!.id))),
     db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
     db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, ctx.poolId)),
   ]);
+  const series = postseason.series;
   const field = slots.flatMap(slot => [slot.fixedTeam1, slot.fixedTeam2]).filter((team): team is string => Boolean(team));
   const liveLogos = new Map(series.flatMap(item => [
     [item.team1, item.team1LogoUrl] as const,
@@ -81,14 +82,14 @@ router.get("/", requireAuth, async (req, res) => {
   ]));
   const eliminatedTeams = [...getEliminatedTeams(results)];
   const picksBySeries = new Map(picks.map(p => [p.seriesId, p]));
-  res.json({ field, teamLogos, eliminatedTeams, isLocked: await pickLocked(ctx, series), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
+  res.json({ field, teamLogos, eliminatedTeams, isLocked: await pickLocked(ctx, postseason), rounds: cards(slots, picks, series, results).map(card => ({ ...card, pick: picksBySeries.get(card.seriesId) ?? null })) });
 });
 async function submitPicks(req: any, res: any) {
   const ctx = await getContext(req, res); if (!ctx) return;
   const picks = (req.body as { picks?: unknown }).picks;
   if (!Array.isArray(picks) || !picks.length) { res.status(400).json({ error: "picks must be a non-empty array" }); return; }
-  const series = await fetchMlbPostseasonSeries(ctx.pool.season);
-  if (await pickLocked(ctx, series)) { res.status(400).json({ error: "The MLB bracket is locked; all picks were due before the first Wild Card pitch" }); return; }
+  const postseason = await fetchMlbPostseasonSeries(ctx.pool.season);
+  if (await pickLocked(ctx, postseason)) { res.status(400).json({ error: "The MLB bracket is locked; all picks were due before the first Wild Card pitch" }); return; }
   const slots = await db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, ctx.poolId));
   if (picks.length !== 11 || new Set(picks.map((pick: any) => pick.seriesId)).size !== 11) { res.status(400).json({ error: "Submit exactly one pick for each of the 11 canonical series" }); return; }
   const saved = await db.select().from(mlbBracketPicksTable).where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, req.user.id)));

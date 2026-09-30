@@ -1,4 +1,5 @@
 import { ESPN_TEAMS, getTeamLogoUrl } from "./teams-data";
+import { logger } from "./logger";
 
 /** ESPN publishes MLB postseason as games; this module aggregates them into series. */
 export const MLB_BRACKET_SLOTS = [
@@ -99,6 +100,10 @@ export type MlbSeries = {
   completed: boolean;
   completedAt: Date | null;
 };
+export type MlbPostseasonFetchResult = {
+  series: MlbSeries[];
+  failedMonths: string[];
+};
 type Competition = {
   date?: string;
   altGameNote?: string;
@@ -127,12 +132,30 @@ function leagueFor(note: string): "AL" | "NL" | null {
   return null;
 }
 
-export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()): Promise<MlbSeries[]> {
-  const dates = `${season}0901-${season}1130`;
-  try {
-    const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${dates}&limit=1000&seasontype=3`, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok) return [];
-    const data = await response.json() as { events?: Event[] };
+export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()): Promise<MlbPostseasonFetchResult> {
+  const events: Event[] = [];
+  const failedMonths: string[] = [];
+  for (const month of ["09", "10", "11"]) {
+    const dates = `${season}${month}`;
+    try {
+      const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${dates}&limit=1000&seasontype=3`, { signal: AbortSignal.timeout(10_000) });
+      if (!response.ok) {
+        failedMonths.push(dates);
+        logger.warn({ season, dates, status: response.status }, "MLB postseason scoreboard month fetch failed");
+        continue;
+      }
+      const data = await response.json() as { events?: Event[] };
+      if (!Array.isArray(data.events)) {
+        failedMonths.push(dates);
+        logger.warn({ season, dates }, "MLB postseason scoreboard month response has no events array");
+        continue;
+      }
+      events.push(...data.events);
+    } catch (err) {
+      failedMonths.push(dates);
+      logger.warn({ season, dates, err }, "MLB postseason scoreboard month fetch failed");
+    }
+  }
     const groups = new Map<string, {
       round: string;
       league: "AL" | "NL" | null;
@@ -143,7 +166,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
       startsAt: Date;
       completedAt: Date | null;
     }>();
-    for (const event of data.events ?? []) {
+    for (const event of events) {
       const competition = event.competitions?.[0];
       const note = competition?.notes?.[0]?.headline ?? competition?.altGameNote ?? "";
       const round = roundFor(note);
@@ -178,7 +201,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
     }
     const ordered = [...groups.values()].sort((a, b) => a.round.localeCompare(b.round) || (a.league ?? "ZZ").localeCompare(b.league ?? "ZZ") || a.teams.join("|").localeCompare(b.teams.join("|")));
     const counts = new Map<string, number>();
-    return ordered.map(group => {
+    const series = ordered.map(group => {
       const need = group.round === "wild_card" ? 2 : group.round === "division_series" ? 3 : 4;
       const winner = [...group.wins].find(([, wins]) => wins >= need)?.[0] ?? null;
       const league = group.league;
@@ -201,7 +224,7 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
         completedAt: winner ? group.completedAt : null,
       };
     });
-  } catch { return []; }
+    return { series, failedMonths };
 }
 
 function leagueFromLabel(label: string | null | undefined): "AL" | "NL" | null {
