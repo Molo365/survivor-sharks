@@ -35,3 +35,4 @@
 - [Champions League season-feed pagination](champions-league-season-feed-pagination.md) — a 400 range response plus ESPN’s default 100-event season limit can truncate the next matchday to one fixture.
 - [Broadcast standings source](broadcast-standings-source.md) — reuse authenticated leaderboard endpoints over the local API; fail closed instead of duplicating ranking logic.
 - [Recurring Hit the Ice settlement](recurring-hit-the-ice-settlement.md) — recurring NHL/NBA periods persist separately and advance atomically; End Recurring must close safely across rollover races.
+- [Weekly bonus threshold lifecycle](weekly-bonus-threshold.md) — current evaluations use live enrollment; settled history uses the legacy pool flag because no week-keyed snapshot exists.

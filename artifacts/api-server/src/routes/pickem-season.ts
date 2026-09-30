@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
-import { eq, and, sql, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
 import { computeLiveCorrect, getLiveGamesCached } from "../lib/nfl-live-picks";
@@ -21,6 +21,7 @@ import {
   type NflScheduledGame,
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
+import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 
 const router = Router({ mergeParams: true });
 
@@ -1368,7 +1369,25 @@ router.get("/week-results", requireAuth, async (req, res) => {
     pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
       ? pool.weeklyBonusMinPlayers
       : null;
-  const weeklyBonusThresholdMet = pool.weeklyBonusLockedActive === true;
+  const weekIsResolved =
+    !pool.isActive ||
+    week < pool.currentWeek ||
+    (games.length > 0 && games.every((game) => game.status === "final"));
+  const [{ playerCount: enrolledPlayerCount }] =
+    !weekIsResolved && pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
+      ? await db
+          .select({ playerCount: count() })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId))
+      : [{ playerCount: 0 }];
+  const weeklyBonusThresholdMet = resolveWeeklyBonusThreshold({
+    poolType: pool.poolType,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled,
+    weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers,
+    playerCount: Number(enrolledPlayerCount),
+    isResolved: weekIsResolved,
+    persistedThreshold: pool.weeklyBonusLockedActive,
+  });
   const weeklyBonusPerWinner =
     weeklyBonusThresholdMet &&
     weeklyBonusAmount != null &&

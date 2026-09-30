@@ -45,30 +45,30 @@ export function joinBlockedByStart(poolType: string, hasStarted: boolean): boole
   return isSurvivorPoolType(poolType) && hasStarted;
 }
 
-export type WeeklyBonusLockInput = {
+export type WeeklyBonusThresholdInput = {
   poolType: string;
   weeklyBonusEnabled: boolean;
-  weeklyBonusLockedActive: boolean | null;
   weeklyBonusMinPlayers: number | null;
   playerCount: number;
-  hasStarted: boolean;
+  isResolved: boolean;
+  persistedThreshold: boolean | null;
 };
 
 /**
- * Returns a one-time weekly bonus decision when an eligible NFL season pool
- * first resolves as started. Null means no decision should be persisted.
+ * Uses current enrollment for open-week evaluation. Resolved historical weeks
+ * use the legacy pool-wide decision so later enrollment cannot change old results.
+ * This compatibility value is read-only; it is not a per-week snapshot.
  */
-export function resolveWeeklyBonusLock(input: WeeklyBonusLockInput): boolean | null {
+export function resolveWeeklyBonusThreshold(input: WeeklyBonusThresholdInput): boolean {
   if (
-    !input.hasStarted ||
     !input.weeklyBonusEnabled ||
-    input.weeklyBonusLockedActive !== null ||
+    input.weeklyBonusMinPlayers === null ||
     !["pickem_season", "nfl_confidence"].includes(input.poolType)
   ) {
-    return null;
+    return false;
   }
-  return input.weeklyBonusMinPlayers !== null &&
-    input.playerCount >= input.weeklyBonusMinPlayers;
+  if (input.isResolved) return input.persistedThreshold === true;
+  return input.playerCount >= input.weeklyBonusMinPlayers;
 }
 
 /** Pending selections are editable pre-start and are never progression evidence. */

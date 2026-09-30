@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, resolveWeeklyBonusLock, type PoolStartPool } from "./pool-start";
+import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "./pool-start";
 
 const base: PoolStartPool = { id: 1, sport: "nfl", poolType: "season", currentWeek: 1, startWeek: null, season: 2026, isPreseason: false, pickFrequency: "weekly", sandboxMode: false, createdAt: new Date("2026-09-01T00:00:00Z") };
 const game = (date: string, hasStarted = false) => ({ date, hasStarted });
@@ -57,44 +57,41 @@ test("pre-lock non-Survivor submissions do not produce a warning", async () => {
 });
 
 for (const poolType of ["pickem_season", "nfl_confidence"]) {
-  test(`${poolType} locks the weekly bonus on when the player threshold is met`, () => {
-    assert.equal(resolveWeeklyBonusLock({
+  test(`${poolType} recalculates the weekly bonus when enrollment reaches the threshold`, () => {
+    const input = {
       poolType,
       weeklyBonusEnabled: true,
-      weeklyBonusLockedActive: null,
       weeklyBonusMinPlayers: 10,
-      playerCount: 10,
-      hasStarted: true,
-    }), true);
+      isResolved: false,
+      persistedThreshold: false,
+    };
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 9 }), false);
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 10 }), true);
   });
 
-  test(`${poolType} locks the weekly bonus off when the player threshold is not met`, () => {
-    assert.equal(resolveWeeklyBonusLock({
+  test(`${poolType} preserves the existing decision for a resolved week`, () => {
+    const input = {
       poolType,
       weeklyBonusEnabled: true,
-      weeklyBonusLockedActive: null,
       weeklyBonusMinPlayers: 10,
-      playerCount: 9,
-      hasStarted: true,
-    }), false);
+      playerCount: 20,
+      isResolved: true,
+    };
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, persistedThreshold: false }), false);
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, persistedThreshold: true }), true);
   });
 }
 
-test("weekly bonus lock remains undecided before start and cannot be recalculated", () => {
-  assert.equal(resolveWeeklyBonusLock({
+test("weekly bonus remains off when disabled, unconfigured, or used by an unsupported pool", () => {
+  const baseThreshold = {
     poolType: "pickem_season",
     weeklyBonusEnabled: true,
-    weeklyBonusLockedActive: null,
-    weeklyBonusMinPlayers: 10,
-    playerCount: 10,
-    hasStarted: false,
-  }), null);
-  assert.equal(resolveWeeklyBonusLock({
-    poolType: "nfl_confidence",
-    weeklyBonusEnabled: true,
-    weeklyBonusLockedActive: false,
     weeklyBonusMinPlayers: 10,
     playerCount: 20,
-    hasStarted: true,
-  }), null);
+    isResolved: false,
+    persistedThreshold: null,
+  };
+  assert.equal(resolveWeeklyBonusThreshold({ ...baseThreshold, weeklyBonusEnabled: false }), false);
+  assert.equal(resolveWeeklyBonusThreshold({ ...baseThreshold, weeklyBonusMinPlayers: null }), false);
+  assert.equal(resolveWeeklyBonusThreshold({ ...baseThreshold, poolType: "pickem" }), false);
 });

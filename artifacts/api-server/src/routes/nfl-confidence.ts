@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, entriesTable, usersTable, nflConfidenceResultsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
-import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, sql, isNotNull, inArray, count } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
@@ -11,6 +11,7 @@ import {
   type NflScheduledGame,
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
+import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 import { validateConfidenceSubmission } from "../lib/confidence-submission";
 
 const router = Router({ mergeParams: true });
@@ -1079,10 +1080,27 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
     pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
       ? pool.weeklyBonusMinPlayers
       : null;
+  const weekIsResolved =
+    !pool.isActive ||
+    (week > 0 && completedWeeks.some((row) => row.week === week));
+  const [{ playerCount: enrolledPlayerCount }] =
+    !weekIsResolved && pool.weeklyBonusEnabled && weeklyBonusMinPlayers != null
+      ? await db
+          .select({ playerCount: count() })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId))
+      : [{ playerCount: 0 }];
 
   const weeklyBonusBase = {
     enabled: pool.weeklyBonusEnabled,
-    thresholdMet: pool.weeklyBonusLockedActive === true,
+    thresholdMet: resolveWeeklyBonusThreshold({
+      poolType: pool.poolType,
+      weeklyBonusEnabled: pool.weeklyBonusEnabled,
+      weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers,
+      playerCount: Number(enrolledPlayerCount),
+      isResolved: weekIsResolved,
+      persistedThreshold: pool.weeklyBonusLockedActive,
+    }),
     amount: weeklyBonusAmount,
     perWinnerAmount: null as number | null,
     minPlayers: weeklyBonusMinPlayers,

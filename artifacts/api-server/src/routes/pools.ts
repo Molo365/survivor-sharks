@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, entriesTable, usersTable, picksTable, pickemPicksTable, wcBracketPicksTable, mlbBracketPicksTable, mlbBracketSlotsTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable, groupStagePredictorPicksTable, sandboxGameScoresTable, weekResultsTable, mlbBracketResultsTable, wcBracketResultsTable, groupStageResultsTable, nflConfidenceResultsTable, nflDivisionResultsTable, nhlDivisionResultsTable } from "@workspace/db";
-import { eq, and, count, ne, inArray, or, lte, isNotNull, isNull, gt, sql } from "drizzle-orm";
+import { eq, and, count, ne, inArray, or, lte, isNotNull, gt, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 import {
@@ -18,7 +18,7 @@ import {
 import { bracketBlueprint, getMlbPostseasonField, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
-import { resolvePoolStart, type PoolStartPool } from "../lib/pool-start";
+import { resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "../lib/pool-start";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
@@ -109,41 +109,7 @@ async function getPoolStartState(pool: PoolRow) {
     },
   });
 
-  let weeklyBonusLockedActive = pool.weeklyBonusLockedActive;
-  if (
-    startState.hasStarted &&
-    pool.weeklyBonusEnabled &&
-    weeklyBonusLockedActive === null &&
-    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
-  ) {
-    // Count and persist in one statement so concurrent lock requests cannot
-    // decide from different entry snapshots. IS NULL makes the decision final.
-    const [locked] = await db
-      .update(poolsTable)
-      .set({
-        weeklyBonusLockedActive: sql<boolean>`coalesce(
-          (select count(*) from ${entriesTable} where ${entriesTable.poolId} = ${pool.id})
-            >= ${poolsTable.weeklyBonusMinPlayers},
-          false
-        )`,
-      })
-      .where(and(
-        eq(poolsTable.id, pool.id),
-        eq(poolsTable.weeklyBonusEnabled, true),
-        inArray(poolsTable.poolType, ["pickem_season", "nfl_confidence"]),
-        isNull(poolsTable.weeklyBonusLockedActive),
-      ))
-      .returning({ weeklyBonusLockedActive: poolsTable.weeklyBonusLockedActive });
-    weeklyBonusLockedActive = locked?.weeklyBonusLockedActive ?? (
-      await db
-        .select({ weeklyBonusLockedActive: poolsTable.weeklyBonusLockedActive })
-        .from(poolsTable)
-        .where(eq(poolsTable.id, pool.id))
-        .limit(1)
-    )[0]?.weeklyBonusLockedActive ?? null;
-  }
-
-  return { ...startState, weeklyBonusLockedActive };
+  return startState;
 }
 
 function formatPool(pool: PoolRow, memberCount: number, activeCount: number, commissionerName: string) {
@@ -727,14 +693,6 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
-  const startState = (
-    pool.weeklyBonusEnabled &&
-    pool.weeklyBonusLockedActive === null &&
-    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
-  )
-    ? await getPoolStartState(pool)
-    : null;
-
   const members = await db.select({
     userId: entriesTable.userId,
     username: usersTable.username,
@@ -747,6 +705,18 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     .where(eq(entriesTable.poolId, poolId));
 
   const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
+  const weeklyBonusLockedActive =
+    pool.weeklyBonusEnabled &&
+    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
+      ? resolveWeeklyBonusThreshold({
+          poolType: pool.poolType,
+          weeklyBonusEnabled: pool.weeklyBonusEnabled,
+          weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers,
+          playerCount: members.length,
+          isResolved: false,
+          persistedThreshold: pool.weeklyBonusLockedActive,
+        })
+      : pool.weeklyBonusLockedActive;
 
   res.json({
     id: pool.id,
@@ -781,7 +751,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
     weeklyBonusAmount: pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null,
     weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers ?? null,
-    weeklyBonusLockedActive: startState?.weeklyBonusLockedActive ?? pool.weeklyBonusLockedActive,
+    weeklyBonusLockedActive,
     totalMembers: members.length,
     activeCount: members.filter(m => m.status === "alive").length,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),

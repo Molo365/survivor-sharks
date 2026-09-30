@@ -7,7 +7,7 @@ import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe, CheckCircle2, XCircle, Circle } from "lucide-react";
+import { Ban, Target, Activity, Users, Skull, ShieldAlert, Trophy, RefreshCw, Zap, Bandage, Crosshair, ListOrdered, Dice5, Camera, Globe, XCircle, Circle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { MatchupPickGrid } from "@/components/MatchupPickGrid";
@@ -72,7 +72,9 @@ export default function PoolHome() {
       refetchInterval: (query) => {
         const current = query.state.data;
         return current?.weeklyBonusEnabled &&
-          current.weeklyBonusLockedActive === null &&
+          current.weeklyBonusMinPlayers != null &&
+          current.weeklyBonusLockedActive !== true &&
+          current.isActive &&
           ["pickem_season", "nfl_confidence"].includes(current.poolType)
           ? 15_000
           : false;
@@ -392,34 +394,13 @@ export default function PoolHome() {
                 />
               </div>
             </div>
-            {showsSeasonWeeklyBonus && (
-              <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
-                pool.weeklyBonusLockedActive === true
-                  ? "border-green-500/30 bg-green-500/10 text-green-300"
-                  : pool.weeklyBonusLockedActive === false
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                    : "border-primary/25 bg-primary/5 text-foreground"
-              }`}>
-                {pool.weeklyBonusLockedActive === true ? (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" />
-                ) : pool.weeklyBonusLockedActive === false ? (
-                  <XCircle className="h-5 w-5 shrink-0 text-amber-400" />
-                ) : (
-                  <Users className="h-5 w-5 shrink-0 text-primary" />
-                )}
-                <div>
-                  <div className="text-sm font-bold">
-                    {pool.weeklyBonusLockedActive === true
-                      ? "Weekly Bonus: ON for this season"
-                      : pool.weeklyBonusLockedActive === false
-                        ? "Weekly Bonus: OFF — threshold wasn't met at kickoff"
-                        : `${pool.totalMembers} of ${pool.weeklyBonusMinPlayers ?? 0} players joined — weekly bonus not active yet`}
-                  </div>
-                  {pool.weeklyBonusLockedActive === null && (
-                    <div className="mt-0.5 text-xs text-muted-foreground">
-                      The bonus decision becomes permanent when the season's first game starts.
-                    </div>
-                  )}
+            {showsSeasonWeeklyBonus && pool.weeklyBonusLockedActive === false && (
+              <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-300">
+                <XCircle className="h-5 w-5 shrink-0 text-amber-400" />
+                <div className="text-sm font-bold">
+                  {pool.weeklyBonusMinPlayers != null
+                    ? `Weekly Bonus: OFF — fewer than ${pool.weeklyBonusMinPlayers} players are currently enrolled (${pool.totalMembers}/${pool.weeklyBonusMinPlayers})`
+                    : "Weekly Bonus: OFF — the minimum enrollment is not configured"}
                 </div>
               </div>
             )}
