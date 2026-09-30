@@ -67,19 +67,19 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
                       series.team1Wins + series.team2Wins > 0 && (
                         <>
                           <span className="mt-1 block text-[8px] font-medium uppercase tracking-wide text-muted-foreground">SERIES</span>
-                        <div
-                          className="mt-1 space-y-0.5 text-left text-[9px] font-medium normal-case tracking-normal text-muted-foreground"
-                          aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
-                        >
-                          <div className="flex items-center justify-between gap-1" title={series.team1}>
-                            <span className={`truncate ${series.team1Wins > series.team2Wins ? "text-primary" : ""}`}>{series.team1}</span>
-                            <span className={`shrink-0 font-mono tabular-nums ${series.team1Wins > series.team2Wins ? "text-primary" : "text-foreground"}`}>{series.team1Wins}</span>
+                          <div
+                            className="mt-1 space-y-0.5 text-left text-[9px] font-medium normal-case tracking-normal text-muted-foreground"
+                            aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
+                          >
+                            <div className="flex items-center justify-between gap-1" title={series.team1}>
+                              <span className={`truncate ${series.team1Wins > series.team2Wins ? "text-primary" : ""}`}>{series.team1}</span>
+                              <span className={`shrink-0 font-mono tabular-nums ${series.team1Wins > series.team2Wins ? "text-primary" : "text-foreground"}`}>{series.team1Wins}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-1" title={series.team2}>
+                              <span className={`truncate ${series.team2Wins > series.team1Wins ? "text-primary" : ""}`}>{series.team2}</span>
+                              <span className={`shrink-0 font-mono tabular-nums ${series.team2Wins > series.team1Wins ? "text-primary" : "text-foreground"}`}>{series.team2Wins}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-1" title={series.team2}>
-                            <span className={`truncate ${series.team2Wins > series.team1Wins ? "text-primary" : ""}`}>{series.team2}</span>
-                            <span className={`shrink-0 font-mono tabular-nums ${series.team2Wins > series.team1Wins ? "text-primary" : "text-foreground"}`}>{series.team2Wins}</span>
-                          </div>
-                        </div>
                         </>
                       )}
                 </th>
