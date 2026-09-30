@@ -5817,11 +5817,15 @@ components:
           type: array
           items:
             type: object
-            required: [seriesId, round, roundLabel, completed]
+            required: [seriesId, round, roundLabel, team1, team2, team1Wins, team2Wins, completed]
             properties:
               seriesId: { type: string }
               round: { type: string, enum: [wild_card, division_series, league_championship, world_series] }
               roundLabel: { type: string }
+              team1: { type: ["string", "null"] }
+              team2: { type: ["string", "null"] }
+              team1Wins: { type: ["integer", "null"] }
+              team2Wins: { type: ["integer", "null"] }
               completed: { type: boolean }
         members:
           type: array
@@ -5863,7 +5867,7 @@ components:
           type: array
           items:
             type: object
-            required: [seriesId, seriesSlot, round, allowedLengths, points, completed]
+            required: [seriesId, seriesSlot, round, allowedLengths, points, completed, team1Wins, team2Wins]
             properties:
               seriesId: { type: string }
               seriesSlot: { type: string }
@@ -5873,6 +5877,8 @@ components:
               team2: { type: [string, "null"] }
               team1LogoUrl: { type: [string, "null"] }
               team2LogoUrl: { type: [string, "null"] }
+              team1Wins: { type: ["integer", "null"] }
+              team2Wins: { type: ["integer", "null"] }
               eligibleTeams: { type: array, items: { type: string } }
               allowedLengths: { type: array, items: { type: integer } }
               points: { type: integer }

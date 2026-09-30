@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   bracketBlueprint,
+  fetchMlbPostseasonSeries,
   parseMlbPostseasonField,
   SANDBOX_MLB_FIELD,
 } from "./mlb-bracket";
@@ -76,5 +77,46 @@ describe("MLB postseason field parsing", () => {
       "NL_WC_1", "NL_WC_2", "NL_DS_1", "NL_DS_2", "NLCS",
       "WORLD_SERIES",
     ]);
+  });
+});
+
+describe("MLB postseason series win counts", () => {
+  it("returns wins for each team in the series", async () => {
+    const originalFetch = globalThis.fetch;
+    const event = (date: string, away: string, home: string, winner: string) => ({
+      date,
+      competitions: [{
+        date,
+        notes: [{ headline: "ALCS" }],
+        status: { type: { completed: true } },
+        competitors: [
+          { homeAway: "away", winner: winner === away, team: { displayName: away } },
+          { homeAway: "home", winner: winner === home, team: { displayName: home } },
+        ],
+      }],
+    });
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const dates = new URL(String(input)).searchParams.get("dates");
+      return Response.json({
+        events: dates === "202609"
+          ? [
+              event("2026-10-12T00:00:00Z", "New York Yankees", "Boston Red Sox", "New York Yankees"),
+              event("2026-10-13T00:00:00Z", "Boston Red Sox", "New York Yankees", "Boston Red Sox"),
+            ]
+          : [],
+      });
+    }) as typeof fetch;
+
+    try {
+      const result = await fetchMlbPostseasonSeries(2026);
+      const series = result.series.find(item => item.round === "league_championship");
+      assert.ok(series);
+      assert.equal(series.team1, "New York Yankees");
+      assert.equal(series.team2, "Boston Red Sox");
+      assert.equal(series.team1Wins, 1);
+      assert.equal(series.team2Wins, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

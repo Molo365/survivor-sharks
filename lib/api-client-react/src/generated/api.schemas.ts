@@ -2452,6 +2452,14 @@ export type MlbBracketGridSeriesItem = {
   seriesId: string;
   round: MlbBracketGridSeriesItemRound;
   roundLabel: string;
+  /** @nullable */
+  team1: string | null;
+  /** @nullable */
+  team2: string | null;
+  /** @nullable */
+  team1Wins: number | null;
+  /** @nullable */
+  team2Wins: number | null;
   completed: boolean;
 };
 
@@ -2519,6 +2527,10 @@ export type MlbBracketStateRoundsItem = {
   team1LogoUrl?: string | null;
   /** @nullable */
   team2LogoUrl?: string | null;
+  /** @nullable */
+  team1Wins: number | null;
+  /** @nullable */
+  team2Wins: number | null;
   eligibleTeams?: string[];
   allowedLengths: number[];
   points: number;

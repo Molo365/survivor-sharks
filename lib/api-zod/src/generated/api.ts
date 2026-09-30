@@ -966,6 +966,8 @@ export const GetMlbBracketResponse = zod.object({
   "team2": zod.string().nullish(),
   "team1LogoUrl": zod.string().nullish(),
   "team2LogoUrl": zod.string().nullish(),
+  "team1Wins": zod.number().nullable(),
+  "team2Wins": zod.number().nullable(),
   "eligibleTeams": zod.array(zod.string()).optional(),
   "allowedLengths": zod.array(zod.number()),
   "points": zod.number(),
@@ -1019,6 +1021,10 @@ export const GetMlbBracketGridResponse = zod.object({
   "seriesId": zod.string(),
   "round": zod.enum(['wild_card', 'division_series', 'league_championship', 'world_series']),
   "roundLabel": zod.string(),
+  "team1": zod.string().nullable(),
+  "team2": zod.string().nullable(),
+  "team1Wins": zod.number().nullable(),
+  "team2Wins": zod.number().nullable(),
   "completed": zod.boolean()
 })),
   "members": zod.array(zod.object({

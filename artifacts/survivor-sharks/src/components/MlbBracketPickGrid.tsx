@@ -56,9 +56,29 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
             <tr>
               <th className="sticky left-0 z-20 min-w-40 border-b border-r border-border/40 bg-card px-3 py-3 text-left text-[10px] uppercase tracking-wider text-muted-foreground">Player</th>
               {data.series.map(series => (
-                <th key={series.seriesId} className="min-w-[78px] border-b border-r border-border/30 bg-card px-2 py-3 text-center">
+                  <th key={series.seriesId} className="min-w-[118px] border-b border-r border-border/30 bg-card px-2 py-3 text-center">
                   <span className="block text-[10px] font-bold uppercase tracking-wide">{SLOT_LABELS[series.seriesId] ?? series.seriesId}</span>
                   <span className="mt-0.5 block text-[8px] font-normal uppercase tracking-wide text-muted-foreground">{series.roundLabel}</span>
+                    {!series.completed &&
+                      series.team1 &&
+                      series.team2 &&
+                      series.team1Wins != null &&
+                      series.team2Wins != null &&
+                      series.team1Wins + series.team2Wins > 0 && (
+                        <div
+                          className="mt-1 space-y-0.5 text-left text-[9px] font-medium normal-case tracking-normal text-muted-foreground"
+                          aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
+                        >
+                          <div className="flex items-center justify-between gap-1" title={series.team1}>
+                            <span className="truncate">{series.team1}</span>
+                            <span className="shrink-0 font-mono tabular-nums text-foreground">{series.team1Wins}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-1" title={series.team2}>
+                            <span className="truncate">{series.team2}</span>
+                            <span className="shrink-0 font-mono tabular-nums text-foreground">{series.team2Wins}</span>
+                          </div>
+                        </div>
+                      )}
                 </th>
               ))}
             </tr>

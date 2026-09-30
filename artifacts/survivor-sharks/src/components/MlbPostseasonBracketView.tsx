@@ -50,6 +50,10 @@ type Leader = { userId: number; username?: string; displayName?: string; rank?: 
 function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, editable, onPick }: { series: MlbBracketStateRoundsItem; pick?: Pick; eligibleTeams: string[]; eliminatedTeams: Set<string>; teamLogos: Record<string, string | null>; editable: boolean; onPick: (pick: Pick) => void }) {
   const unresolved = !series.team1 || !series.team2;
   const matchupTeams = unresolved ? [] : [series.team1!, series.team2!];
+  const hasLiveScore = !series.completed &&
+    series.team1Wins != null &&
+    series.team2Wins != null &&
+    series.team1Wins + series.team2Wins > 0;
   const choiceTeams = unresolved
     ? [...new Set([...eligibleTeams, ...(pick?.predictedWinner ? [pick.predictedWinner] : [])])]
     : matchupTeams;
@@ -105,6 +109,16 @@ function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, e
           <span className="font-bold uppercase tracking-widest text-muted-foreground">{series.seriesSlot.replaceAll("_", " ")}</span>
           <span className="text-primary font-semibold">{series.points} pt{series.points === 1 ? "" : "s"}</span>
         </div>
+        {hasLiveScore && series.team1 && series.team2 && (
+          <div
+            className="flex items-center justify-center gap-1.5 rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] text-muted-foreground"
+            aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
+          >
+            <span className="max-w-[42%] truncate" title={series.team1}>{series.team1}</span>
+            <span className="shrink-0 font-mono font-bold tabular-nums text-foreground">{series.team1Wins}–{series.team2Wins}</span>
+            <span className="max-w-[42%] truncate" title={series.team2}>{series.team2}</span>
+          </div>
+        )}
         {unresolved ? (
           <>
             <div className="flex items-center gap-2 rounded-md border border-dashed border-border/40 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">

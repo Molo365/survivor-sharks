@@ -56,6 +56,8 @@ function cards(slots: Array<typeof mlbBracketSlotsTable.$inferSelect>, picks: Ar
     return {
       seriesId: seriesSlot, seriesSlot, round, roundLabel: ROUND_LABELS[round],
       team1, team2, team1LogoUrl: logoFor(team1), team2LogoUrl: logoFor(team2),
+      team1Wins: current && !current.completed ? current.team1Wins : null,
+      team2Wins: current && !current.completed ? current.team2Wins : null,
       eligibleTeams, allowedLengths: MLB_ROUND_LENGTHS[round], points: MLB_ROUND_POINTS[round],
       completed: Boolean(result), winner: result?.winner ?? null, actualLength: result?.actualLength ?? null,
       visuallyLocked: !current && round !== "wild_card",
@@ -122,17 +124,22 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 });
 router.get("/grid", requireAuth, async (req, res) => {
   const ctx = await getContext(req, res); if (!ctx) return;
-  if (!await pickLocked(ctx)) {
+  const postseason = ctx.pool.sandboxMode
+    ? { series: [], failedMonths: [] }
+    : await fetchMlbPostseasonSeries(ctx.pool.season);
+  if (!await pickLocked(ctx, postseason)) {
     res.status(403).json({ error: "The pick grid becomes available once the bracket locks." });
     return;
   }
-  const [members, picks, results] = await Promise.all([
+  const [members, picks, results, slots] = await Promise.all([
     db.select({ userId: entriesTable.userId, username: usersTable.username, displayName: usersTable.displayName }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(eq(entriesTable.poolId, ctx.poolId)),
     db.select().from(mlbBracketPicksTable).where(eq(mlbBracketPicksTable.poolId, ctx.poolId)),
     db.select().from(mlbBracketResultsTable).where(eq(mlbBracketResultsTable.poolId, ctx.poolId)),
+    db.select().from(mlbBracketSlotsTable).where(eq(mlbBracketSlotsTable.poolId, ctx.poolId)),
   ]);
   const eliminatedTeams = getEliminatedTeams(results);
   const completedSlots = new Set(results.map(result => result.seriesSlot));
+  const currentCards = new Map(cards(slots, [], postseason.series, results).map(card => [card.seriesId, card]));
   const picksByUser = new Map<number, Map<string, typeof mlbBracketPicksTable.$inferSelect>>();
   for (const pick of picks) {
     const userPicks = picksByUser.get(pick.userId) ?? new Map();
@@ -140,7 +147,19 @@ router.get("/grid", requireAuth, async (req, res) => {
     picksByUser.set(pick.userId, userPicks);
   }
   res.json({
-    series: MLB_BRACKET_SLOTS.map(([round, seriesId]) => ({ seriesId, round, roundLabel: ROUND_LABELS[round], completed: completedSlots.has(seriesId) })),
+    series: MLB_BRACKET_SLOTS.map(([round, seriesId]) => {
+      const current = currentCards.get(seriesId);
+      return {
+        seriesId,
+        round,
+        roundLabel: ROUND_LABELS[round],
+        team1: current?.team1 ?? null,
+        team2: current?.team2 ?? null,
+        team1Wins: current?.team1Wins ?? null,
+        team2Wins: current?.team2Wins ?? null,
+        completed: completedSlots.has(seriesId),
+      };
+    }),
     members: members.map(member => ({
       ...member,
       picks: MLB_BRACKET_SLOTS.map(([, seriesId]) => {

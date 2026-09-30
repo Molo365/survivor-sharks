@@ -92,6 +92,8 @@ export type MlbSeries = {
   seriesSlot: string;
   team1: string;
   team2: string;
+  team1Wins: number;
+  team2Wins: number;
   team1LogoUrl: string | null;
   team2LogoUrl: string | null;
   games: number;
@@ -215,6 +217,8 @@ export async function fetchMlbPostseasonSeries(season = new Date().getFullYear()
         seriesSlot,
         team1: group.teams[0],
         team2: group.teams[1],
+        team1Wins: group.wins.get(group.teams[0]) ?? 0,
+        team2Wins: group.wins.get(group.teams[1]) ?? 0,
         team1LogoUrl: group.logos.get(group.teams[0]) ?? getMlbTeamLogoUrl(group.teams[0]),
         team2LogoUrl: group.logos.get(group.teams[1]) ?? getMlbTeamLogoUrl(group.teams[1]),
         games: group.completedGames,
