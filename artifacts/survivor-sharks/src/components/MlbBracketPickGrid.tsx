@@ -65,6 +65,8 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
                       series.team1Wins != null &&
                       series.team2Wins != null &&
                       series.team1Wins + series.team2Wins > 0 && (
+                        <>
+                          <span className="mt-1 block text-[8px] font-medium uppercase tracking-wide text-muted-foreground">SERIES</span>
                         <div
                           className="mt-1 space-y-0.5 text-left text-[9px] font-medium normal-case tracking-normal text-muted-foreground"
                           aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
@@ -78,6 +80,7 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
                             <span className={`shrink-0 font-mono tabular-nums ${series.team2Wins > series.team1Wins ? "text-primary" : "text-foreground"}`}>{series.team2Wins}</span>
                           </div>
                         </div>
+                        </>
                       )}
                 </th>
               ))}

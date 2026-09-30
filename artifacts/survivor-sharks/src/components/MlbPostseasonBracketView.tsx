@@ -115,13 +115,20 @@ function SeriesCard({ series, pick, eligibleTeams, eliminatedTeams, teamLogos, e
             className="flex items-center justify-center gap-1.5 rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-sm text-muted-foreground"
             aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
           >
-            <span className={`max-w-[42%] truncate font-semibold ${series.team1Wins! > series.team2Wins! ? "text-primary" : ""}`} title={series.team1}>{series.team1}</span>
-            <span className="shrink-0 font-mono text-base font-bold tabular-nums">
-              <span className={series.team1Wins! > series.team2Wins! ? "text-primary" : "text-foreground"}>{series.team1Wins}</span>
-              <span className="text-foreground">–</span>
-              <span className={series.team2Wins! > series.team1Wins! ? "text-primary" : "text-foreground"}>{series.team2Wins}</span>
-            </span>
-            <span className={`max-w-[42%] truncate font-semibold ${series.team2Wins! > series.team1Wins! ? "text-primary" : ""}`} title={series.team2}>{series.team2}</span>
+            {series.team1Wins! === series.team2Wins! ? (
+              <span className="text-sm text-muted-foreground">
+                Series tied{" "}
+                <span className="font-mono text-base font-bold tabular-nums text-foreground">{series.team1Wins}-{series.team2Wins}</span>
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                <span className="font-semibold text-primary">{series.team1Wins! > series.team2Wins! ? series.team1 : series.team2}</span>{" "}
+                lead series{" "}
+                <span className="font-mono text-base font-bold tabular-nums text-primary">
+                  {series.team1Wins! > series.team2Wins! ? series.team1Wins : series.team2Wins}-{series.team1Wins! > series.team2Wins! ? series.team2Wins : series.team1Wins}
+                </span>
+              </span>
+            )}
           </div>
         )}
         {unresolved ? (

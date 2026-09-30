@@ -94,13 +94,20 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                         className="mt-3 flex items-center justify-center gap-1.5 rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-sm text-muted-foreground"
                         aria-label={`${row.team1} ${row.team1Wins} wins, ${row.team2} ${row.team2Wins} wins`}
                       >
-                        <span className={`max-w-[42%] truncate font-semibold ${row.team1Wins! > row.team2Wins! ? "text-primary" : ""}`} title={row.team1!}>{row.team1}</span>
-                        <span className="shrink-0 font-mono text-base font-bold tabular-nums">
-                          <span className={row.team1Wins! > row.team2Wins! ? "text-primary" : "text-foreground"}>{row.team1Wins}</span>
-                          <span className="text-foreground">–</span>
-                          <span className={row.team2Wins! > row.team1Wins! ? "text-primary" : "text-foreground"}>{row.team2Wins}</span>
-                        </span>
-                        <span className={`max-w-[42%] truncate font-semibold ${row.team2Wins! > row.team1Wins! ? "text-primary" : ""}`} title={row.team2!}>{row.team2}</span>
+                        {row.team1Wins! === row.team2Wins! ? (
+                          <span className="text-sm text-muted-foreground">
+                            Series tied{" "}
+                            <span className="font-mono text-base font-bold tabular-nums text-foreground">{row.team1Wins}-{row.team2Wins}</span>
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            <span className="font-semibold text-primary">{row.team1Wins! > row.team2Wins! ? row.team1 : row.team2}</span>{" "}
+                            lead series{" "}
+                            <span className="font-mono text-base font-bold tabular-nums text-primary">
+                              {row.team1Wins! > row.team2Wins! ? row.team1Wins : row.team2Wins}-{row.team1Wins! > row.team2Wins! ? row.team2Wins : row.team1Wins}
+                            </span>
+                          </span>
+                        )}
                       </div>
                     )}
                     <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:grid-cols-2">
