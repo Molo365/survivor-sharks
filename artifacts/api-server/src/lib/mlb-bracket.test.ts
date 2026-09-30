@@ -95,8 +95,8 @@ describe("MLB postseason series win counts", () => {
         ],
       }],
     });
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const dates = new URL(String(input)).searchParams.get("dates");
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      const dates = new URL(String(args[0])).searchParams.get("dates");
       return Response.json({
         events: dates === "202609"
           ? [
