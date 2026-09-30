@@ -70,12 +70,12 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
                           aria-label={`${series.team1} ${series.team1Wins} wins, ${series.team2} ${series.team2Wins} wins`}
                         >
                           <div className="flex items-center justify-between gap-1" title={series.team1}>
-                            <span className="truncate">{series.team1}</span>
-                            <span className="shrink-0 font-mono tabular-nums text-foreground">{series.team1Wins}</span>
+                            <span className={`truncate ${series.team1Wins > series.team2Wins ? "text-primary" : ""}`}>{series.team1}</span>
+                            <span className={`shrink-0 font-mono tabular-nums ${series.team1Wins > series.team2Wins ? "text-primary" : "text-foreground"}`}>{series.team1Wins}</span>
                           </div>
                           <div className="flex items-center justify-between gap-1" title={series.team2}>
-                            <span className="truncate">{series.team2}</span>
-                            <span className="shrink-0 font-mono tabular-nums text-foreground">{series.team2Wins}</span>
+                            <span className={`truncate ${series.team2Wins > series.team1Wins ? "text-primary" : ""}`}>{series.team2}</span>
+                            <span className={`shrink-0 font-mono tabular-nums ${series.team2Wins > series.team1Wins ? "text-primary" : "text-foreground"}`}>{series.team2Wins}</span>
                           </div>
                         </div>
                       )}
