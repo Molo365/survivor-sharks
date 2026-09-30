@@ -1,8 +1,15 @@
-import type { MlbBracketResultBreakdownItem } from "@workspace/api-client-react";
+import type { MlbBracketResultBreakdownItem as ApiMlbBracketResultBreakdownItem } from "@workspace/api-client-react";
 import { Check, Clock3, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
+
+export type MlbBracketResultBreakdownItem = ApiMlbBracketResultBreakdownItem & {
+  team1?: string | null;
+  team2?: string | null;
+  team1Wins?: number | null;
+  team2Wins?: number | null;
+};
 
 const ROUND_ORDER = ["wild_card", "division_series", "league_championship", "world_series"];
 const ROUND_LABELS: Record<string, string> = {
@@ -55,6 +62,12 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                   predictedTeamEliminated: row.predictedTeamEliminated,
                 });
                 const eliminatedFuture = visualState === "eliminated";
+                const hasLiveScore = row.actualWinner === null &&
+                  row.team1 != null &&
+                  row.team2 != null &&
+                  row.team1Wins != null &&
+                  row.team2Wins != null &&
+                  row.team1Wins + row.team2Wins > 0;
                 return (
                   <div key={row.seriesId} className={cn(
                     "rounded-xl border p-3",
@@ -76,6 +89,20 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                         </p>
                       </div>
                     </div>
+                    {hasLiveScore && (
+                      <div
+                        className="mt-3 flex items-center justify-center gap-1.5 rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-sm text-muted-foreground"
+                        aria-label={`${row.team1} ${row.team1Wins} wins, ${row.team2} ${row.team2Wins} wins`}
+                      >
+                        <span className={`max-w-[42%] truncate font-semibold ${row.team1Wins! > row.team2Wins! ? "text-primary" : ""}`} title={row.team1!}>{row.team1}</span>
+                        <span className="shrink-0 font-mono text-base font-bold tabular-nums">
+                          <span className={row.team1Wins! > row.team2Wins! ? "text-primary" : "text-foreground"}>{row.team1Wins}</span>
+                          <span className="text-foreground">–</span>
+                          <span className={row.team2Wins! > row.team1Wins! ? "text-primary" : "text-foreground"}>{row.team2Wins}</span>
+                        </span>
+                        <span className={`max-w-[42%] truncate font-semibold ${row.team2Wins! > row.team1Wins! ? "text-primary" : ""}`} title={row.team2!}>{row.team2}</span>
+                      </div>
+                    )}
                     <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actual winner</p>

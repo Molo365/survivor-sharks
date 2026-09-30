@@ -11,7 +11,7 @@ import {
   useSimulateMlbBracketNextRound,
   useSubmitMlbBracketPicks,
 } from "@workspace/api-client-react";
-import type { MlbBracketPickInput, MlbBracketPickInputSeriesId, MlbBracketResultBreakdownItem, MlbBracketStateRoundsItem } from "@workspace/api-client-react";
+import type { MlbBracketPickInput, MlbBracketPickInputSeriesId, MlbBracketStateRoundsItem } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Activity, ChartNoAxesColumn, Check, LayoutGrid, Loader2, Lock, Save, ShieldAlert, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { MlbBracketResultsBreakdown } from "@/components/MlbBracketResultsBreakdown";
+import type { MlbBracketResultBreakdownItem } from "@/components/MlbBracketResultsBreakdown";
 import { MlbBracketPickGrid } from "@/components/MlbBracketPickGrid";
 import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
@@ -195,6 +196,10 @@ export function MlbPostseasonBracketView({ poolId, isCommissioner, inviteCode, s
     seriesSlot: series.seriesSlot,
     round: series.round,
     roundLabel: series.roundLabel ?? ROUND_LABELS[series.round],
+    team1: series.team1,
+    team2: series.team2,
+    team1Wins: series.team1Wins,
+    team2Wins: series.team2Wins,
     predictedWinner: series.pick?.predictedWinner ?? null,
     predictedLength: series.pick?.predictedLength ?? null,
     actualWinner: series.winner ?? null,
