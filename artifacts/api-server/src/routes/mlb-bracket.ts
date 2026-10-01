@@ -210,6 +210,7 @@ router.get("/grid", requireAuth, async (req, res) => {
           teamAbbreviation: getMlbTeamAbbreviation(pick.predictedWinner) ?? pick.predictedWinner.slice(0, 3).toUpperCase(),
           predictedLength: pick.predictedLength,
           winnerCorrect: pick.winnerCorrect,
+          lengthCorrect: pick.lengthCorrect,
           predictedTeamEliminated: eliminatedTeams.has(pick.predictedWinner),
         } : null;
       }),

@@ -61,7 +61,18 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
       subtitle: `Pick Grid · ${gridData.members.length} player${gridData.members.length === 1 ? "" : "s"} · ${gridData.series.length} series`,
       columns,
       rows,
-      footer: `Green = correct · Red = incorrect · Amber = awaiting result · Grey = eliminated · Cell = team and predicted series length · Points = 1/2/3/4 for the right winner (Wild Card/Division/Championship/World Series) + 1 for the exact series length · ${today}`,
+      footer: `Team tag: green = right winner, red = wrong · Number tag: green = right series length, red = wrong · Amber = awaiting result · Grey = eliminated · Points = 1/2/3/4 for the winner by round + 1 for exact length · ${today}`,
+      cellChipsFn: (rowIdx, colIdx) => {
+        const seriesIndex = colIdx - 1;
+        const pick = sortedMembers[rowIdx]?.picks[seriesIndex];
+        if (!pick || (pick.winnerCorrect !== true && pick.winnerCorrect !== false)) return null;
+        return {
+          left: pick.teamAbbreviation ?? "",
+          right: String(pick.predictedLength),
+          leftTone: pick.winnerCorrect ? "good" : "bad",
+          rightTone: pick.lengthCorrect === true ? "good" : pick.lengthCorrect === false ? "bad" : "neutral",
+        };
+      },
       cellColorFn: (rowIdx, colIdx) => {
         const seriesIndex = colIdx - 1;
         const pick = sortedMembers[rowIdx]?.picks[seriesIndex];

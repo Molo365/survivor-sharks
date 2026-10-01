@@ -1038,6 +1038,7 @@ export const GetMlbBracketGridResponse = zod.object({
   "teamAbbreviation": zod.string().optional(),
   "predictedLength": zod.number().optional(),
   "winnerCorrect": zod.boolean().nullish(),
+  "lengthCorrect": zod.boolean().nullish(),
   "predictedTeamEliminated": zod.boolean().optional()
 }).nullable())
 }))

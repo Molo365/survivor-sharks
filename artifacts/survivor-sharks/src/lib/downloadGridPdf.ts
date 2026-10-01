@@ -10,6 +10,12 @@ export interface GridPdfOptions {
   rows: { cells: string[]; isCurrentUser?: boolean }[];
   footer: string;
   cellColorFn?: (rowIdx: number, colIdx: number, text: string) => [number, number, number] | null;
+  cellChipsFn?: (rowIdx: number, colIdx: number) => {
+    left: string;
+    right: string;
+    leftTone: "good" | "bad" | "neutral";
+    rightTone: "good" | "bad" | "neutral";
+  } | null;
 }
 
 const MLB_TEAM_COLORS: Record<string, string> = {
@@ -53,6 +59,7 @@ export function downloadGridPdf({
   rows,
   footer,
   cellColorFn,
+  cellChipsFn,
 }: GridPdfOptions): void {
   const doc = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -141,6 +148,11 @@ export function downloadGridPdf({
       const colIdx = data.column.index;
       if (colIdx === 0 || colIdx === lastCol) return;
 
+      if (cellChipsFn?.(data.row.index, colIdx)) {
+        data.cell.text = [""];
+        return;
+      }
+
       const text = String(data.cell.raw ?? "").trim();
       if (!text || text === "—") return;
 
@@ -172,6 +184,50 @@ export function downloadGridPdf({
         if (callerColor) styles.fillColor = callerColor;
       }
     },
+    didDrawCell: cellChipsFn ? (data) => {
+      if (data.section !== "body") return;
+      const colIdx = data.column.index;
+      if (colIdx === 0 || colIdx === lastCol) return;
+      const chips = cellChipsFn(data.row.index, colIdx);
+      if (!chips) return;
+
+      const savedFontSize = doc.getFontSize();
+      const savedTextColor = doc.getTextColor();
+      const savedFillColor = doc.getFillColor();
+      const colors: Record<"good" | "bad" | "neutral", {
+        fill: [number, number, number];
+        text: [number, number, number];
+      }> = {
+        good: { fill: [220, 252, 231], text: [21, 128, 61] },
+        bad: { fill: [254, 226, 226], text: [185, 28, 28] },
+        neutral: { fill: [229, 231, 235], text: [75, 85, 99] },
+      };
+      try {
+        doc.setFontSize(data.cell.styles.fontSize);
+        const leftWidth = Math.max(5, doc.getTextWidth(chips.left) + 2.4);
+        const rightWidth = Math.max(5, doc.getTextWidth(chips.right) + 2.4);
+        const gap = 1;
+        const height = Math.max(1, data.cell.height - 2);
+        const y = data.cell.y + (data.cell.height - height) / 2;
+        const radius = Math.min(0.7, height / 2);
+        let x = data.cell.x + (data.cell.width - leftWidth - rightWidth - gap) / 2;
+        for (const chip of [
+          { text: chips.left, tone: chips.leftTone, width: leftWidth },
+          { text: chips.right, tone: chips.rightTone, width: rightWidth },
+        ]) {
+          const color = colors[chip.tone];
+          doc.setFillColor(...color.fill);
+          doc.setTextColor(...color.text);
+          doc.roundedRect(x, y, chip.width, height, radius, radius, "F");
+          doc.text(chip.text, x + chip.width / 2, y + height / 2, { align: "center", baseline: "middle" });
+          x += chip.width + gap;
+        }
+      } finally {
+        doc.setFontSize(savedFontSize);
+        doc.setTextColor(savedTextColor);
+        doc.setFillColor(savedFillColor);
+      }
+    } : undefined,
   });
 
   const totalPages = doc.getNumberOfPages();

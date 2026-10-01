@@ -2473,6 +2473,8 @@ export type MlbBracketGridMembersItemPicksItem = {
   predictedLength?: number;
   /** @nullable */
   winnerCorrect?: boolean | null;
+  /** @nullable */
+  lengthCorrect?: boolean | null;
   predictedTeamEliminated?: boolean;
 } | null;
 

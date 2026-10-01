@@ -5847,6 +5847,7 @@ components:
                     teamAbbreviation: { type: string }
                     predictedLength: { type: integer }
                     winnerCorrect: { type: [boolean, "null"] }
+                    lengthCorrect: { type: [boolean, "null"] }
                     predictedTeamEliminated: { type: boolean }
     MlbBracketState:
       type: object
