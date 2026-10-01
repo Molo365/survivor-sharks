@@ -157,6 +157,7 @@ router.get("/grid", requireAuth, async (req, res) => {
   ]);
   const eliminatedTeams = getEliminatedTeams(results);
   const completedSlots = new Set(results.map(result => result.seriesSlot));
+  const resultsBySlot = new Map(results.map(result => [result.seriesSlot, result]));
   const currentCards = new Map(cards(slots, [], postseason.series, results).map(card => [card.seriesId, card]));
   const picksByUser = new Map<number, Map<string, typeof mlbBracketPicksTable.$inferSelect>>();
   for (const pick of picks) {
@@ -167,15 +168,35 @@ router.get("/grid", requireAuth, async (req, res) => {
   res.json({
     series: MLB_BRACKET_SLOTS.map(([round, seriesId]) => {
       const current = currentCards.get(seriesId);
+      const team1 = current?.team1 ?? null;
+      const team2 = current?.team2 ?? null;
+      const completed = completedSlots.has(seriesId);
+      let team1Wins = current?.team1Wins ?? null;
+      let team2Wins = current?.team2Wins ?? null;
+      const result = resultsBySlot.get(seriesId);
+      // Derive completed-series wins from the saved result because cards() nulls them.
+      if (completed && result) {
+        const winsNeeded = round === "wild_card" ? 2 : round === "division_series" ? 3
+          : round === "league_championship" || round === "world_series" ? 4 : null;
+        if (winsNeeded !== null) {
+          const winnerWins = winsNeeded;
+          const loserWins = result.actualLength - winsNeeded;
+          if (Number.isInteger(loserWins) && loserWins >= 0 && loserWins < winsNeeded &&
+              (result.winner === team1 || result.winner === team2)) {
+            team1Wins = result.winner === team1 ? winnerWins : loserWins;
+            team2Wins = result.winner === team2 ? winnerWins : loserWins;
+          }
+        }
+      }
       return {
         seriesId,
         round,
         roundLabel: ROUND_LABELS[round],
-        team1: current?.team1 ?? null,
-        team2: current?.team2 ?? null,
-        team1Wins: current?.team1Wins ?? null,
-        team2Wins: current?.team2Wins ?? null,
-        completed: completedSlots.has(seriesId),
+        team1,
+        team2,
+        team1Wins,
+        team2Wins,
+        completed,
       };
     }),
     members: members.map(member => ({
