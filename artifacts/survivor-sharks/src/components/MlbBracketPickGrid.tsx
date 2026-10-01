@@ -133,6 +133,26 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
                           </div>
                         </>
                       )}
+                    {series.completed &&
+                      series.team1 &&
+                      series.team2 &&
+                      series.team1Wins != null &&
+                      series.team2Wins != null &&
+                      series.team1Wins !== series.team2Wins && (
+                        <>
+                          <span className="mt-1 block text-[8px] font-medium uppercase tracking-wide text-muted-foreground">SERIES</span>
+                          <div
+                            className="mt-1 break-words text-center text-[9px] font-medium normal-case tracking-normal text-muted-foreground"
+                            aria-label={`${series.team1Wins > series.team2Wins ? series.team1 : series.team2} won the series ${series.team1Wins > series.team2Wins ? series.team1Wins : series.team2Wins} to ${series.team1Wins > series.team2Wins ? series.team2Wins : series.team1Wins}`}
+                            title={`${series.team1Wins > series.team2Wins ? series.team1 : series.team2} won the series ${series.team1Wins > series.team2Wins ? series.team1Wins : series.team2Wins} to ${series.team1Wins > series.team2Wins ? series.team2Wins : series.team1Wins}`}
+                          >
+                            <span className="text-primary">{series.team1Wins > series.team2Wins ? series.team1 : series.team2}</span>{" "}
+                            win series{" "}
+                            {series.team1Wins > series.team2Wins ? series.team1Wins : series.team2Wins}-
+                            {series.team1Wins > series.team2Wins ? series.team2Wins : series.team1Wins}
+                          </div>
+                        </>
+                      )}
                 </th>
               ))}
             </tr>
