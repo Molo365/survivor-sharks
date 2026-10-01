@@ -106,6 +106,7 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
             <span className="inline-flex items-center gap-1 text-red-400"><X className="h-3 w-3" />Incorrect</span>
             <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock3 className="h-3 w-3" />Alive</span>
             <span className="text-muted-foreground/50">Grey = eliminated</span>
+            <span className="text-muted-foreground">Tags: team = winner, number = length</span>
           </div>
           <Button variant="outline" size="sm" onClick={handleDownloadPdf} data-testid="button-mlb-grid-download-pdf" className="font-bebas text-base tracking-wider gap-1.5 h-8"><Download className="w-4 h-4" /> Download PDF</Button>
         </div>
@@ -193,13 +194,30 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
                           "mx-auto flex min-h-11 w-full items-center justify-center rounded-md border px-1.5 font-mono text-xs font-bold transition-colors",
                           !pick && "border-transparent text-muted-foreground/35",
                           pick && visualState === "alive" && "border-primary/20 bg-primary/5 text-foreground hover:border-primary/40",
-                          visualState === "correct" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-                          visualState === "incorrect" && "border-red-500/25 bg-red-500/10 text-red-400",
+                          visualState === "correct" && "border-transparent",
+                          visualState === "incorrect" && "border-transparent",
                           visualState === "processing" && "border-amber-500/25 bg-amber-500/10 text-amber-300",
                           visualState === "eliminated" && "border-border/20 bg-muted/20 text-muted-foreground/40 grayscale",
                         )}
                       >
-                        {pick ? `${pick.teamAbbreviation}-${pick.predictedLength}` : "—"}
+                        {pick && (visualState === "correct" || visualState === "incorrect") ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className={cn(
+                              "rounded px-1.5 py-0.5 border",
+                              pick.winnerCorrect === true
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                : "border-red-500/25 bg-red-500/10 text-red-400",
+                            )}>{pick.teamAbbreviation}</span>
+                            <span className={cn(
+                              "rounded px-1.5 py-0.5 border",
+                              pick.lengthCorrect === true
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                : pick.lengthCorrect === false
+                                  ? "border-red-500/25 bg-red-500/10 text-red-400"
+                                  : "border-border/30 bg-muted/20 text-muted-foreground",
+                            )}>{String(pick.predictedLength)}</span>
+                          </span>
+                        ) : pick ? `${pick.teamAbbreviation}-${pick.predictedLength}` : "—"}
                       </button>
                     </td>
                   );
