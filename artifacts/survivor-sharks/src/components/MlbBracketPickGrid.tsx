@@ -3,11 +3,13 @@ import {
   useGetMlbBracketGrid,
 } from "@workspace/api-client-react";
 import type { MlbBracketGridMembersItem } from "@workspace/api-client-react";
-import { Check, Clock3, X } from "lucide-react";
+import { Check, Clock3, Download, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getMlbBracketPickVisualState } from "@/lib/mlbBracketPickState";
+import { downloadGridPdf } from "@/lib/downloadGridPdf";
 
 const SLOT_LABELS: Record<string, string> = {
   AL_WC_1: "AL WC1",
@@ -23,7 +25,7 @@ const SLOT_LABELS: Record<string, string> = {
   WORLD_SERIES: "World Series",
 };
 
-export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number; onSelectMember: (member: MlbBracketGridMembersItem) => void }) {
+export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Postseason Bracket" }: { poolId: number; onSelectMember: (member: MlbBracketGridMembersItem) => void; poolName?: string }) {
   const { data, isLoading, isError } = useGetMlbBracketGrid(poolId, {
     query: {
       queryKey: getGetMlbBracketGridQueryKey(poolId),
@@ -35,6 +37,52 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
   if (isError || !data) return <Card><CardContent className="p-10 text-center text-sm text-muted-foreground">The pick grid becomes available once the bracket locks.</CardContent></Card>;
   if (!data.members.length) return <Card><CardContent className="p-10 text-center text-sm text-muted-foreground">No pool members are available.</CardContent></Card>;
 
+  const gridData = data;
+
+  function handleDownloadPdf() {
+    const columns = ["Player", ...gridData.series.map(series => SLOT_LABELS[series.seriesId] ?? series.seriesId), "Correct"];
+    const rows = gridData.members.map(member => {
+      const correct = member.picks.filter(pick => pick?.winnerCorrect === true).length;
+      const graded = member.picks.filter(pick => pick?.winnerCorrect === true || pick?.winnerCorrect === false).length;
+      const pickCells = gridData.series.map((_, index) => {
+        const pick = member.picks[index];
+        return pick ? `${pick.teamAbbreviation}-${pick.predictedLength}` : "—";
+      });
+      return { cells: [member.displayName ?? member.username, ...pickCells, `${correct}/${graded}`] };
+    });
+    const today = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    downloadGridPdf({
+      filename: `${poolName.replace(/\s+/g, "_")}_pick_grid.pdf`,
+      poolName,
+      sport: `MLB · Postseason ${new Date().getFullYear()}`,
+      subtitle: `Pick Grid · ${gridData.members.length} player${gridData.members.length === 1 ? "" : "s"} · ${gridData.series.length} series`,
+      columns,
+      rows,
+      footer: `Green = correct · Red = incorrect · Amber = awaiting result · Grey = eliminated · Cell = team and predicted series length · ${today}`,
+      cellColorFn: (rowIdx, colIdx) => {
+        const seriesIndex = colIdx - 1;
+        const pick = gridData.members[rowIdx]?.picks[seriesIndex];
+        if (!pick) return null;
+        const series = gridData.series[seriesIndex];
+        if (!series) return null;
+        const state = getMlbBracketPickVisualState({
+          winnerCorrect: pick.winnerCorrect ?? null,
+          seriesCompleted: series.completed,
+          predictedTeamEliminated: pick.predictedTeamEliminated ?? false,
+        });
+        if (state === "correct") return [220, 252, 231];
+        if (state === "incorrect") return [254, 226, 226];
+        if (state === "processing") return [254, 243, 199];
+        if (state === "eliminated") return [229, 231, 235];
+        return null;
+      },
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -42,11 +90,14 @@ export function MlbBracketPickGrid({ poolId, onSelectMember }: { poolId: number;
           <h2 className="font-bebas text-3xl tracking-wider">Postseason Pick Grid</h2>
           <p className="text-sm text-muted-foreground">{data.members.length} player{data.members.length === 1 ? "" : "s"} · all 11 series</p>
         </div>
-        <div className="flex flex-wrap gap-3 text-[10px] font-semibold uppercase tracking-wider">
-          <span className="inline-flex items-center gap-1 text-emerald-400"><Check className="h-3 w-3" />Correct</span>
-          <span className="inline-flex items-center gap-1 text-red-400"><X className="h-3 w-3" />Incorrect</span>
-          <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock3 className="h-3 w-3" />Alive</span>
-          <span className="text-muted-foreground/50">Grey = eliminated</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-3 text-[10px] font-semibold uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1 text-emerald-400"><Check className="h-3 w-3" />Correct</span>
+            <span className="inline-flex items-center gap-1 text-red-400"><X className="h-3 w-3" />Incorrect</span>
+            <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock3 className="h-3 w-3" />Alive</span>
+            <span className="text-muted-foreground/50">Grey = eliminated</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} data-testid="button-mlb-grid-download-pdf" className="font-bebas text-base tracking-wider gap-1.5 h-8"><Download className="w-4 h-4" /> Download PDF</Button>
         </div>
       </div>
 
