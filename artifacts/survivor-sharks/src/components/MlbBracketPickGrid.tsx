@@ -40,15 +40,14 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
   const gridData = data;
 
   function handleDownloadPdf() {
-    const columns = ["Player", ...gridData.series.map(series => SLOT_LABELS[series.seriesId] ?? series.seriesId), "Correct"];
-    const rows = gridData.members.map(member => {
-      const correct = member.picks.filter(pick => pick?.winnerCorrect === true).length;
-      const graded = member.picks.filter(pick => pick?.winnerCorrect === true || pick?.winnerCorrect === false).length;
+    const sortedMembers = [...gridData.members].sort((a, b) => b.points - a.points);
+    const columns = ["Player", ...gridData.series.map(series => SLOT_LABELS[series.seriesId] ?? series.seriesId), "Points"];
+    const rows = sortedMembers.map(member => {
       const pickCells = gridData.series.map((_, index) => {
         const pick = member.picks[index];
         return pick ? `${pick.teamAbbreviation}-${pick.predictedLength}` : "—";
       });
-      return { cells: [member.displayName ?? member.username, ...pickCells, `${correct}/${graded}`] };
+      return { cells: [member.displayName ?? member.username, ...pickCells, String(member.points)] };
     });
     const today = new Date().toLocaleDateString("en-US", {
       month: "short",
@@ -62,10 +61,10 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
       subtitle: `Pick Grid · ${gridData.members.length} player${gridData.members.length === 1 ? "" : "s"} · ${gridData.series.length} series`,
       columns,
       rows,
-      footer: `Green = correct · Red = incorrect · Amber = awaiting result · Grey = eliminated · Cell = team and predicted series length · ${today}`,
+      footer: `Green = correct · Red = incorrect · Amber = awaiting result · Grey = eliminated · Cell = team and predicted series length · Points = 1/2/3/4 for the right winner (Wild Card/Division/Championship/World Series) + 1 for the exact series length · ${today}`,
       cellColorFn: (rowIdx, colIdx) => {
         const seriesIndex = colIdx - 1;
-        const pick = gridData.members[rowIdx]?.picks[seriesIndex];
+        const pick = sortedMembers[rowIdx]?.picks[seriesIndex];
         if (!pick) return null;
         const series = gridData.series[seriesIndex];
         if (!series) return null;

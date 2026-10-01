@@ -2481,6 +2481,7 @@ export type MlbBracketGridMembersItem = {
   username: string;
   /** @nullable */
   displayName: string | null;
+  points: number;
   picks: MlbBracketGridMembersItemPicksItem[];
 };
 

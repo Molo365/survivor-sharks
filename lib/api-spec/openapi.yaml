@@ -5831,11 +5831,12 @@ components:
           type: array
           items:
             type: object
-            required: [userId, username, displayName, picks]
+            required: [userId, username, displayName, points, picks]
             properties:
               userId: { type: integer }
               username: { type: string }
               displayName: { type: [string, "null"] }
+              points: { type: integer }
               picks:
                 type: array
                 items:

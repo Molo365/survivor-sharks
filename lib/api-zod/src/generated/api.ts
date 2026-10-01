@@ -1031,6 +1031,7 @@ export const GetMlbBracketGridResponse = zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullable(),
+  "points": zod.number(),
   "picks": zod.array(zod.object({
   "seriesId": zod.string().optional(),
   "predictedWinner": zod.string().optional(),

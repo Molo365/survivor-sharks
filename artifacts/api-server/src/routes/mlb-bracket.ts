@@ -201,6 +201,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     }),
     members: members.map(member => ({
       ...member,
+      points: picks.filter(pick => pick.userId === member.userId).reduce((sum, pick) => sum + getMlbBracketPickPoints(pick.round, pick.winnerCorrect, pick.lengthCorrect), 0),
       picks: MLB_BRACKET_SLOTS.map(([, seriesId]) => {
         const pick = picksByUser.get(member.userId)?.get(seriesId);
         return pick ? {
