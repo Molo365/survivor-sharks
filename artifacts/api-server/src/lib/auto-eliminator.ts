@@ -41,6 +41,7 @@ import {
   getTodayEtDate,
   formatDateEt,
   formatDateEtDash,
+  formatCalendarDateEt,
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekendBounds,
@@ -4059,7 +4060,7 @@ export async function processPickEmResults(): Promise<{
   // ── NHL Pick-Ems Weekly: auto-closure for non-recurring pools ──────────────
   // Mirrors the MLB weekly close block above. Once every pick for the current
   // week is graded (no result = 'pending'), rank players by correct picks,
-  // apply the passing+rushing yards tiebreaker from entries if available,
+  // apply the shots-on-goal + penalty-minutes tiebreaker from entries if available,
   // assign finishPosition / prizeAmount, and close the pool.
   // Recurring NHL weekly pools are intentionally left open.
 
@@ -4096,44 +4097,11 @@ export async function processPickEmResults(): Promise<{
         );
       if (Number(totalPicks) === 0) continue;
 
-      // Multi-day guard: wait until every game that was part of THIS pool's
-      // pick list is final. We query the pool's own pickem_picks records to
-      // get the exact game IDs users were offered, then fetch ESPN status for
-      // those specific games only. This avoids two failure modes of the old
-      // date-range sweep: (a) week-window drift when pool.createdAt is not a
-      // Monday, and (b) picking up unrelated league games / exhibitions that
-      // share the same calendar week but were never part of this pool.
-      const nhlPoolGameRows = await db
-        .selectDistinct({ gameId: pickemPicksTable.gameId, gameDate: pickemPicksTable.gameDate })
-        .from(pickemPicksTable)
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.week, pool.currentWeek),
-          ),
-        );
-
-      // Group game IDs by date so we make one ESPN call per unique date.
-      const nhlGameIdsByDate = new Map<string, Set<string>>();
-      for (const { gameId, gameDate } of nhlPoolGameRows) {
-        const espnDate = gameDate.replace(/-/g, "");
-        if (!nhlGameIdsByDate.has(espnDate)) nhlGameIdsByDate.set(espnDate, new Set());
-        nhlGameIdsByDate.get(espnDate)!.add(gameId);
-      }
-
-      // Calendar guard: don't close until the Sunday of this Mon–Sun week has passed.
-      // NHL already has an "unfinished games" guard below, but that guard only catches
-      // games still in progress — it cannot catch a week where all scheduled games
-      // happened to finish before Sunday, leaving no unfinished games mid-week.
-      // IMPORTANT: derive weekEnd from the pool's own schedule (getNhlWeekBounds anchored
-      // to pool.createdAt / currentWeek) rather than from stored pick gameDates.
-      // Sandbox NHL picks are stored with Oct 2025 anchor dates (set via anchorGameDate
-      // in pick submission) — the pick-date approach would compute weekEnd ≈ Oct 2025,
-      // see today (Aug 2026) is not before that, and skip the guard entirely, allowing
-      // premature closure within one auto-eliminator cycle.
+      // Use the pool's complete Saturday + Sunday slate, not submitted pick IDs.
+      // Keep the calendar guard, with DST-aware ET dates for this NHL period.
+      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
       {
-        const { weekEnd: nhlWeekEndDate } = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
-        const nhlWeekEnd = formatDateEtDash(nhlWeekEndDate);
+        const nhlWeekEnd = formatCalendarDateEt(nhlBounds.weekEnd);
         if (todayEt < nhlWeekEnd) {
           logger.info(
             { poolId: pool.id, week: pool.currentWeek, nhlWeekEnd, todayEt },
@@ -4143,17 +4111,22 @@ export async function processPickEmResults(): Promise<{
         }
       }
 
-      // Fetch ESPN results for each date, collect all pool-relevant games.
-      const nhlWeekendGames: EspnGame[] = [];
-      let nhlHasUnfinished = false;
-      for (const [espnDate, gameIds] of nhlGameIdsByDate) {
-        const gamesOnDate = await fetchGamesForDate("nhl", espnDate, pool.isPreseason ? 1 : 2);
-        for (const g of gamesOnDate) {
-          if (!gameIds.has(g.id)) continue;
-          nhlWeekendGames.push(g);
-          if (!g.isCompleted && !g.isPostponed) nhlHasUnfinished = true;
-        }
+      // A failed/malformed schedule response must not look like an empty, settled day.
+      const nhlSeasonType = pool.isPreseason ? 1 : 2;
+      const nhlDaySlates = await Promise.all(nhlBounds.espnDates.map(
+        (date) => fetchGamesForDateChecked("nhl", date, nhlSeasonType, true),
+      ));
+      if (nhlDaySlates.some((games) => games === null)) {
+        logger.warn({ poolId: pool.id, week: pool.currentWeek }, "NHL Pick-Ems Weekly auto-closure: schedule unavailable");
+        continue;
       }
+      const nhlWeekendGames = [...new Map(
+        nhlDaySlates.flatMap((games) => games ?? [])
+          .filter((g) => g.seasonType === nhlSeasonType && nhlBounds.days.includes(formatCalendarDateEt(new Date(g.date))))
+          .map((g) => [g.id, g] as const),
+      ).values()].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (nhlWeekendGames.length === 0) continue;
+      const nhlHasUnfinished = nhlWeekendGames.some((g) => !g.isCompleted && !g.isPostponed);
 
       if (nhlHasUnfinished) {
         logger.info(
@@ -4196,14 +4169,13 @@ export async function processPickEmResults(): Promise<{
       }
 
       // 3. Fetch tiebreaker actuals: shots on goal (primary) + penalty minutes
-      //    (secondary) for the last completed game of the weekend. Sequential
+      //    (secondary) for the latest-starting game of the complete weekend. Sequential
       //    resolution: shots alone decides; PIM breaks a shots-tied tie only.
       //    Falls back to even split if ESPN stats are unavailable.
-      const completedWeekendGames = nhlWeekendGames.filter((g) => g.isCompleted);
-      const nhlTiebreakerGame = completedWeekendGames[completedWeekendGames.length - 1] ?? null;
+      const nhlTiebreakerGame = nhlWeekendGames[nhlWeekendGames.length - 1] ?? null;
       let actualPrimary: number | null = null;
       let actualSecondary: number | null = null;
-      if (nhlTiebreakerGame) {
+      if (nhlTiebreakerGame?.isCompleted) {
         const tbStats = await fetchNhlTiebreakerStats(nhlTiebreakerGame.id);
         actualPrimary = tbStats.shotsOnGoal ?? null;
         actualSecondary = tbStats.penaltyMinutes ?? null;
@@ -4240,21 +4212,20 @@ export async function processPickEmResults(): Promise<{
       //    breaks a primary-stat tie. Tied on both → co-winner even split.
       const groups: number[][] = [];
       for (const score of sortedScores) {
-        const tiedIds = byScore.get(score)!;
-        if (tiedIds.length <= 1) {
-          groups.push(tiedIds);
-        } else {
+        let remainingIds = [...byScore.get(score)!];
+        while (remainingIds.length > 1) {
           const resolved = resolveSequentialTiebreaker(
-            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+            remainingIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
           );
           if (resolved) {
             groups.push([...resolved]);
-            const losers = tiedIds.filter((uid) => !resolved.has(uid));
-            if (losers.length > 0) groups.push(losers);
+            remainingIds = remainingIds.filter((uid) => !resolved.has(uid));
           } else {
-            groups.push(tiedIds);
+            groups.push(remainingIds);
+            remainingIds = [];
           }
         }
+        if (remainingIds.length === 1) groups.push(remainingIds);
       }
 
       // 6. Write finishPosition and prizeAmount to entries.

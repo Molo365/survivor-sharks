@@ -3037,7 +3037,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               : "It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
             <br />
             {isLiveNhlWeekly
-               ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on Sunday&apos;s slate. Closest shots on goal wins. Penalty minutes only break an exact tie.</>
+               ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the weekend&apos;s latest-starting game. Closest shots on goal wins. Penalty minutes only break an exact shots-difference tie.</>
                : <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest shots on goal wins. Penalty minutes only break an exact tie.</>}
           </DialogDescription>
         </DialogHeader>
@@ -3840,7 +3840,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     </p>
                     <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
                       {isNhl
-                        ? "When you submit today you'll be asked to guess combined shots on goal + penalty minutes. The last game on today's slate is the tiebreaker reference game."
+                        ? "When you submit today you'll be asked to guess combined shots on goal and penalty minutes for the weekend's latest-starting game. Shots difference decides first; penalty minutes only break a shots-difference tie."
                         : "When you submit today you'll be asked to guess combined runs scored + total strikeouts. The last game on today's slate is the tiebreaker reference game."}
                     </p>
                   </div>

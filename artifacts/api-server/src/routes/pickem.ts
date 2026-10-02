@@ -8,6 +8,7 @@ import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
+  fetchGamesForDateChecked,
   fetchSuperLeagueGamesForDate,
   fetchIntlGamesForDate,
   fetchNhlGamesByWeek,
@@ -20,6 +21,7 @@ import {
   getTodayEtDate,
   formatDateEt,
   formatDateEtDash,
+  formatCalendarDateEt,
   getSuperLeagueWeekBoundsEt,
   fetchCurrentChampionsLeagueSlate,
   type EspnGame,
@@ -1487,6 +1489,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
     const { days } = getNbaWeekendBounds(anchor, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
+  } else if (sport === "nhl") {
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const { days } = getNhlWeekBounds(anchor, requestedWeek ?? Math.max(1, pool.currentWeek - 1));
+    prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (requestedWeek !== null) {
     // Offset back from the current week's Monday by (currentWeek − requestedWeek) weeks.
     const currentWeekBounds = sport === "superleague"
@@ -1555,11 +1561,18 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     isNhl
       ? db.select({ userId: entriesTable.userId, tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes }).from(entriesTable).where(eq(entriesTable.poolId, poolId))
       : Promise.resolve(null as null),
-    // Previous week's Sunday ESPN games — tiebreaker reference is the last game by start time.
+    // NHL uses the complete weekend; MLB continues to use Sunday only.
     // Sandbox NHL excluded (its game IDs come from the NHL anchor, not the real schedule).
-    (isMlb || (isNhl && !pool.sandboxMode))
-      ? fetchGamesForDate(sport, prevWeekBounds.weekEnd.replace(/-/g, ""))
-      : Promise.resolve(null as null),
+    isNhl && !pool.sandboxMode
+      ? Promise.all([prevWeekBounds.weekStart, prevWeekBounds.weekEnd].map(
+          (day) => fetchGamesForDateChecked("nhl", day.replace(/-/g, ""), pool.isPreseason ? 1 : 2, true),
+        )).then((slates) => slates.some((games) => games === null) ? null : slates.flatMap((games) => games ?? []).filter(
+          (game) => game.seasonType === (pool.isPreseason ? 1 : 2) &&
+            [prevWeekBounds.weekStart, prevWeekBounds.weekEnd].includes(formatCalendarDateEt(new Date(game.date))),
+        ))
+      : isMlb
+        ? fetchGamesForDate(sport, prevWeekBounds.weekEnd.replace(/-/g, ""))
+        : Promise.resolve(null as null),
     // Total pool members — needed for correct prize scaling in calcPrize
     db.select({ value: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
   ]);
@@ -1626,8 +1639,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
 
   // Resolve tied top scorers via tiebreaker proximity, mirroring auto-eliminator weekly closure.
-  // Combined diff = |primary − actual| + |secondary − actual| (MLB: runs+SO; NHL: shots+PIM).
-  // Falls back to even split when actuals are unavailable or all tied diffs are equal.
+  // Primary difference decides first; secondary breaks primary-difference ties only.
+  // Falls back to even split when the shared resolver cannot separate players.
   let tiebreakWinnerIds: Set<number> | null = null;
   if (allGraded && weekTopCorrect >= 0) {
     const tiedAggregates = aggregates.filter((r) => Number(r.correct) === weekTopCorrect);
@@ -1745,8 +1758,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     const nhlTb = nhlTiebreakerByUser.get(row.userId);
     const shotsGuess = nhlTb?.tiebreakerShotsOnGoal ?? null;
     const pimGuess = nhlTb?.tiebreakerPenaltyMinutes ?? null;
-    const nhlDiff = isNhl && tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null && shotsGuess != null && pimGuess != null
-      ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes) : null;
+    // Display the primary difference, never a shots + penalty-minutes sum.
+    const nhlDiff = isNhl && tiebreakerActualShotsOnGoal != null && shotsGuess != null
+      ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) : null;
     const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
       requesterUserId: userId,
       rowUserId: row.userId,
@@ -2115,27 +2129,31 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
-  // For NHL weekly pools: compute actualShotsOnGoal and actualPenaltyMinutes from the last
-  // game on today's slate — only applicable on Sunday (the final day of the week).
+  // NHL actuals use the latest kickoff in the complete pool-period weekend.
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
-  // In sandbox mode: show tiebreaker whenever last game is graded (not tied to Sunday).
-  // In live mode: only on Sunday (last day of the week).
-  const nhlTiebreakerApplicable = isNhl && isWeekly && espnGames.length > 0 && weekBounds != null &&
-    (pool.sandboxMode ? true : todayEt === weekBounds.weekEnd);
-  if (nhlTiebreakerApplicable) {
-    const tiebreakerGame = espnGames[espnGames.length - 1];
-    if (!pool.sandboxMode) {
-      tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
-    }
-    // Sandbox: gate on sandboxGameScoresTable existence, not ESPN completion status.
-    // The anchor-week game ID is a real historical ESPN event — fetchNhlTiebreakerStats
-    // will return real shots-on-goal and penalty-minutes for it once grading runs.
-    const tbCompleted = pool.sandboxMode ? lbSandboxScoreMap.has(tiebreakerGame.id) : tiebreakerGame.isCompleted;
-    if (tbCompleted) {
-      const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
-      tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
-      tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
+  if (isNhl && isWeekly) {
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const { days, espnDates } = getNhlWeekBounds(anchor, pool.currentWeek);
+    const seasonType = pool.isPreseason ? 1 : 2;
+    const daySlates = await Promise.all(espnDates.map(
+      (date) => fetchGamesForDateChecked("nhl", date, seasonType, true),
+    ));
+    const weekendGames = daySlates.some((games) => games === null) ? [] : daySlates.flatMap((games) => games ?? [])
+      .filter((game) => game.seasonType === seasonType && days.includes(formatCalendarDateEt(new Date(game.date))))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const tiebreakerGame = weekendGames[weekendGames.length - 1];
+    if (tiebreakerGame) {
+      if (!pool.sandboxMode) {
+        tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+      }
+      // Sandbox: gate on sandbox scores, not historical ESPN completion.
+      const tbCompleted = pool.sandboxMode ? lbSandboxScoreMap.has(tiebreakerGame.id) : tiebreakerGame.isCompleted;
+      if (tbCompleted) {
+        const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
+        tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
+        tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
+      }
     }
   }
 
@@ -2209,10 +2227,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     const nhlDiff =
       isNhl &&
       tiebreakerActualShotsOnGoal != null &&
-      tiebreakerActualPenaltyMinutes != null &&
-      shotsGuess != null &&
-      pimGuess != null
-        ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) + Math.abs(pimGuess - tiebreakerActualPenaltyMinutes)
+      shotsGuess != null
+        ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal)
         : null;
     const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
       requesterUserId: userId,
