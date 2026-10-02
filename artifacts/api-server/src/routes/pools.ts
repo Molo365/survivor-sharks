@@ -406,6 +406,16 @@ router.post("/", requireAuth, async (req, res) => {
 
   const resolvedSeason = season ?? new Date().getFullYear();
 
+  if (sport === "nhl" && resolvedPoolType === "nhl_division_predictor") {
+    const lockState = await getNhlNdpLockState(resolvedSeason, sandboxMode === true);
+    if (lockState.locked) {
+      res.status(423).json({
+        error: `NHL Division Predictor picks for the ${resolvedSeason} season are locked because the regular season has started.`,
+      });
+      return;
+    }
+  }
+
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
@@ -769,6 +779,14 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   }
   if (pool.commissionerId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+
+  const adminOnlyFields = ["currentWeek", "season", "poolType", "isActive"] as const;
+  if (req.user!.role !== "admin" && adminOnlyFields.some((field) =>
+    Object.prototype.hasOwnProperty.call(req.body, field),
+  )) {
+    res.status(403).json({ error: "Only admins can change the pool's week, season, type, or active status." });
     return;
   }
 

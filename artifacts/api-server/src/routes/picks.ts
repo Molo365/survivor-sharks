@@ -11,7 +11,9 @@ import {
   formatDateEt,
   isDailyPickDeadlinePassed,
   fetchGamesForDate,
+  fetchGamesForDateChecked,
   fetchNhlGamesByWeek,
+  getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   fetchNbaGamesByWeek,
   fetchNflGamesByWeek,
@@ -67,6 +69,10 @@ router.post("/", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) {
     res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (!["season", "weekly", "mid_season"].includes(String(pool.poolType))) {
+    res.status(400).json({ error: "This endpoint only accepts Survivor pool picks." });
     return;
   }
 
@@ -194,6 +200,53 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const existingPick = previousPicks.find(p => p.week === week);
+
+  if (pool.sport === "nhl") {
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const { espnDates } = getNhlWeekBounds(anchor, week);
+    if (espnDates.length < 2) {
+      res.status(503).json({ error: "Unable to verify the NHL weekend schedule. Please retry shortly.", retryable: true });
+      return;
+    }
+    const [saturdayGames, sundayGames] = await Promise.all([
+      fetchGamesForDateChecked("nhl", espnDates[0]!, pool.isPreseason ? 1 : 2, true),
+      fetchGamesForDateChecked("nhl", espnDates[1]!, pool.isPreseason ? 1 : 2, true),
+    ]);
+    if (!saturdayGames || !sundayGames) {
+      res.status(503).json({ error: "The NHL weekend schedule is unavailable. Please retry your pick shortly.", retryable: true });
+      return;
+    }
+    const saturdayGame = saturdayGames.find(game =>
+      game.homeTeam.id === teamId || game.awayTeam.id === teamId,
+    );
+    if (!saturdayGame) {
+      const sundayGame = sundayGames.find(game =>
+        game.homeTeam.id === teamId || game.awayTeam.id === teamId,
+      );
+      if (sundayGame) {
+        res.status(400).json({ error: "NHL Survivor picks must be teams playing in Saturday's slate." });
+        return;
+      }
+      res.status(503).json({
+        error: "Unable to verify the selected team's game in the NHL weekend schedule. Please retry shortly.",
+        retryable: true,
+      });
+      return;
+    }
+    const saturdayStartMs = new Date(saturdayGame.date).getTime();
+    if (!Number.isFinite(saturdayStartMs)) {
+      res.status(503).json({ error: "Unable to verify the selected team's NHL game time. Please retry shortly.", retryable: true });
+      return;
+    }
+    if (!pool.sandboxMode && (
+      saturdayGame.status === "in_progress" ||
+      saturdayGame.status === "final" ||
+      saturdayStartMs <= Date.now()
+    )) {
+      res.status(400).json({ error: "That team's Saturday NHL game has already started — choose another team." });
+      return;
+    }
+  }
 
   // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
   if (!pool.sandboxMode) {

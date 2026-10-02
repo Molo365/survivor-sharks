@@ -159,6 +159,12 @@ function toSlateShape(g: EspnGame) {
   };
 }
 
+function isCrazyEightsGameStarted(game: EspnGame, nowMs = Date.now()): boolean {
+  const startMs = new Date(game.date).getTime();
+  return game.status === "in_progress" || game.status === "final"
+    || (Number.isFinite(startMs) && startMs <= nowMs);
+}
+
 // ── GET /api/pools/:poolId/crazy-eights/slate ─────────────────────────────────
 // Returns the correct slate for the pool's current period:
 //   NHL → combined Saturday + Sunday games for pool.currentWeek
@@ -861,13 +867,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     const nowMs = Date.now();
     const availableCount = Math.min(
-      isSandbox
-        ? games.length
-        : games.filter(g => {
-            const startMs = new Date(g.date).getTime();
-            return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
-          }).length,
-      8
+      isSandbox ? games.length : games.filter(g => !isCrazyEightsGameStarted(g, nowMs)).length,
+      8,
     );
     if (availableCount === 0) {
       res.status(400).json({ error: "No games available to pick — all games have started" });
@@ -885,12 +886,9 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
     // In sandbox mode the anchor games are historical; skip the real-time lock.
-    if (!isSandbox) {
-      const earliestStartMs = Math.min(...selectedGames.map(g => new Date(g.date).getTime()));
-      if (Date.now() >= earliestStartMs) {
-        res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
-        return;
-      }
+    if (!isSandbox && selectedGames.some(game => isCrazyEightsGameStarted(game, nowMs))) {
+      res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
+      return;
     }
 
     const submission = await db.transaction(async (tx) => {
@@ -1208,6 +1206,10 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found or not a weekend Crazy 8's pool" });
     return;
   }
+  if (!pool.isActive) {
+    res.status(423).json({ error: "This Hit the Ice pool has ended; tiebreaker guesses can no longer be changed." });
+    return;
+  }
 
   if (pool.sport === "nhl") {
     if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number"
@@ -1231,6 +1233,33 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
   if (!entry) {
     res.status(403).json({ error: "You are not a member of this pool" });
     return;
+  }
+
+  const anchor = pool.sandboxMode
+    ? pool.sport === "nhl" ? NHL_SANDBOX_ANCHOR : NBA_SANDBOX_ANCHOR
+    : pool.createdAt;
+  const games = pool.sport === "nhl"
+    ? (await getNhlWeekendSlate(pool)).games
+    : (await getNbaWeekendSlate(pool)).games;
+  const tiebreakerGame = games.at(-1);
+  if (!tiebreakerGame || !Number.isFinite(new Date(tiebreakerGame.date).getTime())) {
+    res.status(503).json({
+      error: "Unable to verify the current period's tiebreaker game. Please retry shortly.",
+      retryable: true,
+    });
+    return;
+  }
+  if (!pool.sandboxMode) {
+    const periodDeadline = pool.sport === "nhl"
+      ? getNhlWeekBounds(anchor, pool.currentWeek).weekEnd
+      : getNbaWeekendBounds(anchor, pool.currentWeek).weekEnd;
+    const nowMs = Date.now();
+    if (isCrazyEightsGameStarted(tiebreakerGame, nowMs) || nowMs >= periodDeadline.getTime()) {
+      res.status(423).json({
+        error: "Tiebreaker guesses are locked because the current period's tiebreaker game has started or the period deadline has passed.",
+      });
+      return;
+    }
   }
 
   await db

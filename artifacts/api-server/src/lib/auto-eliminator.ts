@@ -427,7 +427,12 @@ export async function processCompletedGames(): Promise<{
     })
     .from(picksTable)
     .innerJoin(poolsTable, eq(picksTable.poolId, poolsTable.id))
-    .where(and(eq(picksTable.result, "pending"), ne(poolsTable.sport, "mlb"), eq(poolsTable.isActive, true)));
+    .where(and(
+      eq(picksTable.result, "pending"),
+      ne(poolsTable.sport, "mlb"),
+      inArray(poolsTable.poolType, ["season", "weekly", "mid_season"]),
+      eq(poolsTable.isActive, true),
+    ));
 
   if (pendingRows.length > 0) {
     // ── Non-NHL, non-NBA: batch-fetch today's scoreboard once per sport ──────
