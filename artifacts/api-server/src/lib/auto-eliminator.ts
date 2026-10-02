@@ -4062,7 +4062,7 @@ export async function processPickEmResults(): Promise<{
   // week is graded (no result = 'pending'), rank players by correct picks,
   // apply the shots-on-goal + penalty-minutes tiebreaker from entries if available,
   // assign finishPosition / prizeAmount, and close the pool.
-  // Recurring NHL weekly pools are intentionally left open.
+  // Recurring NHL weekly pools advance separately below without closing.
 
   const nhlPickemWeeklyPools = pickemPools.filter(
     (p) => p.sport === "nhl" && p.pickFrequency === "weekly" && !p.isRecurring,
@@ -4298,6 +4298,98 @@ export async function processPickEmResults(): Promise<{
       );
     } catch (err) {
       logger.error({ poolId: pool.id, err }, "NHL Pick-Ems Weekly auto-closure error");
+    }
+  }
+
+  // ── NHL Pick-Ems Weekly: currentWeek advancement for recurring pools ──────
+  // Use the anchored Sat–Sun slate even when nobody submitted picks. Advance
+  // one period per pass; never award prizes or close a recurring pool here.
+  const nhlRecurringWeeklyPools = pickemPools.filter(
+    (p) => p.sport === "nhl" && p.poolType === "pickem"
+      && p.pickFrequency === "weekly" && p.isRecurring && p.isActive && !p.sandboxMode,
+  );
+  const nhlTodayEt = formatCalendarDateEt(new Date());
+
+  for (const pool of nhlRecurringWeeklyPools) {
+    try {
+      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const nhlWeekEnd = formatCalendarDateEt(nhlBounds.weekEnd);
+      if (nhlTodayEt <= nhlWeekEnd) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, nhlWeekEnd, todayEt: nhlTodayEt },
+          "NHL recurring weekly: calendar week not yet ended, skipping advancement",
+        );
+        continue;
+      }
+
+      const [{ pendingCount }] = await db
+        .select({ pendingCount: count() })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, pool.id),
+          eq(pickemPicksTable.week, pool.currentWeek),
+          eq(pickemPicksTable.result, "pending"),
+        ));
+      if (Number(pendingCount) > 0) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, pendingCount: Number(pendingCount) },
+          "NHL recurring weekly: picks still pending, skipping advancement",
+        );
+        continue;
+      }
+
+      const nhlSeasonType = pool.isPreseason ? 1 : 2;
+      const nhlDaySlates = await Promise.all(nhlBounds.espnDates.map(
+        (date) => fetchGamesForDateChecked("nhl", date, nhlSeasonType, true),
+      ));
+      if (nhlDaySlates.some((games) => games === null)) {
+        logger.warn(
+          { poolId: pool.id, currentWeek: pool.currentWeek, days: nhlBounds.days },
+          "NHL recurring weekly: schedule unavailable, skipping advancement",
+        );
+        continue;
+      }
+      const nhlWeekendGames = nhlDaySlates.flatMap((games) => games ?? [])
+        .filter((game) => game.seasonType === nhlSeasonType
+          && nhlBounds.days.includes(formatCalendarDateEt(new Date(game.date))));
+      if (nhlWeekendGames.some((game) => !game.isCompleted && !game.isPostponed)) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, days: nhlBounds.days },
+          "NHL recurring weekly: unfinished weekend games remain, skipping advancement",
+        );
+        continue;
+      }
+
+      const advanced = await db
+        .update(poolsTable)
+        .set({ currentWeek: pool.currentWeek + 1 })
+        .where(and(
+          eq(poolsTable.id, pool.id),
+          eq(poolsTable.currentWeek, pool.currentWeek),
+          eq(poolsTable.sport, "nhl"),
+          eq(poolsTable.poolType, "pickem"),
+          eq(poolsTable.pickFrequency, "weekly"),
+          eq(poolsTable.isRecurring, true),
+          eq(poolsTable.isActive, true),
+          eq(poolsTable.sandboxMode, false),
+        ))
+        .returning({ currentWeek: poolsTable.currentWeek });
+      if (advanced.length === 0) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek },
+          "NHL recurring weekly: pool changed during settlement, skipping advancement",
+        );
+        continue;
+      }
+      logger.info(
+        {
+          poolId: pool.id, previousWeek: pool.currentWeek,
+          nextWeek: advanced[0].currentWeek, days: nhlBounds.days,
+        },
+        "NHL recurring weekly: advanced currentWeek after completed Saturday–Sunday slate",
+      );
+    } catch (err) {
+      logger.error({ poolId: pool.id, err }, "NHL recurring weekly advancement error");
     }
   }
 

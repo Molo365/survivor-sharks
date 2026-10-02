@@ -1,10 +1,10 @@
 ---
-name: NHL readiness gaps
-description: NHL production readiness checks that are not covered by the current typecheck and unit-test suite.
+name: NHL recurring Pick-Em policy
+description: Product intent for empty recurring NHL Pick-Em weeks and the boundary with Hit the Ice.
 ---
 
-NHL readiness requires checking product semantics separately from shared grading tests: recurring NHL Pick-Em pools still have no rollover path. There is no NHL-specific confidence pool, and the forced-recurring Hit The Ice setting conflicts with the shared Crazy 8s resolver closing the pool after one period.
+The user wants recurring NHL Pick-Ems to keep advancing through finished weekends even when nobody picks. Rollover must not declare winners, award prizes, or close the pool. Hit the Ice is a separate lifecycle and must not be changed as part of Pick-Em rollover work.
 
-**Why:** Shared tests validate helper behavior and settlement policy, but do not exercise a real NHL scheduler cycle or the full recurring pool lifecycle.
+**Why:** The user explicitly required empty weeks not to strand a recurring pool and narrowed the scope to NHL weekly Pick-Ems.
 
-**How to apply:** Before enabling recurring NHL pools for real users, add and verify a rollover policy modeled on the sport's actual Sat–Sun slate. Also decide whether NHL Confidence is a new pool type or Hit The Ice terminology, reconcile Hit The Ice's intended recurring/one-week lifecycle, and run an ESPN preseason/regular-season fixture probe when season handling changes.
+**How to apply:** Preserve the distinction between a successful empty weekend schedule and an unavailable schedule. Empty participation must not become a rollover prerequisite; outages must never be treated as proof that the weekend is settled.
