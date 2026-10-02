@@ -38,9 +38,11 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
   if (!data.members.length) return <Card><CardContent className="p-10 text-center text-sm text-muted-foreground">No pool members are available.</CardContent></Card>;
 
   const gridData = data;
+  const sortedMembers = [...gridData.members].sort(
+    (a, b) => b.points - a.points || a.username.localeCompare(b.username),
+  );
 
   function handleDownloadPdf() {
-    const sortedMembers = [...gridData.members].sort((a, b) => b.points - a.points);
     const columns = ["Player", ...gridData.series.map(series => SLOT_LABELS[series.seriesId] ?? series.seriesId), "Points"];
     const rows = sortedMembers.map(member => {
       const pickCells = gridData.series.map((_, index) => {
@@ -169,7 +171,7 @@ export function MlbBracketPickGrid({ poolId, onSelectMember, poolName = "MLB Pos
             </tr>
           </thead>
           <tbody>
-            {data.members.map(member => (
+            {sortedMembers.map(member => (
               <tr key={member.userId} className="group hover:bg-muted/5">
                 <td className="sticky left-0 z-10 border-b border-r border-border/30 bg-card p-0 group-hover:bg-muted/10">
                   <button type="button" onClick={() => onSelectMember(member)} data-testid={`button-mlb-grid-member-${member.userId}`} className="w-full px-3 py-3 text-left font-semibold hover:text-primary">
