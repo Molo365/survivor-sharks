@@ -549,6 +549,38 @@ export function getFirstNhlWeekMonday(poolCreatedAt: Date): Date {
   return fromEtDate(mondayEt); // UTC: Monday 04:00 UTC (EDT)
 }
 
+/** An instant's Eastern calendar date, without a fixed offset or slate rollover. */
+export function formatCalendarDateEt(instant: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(instant);
+}
+
+/** Convert a date-only UTC representation of an ET calendar day to ET midnight. */
+function nhlCalendarMidnightUtc(calendarDay: Date): Date {
+  const targetMs = calendarDay.getTime();
+  let instantMs = targetMs;
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const parts = formatter.formatToParts(new Date(instantMs));
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find(value => value.type === type)!.value);
+    const localMs = Date.UTC(
+      part("year"), part("month") - 1, part("day"),
+      part("hour"), part("minute"), part("second"),
+    );
+    const correction = targetMs - localMs;
+    instantMs += correction;
+    if (correction === 0) break;
+  }
+  return new Date(instantMs);
+}
+
 export interface NhlWeekBounds {
   /** UTC timestamp of Monday 00:00 ET for the week */
   weekStart: Date;
@@ -570,26 +602,19 @@ export interface NhlWeekBounds {
  * @param weekNumber     pool.currentWeek (1-indexed)
  */
 export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWeekBounds {
-  const firstMonday = getFirstNhlWeekMonday(poolCreatedAt);
-  const weekStartUtc = new Date(firstMonday.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000);
-  const weekEndUtc = new Date(weekStartUtc.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-
-  const days: string[] = [];
-  const espnDates: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const dayUtc = new Date(weekStartUtc.getTime() + i * 24 * 60 * 60 * 1000);
-    days.push(formatDateEtDash(dayUtc));
-    espnDates.push(formatDateEt(dayUtc));
-  }
-
-  // NHL regular-season slates run Saturday–Sunday; keep only those two days.
-  // weekStart/weekEnd still span Mon–Sun for labelling and deadline purposes.
-  const isWeekend = (yyyymmdd: string): boolean => {
-    const dow = new Date(Date.UTC(+yyyymmdd.slice(0, 4), +yyyymmdd.slice(4, 6) - 1, +yyyymmdd.slice(6, 8))).getUTCDay();
-    return dow === 0 || dow === 6;
+  // Preserve the legacy anchor's Monday identity, then advance ET calendar days.
+  // Its 04:00 UTC representation is not an actual ET midnight during EST.
+  const firstMonday = asEtDate(getFirstNhlWeekMonday(poolCreatedAt));
+  const calendarDay = (offset: number): Date => {
+    const day = new Date(firstMonday);
+    day.setUTCDate(day.getUTCDate() + (weekNumber - 1) * 7 + offset);
+    return day;
   };
-  const filteredDays = days.filter((_, i) => isWeekend(espnDates[i]));
-  const filteredEspnDates = espnDates.filter(isWeekend);
+  const weekStartUtc = nhlCalendarMidnightUtc(calendarDay(0));
+  const weekEndUtc = new Date(nhlCalendarMidnightUtc(calendarDay(7)).getTime() - 1);
+  // Return Saturday and Sunday only; bounds still span the full Mon–Sun week.
+  const days = [5, 6].map(offset => formatCalendarDateEt(nhlCalendarMidnightUtc(calendarDay(offset))));
+  const espnDates = days.map(day => day.replace(/-/g, ""));
 
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -598,7 +623,7 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
   });
   const weekLabel = `${fmt.format(weekStartUtc)} – ${fmt.format(weekEndUtc)}`;
 
-  return { weekStart: weekStartUtc, weekEnd: weekEndUtc, weekLabel, days: filteredDays, espnDates: filteredEspnDates };
+  return { weekStart: weekStartUtc, weekEnd: weekEndUtc, weekLabel, days, espnDates };
 }
 
 /**

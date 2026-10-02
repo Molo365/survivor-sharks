@@ -85,11 +85,12 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   // 2025-26 season opener regardless of when the pool was actually created.
   const isSandbox = (pool as any).sandboxMode as boolean;
   const anchor = isSandbox ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-  const { espnDates, days } = getNhlWeekBounds(anchor, pool.currentWeek);
-  const satEspn = espnDates[0];
-  const sunEspn = espnDates[1];
-  const satDate = days[0];
-  const sunDate = days[1];
+  const { days } = getNhlWeekBounds(anchor, pool.currentWeek);
+  const satDate = days.find(day => new Date(`${day}T00:00:00Z`).getUTCDay() === 6);
+  const sunDate = days.find(day => new Date(`${day}T00:00:00Z`).getUTCDay() === 0);
+  if (!satDate || !sunDate) throw new Error("NHL weekend bounds must contain Saturday and Sunday");
+  const satEspn = satDate.replace(/-/g, "");
+  const sunEspn = sunDate.replace(/-/g, "");
   const [satGames, sunGames] = await Promise.all([
     fetchGamesForDate("nhl", satEspn, pool.isPreseason ? 1 : 2),
     fetchGamesForDate("nhl", sunEspn, pool.isPreseason ? 1 : 2),

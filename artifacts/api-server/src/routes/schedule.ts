@@ -16,6 +16,7 @@ import {
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
+  formatCalendarDateEt,
   getDailyPickDeadline,
   isDailyPickDeadlinePassed,
   type EspnGame,
@@ -311,13 +312,7 @@ router.get("/", requireAuth, async (req, res) => {
       gamesByDate.set(dateStr, []);
     }
     for (const g of allGames) {
-      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
-      const etMs = new Date(g.date).getTime() - ET_OFFSET_MS;
-      const etDate = new Date(etMs);
-      const year = etDate.getUTCFullYear();
-      const month = String(etDate.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(etDate.getUTCDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
+      const dateStr = formatCalendarDateEt(new Date(g.date));
       if (gamesByDate.has(dateStr)) gamesByDate.get(dateStr)!.push(g);
     }
     for (const [, games] of gamesByDate) {
@@ -327,10 +322,8 @@ router.get("/", requireAuth, async (req, res) => {
     const farFuture = "2099-01-01T00:00:00.000Z";
 
     const days = bounds.days.map(dateStr => {
-      const [yearStr, monthStr, dayStr] = dateStr.split("-");
-      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
-      const etMidnight = new Date(`${yearStr}-${monthStr}-${dayStr}T00:00:00Z`);
-      const utcDate = new Date(etMidnight.getTime() + ET_OFFSET_MS);
+      // UTC noon is on this calendar date in ET in both EDT and EST.
+      const utcDate = new Date(`${dateStr}T12:00:00Z`);
       const dow = utcDate.getUTCDay();
       const dayName = DAY_NAMES[dow] ?? "";
       const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "long", day: "numeric" });
@@ -372,13 +365,7 @@ router.get("/", requireAuth, async (req, res) => {
       gamesByDate.set(dateStr, []);
     }
     for (const g of allGames) {
-      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
-      const etMs = new Date(g.date).getTime() - ET_OFFSET_MS;
-      const etDate = new Date(etMs);
-      const year = etDate.getUTCFullYear();
-      const month = String(etDate.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(etDate.getUTCDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
+      const dateStr = formatCalendarDateEt(new Date(g.date));
       if (gamesByDate.has(dateStr)) {
         gamesByDate.get(dateStr)!.push(g);
       }
@@ -388,10 +375,8 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const days = bounds.days.map(dateStr => {
-      const [yearStr, monthStr, dayStr] = dateStr.split("-");
-      const ET_OFFSET_MS = 4 * 60 * 60 * 1000;
-      const etMidnight = new Date(`${yearStr}-${monthStr}-${dayStr}T00:00:00Z`);
-      const utcDate = new Date(etMidnight.getTime() + ET_OFFSET_MS);
+      // UTC noon is on this calendar date in ET in both EDT and EST.
+      const utcDate = new Date(`${dateStr}T12:00:00Z`);
       const dow = utcDate.getUTCDay();
       const dayName = DAY_NAMES[dow] ?? "";
       const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "long", day: "numeric" });
