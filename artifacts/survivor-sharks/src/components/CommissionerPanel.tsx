@@ -174,8 +174,15 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
   }
 
   const handleUpdate = () => {
+    const data: { name: string; description: string; currentWeek?: number } = {
+      name,
+      description: desc,
+    };
+    if (isSuperAdmin && pool && week !== pool.currentWeek) {
+      data.currentWeek = week;
+    }
     updatePool.mutate(
-      { poolId, data: { name, description: desc, currentWeek: week } } as any,
+      { poolId, data } as any,
       {
         onSuccess: () => {
           toast({ title: "Settings Saved", description: "Pool configuration updated." });

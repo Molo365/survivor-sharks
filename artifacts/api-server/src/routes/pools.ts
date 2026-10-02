@@ -783,16 +783,24 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   }
 
   const adminOnlyFields = ["currentWeek", "season", "poolType", "isActive"] as const;
-  if (req.user!.role !== "admin" && adminOnlyFields.some((field) =>
-    Object.prototype.hasOwnProperty.call(req.body, field),
-  )) {
-    res.status(403).json({ error: "Only admins can change the pool's week, season, type, or active status." });
-    return;
+  const updateBody = { ...req.body };
+  if (req.user!.role !== "admin") {
+    const changesAdminOnlyField = adminOnlyFields.some((field) =>
+      Object.prototype.hasOwnProperty.call(updateBody, field) &&
+      updateBody[field] !== pool[field],
+    );
+    if (changesAdminOnlyField) {
+      res.status(403).json({ error: "Only admins can change the pool's week, season, type, or active status." });
+      return;
+    }
+    for (const field of adminOnlyFields) {
+      if (Object.prototype.hasOwnProperty.call(updateBody, field)) delete updateBody[field];
+    }
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = req.body;
+  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = updateBody;
 
-  if (Object.prototype.hasOwnProperty.call(req.body, "sandboxMode") && req.user!.role !== "admin") {
+  if (Object.prototype.hasOwnProperty.call(updateBody, "sandboxMode") && req.user!.role !== "admin") {
     res.status(403).json({ error: "Only admins can change sandbox mode." });
     return;
   }
