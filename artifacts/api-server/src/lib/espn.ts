@@ -581,6 +581,14 @@ function nhlCalendarMidnightUtc(calendarDay: Date): Date {
   return new Date(instantMs);
 }
 
+const etCalendarMidnightUtc = nhlCalendarMidnightUtc;
+
+/** Return an ET calendar date as a UTC date-only value for DST-safe arithmetic. */
+function etCalendarDay(instant: Date): Date {
+  const [year, month, day] = formatCalendarDateEt(instant).split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day!));
+}
+
 export interface NhlWeekBounds {
   /** UTC timestamp of Monday 00:00 ET for the week */
   weekStart: Date;
@@ -694,13 +702,11 @@ export async function fetchNhlGamesByWeekWithStatus(
 export const NBA_SANDBOX_ANCHOR = new Date("2025-11-01T12:00:00Z");
 
 export function getFirstNbaWeekMonday(poolCreatedAt: Date): Date {
-  const etDate = asEtDate(poolCreatedAt);
-  const dow = etDate.getUTCDay(); // 0=Sun … 6=Sat
+  const mondayEt = etCalendarDay(poolCreatedAt);
+  const dow = mondayEt.getUTCDay(); // 0=Sun … 6=Sat
   const daysToMonday = dow === 1 ? 0 : (8 - dow) % 7;
-  const mondayEt = new Date(etDate);
-  mondayEt.setUTCHours(0, 0, 0, 0);
   mondayEt.setUTCDate(mondayEt.getUTCDate() + daysToMonday);
-  return fromEtDate(mondayEt); // UTC: Monday 04:00 UTC (EDT)
+  return etCalendarMidnightUtc(mondayEt);
 }
 
 export interface NbaWeekBounds {
@@ -725,17 +731,18 @@ export interface NbaWeekBounds {
  * @param weekNumber     pool.currentWeek (1-indexed)
  */
 export function getNbaWeekBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
-  const firstMonday = getFirstNbaWeekMonday(poolCreatedAt);
-  const weekStartUtc = new Date(firstMonday.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000);
-  const weekEndUtc = new Date(weekStartUtc.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-
-  const days: string[] = [];
-  const espnDates: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const dayUtc = new Date(weekStartUtc.getTime() + i * 24 * 60 * 60 * 1000);
-    days.push(formatDateEtDash(dayUtc));
-    espnDates.push(formatDateEt(dayUtc));
-  }
+  const firstMonday = etCalendarDay(getFirstNbaWeekMonday(poolCreatedAt));
+  const calendarDay = (offset: number): Date => {
+    const day = new Date(firstMonday);
+    day.setUTCDate(day.getUTCDate() + (weekNumber - 1) * 7 + offset);
+    return day;
+  };
+  const weekStartUtc = etCalendarMidnightUtc(calendarDay(0));
+  const weekEndUtc = new Date(etCalendarMidnightUtc(calendarDay(7)).getTime() - 1);
+  const days = Array.from({ length: 7 }, (_, i) =>
+    formatCalendarDateEt(etCalendarMidnightUtc(calendarDay(i))),
+  );
+  const espnDates = days.map((day) => day.replace(/-/g, ""));
 
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
