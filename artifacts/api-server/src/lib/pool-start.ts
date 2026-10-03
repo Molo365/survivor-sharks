@@ -16,6 +16,7 @@ export type PoolStartPool = {
   pickFrequency: "daily" | "weekly";
   sandboxMode: boolean;
   createdAt: Date;
+  initialPeriodStart: string | null;
 };
 
 export type StartGame = { date: string; hasStarted: boolean };

@@ -203,7 +203,11 @@ router.post("/", requireAuth, async (req, res) => {
 
   if (pool.sport === "nhl") {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-    const { espnDates } = getNhlWeekBounds(anchor, week);
+    const { espnDates } = getNhlWeekBounds(
+      anchor,
+      week,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
     if (espnDates.length < 2) {
       res.status(503).json({ error: "Unable to verify the NHL weekend schedule. Please retry shortly.", retryable: true });
       return;
@@ -261,7 +265,13 @@ router.post("/", requireAuth, async (req, res) => {
   } else {
     // All other sports: lock once the picked team's game has started
     if (existingPick) {
-      const currentlyLocked = await isPickLocked(pool.sport, existingPick.teamId, week, pool.createdAt);
+      const currentlyLocked = await isPickLocked(
+        pool.sport,
+        existingPick.teamId,
+        week,
+        pool.createdAt,
+        pool.initialPeriodStart,
+      );
       if (currentlyLocked) {
         res.status(400).json({
           error: `Your pick (${existingPick.teamName}) is locked — that game has already started`,
@@ -269,7 +279,13 @@ router.post("/", requireAuth, async (req, res) => {
         return;
       }
     }
-    const newTeamLocked = await isPickLocked(pool.sport, teamId, week, pool.createdAt);
+    const newTeamLocked = await isPickLocked(
+      pool.sport,
+      teamId,
+      week,
+      pool.createdAt,
+      pool.initialPeriodStart,
+    );
     if (newTeamLocked) {
       res.status(400).json({
         error: "That team's game has already started — choose a team that hasn't played yet",

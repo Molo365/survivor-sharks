@@ -532,14 +532,32 @@ export function getMlbProcessingTrigger(poolCreatedAt: Date, weekNumber: number)
 
 /**
  * Returns the UTC timestamp of the Monday at midnight ET that is on or after
- * the given UTC date. Used to anchor the "first NHL week" for a pool.
+ * the given UTC date, unless an explicit initialPeriodStart is provided.
  */
 // Sandbox anchor: createdAt that places NHL Week 1 at the 2025-26 season opener (Oct 6–12, 2025).
 // All NHL sandbox pools use this constant instead of pool.createdAt so that
 // "Week 1" always means the first week of actual regular-season games.
 export const NHL_SANDBOX_ANCHOR = new Date("2025-10-01T12:00:00Z");
 
-export function getFirstNhlWeekMonday(poolCreatedAt: Date): Date {
+export function getFirstNhlWeekMonday(
+  poolCreatedAt: Date,
+  initialPeriodStart?: string | null,
+): Date {
+  if (initialPeriodStart != null) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(initialPeriodStart);
+    if (!match) throw new Error(`Invalid NHL initialPeriodStart: ${initialPeriodStart}`);
+    const calendarDay = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (
+      calendarDay.getUTCFullYear() !== Number(match[1])
+      || calendarDay.getUTCMonth() !== Number(match[2]) - 1
+      || calendarDay.getUTCDate() !== Number(match[3])
+      || calendarDay.getUTCDay() !== 1
+    ) {
+      throw new Error(`NHL initialPeriodStart must be a valid Monday: ${initialPeriodStart}`);
+    }
+    return nhlCalendarMidnightUtc(calendarDay);
+  }
+
   const etDate = asEtDate(poolCreatedAt);
   const dow = etDate.getUTCDay(); // 0=Sun … 6=Sat
   const daysToMonday = dow === 1 ? 0 : (8 - dow) % 7;
@@ -604,15 +622,22 @@ export interface NhlWeekBounds {
 
 /**
  * Compute bounds for the Nth NHL week of a pool.
- * Weeks run Monday–Sunday ET, anchored to pool.createdAt (same pattern as MLB).
+ * Weeks run Monday–Sunday ET, anchored to initialPeriodStart when provided;
+ * otherwise they retain the legacy pool.createdAt anchor.
  *
  * @param poolCreatedAt  pool.createdAt (UTC)
  * @param weekNumber     pool.currentWeek (1-indexed)
  */
-export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWeekBounds {
+export function getNhlWeekBounds(
+  poolCreatedAt: Date,
+  weekNumber: number,
+  initialPeriodStart?: string | null,
+): NhlWeekBounds {
   // Preserve the legacy anchor's Monday identity, then advance ET calendar days.
   // Its 04:00 UTC representation is not an actual ET midnight during EST.
-  const firstMonday = asEtDate(getFirstNhlWeekMonday(poolCreatedAt));
+  const firstMonday = initialPeriodStart == null
+    ? asEtDate(getFirstNhlWeekMonday(poolCreatedAt))
+    : etCalendarDay(getFirstNhlWeekMonday(poolCreatedAt, initialPeriodStart));
   const calendarDay = (offset: number): Date => {
     const day = new Date(firstMonday);
     day.setUTCDate(day.getUTCDate() + (weekNumber - 1) * 7 + offset);
@@ -642,8 +667,13 @@ export function getNhlWeekBounds(poolCreatedAt: Date, weekNumber: number): NhlWe
  * @param seasonType ESPN season type (1=preseason, 2=regular, 3=postseason). Defaults to 2.
  *   Pass 3 for a future playoff-bracket pool type without modifying this function.
  */
-export async function fetchNhlGamesByWeek(poolCreatedAt: Date, weekNumber: number, seasonType = 2): Promise<EspnGame[]> {
-  const { espnDates: rawEspnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
+export async function fetchNhlGamesByWeek(
+  poolCreatedAt: Date,
+  weekNumber: number,
+  seasonType = 2,
+  initialPeriodStart?: string | null,
+): Promise<EspnGame[]> {
+  const { espnDates: rawEspnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber, initialPeriodStart);
   // getNhlWeekBounds already filters to Sat/Sun; filter again here defensively.
   const espnDates = rawEspnDates.filter(d => {
     const dow = new Date(Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8))).getUTCDay();
@@ -670,8 +700,9 @@ export async function fetchNhlGamesByWeekWithStatus(
   poolCreatedAt: Date,
   weekNumber: number,
   seasonType = 2,
+  initialPeriodStart?: string | null,
 ): Promise<{ games: EspnGame[]; available: boolean }> {
-  const { espnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber);
+  const { espnDates } = getNhlWeekBounds(poolCreatedAt, weekNumber, initialPeriodStart);
   const results = await Promise.all(
     espnDates.map(date => fetchGamesForDateChecked("nhl", date, seasonType, true)),
   );
@@ -1429,10 +1460,16 @@ export function getTeamsWithWin(games: EspnGame[]): Set<string> {
  * For NHL pools, pass poolCreatedAt so the check covers the full
  * Mon-Sun week rather than just today's live scoreboard.
  */
-export async function isPickLocked(sport: string, teamId: string, week?: number, poolCreatedAt?: Date): Promise<boolean> {
+export async function isPickLocked(
+  sport: string,
+  teamId: string,
+  week?: number,
+  poolCreatedAt?: Date,
+  initialPeriodStart?: string | null,
+): Promise<boolean> {
   let games: EspnGame[];
   if (sport === "nhl" && poolCreatedAt != null && week != null) {
-    games = await fetchNhlGamesByWeek(poolCreatedAt, week);
+    games = await fetchNhlGamesByWeek(poolCreatedAt, week, 2, initialPeriodStart);
   } else {
     games = await fetchGames(sport, week);
   }
@@ -1454,10 +1491,15 @@ export function isMlbPickDeadlinePassed(poolCreatedAt: Date, weekNumber: number)
  * For NHL pools, pass poolCreatedAt so the check covers the full
  * Mon-Sun week rather than just today's live scoreboard.
  */
-export async function getCompletedGameResults(sport: string, week?: number, poolCreatedAt?: Date): Promise<{ winners: string[]; losers: string[] }> {
+export async function getCompletedGameResults(
+  sport: string,
+  week?: number,
+  poolCreatedAt?: Date,
+  initialPeriodStart?: string | null,
+): Promise<{ winners: string[]; losers: string[] }> {
   let games: EspnGame[];
   if (sport === "nhl" && poolCreatedAt != null && week != null) {
-    games = await fetchNhlGamesByWeek(poolCreatedAt, week);
+    games = await fetchNhlGamesByWeek(poolCreatedAt, week, 2, initialPeriodStart);
   } else {
     games = await fetchGames(sport, week);
   }
@@ -1489,10 +1531,15 @@ export async function getCompletedGameResults(sport: string, week?: number, pool
  * For NHL pools, pass poolCreatedAt so the check covers the full
  * Mon-Sun week rather than just today's live scoreboard.
  */
-export async function getGameMarginsByTeam(sport: string, week?: number, poolCreatedAt?: Date): Promise<Map<string, number>> {
+export async function getGameMarginsByTeam(
+  sport: string,
+  week?: number,
+  poolCreatedAt?: Date,
+  initialPeriodStart?: string | null,
+): Promise<Map<string, number>> {
   let games: EspnGame[];
   if (sport === "nhl" && poolCreatedAt != null && week != null) {
-    games = await fetchNhlGamesByWeek(poolCreatedAt, week);
+    games = await fetchNhlGamesByWeek(poolCreatedAt, week, 2, initialPeriodStart);
   } else {
     games = await fetchGames(sport, week);
   }

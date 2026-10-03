@@ -813,6 +813,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.createdAt,
       pool.currentWeek,
       pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
     );
     for (const g of liveNhlGames) {
       gameMap.set(g.id, { date: g.date });
@@ -1491,7 +1492,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (sport === "nhl") {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-    const { days } = getNhlWeekBounds(anchor, requestedWeek ?? Math.max(1, pool.currentWeek - 1));
+    const { days } = getNhlWeekBounds(
+      anchor,
+      requestedWeek ?? Math.max(1, pool.currentWeek - 1),
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (requestedWeek !== null) {
     // Offset back from the current week's Monday by (currentWeek − requestedWeek) weeks.
@@ -1859,7 +1864,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     } else if (sport === "nhl" && pool.poolType === "pickem" && pool.isRecurring && pool.isActive) {
       // Rollover can lag the calendar while games/picks are unresolved.
       // Always display the active pool period, not today's calendar week.
-      const b = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const b = getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
     } else if (sport === "nba" && pool.sandboxMode && !isAts) {
       // Non-ATS NBA sandbox (e.g. crazy_8s): full Mon–Sun week
@@ -1963,7 +1968,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : isChampionsLeague ? Promise.resolve(championsLeagueSlate?.games ?? [] as EspnGame[])
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek, pool.isPreseason ? 1 : 2)
     : (isNhl && isWeekly && pool.poolType === "pickem" && pool.isRecurring && pool.isActive)
-      ? fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, pool.isPreseason ? 1 : 2)
+      ? fetchNhlGamesByWeek(
+          pool.createdAt,
+          pool.currentWeek,
+          pool.isPreseason ? 1 : 2,
+          pool.initialPeriodStart,
+        )
     : (isAts && isWeekly && weekBounds)
       ? (() => {
           // nba_ats: fetch only the 3 Fri/Sat/Sun dates already set in weekBounds.
@@ -2141,7 +2151,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   let tiebreakerActualPenaltyMinutes: number | null = null;
   if (isNhl && isWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-    const { days, espnDates } = getNhlWeekBounds(anchor, pool.currentWeek);
+    const { days, espnDates } = getNhlWeekBounds(
+      anchor,
+      pool.currentWeek,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
     const seasonType = pool.isPreseason ? 1 : 2;
     const daySlates = await Promise.all(espnDates.map(
       (date) => fetchGamesForDateChecked("nhl", date, seasonType, true),

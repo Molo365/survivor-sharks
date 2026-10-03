@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/auth";
 import { nanoid } from "../lib/nanoid";
 import {
   fetchGamesForDate,
+  fetchGamesForDateChecked,
   getTodayEtDate,
   fetchNflGamesByWeek,
   fetchNhlGamesByWeek,
@@ -23,6 +24,7 @@ import { resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } fro
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
+import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } from "../lib/nhl-pool-period";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -51,6 +53,7 @@ async function getPoolStartState(pool: PoolRow) {
     id: pool.id, sport: pool.sport, poolType: pool.poolType, currentWeek: pool.currentWeek,
     startWeek: pool.startWeek, season: pool.season, isPreseason: pool.isPreseason,
     pickFrequency: pool.pickFrequency, sandboxMode: pool.sandboxMode, createdAt: pool.createdAt,
+    initialPeriodStart: pool.initialPeriodStart,
   };
   const startState = await resolvePoolStart(policyPool, {
     now: () => new Date(),
@@ -99,7 +102,12 @@ async function getPoolStartState(pool: PoolRow) {
         return (await Promise.all(datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate))).flat();
       }
       if (candidate.sport === "nhl") {
-        return fetchNhlGamesByWeek(candidate.createdAt, candidate.currentWeek, candidate.isPreseason ? 1 : 2);
+        return fetchNhlGamesByWeek(
+          candidate.createdAt,
+          candidate.currentWeek,
+          candidate.isPreseason ? 1 : 2,
+          candidate.initialPeriodStart,
+        );
       }
       if (candidate.sport === "nba") return fetchNbaGamesByWeek(candidate.createdAt, candidate.currentWeek);
       if (candidate.sport === "mlb" && candidate.pickFrequency === "weekly") {
@@ -368,7 +376,7 @@ router.post("/", requireAuth, async (req, res) => {
 
   const dailySports = ["mlb", "intl"];
   const resolvedPickFrequency = (pickFrequency === "daily" && dailySports.includes(sport)) ? "daily" : "weekly";
-  const resolvedInitialPeriodStart =
+  let resolvedInitialPeriodStart =
     sport === "mlb" && (resolvedPoolType === "pickem" || resolvedPoolType === "crazy_8s") && resolvedPickFrequency === "weekly"
       ? resolveMlbWeeklyStartDate(initialPeriodStart)
       : sport === "mls" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
@@ -376,6 +384,26 @@ router.post("/", requireAuth, async (req, res) => {
       : sport === "superleague" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
         ? resolveSuperLeagueStartDate(initialPeriodStart)
       : null;
+
+  if (shouldResolveNhlPoolInitialPeriod({
+    sport,
+    poolType: resolvedPoolType,
+    pickFrequency: resolvedPickFrequency,
+    sandboxMode: sandboxMode === true,
+  })) {
+    const nhlCreationPeriod = await resolveNhlPoolInitialPeriodStart(
+      new Date(),
+      (date) => fetchGamesForDateChecked("nhl", date, 2, true),
+    );
+    if (!nhlCreationPeriod.ok) {
+      res.status(nhlCreationPeriod.status).json({
+        error: nhlCreationPeriod.error,
+        retryable: nhlCreationPeriod.retryable,
+      });
+      return;
+    }
+    resolvedInitialPeriodStart = nhlCreationPeriod.initialPeriodStart;
+  }
 
   // commissionerCut: integer 0–15, default 0.
   const rawCut = req.body.commissionerCut ?? 0;
@@ -645,7 +673,23 @@ router.get("/weekly-slate-count", requireAuth, async (req, res) => {
 
     if (sport === "nhl") {
       const preseason = req.query.preseason === "true";
-      const games = await fetchNhlGamesByWeek(now, 1, preseason ? 1 : 2);
+      const nhlPeriod = await resolveNhlPoolInitialPeriodStart(
+        now,
+        (date) => fetchGamesForDateChecked("nhl", date, 2, true),
+      );
+      if (!nhlPeriod.ok) {
+        res.status(nhlPeriod.status).json({
+          error: nhlPeriod.error,
+          retryable: nhlPeriod.retryable,
+        });
+        return;
+      }
+      const games = await fetchNhlGamesByWeek(
+        now,
+        1,
+        preseason ? 1 : 2,
+        nhlPeriod.initialPeriodStart,
+      );
       res.json({ count: games.length });
       return;
     }

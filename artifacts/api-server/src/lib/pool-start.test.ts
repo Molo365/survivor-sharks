@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "./pool-start";
 
-const base: PoolStartPool = { id: 1, sport: "nfl", poolType: "season", currentWeek: 1, startWeek: null, season: 2026, isPreseason: false, pickFrequency: "weekly", sandboxMode: false, createdAt: new Date("2026-09-01T00:00:00Z") };
+const base: PoolStartPool = { id: 1, sport: "nfl", poolType: "season", currentWeek: 1, startWeek: null, season: 2026, isPreseason: false, pickFrequency: "weekly", sandboxMode: false, createdAt: new Date("2026-09-01T00:00:00Z"), initialPeriodStart: null };
 const game = (date: string, hasStarted = false) => ({ date, hasStarted });
 const deps = (games: ReturnType<typeof game>[] | null, persisted = false) => ({
   now: () => new Date("2026-09-10T20:00:00Z"),

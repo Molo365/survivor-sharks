@@ -184,12 +184,22 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
   if (pool.sport === "nhl" || pool.sport === "nba") {
     const expectedSeasonType = pool.sport === "nhl" && pool.isPreseason ? 1 : 2;
     if (pool.sport === "nhl" && pool.isPreseason) {
-      const slate = await fetchNhlGamesByWeekWithStatus(anchor!, pool.currentWeek, expectedSeasonType);
+      const slate = await fetchNhlGamesByWeekWithStatus(
+        anchor!,
+        pool.currentWeek,
+        expectedSeasonType,
+        pool.initialPeriodStart,
+      );
       const settlementGames = nhlSurvivorSlateForSettlement(slate.games);
       return slate.available && isCompleteRegularSeasonSlate(settlementGames, expectedSeasonType);
     }
     const games = pool.sport === "nhl"
-      ? nhlSurvivorSlateForSettlement(await fetchNhlGamesByWeek(anchor!, pool.currentWeek, expectedSeasonType))
+      ? nhlSurvivorSlateForSettlement(await fetchNhlGamesByWeek(
+          anchor!,
+          pool.currentWeek,
+          expectedSeasonType,
+          pool.initialPeriodStart,
+        ))
       : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
     return isCompleteRegularSeasonSlate(games, expectedSeasonType);
   }
@@ -263,8 +273,8 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
       let followingGames: EspnGame[];
       if (pool.sport === "nhl" && pool.isPreseason) {
         const [currentSlate, followingSlate] = await Promise.all([
-          fetchNhlGamesByWeekWithStatus(pool.createdAt, week, expectedSeasonType),
-          fetchNhlGamesByWeekWithStatus(pool.createdAt, week + 1, expectedSeasonType),
+          fetchNhlGamesByWeekWithStatus(pool.createdAt, week, expectedSeasonType, pool.initialPeriodStart),
+          fetchNhlGamesByWeekWithStatus(pool.createdAt, week + 1, expectedSeasonType, pool.initialPeriodStart),
         ]);
         currentGames = currentSlate.games;
         followingGames = followingSlate.games;
@@ -272,10 +282,10 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
       } else {
         [currentGames, followingGames] = await Promise.all([
           pool.sport === "nhl"
-            ? fetchNhlGamesByWeek(pool.createdAt, week, expectedSeasonType)
+            ? fetchNhlGamesByWeek(pool.createdAt, week, expectedSeasonType, pool.initialPeriodStart)
             : fetchNbaGamesByWeek(pool.createdAt, week),
           pool.sport === "nhl"
-            ? fetchNhlGamesByWeek(pool.createdAt, week + 1, expectedSeasonType)
+            ? fetchNhlGamesByWeek(pool.createdAt, week + 1, expectedSeasonType, pool.initialPeriodStart)
             : fetchNbaGamesByWeek(pool.createdAt, week + 1),
         ]);
       }
@@ -294,10 +304,10 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
             ? await fetchLastRegularSeasonGameDate(pool.sport, seasonYears[0])
             : await fetchLastSeasonTypeGameDate(pool.sport, seasonYears[0], expectedSeasonType);
           const currentBounds = pool.sport === "nhl"
-            ? getNhlWeekBounds(pool.createdAt, week)
+            ? getNhlWeekBounds(pool.createdAt, week, pool.initialPeriodStart)
             : getNbaWeekBounds(pool.createdAt, week);
           const followingBounds = pool.sport === "nhl"
-            ? getNhlWeekBounds(pool.createdAt, week + 1)
+            ? getNhlWeekBounds(pool.createdAt, week + 1, pool.initialPeriodStart)
             : getNbaWeekBounds(pool.createdAt, week + 1);
           terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
             sport: pool.sport,
@@ -423,6 +433,7 @@ export async function processCompletedGames(): Promise<{
       sport: poolsTable.sport,
       poolType: poolsTable.poolType,
       poolCreatedAt: poolsTable.createdAt,
+      initialPeriodStart: poolsTable.initialPeriodStart,
       sandboxMode: poolsTable.sandboxMode,
       season: poolsTable.season,
       isPreseason: poolsTable.isPreseason,
@@ -463,7 +474,12 @@ export async function processCompletedGames(): Promise<{
       await Promise.all(nhlPoolWeekKeys.map(async key => {
         const ref = nhlRows.find(r => `${r.poolId}:${r.week}` === key)!;
         const anchor = ref.sandboxMode ? NHL_SANDBOX_ANCHOR : ref.poolCreatedAt;
-        const games = await fetchNhlGamesByWeek(anchor, ref.week, ref.isPreseason ? 1 : 2);
+        const games = await fetchNhlGamesByWeek(
+          anchor,
+          ref.week,
+          ref.isPreseason ? 1 : 2,
+          ref.initialPeriodStart,
+        );
         nhlGamesByPoolWeek.set(key, games);
         const completed = games.filter(g => g.isCompleted);
         logger.info(
@@ -2752,7 +2768,12 @@ export async function processPickEmResults(): Promise<{
     for (const pool of nhlPools) {
       try {
         const seasonType = pool.isPreseason ? 1 : 2;
-        const nhlWeekGames = await fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, seasonType);
+        const nhlWeekGames = await fetchNhlGamesByWeek(
+          pool.createdAt,
+          pool.currentWeek,
+          seasonType,
+          pool.initialPeriodStart,
+        );
         const completedNhlGames = nhlWeekGames.filter(
           (g) => g.isCompleted && g.homeScore != null && g.awayScore != null && g.homeScore !== g.awayScore,
         );
@@ -4100,7 +4121,7 @@ export async function processPickEmResults(): Promise<{
 
       // Use the pool's complete Saturday + Sunday slate, not submitted pick IDs.
       // Keep the calendar guard, with DST-aware ET dates for this NHL period.
-      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart);
       {
         const nhlWeekEnd = formatCalendarDateEt(nhlBounds.weekEnd);
         if (todayEt < nhlWeekEnd) {
@@ -4313,7 +4334,7 @@ export async function processPickEmResults(): Promise<{
 
   for (const pool of nhlRecurringWeeklyPools) {
     try {
-      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek);
+      const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart);
       const nhlWeekEnd = formatCalendarDateEt(nhlBounds.weekEnd);
       if (nhlTodayEt <= nhlWeekEnd) {
         logger.info(
@@ -5798,7 +5819,11 @@ export async function processCrazyEightsResults(): Promise<{
   // ── NHL ────────────────────────────────────────────────────────────────────
   for (const pool of nhlPools) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-    const { days, espnDates } = getNhlWeekBounds(anchor, pool.currentWeek);
+    const { days, espnDates } = getNhlWeekBounds(
+      anchor,
+      pool.currentWeek,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
     const satDate = days[0];
     const sunDate = days[1];
     const satEspn = espnDates[0];

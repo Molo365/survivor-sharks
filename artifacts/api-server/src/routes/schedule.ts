@@ -356,8 +356,13 @@ router.get("/", requireAuth, async (req, res) => {
   // ── NHL live path ─────────────────────────────────────────────────────────
   if (pool.sport === "nhl") {
     const week = pool.currentWeek;
-    const bounds = getNhlWeekBounds(pool.createdAt, week);
-    const allGames = await fetchNhlGamesByWeek(pool.createdAt, week, pool.isPreseason ? 1 : 2);
+    const bounds = getNhlWeekBounds(pool.createdAt, week, pool.initialPeriodStart);
+    const allGames = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      week,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
 
     // Group games by ET date string (YYYY-MM-DD)
     const gamesByDate = new Map<string, EspnGame[]>();

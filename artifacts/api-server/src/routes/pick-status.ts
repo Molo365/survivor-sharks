@@ -139,7 +139,12 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
       : pool.createdAt instanceof Date
         ? pool.createdAt
         : new Date(pool.createdAt);
-    const games = await fetchNhlGamesByWeek(anchor, pool.currentWeek, pool.isPreseason ? 1 : 2);
+    const games = await fetchNhlGamesByWeek(
+      anchor,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
     return { kind: "week", games: selectableGames(games), gameIds: selectableGameIds(games), confidenceRequired: false };
   }
 

@@ -53,7 +53,12 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
   let inputTokens: string[] = [];
 
   if (autoFetch) {
-    const { losers } = await getCompletedGameResults(pool.sport, week, pool.createdAt);
+    const { losers } = await getCompletedGameResults(
+      pool.sport,
+      week,
+      pool.createdAt,
+      pool.initialPeriodStart,
+    );
     if (losers.length === 0) {
       res.status(400).json({ error: "No completed games found on ESPN for this week yet. Try again later or submit results manually." });
       return;
@@ -84,7 +89,12 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
   // Best-effort ESPN margins for SOV storage
   let marginByTeamId = new Map<string, number>();
   try {
-    marginByTeamId = await getGameMarginsByTeam(pool.sport, week, pool.createdAt);
+    marginByTeamId = await getGameMarginsByTeam(
+      pool.sport,
+      week,
+      pool.createdAt,
+      pool.initialPeriodStart,
+    );
   } catch {
     req.log.warn({ poolId, week }, "Could not fetch game margins from ESPN — marginOfVictory will be null for this week");
   }

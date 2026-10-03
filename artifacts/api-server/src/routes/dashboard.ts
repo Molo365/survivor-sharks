@@ -123,7 +123,12 @@ async function getDashboardPickStatus(
       return true;
     });
   } else {
-    games = await fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, pool.isPreseason ? 1 : 2);
+    games = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
   }
 
   const pickedSet = new Set(pickedGameIds);
@@ -1025,14 +1030,15 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         // include that Monday-UTC pick, giving 1 pt too many.
         if (pool.sport === "nhl") {
           const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-          const { days: curDays } = getNhlWeekBounds(anchor, pool.currentWeek);
+          const initialPeriodStart = pool.sandboxMode ? null : pool.initialPeriodStart;
+          const { days: curDays } = getNhlWeekBounds(anchor, pool.currentWeek, initialPeriodStart);
           // curDays = [satDate, sunDate] as ET YYYY-MM-DD strings
           const [satDate, sunDate] = curDays;
 
           let prevSatDate: string | null = null;
           let prevSunDate: string | null = null;
           if (pool.currentWeek > 1) {
-            const { days: prevDays } = getNhlWeekBounds(anchor, pool.currentWeek - 1);
+            const { days: prevDays } = getNhlWeekBounds(anchor, pool.currentWeek - 1, initialPeriodStart);
             [prevSatDate, prevSunDate] = prevDays;
           }
 
@@ -1088,13 +1094,13 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               // from currentWeek. Most of the time this is currentWeek - 1.
               let fallbackWeekNum = pool.currentWeek;
               for (let w = pool.currentWeek; w >= 1; w--) {
-                const { days } = getNhlWeekBounds(anchor, w);
+                const { days } = getNhlWeekBounds(anchor, w, initialPeriodStart);
                 if (days.includes(latestPickRow.gameDate)) {
                   fallbackWeekNum = w;
                   break;
                 }
               }
-              const { days: fbDays } = getNhlWeekBounds(anchor, fallbackWeekNum);
+              const { days: fbDays } = getNhlWeekBounds(anchor, fallbackWeekNum, initialPeriodStart);
               const [fbSat, fbSun] = fbDays;
               currentRows = await db
                 .select({

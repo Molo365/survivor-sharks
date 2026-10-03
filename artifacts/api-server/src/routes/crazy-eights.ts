@@ -85,7 +85,11 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   // 2025-26 season opener regardless of when the pool was actually created.
   const isSandbox = (pool as any).sandboxMode as boolean;
   const anchor = isSandbox ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-  const { days } = getNhlWeekBounds(anchor, pool.currentWeek);
+  const { days } = getNhlWeekBounds(
+    anchor,
+    pool.currentWeek,
+    isSandbox ? null : pool.initialPeriodStart,
+  );
   const satDate = days.find(day => new Date(`${day}T00:00:00Z`).getUTCDay() === 6);
   const sunDate = days.find(day => new Date(`${day}T00:00:00Z`).getUTCDay() === 0);
   if (!satDate || !sunDate) throw new Error("NHL weekend bounds must contain Saturday and Sunday");
@@ -1252,7 +1256,11 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
   }
   if (!pool.sandboxMode) {
     const periodDeadline = pool.sport === "nhl"
-      ? getNhlWeekBounds(anchor, pool.currentWeek).weekEnd
+      ? getNhlWeekBounds(
+          anchor,
+          pool.currentWeek,
+          pool.sandboxMode ? null : pool.initialPeriodStart,
+        ).weekEnd
       : getNbaWeekendBounds(anchor, pool.currentWeek).weekEnd;
     const nowMs = Date.now();
     if (isCrazyEightsGameStarted(tiebreakerGame, nowMs) || nowMs >= periodDeadline.getTime()) {

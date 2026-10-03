@@ -109,7 +109,12 @@ async function getPartialPeriodGames(pool: {
     });
   }
 
-  return fetchNhlGamesByWeek(pool.createdAt, pool.currentWeek, pool.isPreseason ? 1 : 2);
+  return fetchNhlGamesByWeek(
+    pool.createdAt,
+    pool.currentWeek,
+    pool.isPreseason ? 1 : 2,
+    pool.initialPeriodStart,
+  );
 }
 
 // GET /api/picks/summary — returns pick status across all of the user's active pools

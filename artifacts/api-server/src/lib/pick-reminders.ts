@@ -29,6 +29,7 @@ async function gamesForPool(pool: typeof poolsTable.$inferSelect): Promise<EspnG
       pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt,
       pool.currentWeek,
       pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
     );
   }
   if (pool.sport === "nba") return fetchNbaGamesByWeek(pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt, pool.currentWeek);
