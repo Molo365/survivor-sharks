@@ -87,6 +87,8 @@ const SPORTS: ReadonlyArray<SportEntry> = [
   },
 ];
 
+type SportPoolStatus = "open" | "coming_soon" | "paused";
+
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s", "mlb_bracket"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
@@ -376,6 +378,26 @@ export default function CreatePool() {
       const res = await fetch("/api/config");
       return res.json() as Promise<{ poolCreationOpen: boolean }>;
     },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const {
+    data: sportPoolStatuses,
+    isError: sportPoolStatusesError,
+    isFetching: sportPoolStatusesFetching,
+  } = useQuery({
+    queryKey: ["sport-pool-status"],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/sport-pool-status", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to load sport pool statuses");
+      return res.json() as Promise<Record<string, SportPoolStatus>>;
+    },
+    enabled: !authLoading,
+    retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -958,17 +980,35 @@ export default function CreatePool() {
                         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-2">
                           {SPORTS.filter((s) => !s.hidden).map((sport) => {
                             const isSelected = field.value === sport.id;
+                            const status = sportPoolStatusesFetching || sportPoolStatusesError
+                              ? undefined
+                              : sportPoolStatuses?.[sport.id];
+                            const isUnavailable = status !== undefined && status !== "open";
+                            const isRestricted = !isAdmin && isUnavailable;
+                            const statusLabel = status === "coming_soon"
+                              ? "Coming Soon"
+                              : status === "paused"
+                                ? "Offline for maintenance"
+                                : undefined;
                             return (
                               <button
                                 key={sport.id}
                                 type="button"
                                 data-testid={`sport-card-${sport.id}`}
-                                onClick={() => { field.onChange(sport.id); setTimeout(() => setEditStep(2), 50); }}
+                                disabled={isRestricted}
+                                aria-disabled={isRestricted}
+                                onClick={() => {
+                                  if (isRestricted) return;
+                                  field.onChange(sport.id);
+                                  setTimeout(() => setEditStep(2), 50);
+                                }}
                                 className={cn(
                                   "flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                   isSelected
                                      ? "border-primary-foreground/80 bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-1 ring-offset-background"
                                      : "border-primary/40 bg-primary text-primary-foreground hover:border-primary-foreground/70 hover:bg-primary/90",
+                                  isUnavailable && "opacity-50 grayscale",
+                                  isRestricted && "cursor-not-allowed",
                                 )}
                               >
                                 <div className="w-12 h-12 rounded-lg bg-primary/80 p-1 flex items-center justify-center">
@@ -996,6 +1036,11 @@ export default function CreatePool() {
                                   </div>
                                   <div className="text-[10px] text-primary-foreground/75 mt-0.5">{sport.sublabel}</div>
                                 </div>
+                                {statusLabel && (
+                                  <span className="rounded-full border border-primary-foreground/25 bg-black/20 px-1.5 py-1 text-center text-[9px] leading-tight text-primary-foreground">
+                                    {statusLabel}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
