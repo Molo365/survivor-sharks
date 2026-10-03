@@ -307,11 +307,13 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
               <Label className="font-bebas text-lg tracking-wide">Description</Label>
               <Textarea value={desc} onChange={e => setDesc(e.target.value)} className="bg-background/50 border-border min-h-[100px]" />
             </div>
-            <div className="grid gap-2">
-              <Label className="font-bebas text-lg tracking-wide">Current Week</Label>
-              <Input type="number" value={week} onChange={e => setWeek(parseInt(e.target.value))} className="bg-background/50 border-border w-1/2" />
-              <p className="text-xs text-muted-foreground">Update this when a new week begins.</p>
-            </div>
+            {isSuperAdmin && (
+              <div className="grid gap-2">
+                <Label className="font-bebas text-lg tracking-wide">Current Week</Label>
+                <Input type="number" value={week} onChange={e => setWeek(parseInt(e.target.value))} className="bg-background/50 border-border w-1/2" />
+                <p className="text-xs text-muted-foreground">Update this when a new week begins.</p>
+              </div>
+            )}
             <Button onClick={handleUpdate} disabled={updatePool.isPending} className="w-full font-bebas text-xl tracking-wider h-12 mt-2">
               {updatePool.isPending ? "Saving..." : "Save Settings"}
             </Button>
