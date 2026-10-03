@@ -26,10 +26,31 @@ import { Textarea } from "@/components/ui/textarea";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+const SPORT_POOL_OPTIONS = [
+  { sport: "nfl", label: "NFL" },
+  { sport: "mlb", label: "MLB" },
+  { sport: "nba", label: "NBA" },
+  { sport: "nhl", label: "NHL" },
+  { sport: "fifa", label: "FIFA" },
+  { sport: "worldcup", label: "World Cup" },
+  { sport: "intl", label: "International Soccer" },
+  { sport: "mls", label: "MLS" },
+  { sport: "superleague", label: "Super League" },
+  { sport: "championsleague", label: "Champions League" },
+] as const;
+
+type SportPoolStatus = "open" | "coming_soon" | "paused";
+type SportPoolStatusRecord = { sport: string; status: SportPoolStatus; updatedAt: string };
+const SPORT_POOL_STATUS_LABELS: Record<SportPoolStatus, string> = {
+  open: "Open",
+  coming_soon: "Coming Soon",
+  paused: "Paused",
+};
+
 function useAdminFetch() {
   const { token, logout } = useAdminAuth();
-  return useCallback(async (path: string, opts: RequestInit = {}) => {
-    const res = await fetch(`${API_BASE}/api/admin-panel${path}`, {
+  return useCallback(async (path: string, opts: RequestInit = {}, routePrefix = "/api/admin-panel") => {
+    const res = await fetch(`${API_BASE}${routePrefix}${path}`, {
       ...opts,
       headers: {
         "Content-Type": "application/json",
@@ -1280,6 +1301,39 @@ export default function AdminPanel() {
     queryFn: () => adminFetch("/agents"),
   });
 
+  const {
+    data: sportPoolStatuses,
+    isLoading: loadingSportPoolStatuses,
+    isError: sportPoolStatusesError,
+    refetch: refetchSportPoolStatuses,
+  } = useQuery<Record<string, SportPoolStatus>>({
+    queryKey: ["admin-sport-pool-status"],
+    queryFn: () => adminFetch("/sport-pool-status", {}, "/api"),
+  });
+
+  const updateSportPoolStatus = useMutation({
+    mutationFn: ({ sport, status }: { sport: string; status: SportPoolStatus }) =>
+      adminFetch(`/sport-pool-status/${sport}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }, "/api") as Promise<SportPoolStatusRecord>,
+    onSuccess: (updated) => {
+      qc.setQueryData<Record<string, SportPoolStatus>>(
+        ["admin-sport-pool-status"],
+        (current) => ({ ...current, [updated.sport]: updated.status }),
+      );
+      const sportLabel = SPORT_POOL_OPTIONS.find(({ sport }) => sport === updated.sport)?.label ?? updated.sport;
+      toast({
+        title: "Sport pool status updated",
+        description: `${sportLabel}: ${SPORT_POOL_STATUS_LABELS[updated.status]}`,
+      });
+    },
+    onError: (_error, variables) => {
+      const sportLabel = SPORT_POOL_OPTIONS.find(({ sport }) => sport === variables.sport)?.label ?? variables.sport;
+      toast({ variant: "destructive", title: `Failed to update ${sportLabel} status` });
+    },
+  });
+
   const deletePool = useMutation({
     mutationFn: (id: number) => adminFetch(`/pools/${id}`, { method: "DELETE" }),
     onSuccess: () => {
@@ -1533,7 +1587,56 @@ export default function AdminPanel() {
               <TabsTrigger value="pick-confirmations" className="font-bebas tracking-wider text-sm gap-2" data-testid="tab-pick-confirmations">
                 <Mail className="w-4 h-4" /> Pick Confirmations
               </TabsTrigger>
+              <TabsTrigger value="sport-pool-status" className="font-bebas tracking-wider text-sm gap-2" data-testid="tab-sport-pool-status">
+                <Shield className="w-4 h-4" /> Sport Pool Status
+              </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="sport-pool-status">
+              <div className="rounded-xl border border-border/50 bg-card divide-y divide-border/40">
+                {loadingSportPoolStatuses ? (
+                  <div className="space-y-4 p-5">
+                    {SPORT_POOL_OPTIONS.map(({ sport }) => <Skeleton key={sport} className="h-12 w-full" />)}
+                  </div>
+                ) : sportPoolStatusesError ? (
+                  <div className="flex flex-col items-center gap-3 p-8 text-center">
+                    <p className="text-sm text-destructive">Could not load sport pool statuses.</p>
+                    <Button variant="outline" size="sm" onClick={() => void refetchSportPoolStatuses()}>
+                      Retry
+                    </Button>
+                  </div>
+                ) : (
+                  SPORT_POOL_OPTIONS.map(({ sport, label }) => {
+                    const status = sportPoolStatuses?.[sport] ?? "open";
+                    return (
+                      <div key={sport} className="flex flex-wrap items-center justify-between gap-4 p-4">
+                        <div>
+                          <p className="font-semibold">{label}</p>
+                          <p className="text-xs text-muted-foreground">Controls new pool creation only.</p>
+                        </div>
+                        <Select
+                          value={status}
+                          disabled={updateSportPoolStatus.isPending}
+                          onValueChange={(value) => updateSportPoolStatus.mutate({
+                            sport,
+                            status: value as SportPoolStatus,
+                          })}
+                        >
+                          <SelectTrigger className="w-44 bg-background/50 border-border" aria-label={`${label} pool creation status`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open">Open</SelectItem>
+                            <SelectItem value="coming_soon">Coming Soon</SelectItem>
+                            <SelectItem value="paused">Paused</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </TabsContent>
 
             <TabsContent value="pools">
               <div className="rounded-xl border border-border/50 bg-card overflow-hidden">

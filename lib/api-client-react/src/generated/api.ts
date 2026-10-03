@@ -121,6 +121,8 @@ import type {
   SetNflPickEmSeasonSandboxWeek200,
   SetNflPickEmSeasonSandboxWeekBody,
   SimulateNflPickEmSeasonGrading200,
+  SportPoolStatusRecord,
+  SportPoolStatusUpdate,
   SubmitNflPickEmSeasonPicksBody,
   SuccessResponse,
   SurvivorGrid,
@@ -1194,6 +1196,78 @@ export function useGetSportPoolStatus<TData = Awaited<ReturnType<typeof getSport
 
 
 
+
+export const getUpdateSportPoolStatusUrl = (sport: string,) => {
+
+
+
+
+  return `/api/sport-pool-status/${sport}`
+}
+
+/**
+ * @summary Update a sport's pool creation availability (Super Admin only)
+ */
+export const updateSportPoolStatus = async (sport: string,
+    sportPoolStatusUpdate: SportPoolStatusUpdate, options?: RequestInit): Promise<SportPoolStatusRecord> => {
+
+  return customFetch<SportPoolStatusRecord>(getUpdateSportPoolStatusUrl(sport),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sportPoolStatusUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateSportPoolStatusMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSportPoolStatus>>, TError,{sport: string;data: BodyType<SportPoolStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSportPoolStatus>>, TError,{sport: string;data: BodyType<SportPoolStatusUpdate>}, TContext> => {
+
+const mutationKey = ['updateSportPoolStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSportPoolStatus>>, {sport: string;data: BodyType<SportPoolStatusUpdate>}> = (props) => {
+          const {sport,data} = props ?? {};
+
+          return  updateSportPoolStatus(sport,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSportPoolStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateSportPoolStatus>>>
+    export type UpdateSportPoolStatusMutationBody = BodyType<SportPoolStatusUpdate>
+    export type UpdateSportPoolStatusMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update a sport's pool creation availability (Super Admin only)
+ */
+export const useUpdateSportPoolStatus = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSportPoolStatus>>, TError,{sport: string;data: BodyType<SportPoolStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSportPoolStatus>>,
+        TError,
+        {sport: string;data: BodyType<SportPoolStatusUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSportPoolStatusMutationOptions(options));
+    }
 
 export const getListPoolsUrl = () => {
 

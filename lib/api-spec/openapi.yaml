@@ -386,6 +386,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /sport-pool-status/{sport}:
+    patch:
+      operationId: updateSportPoolStatus
+      tags: [pools]
+      summary: Update a sport's pool creation availability (Super Admin only)
+      parameters:
+        - name: sport
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SportPoolStatusUpdate"
+      responses:
+        "200":
+          description: Updated sport pool creation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SportPoolStatusRecord"
+        "400":
+          description: Missing sport or invalid status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Super Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /pools:
     get:
@@ -2692,6 +2728,29 @@ components:
       schema:
         type: integer
   schemas:
+    SportPoolStatusValue:
+      type: string
+      enum: [open, coming_soon, paused]
+
+    SportPoolStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/SportPoolStatusValue"
+
+    SportPoolStatusRecord:
+      type: object
+      required: [sport, status, updatedAt]
+      properties:
+        sport:
+          type: string
+        status:
+          $ref: "#/components/schemas/SportPoolStatusValue"
+        updatedAt:
+          type: string
+          format: date-time
+
     MaintenanceStatus:
       type: object
       required: [enabled, message, canBypass]

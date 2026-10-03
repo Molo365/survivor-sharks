@@ -5,6 +5,25 @@
  * Survivor Sharks API
  * OpenAPI spec version: 0.1.0
  */
+export type SportPoolStatusValue = typeof SportPoolStatusValue[keyof typeof SportPoolStatusValue];
+
+
+export const SportPoolStatusValue = {
+  open: 'open',
+  coming_soon: 'coming_soon',
+  paused: 'paused',
+} as const;
+
+export interface SportPoolStatusUpdate {
+  status: SportPoolStatusValue;
+}
+
+export interface SportPoolStatusRecord {
+  sport: string;
+  status: SportPoolStatusValue;
+  updatedAt: string;
+}
+
 export interface MaintenanceStatus {
   enabled: boolean;
   /** @nullable */

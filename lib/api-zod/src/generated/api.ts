@@ -224,6 +224,24 @@ export const GetSportPoolStatusResponse = zod.record(zod.string(), zod.enum(['op
 
 
 /**
+ * @summary Update a sport's pool creation availability (Super Admin only)
+ */
+export const UpdateSportPoolStatusParams = zod.object({
+  "sport": zod.coerce.string()
+})
+
+export const UpdateSportPoolStatusBody = zod.object({
+  "status": zod.enum(['open', 'coming_soon', 'paused'])
+})
+
+export const UpdateSportPoolStatusResponse = zod.object({
+  "sport": zod.string(),
+  "status": zod.enum(['open', 'coming_soon', 'paused']),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List pools the current user belongs to
  */
 export const ListPoolsResponseItem = zod.object({
