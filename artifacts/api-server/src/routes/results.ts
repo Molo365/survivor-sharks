@@ -57,7 +57,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       pool.sport,
       week,
       pool.createdAt,
-      pool.initialPeriodStart,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
     );
     if (losers.length === 0) {
       res.status(400).json({ error: "No completed games found on ESPN for this week yet. Try again later or submit results manually." });
@@ -93,7 +93,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       pool.sport,
       week,
       pool.createdAt,
-      pool.initialPeriodStart,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
     );
   } catch {
     req.log.warn({ poolId, week }, "Could not fetch game margins from ESPN — marginOfVictory will be null for this week");
