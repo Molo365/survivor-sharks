@@ -869,7 +869,21 @@ export default function CreatePool() {
   if (!isAdmin && (authLoading || configLoading)) {
     return (
       <div className="min-h-[100dvh] flex flex-col">
+        <div
+          style={{ backgroundImage: `url('/ocean_shark_bg.jpg')`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}
+          className="fixed inset-0 -z-10"
+        />
+        <div className="fixed inset-0 -z-10 bg-black/65" />
         <NavBar />
+        <main className="flex-1 flex items-center justify-center p-8">
+          <div role="status" className="flex flex-col items-center gap-4 text-center">
+            <div
+              aria-hidden="true"
+              className="h-10 w-10 animate-spin rounded-full border-4 border-primary/30 border-t-primary"
+            />
+            <p className="text-muted-foreground">Loading pool creation...</p>
+          </div>
+        </main>
       </div>
     );
   }
