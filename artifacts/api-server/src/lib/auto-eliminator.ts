@@ -82,6 +82,7 @@ import { fetchNbaTiebreakerStats } from "./nba-stats";
 import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
+import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlotTeams } from "./mlb-bracket";
@@ -4837,6 +4838,61 @@ export async function processPickEmResults(): Promise<{
   // Recurring nba_ats pools are intentionally left open.
   // NOTE: nba_ats pools are NOT in the main pickemPools list (which only fetches
   // poolType = 'pickem'). We query them separately here.
+
+  // ── NBA ATS recurring weekly rollover ───────────────────────────────────
+  // Advance completed live weekends only; never close the pool or award prizes.
+  await advanceRecurringNbaAtsPools({
+    store: {
+      listPools: async () => db
+        .select()
+        .from(poolsTable)
+        .where(and(
+          eq(poolsTable.sport, "nba"),
+          eq(poolsTable.poolType, "nba_ats"),
+          eq(poolsTable.isRecurring, true),
+          eq(poolsTable.isActive, true),
+          eq(poolsTable.sandboxMode, false),
+        )),
+      countPendingPicks: async (poolId, week) => {
+        const [row] = await db
+          .select({ pendingCount: count() })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.week, week),
+            eq(pickemPicksTable.result, "pending"),
+          ));
+        return Number(row?.pendingCount ?? 0);
+      },
+      advanceWeekIfCurrent: async (pool, expectedWeek, nextWeek) => {
+        const conditions = [
+          eq(poolsTable.id, pool.id),
+          eq(poolsTable.sport, "nba"),
+          eq(poolsTable.poolType, "nba_ats"),
+          eq(poolsTable.currentWeek, expectedWeek),
+          eq(poolsTable.isRecurring, true),
+          eq(poolsTable.isActive, true),
+          eq(poolsTable.sandboxMode, false),
+        ];
+        if (pool.pickFrequency != null) {
+          conditions.push(eq(poolsTable.pickFrequency, "weekly"));
+        }
+        const updated = await db
+          .update(poolsTable)
+          .set({ currentWeek: nextWeek })
+          .where(and(...conditions))
+          .returning({ currentWeek: poolsTable.currentWeek });
+        return updated.length > 0;
+      },
+    },
+    fetchChecked: fetchGamesForDateChecked,
+    now: new Date(),
+    log: (level, context, message) => {
+      if (level === "warn") logger.warn(context, message);
+      else if (level === "error") logger.error(context, message);
+      else logger.info(context, message);
+    },
+  });
 
   const nbaAtsWeeklyPools = await db
     .select()
