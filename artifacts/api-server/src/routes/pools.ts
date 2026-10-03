@@ -15,6 +15,7 @@ import {
   getMlbWeekBounds,
   fetchCurrentChampionsLeagueSlate,
 } from "../lib/espn";
+import { validateNbaPoolCreation } from "../lib/nba-pool-creation-validation";
 import { bracketBlueprint, getMlbPostseasonField, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
@@ -309,9 +310,20 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  const nbaCreatedAt = sport === "nba" ? new Date() : undefined;
   let mlbPostseasonField: MlbField | null = null;
   if (sandboxMode === true && req.user!.role !== "admin") {
     res.status(403).json({ error: "Only admins can create sandbox pools." });
+    return;
+  }
+  const nbaCreationError = await validateNbaPoolCreation({
+    sport,
+    poolType: resolvedPoolType,
+    sandboxMode: sandboxMode === true,
+    createdAt: nbaCreatedAt ?? new Date(),
+  });
+  if (nbaCreationError) {
+    res.status(nbaCreationError.status).json({ error: nbaCreationError.error });
     return;
   }
   const weeklyBonusEligible =
@@ -436,6 +448,7 @@ router.post("/", requireAuth, async (req, res) => {
     ),
     season: resolvedSeason,
     isActive: true,
+    ...(nbaCreatedAt ? { createdAt: nbaCreatedAt } : {}),
     commissionerId: req.user!.id,
     maxEntries: maxEntries ?? null,
     minEntries: minEntries ?? null,
