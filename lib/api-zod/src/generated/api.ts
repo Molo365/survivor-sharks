@@ -218,6 +218,12 @@ export const GetPickEmDashboardStatsResponse = zod.array(GetPickEmDashboardStats
 
 
 /**
+ * @summary Read per-sport pool creation availability (authentication required)
+ */
+export const GetSportPoolStatusResponse = zod.record(zod.string(), zod.enum(['open', 'coming_soon', 'paused']))
+
+
+/**
  * @summary List pools the current user belongs to
  */
 export const ListPoolsResponseItem = zod.object({

@@ -2574,6 +2574,8 @@ export type UpdateDisplayName200 = {
   displayName: string;
 };
 
+export type GetSportPoolStatus200 = {[key: string]: 'open' | 'coming_soon' | 'paused'};
+
 export type GetDailyScheduleParams = {
 /**
  * ET date as YYYY-MM-DD. Defaults to today.

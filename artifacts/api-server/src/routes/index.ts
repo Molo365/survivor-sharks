@@ -34,6 +34,7 @@ import pickStatusRouter from "./pick-status";
 import { getMaintenanceState } from "../lib/maintenance";
 import feedbackRouter from "./feedback";
 import broadcastRouter from "./broadcast";
+import sportPoolStatusRouter from "./sport-pool-status";
 
 const router: IRouter = Router();
 
@@ -74,6 +75,7 @@ router.get("/nfl/current-week", requireAuth, async (_req, res) => {
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/pools", poolsRouter);
+router.use("/sport-pool-status", sportPoolStatusRouter);
 router.use("/pools/:poolId/picks", picksRouter);
 router.use("/pools/:poolId/schedule", scheduleRouter);
 router.use("/pools/:poolId/grid", gridRouter);

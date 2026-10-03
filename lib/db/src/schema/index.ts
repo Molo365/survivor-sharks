@@ -28,3 +28,4 @@ export * from "./site_settings";
 export * from "./pick_confirmations";
 export * from "./nfl_weekly_tiebreakers";
 export * from "./crazy_eights_period_results";
+export * from "./sport_pool_status";

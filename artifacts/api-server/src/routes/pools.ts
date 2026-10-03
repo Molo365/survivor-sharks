@@ -25,6 +25,7 @@ import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } from "../lib/nhl-pool-period";
+import { sportPoolStatusTable } from "@workspace/db";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -318,6 +319,20 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  if (req.user!.role !== "admin") {
+    const [sportPoolStatus] = await db.select({ status: sportPoolStatusTable.status })
+      .from(sportPoolStatusTable)
+      .where(eq(sportPoolStatusTable.sport, sport))
+      .limit(1);
+    if (sportPoolStatus && sportPoolStatus.status !== "open") {
+      res.status(403).json({
+        error: sportPoolStatus.status === "coming_soon"
+          ? "This sport isn't open for new pools yet — coming soon!"
+          : "This sport is temporarily offline for maintenance — check back soon!",
+      });
+      return;
+    }
+  }
   const nbaCreatedAt = sport === "nba" ? new Date() : undefined;
   let mlbPostseasonField: MlbField | null = null;
   if (sandboxMode === true && req.user!.role !== "admin") {

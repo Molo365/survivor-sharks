@@ -365,6 +365,28 @@ paths:
                   $ref: "#/components/schemas/PoolPickEmStat"
 
   # ── Pools ─────────────────────────────────────────────────────────────────
+  /sport-pool-status:
+    get:
+      operationId: getSportPoolStatus
+      tags: [pools]
+      summary: Read per-sport pool creation availability (authentication required)
+      responses:
+        "200":
+          description: Sport keys mapped to pool creation status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                  enum: [open, coming_soon, paused]
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools:
     get:
       operationId: listPools
@@ -397,6 +419,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Pool"
+        "403":
+          description: Pool creation is globally closed or this sport is coming soon or paused (admins bypass availability checks)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /pools/join:
     post:

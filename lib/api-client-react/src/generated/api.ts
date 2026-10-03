@@ -46,6 +46,7 @@ import type {
   GetPickEmLeaderboardParams,
   GetPickEmPrevWeekResultsParams,
   GetPickEmYesterdayWinnerParams,
+  GetSportPoolStatus200,
   GetWcBracketRoundAllPicksParams,
   GspGroupResult,
   GspGroupWithPick,
@@ -1117,6 +1118,83 @@ export function useGetPickEmDashboardStats<TData = Awaited<ReturnType<typeof get
 
 
 
+export const getGetSportPoolStatusUrl = () => {
+
+
+
+
+  return `/api/sport-pool-status`
+}
+
+/**
+ * @summary Read per-sport pool creation availability (authentication required)
+ */
+export const getSportPoolStatus = async ( options?: RequestInit): Promise<GetSportPoolStatus200> => {
+
+  return customFetch<GetSportPoolStatus200>(getGetSportPoolStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSportPoolStatusQueryKey = () => {
+    return [
+    `/api/sport-pool-status`
+    ] as const;
+    }
+
+
+export const getGetSportPoolStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSportPoolStatus>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSportPoolStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSportPoolStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSportPoolStatus>>> = ({ signal }) => getSportPoolStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSportPoolStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSportPoolStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSportPoolStatus>>>
+export type GetSportPoolStatusQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Read per-sport pool creation availability (authentication required)
+ */
+
+export function useGetSportPoolStatus<TData = Awaited<ReturnType<typeof getSportPoolStatus>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSportPoolStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSportPoolStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getListPoolsUrl = () => {
 
 
@@ -1220,7 +1298,7 @@ export const createPool = async (poolInput: PoolInput, options?: RequestInit): P
 
 
 
-export const getCreatePoolMutationOptions = <TError = ErrorType<unknown>,
+export const getCreatePoolMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPool>>, TError,{data: BodyType<PoolInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createPool>>, TError,{data: BodyType<PoolInput>}, TContext> => {
 
@@ -1249,12 +1327,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreatePoolMutationResult = NonNullable<Awaited<ReturnType<typeof createPool>>>
     export type CreatePoolMutationBody = BodyType<PoolInput>
-    export type CreatePoolMutationError = ErrorType<unknown>
+    export type CreatePoolMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Create a new survivor pool
  */
-export const useCreatePool = <TError = ErrorType<unknown>,
+export const useCreatePool = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPool>>, TError,{data: BodyType<PoolInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createPool>>,
