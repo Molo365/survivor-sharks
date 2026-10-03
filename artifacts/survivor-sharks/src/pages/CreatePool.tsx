@@ -632,6 +632,7 @@ export default function CreatePool() {
     (selectedSport === PoolInputSport.mls && selectedType === "pickem") ||
     (selectedSport === PoolInputSport.superleague && selectedType === "pickem") ||
     selectedType === "crazy_8s" ||
+    (selectedSport === PoolInputSport.nba && selectedType === "nba_ats") ||
     selectedType === "nfl_confidence_weekly"
   );
 
