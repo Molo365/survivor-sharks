@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -320,6 +320,12 @@ const formSchema = z.object({
   initialPeriodStart: z.string().optional(),
 });
 
+function formNumber(value: unknown): number | null {
+  if (value === "" || value === undefined || value === null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function getMlbWeekOption(offsetWeeks: number) {
   const todayEt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -426,8 +432,8 @@ export default function CreatePool() {
   const watchedName = form.watch("name");
   const watchedEntryFee = form.watch("entryFee");
   const watchedWeeklyBonusEnabled = form.watch("weeklyBonusEnabled");
-  const watchedWeeklyBonusAmount = form.watch("weeklyBonusAmount");
-  const watchedWeeklyBonusMinPlayers = form.watch("weeklyBonusMinPlayers");
+  const watchedWeeklyBonusAmount = useWatch({ control: form.control, name: "weeklyBonusAmount" });
+  const watchedWeeklyBonusMinPlayers = useWatch({ control: form.control, name: "weeklyBonusMinPlayers" });
   const watchedMaxEntries = form.watch("maxEntries");
   const watchedFreq = form.watch("pickFrequency");
   const watchedStartWeek = form.watch("startWeek");
@@ -443,8 +449,8 @@ export default function CreatePool() {
     selectedSport === PoolInputSport.nfl &&
     (selectedType === "pickem_season" || selectedType === "nfl_confidence");
   const isWeeklyBonusEligible = isNflSeasonWeeklyBonus || isNhlRecurringWeeklyPickemBonus;
-  const weeklyBonusAmount = Number(watchedWeeklyBonusAmount) || 0;
-  const weeklyBonusMinPlayers = Number(watchedWeeklyBonusMinPlayers) || 0;
+  const weeklyBonusAmount = formNumber(watchedWeeklyBonusAmount) ?? 0;
+  const weeklyBonusMinPlayers = formNumber(watchedWeeklyBonusMinPlayers) ?? 0;
   const weeklyBonusWeeks = 18;
   const weeklyBonusReserved = weeklyBonusAmount * weeklyBonusWeeks;
   const weeklyBonusThresholdPot = (Number(watchedEntryFee) || 0) * weeklyBonusMinPlayers;
@@ -1816,7 +1822,11 @@ export default function CreatePool() {
                                               />
                                             </div>
                                           </FormControl>
-                                          <FormDescription className="text-xs">Flat amount reserved for each regular-season week</FormDescription>
+                                          <FormDescription className="text-xs">
+                                            {isNhlRecurringWeeklyPickemBonus
+                                              ? "Fixed weekly payout when the player threshold is met"
+                                              : "Flat amount reserved for each regular-season week"}
+                                          </FormDescription>
                                           <FormMessage />
                                         </FormItem>
                                       )}
@@ -1851,9 +1861,13 @@ export default function CreatePool() {
                                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
                                       <p className="text-sm text-muted-foreground">
                                         Each closed week pays up to{" "}
-                                        <span className="font-semibold text-foreground">${weeklyBonusAmount.toFixed(2)}</span>
+                                        <span className="font-semibold text-foreground">
+                                          {weeklyBonusAmount > 0 ? `$${weeklyBonusAmount.toFixed(2)}` : "—"}
+                                        </span>
                                         {" "}split among winners when at least{" "}
-                                        <span className="font-semibold text-foreground">{weeklyBonusMinPlayers || "—"}</span>
+                                        <span className="font-semibold text-foreground">
+                                          {weeklyBonusMinPlayers > 0 ? weeklyBonusMinPlayers : "—"}
+                                        </span>
                                         {" "}players have joined.
                                       </p>
                                     </div>
@@ -2393,6 +2407,19 @@ export default function CreatePool() {
                       <span className="text-muted-foreground uppercase tracking-wider text-xs">Max Entries</span>
                       <span className="text-foreground font-semibold">{watchedMaxEntries && watchedMaxEntries > 0 ? String(watchedMaxEntries) : "Unlimited"}</span>
                     </div>
+                    {watchedWeeklyBonusEnabled === true && isWeeklyBonusEligible && weeklyBonusAmount > 0 && weeklyBonusMinPlayers > 0 && (
+                      <div className="border-t border-border/30 pt-3 space-y-1">
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Weekly bonus</p>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Weekly payout (when threshold met)</span>
+                          <span className="text-foreground font-semibold">${weeklyBonusAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Minimum players required</span>
+                          <span className="text-foreground font-semibold">{weeklyBonusMinPlayers}</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="border-t border-border/30 pt-3">
                       <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Prize Breakdown</p>
                       <div className="space-y-1">
