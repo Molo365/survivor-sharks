@@ -104,43 +104,23 @@ function ChampionsLeaguePeriodBar({
 }) {
   if (periods.length === 0) return null;
   return (
-    <div
-      className={cn(
-        "mt-4 rounded-xl border-2 px-3 py-3 sm:px-4 sm:py-3.5 shadow-lg",
-        viewingPast
-          ? "border-amber-400/70 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent shadow-amber-500/15"
-          : "border-yellow-400/60 bg-gradient-to-r from-yellow-500/25 via-yellow-500/12 to-primary/10 shadow-yellow-500/20",
-      )}
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-lg border",
-              viewingPast
-                ? "border-amber-400/50 bg-amber-500/25 text-amber-200"
-                : "border-yellow-400/50 bg-yellow-500/30 text-yellow-100",
-            )}
-          >
-            <CalendarRange className="h-5 w-5" aria-hidden />
+    <div className="mt-3 space-y-1.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+        <p className="text-xs text-muted-foreground sm:mr-auto flex items-center gap-1.5 shrink-0">
+          <CalendarRange className="h-3.5 w-3.5 opacity-60" aria-hidden />
+          <span>
+            <span className="font-semibold text-foreground/75">Matchday</span>
+            <span className="hidden sm:inline text-muted-foreground/80"> · all tabs</span>
           </span>
-          <div>
-            <p className="font-bebas text-lg leading-none tracking-wide text-yellow-300">
-              Pick a matchday
-            </p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-yellow-200/70 mt-0.5">
-              All tabs follow this selection
-            </p>
-          </div>
-        </div>
+        </p>
         <Select value={activeKey ?? ""} onValueChange={onChange}>
           <SelectTrigger
             className={cn(
-              "w-full sm:flex-1 sm:max-w-md h-11 text-sm font-medium border-2 sm:ml-auto",
-              "bg-background/80 text-foreground shadow-inner",
+              "w-full sm:w-[min(100%,22rem)] h-11 text-sm font-medium border-2",
+              "bg-background/90 text-foreground shadow-md",
               viewingPast
-                ? "border-amber-400/80 ring-2 ring-amber-400/30 hover:bg-amber-500/10"
-                : "border-yellow-400/90 ring-2 ring-yellow-400/40 hover:bg-yellow-500/15",
+                ? "border-amber-400/90 ring-2 ring-amber-400/35 hover:bg-amber-500/10"
+                : "border-yellow-400/90 ring-2 ring-yellow-400/45 hover:bg-yellow-500/15",
             )}
           >
             <SelectValue placeholder="Select matchday" />
@@ -156,9 +136,9 @@ function ChampionsLeaguePeriodBar({
         </Select>
       </div>
       {viewingPast && (
-        <p className="mt-2.5 text-sm font-medium text-amber-200/90 flex items-center gap-1.5">
-          <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          Viewing a completed matchday — picks are closed.
+        <p className="text-xs text-amber-400/75 flex items-center gap-1 sm:justify-end">
+          <Lock className="h-3 w-3 shrink-0" aria-hidden />
+          Completed matchday — picks closed.
         </p>
       )}
     </div>
