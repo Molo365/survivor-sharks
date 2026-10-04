@@ -3,6 +3,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Info } from "lucide-react";
 
+const WEEKLY_BONUS_RESERVE_WEEKS = 18;
+
 function getOrdinal(n: number) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
@@ -69,7 +71,26 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
     }
   }
 
-  const isWeeklyBonusApplicable = sport === "nfl" && ["pickem_season", "nfl_confidence"].includes(poolType);
+  const isWeeklyBonusApplicable =
+    (sport === "nfl" && ["pickem_season", "nfl_confidence"].includes(poolType)) ||
+    (sport === "nhl" &&
+      poolType === "pickem" &&
+      pool.pickFrequency === "weekly" &&
+      pool.isRecurring === true);
+
+  const weeklyBonusAmount =
+    pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null;
+  const weeklyBonusMinPlayers = pool.weeklyBonusMinPlayers ?? null;
+  const entryFeeNum = pool.entryFee != null ? Number(pool.entryFee) : 0;
+  const weeklyReserved =
+    weeklyBonusAmount != null ? weeklyBonusAmount * WEEKLY_BONUS_RESERVE_WEEKS : null;
+  const thresholdPot =
+    weeklyBonusMinPlayers != null && entryFeeNum > 0
+      ? entryFeeNum * weeklyBonusMinPlayers
+      : null;
+  const seasonEndGuidance =
+    thresholdPot != null && weeklyReserved != null ? thresholdPot - weeklyReserved : null;
+  const enrolled = pool.totalMembers ?? 0;
 
   return (
     <Card className="border-border/50 bg-card/40">
@@ -155,25 +176,61 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
 
           {isWeeklyBonusApplicable && pool.weeklyBonusEnabled && (
             <div className="col-span-2 md:col-span-3">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Weekly Bonus</div>
-              <div className="bg-background/50 border border-border/40 rounded px-3 py-2 flex flex-wrap gap-x-6 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-xs">Amount:</span>
-                  <span className="font-medium text-foreground">${pool.weeklyBonusAmount ?? 0}</span>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">Weekly bonus</div>
+              <div className="bg-background/50 border border-border/40 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Each closed week pays up to{" "}
+                  <span className="font-semibold text-foreground">${weeklyBonusAmount?.toFixed(2) ?? "0"}</span>
+                  {" "}split among winners when at least{" "}
+                  <span className="font-semibold text-foreground">{weeklyBonusMinPlayers ?? "—"}</span>
+                  {" "}players have joined.
+                </p>
+                {weeklyBonusAmount != null && weeklyBonusMinPlayers != null && entryFeeNum > 0 && (
+                  <div className="space-y-1.5 text-xs border-t border-border/30 pt-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Reserved ({WEEKLY_BONUS_RESERVE_WEEKS} weeks × weekly prize)</span>
+                      <span className="font-medium text-foreground">${weeklyReserved!.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">
+                        Pot at threshold ({weeklyBonusMinPlayers} × ${entryFeeNum})
+                      </span>
+                      <span className="font-medium text-foreground">${thresholdPot!.toFixed(2)}</span>
+                    </div>
+                    {seasonEndGuidance != null && (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Left for season-end (guidance)</span>
+                        <span className={`font-medium ${seasonEndGuidance < 0 ? "text-destructive" : "text-green-400"}`}>
+                          ${seasonEndGuidance.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs border-t border-border/30 pt-2">
+                  <span className="text-muted-foreground">
+                    Enrolled:{" "}
+                    <span className="font-semibold text-foreground">
+                      {enrolled}
+                      {weeklyBonusMinPlayers != null ? ` / ${weeklyBonusMinPlayers} required` : ""}
+                    </span>
+                  </span>
+                  {pool.weeklyBonusLockedActive != null && (
+                    <span className={pool.weeklyBonusLockedActive ? "text-green-400 font-semibold" : "text-amber-400 font-semibold"}>
+                      {pool.weeklyBonusLockedActive
+                        ? "Threshold met — weekly payouts eligible"
+                        : "Below threshold — weekly payouts off until enough players join"}
+                    </span>
+                  )}
                 </div>
-                {pool.weeklyBonusMinPlayers != null && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">Min Players:</span>
-                    <span className="font-medium text-foreground">{pool.weeklyBonusMinPlayers}</span>
-                  </div>
-                )}
-                {pool.weeklyBonusLockedActive != null && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">Status:</span>
-                    <span className="font-medium text-foreground">{pool.weeklyBonusLockedActive ? "Threshold met" : "Threshold not met"}</span>
-                  </div>
-                )}
               </div>
+            </div>
+          )}
+
+          {isWeeklyBonusApplicable && !pool.weeklyBonusEnabled && (
+            <div className="col-span-2 md:col-span-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Weekly bonus</div>
+              <div className="font-medium text-muted-foreground">Not enabled for this pool</div>
             </div>
           )}
         </div>
