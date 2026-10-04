@@ -1009,11 +1009,10 @@ export default function CreatePool() {
                                   isSelected
                                      ? "border-primary-foreground/80 bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-1 ring-offset-background"
                                      : "border-primary/40 bg-primary text-primary-foreground hover:border-primary-foreground/70 hover:bg-primary/90",
-                                  isUnavailable && "opacity-50",
                                   isRestricted && "cursor-not-allowed",
                                 )}
                               >
-                                <div className={cn("flex flex-col items-center gap-2", isUnavailable && "grayscale")}>
+                                <div className={cn("flex flex-col items-center gap-2", isUnavailable && "opacity-50 grayscale")}>
                                   <div className="w-12 h-12 rounded-lg bg-primary/80 p-1 flex items-center justify-center">
                                     <img
                                       src={sport.logoImg}
