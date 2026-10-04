@@ -71,11 +71,16 @@ export default function PoolHome() {
       refetchOnMount: "always",
       refetchInterval: (query) => {
         const current = query.state.data;
+        const nhlRecurringWeeklyBonus =
+          current?.poolType === "pickem" &&
+          current?.sport === "nhl" &&
+          current?.pickFrequency === "weekly" &&
+          current?.isRecurring === true;
         return current?.weeklyBonusEnabled &&
           current.weeklyBonusMinPlayers != null &&
           current.weeklyBonusLockedActive !== true &&
           current.isActive &&
-          ["pickem_season", "nfl_confidence"].includes(current.poolType)
+          (["pickem_season", "nfl_confidence"].includes(current.poolType) || nhlRecurringWeeklyBonus)
           ? 15_000
           : false;
       },
@@ -91,8 +96,14 @@ export default function PoolHome() {
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
+  const isNhlRecurringWeeklyPickEm = Boolean(
+    isPickEm &&
+    pool?.sport === "nhl" &&
+    pool?.pickFrequency === "weekly" &&
+    pool?.isRecurring === true,
+  );
   const showsSeasonWeeklyBonus = Boolean(
-    pool?.weeklyBonusEnabled && (isPickEmSeason || isNflConfidence),
+    pool?.weeklyBonusEnabled && (isPickEmSeason || isNflConfidence || isNhlRecurringWeeklyPickEm),
   );
   const isWcBracket = (pool?.poolType as string) === "wc_bracket";
   const isMlbBracket = (pool?.poolType as string) === "mlb_bracket";
