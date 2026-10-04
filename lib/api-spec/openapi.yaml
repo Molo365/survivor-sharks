@@ -1093,7 +1093,7 @@ paths:
     get:
       operationId: getPickEmPeriods
       tags: [pickem]
-      summary: List pick-em periods for time-travel (MLS, Super League, Champions League weekly)
+      summary: List pick-em periods for time-travel (MLS, Super League, Champions League, NHL weekly pick-em)
       parameters:
         - name: poolId
           in: path

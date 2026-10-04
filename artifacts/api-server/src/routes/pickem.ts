@@ -49,6 +49,7 @@ import {
   listPickEmPeriodsForPool,
   loadChampionsLeaguePeriodSlate,
   resolveCalendarSoccerPeriodBounds,
+  resolveNhlPickEmPeriod,
 } from "../lib/pickem-periods";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
@@ -481,7 +482,8 @@ router.get("/periods", requireAuth, async (req, res) => {
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
   const sport = pool.sport as string;
   const supportsPeriods = pool.pickFrequency === "weekly"
-    && (sport === "championsleague" || sport === "mls" || sport === "superleague");
+    && (sport === "championsleague" || sport === "mls" || sport === "superleague"
+      || (sport === "nhl" && pool.poolType === "pickem"));
   if (!supportsPeriods) {
     res.status(400).json({ error: "Period history is only available for MLS, Super League, or Champions League weekly pick-em pools" });
     return;
@@ -1558,6 +1560,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   const sport = pool.sport as string;
   const isChampionsLeagueWeekly = sport === "championsleague" && pool.pickFrequency === "weekly";
+  const isNhlPickemWeekly = sport === "nhl" && pool.pickFrequency === "weekly" && pool.poolType === "pickem";
   const isWeekly = pool.pickFrequency === "weekly" && sport !== "worldcup" && sport !== "intl";
   if (!isWeekly && !isChampionsLeagueWeekly) {
     res.status(400).json({ error: "Pool is not a weekly pick-em pool" });
@@ -1636,6 +1639,15 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
     const { days } = getNbaWeekendBounds(anchor, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
+  } else if (isNhlPickemWeekly) {
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const prevWeekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
+    const { days } = getNhlWeekBounds(
+      anchor,
+      prevWeekNum,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
+    prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (sport === "nhl") {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
     const { days } = getNhlWeekBounds(
@@ -1669,10 +1681,19 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
 
+  const prevNhlWeekNum = isNhlPickemWeekly
+    ? (requestedWeek ?? Math.max(1, pool.currentWeek - 1))
+    : null;
+
   const picksWhere = isChampionsLeagueWeekly && championsLeaguePrevious
     ? and(
       eq(pickemPicksTable.poolId, poolId),
       inArray(pickemPicksTable.gameDate, championsLeaguePrevious.dates),
+    )
+    : prevNhlWeekNum !== null
+    ? and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.week, prevNhlWeekNum),
     )
     : and(
       eq(pickemPicksTable.poolId, poolId),
@@ -1991,11 +2012,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const isChampionsLeague = sport === "championsleague";
   const isCalendarSoccerWeekly = (sport === "mls" || sport === "superleague") && pool.pickFrequency === "weekly";
+  const isNhlPickemWeeklyLb = sport === "nhl" && pool.pickFrequency === "weekly" && pool.poolType === "pickem";
   const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl && !isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
-  const periodStartParam = (isChampionsLeague || isCalendarSoccerWeekly)
+  const periodStartParam = (isChampionsLeague || isCalendarSoccerWeekly || isNhlPickemWeeklyLb)
     ? parsePickEmPeriodStartQuery(req)
     : undefined;
   let championsLeagueDisplayDates: string[] = [];
@@ -2025,6 +2047,27 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       ?? (soccerSport === "superleague" ? getSuperLeagueConfiguredPeriod(pool) : getMlsConfiguredPeriod(pool));
   }
 
+  let nhlPickemWeekBounds: { weekStart: string; weekEnd: string } | null = null;
+  let nhlLeaderboardWeek: number | null = null;
+  if (isNhlPickemWeeklyLb && !pool.sandboxMode) {
+    const resolved = resolveNhlPickEmPeriod(
+      {
+        createdAt: pool.createdAt,
+        currentWeek: pool.currentWeek,
+        initialPeriodStart: pool.initialPeriodStart,
+      },
+      periodStartParam,
+    );
+    if (periodStartParam && !resolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    if (resolved) {
+      nhlPickemWeekBounds = { weekStart: resolved.weekStart, weekEnd: resolved.weekEnd };
+      nhlLeaderboardWeek = resolved.weekNumber;
+    }
+  }
+
   // For WC: resolve which phase to show — default to group_stage
   const phaseParam = req.query.phase as string | undefined;
   const wcPhase: WcPhase = (isWc && phaseParam && WC_PHASES[phaseParam as WcPhase])
@@ -2036,7 +2079,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // week bounds here so the picksWhereClause actually matches those rows.
   // For ended non-sandbox weekly pools, derive bounds from the most recent
   // pick's gameDate so we query the week the pool actually played, not today.
-  let weekBounds: { weekStart: string; weekEnd: string } | null = calendarSoccerWeekBounds;
+  let weekBounds: { weekStart: string; weekEnd: string } | null = nhlPickemWeekBounds ?? calendarSoccerWeekBounds;
   if (isWeekly && !weekBounds) {
     if (sport === "nhl" && pool.sandboxMode) {
       const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
@@ -2130,6 +2173,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         eq(pickemPicksTable.poolId, poolId),
         inArray(pickemPicksTable.gameDate, championsLeagueDates.length > 0 ? championsLeagueDates : [""]),
       )
+    : isNhlPickemWeeklyLb && nhlLeaderboardWeek !== null
+    ? and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.week, nhlLeaderboardWeek),
+      )
     : isWeekly
     ? and(
         eq(pickemPicksTable.poolId, poolId),
@@ -2150,7 +2198,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : (isNhl && isWeekly && pool.poolType === "pickem" && pool.isRecurring && pool.isActive)
       ? fetchNhlGamesByWeek(
           pool.createdAt,
-          pool.currentWeek,
+          nhlLeaderboardWeek ?? pool.currentWeek,
           pool.isPreseason ? 1 : 2,
           pool.initialPeriodStart,
         )

@@ -355,7 +355,12 @@ router.get("/", requireAuth, async (req, res) => {
 
   // ── NHL live path ─────────────────────────────────────────────────────────
   if (pool.sport === "nhl") {
-    const week = pool.currentWeek;
+    const requestedWeek = req.query.week !== undefined ? parseInt(String(req.query.week), 10) : null;
+    let week = requestedWeek ?? pool.currentWeek;
+    if (requestedWeek !== null && (Number.isNaN(week) || week < 1 || week > pool.currentWeek)) {
+      res.status(400).json({ error: `week must be between 1 and ${pool.currentWeek}` });
+      return;
+    }
     const bounds = getNhlWeekBounds(pool.createdAt, week, pool.initialPeriodStart);
     const allGames = await fetchNhlGamesByWeek(
       pool.createdAt,
