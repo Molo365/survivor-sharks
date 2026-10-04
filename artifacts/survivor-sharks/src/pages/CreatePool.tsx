@@ -328,26 +328,68 @@ function formNumber(value: unknown): number | null {
 
 type CreatePoolFormValues = z.infer<typeof formSchema>;
 
+/** Matches NFL Create Pool reserve guidance (18 regular-season weeks). */
+const WEEKLY_BONUS_RESERVE_WEEKS = 18;
+
+function deriveWeeklyBonusMinPlayers(entryFee: number, weeklyAmount: number, weeks = WEEKLY_BONUS_RESERVE_WEEKS): number {
+  if (entryFee <= 0 || weeklyAmount <= 0) return 1;
+  return Math.max(1, Math.ceil((weeklyAmount * weeks) / entryFee));
+}
+
 function NhlWeeklyBonusPreview({ control }: { control: Control<CreatePoolFormValues> }) {
+  const entryFeeRaw = useWatch({ control, name: "entryFee" });
   const amountRaw = useWatch({ control, name: "weeklyBonusAmount" });
   const minPlayersRaw = useWatch({ control, name: "weeklyBonusMinPlayers" });
+  const entryFee = formNumber(entryFeeRaw) ?? 0;
   const amount = formNumber(amountRaw);
   const minPlayers = formNumber(minPlayersRaw);
+  const reserved = amount != null && amount > 0 ? amount * WEEKLY_BONUS_RESERVE_WEEKS : null;
+  const thresholdPot =
+    entryFee > 0 && minPlayers != null && minPlayers > 0 ? entryFee * minPlayers : null;
+  const seasonEndRemaining =
+    thresholdPot != null && reserved != null ? thresholdPot - reserved : null;
 
   return (
     <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
-      <p className="text-sm text-muted-foreground">
-        Each closed week pays up to{" "}
-        <span className="font-semibold text-foreground">
-          {amount != null && amount > 0 ? `$${amount.toFixed(2)}` : "—"}
-        </span>
-        {" "}split among winners when at least{" "}
-        <span className="font-semibold text-foreground">
-          {minPlayers != null && minPlayers > 0 ? minPlayers : "—"}
-        </span>
-        {" "}players have joined.
-      </p>
+      {entryFee > 0 && amount != null && amount > 0 && minPlayers != null && minPlayers > 0 ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Each closed week pays up to{" "}
+            <span className="font-semibold text-foreground">${amount.toFixed(2)}</span>
+            {" "}split among winners when at least{" "}
+            <span className="font-semibold text-foreground">{minPlayers}</span>
+            {" "}players have joined.
+          </p>
+          <div className="space-y-1.5 text-sm border-t border-border/30 pt-2">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Players required (auto)</span>
+              <span className="font-semibold text-foreground">{minPlayers}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Reserved for {WEEKLY_BONUS_RESERVE_WEEKS} weeks × ${amount.toFixed(2)}</span>
+              <span className="font-semibold text-foreground">${reserved!.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Pot at threshold ({minPlayers} × ${entryFee})</span>
+              <span className="font-semibold text-foreground">${thresholdPot!.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
+              <span className="text-muted-foreground">Left for season-end prizes (guidance)</span>
+              <span className={cn("font-semibold", seasonEndRemaining != null && seasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
+                ${seasonEndRemaining!.toFixed(2)}
+              </span>
+            </div>
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+            Minimum players = ceil(({WEEKLY_BONUS_RESERVE_WEEKS} × weekly prize) ÷ entry fee). Higher weekly prizes require more joined players at the same entry fee.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Enter entry fee and weekly prize amount to calculate how many players must join before weekly payouts activate.
+        </p>
+      )}
     </div>
   );
 }
@@ -477,7 +519,7 @@ export default function CreatePool() {
   const isWeeklyBonusEligible = isNflSeasonWeeklyBonus || isNhlRecurringWeeklyPickemBonus;
   const weeklyBonusAmount = formNumber(watchedWeeklyBonusAmount) ?? 0;
   const weeklyBonusMinPlayers = formNumber(watchedWeeklyBonusMinPlayers) ?? 0;
-  const weeklyBonusWeeks = 18;
+  const weeklyBonusWeeks = WEEKLY_BONUS_RESERVE_WEEKS;
   const weeklyBonusReserved = weeklyBonusAmount * weeklyBonusWeeks;
   const weeklyBonusThresholdPot = (Number(watchedEntryFee) || 0) * weeklyBonusMinPlayers;
   const weeklyBonusSeasonEndRemaining = weeklyBonusThresholdPot - weeklyBonusReserved;
@@ -508,6 +550,24 @@ export default function CreatePool() {
       form.setValue("weeklyBonusMinPlayers", undefined);
     }
   }, [form, isWeeklyBonusEligible]);
+
+  useEffect(() => {
+    if (!isNhlRecurringWeeklyPickemBonus || watchedWeeklyBonusEnabled !== true) return;
+    const fee = formNumber(watchedEntryFee) ?? 0;
+    const weekly = formNumber(watchedWeeklyBonusAmount) ?? 0;
+    if (fee <= 0 || weekly <= 0) return;
+    const derived = deriveWeeklyBonusMinPlayers(fee, weekly, weeklyBonusWeeks);
+    if (formNumber(form.getValues("weeklyBonusMinPlayers")) !== derived) {
+      form.setValue("weeklyBonusMinPlayers", derived, { shouldValidate: true });
+    }
+  }, [
+    form,
+    isNhlRecurringWeeklyPickemBonus,
+    watchedWeeklyBonusEnabled,
+    watchedEntryFee,
+    watchedWeeklyBonusAmount,
+    weeklyBonusWeeks,
+  ]);
 
   useEffect(() => {
     if (selectedSport === PoolInputSport.nhl && watchedPreseason) {
@@ -1876,30 +1936,45 @@ export default function CreatePool() {
                                         <FormItem>
                                           <FormLabel className="font-bebas text-base tracking-wide">Minimum players required</FormLabel>
                                           <FormControl>
-                                            <Input
-                                              type="number"
-                                              min="1"
-                                              step="1"
-                                              placeholder="5"
-                                              name={field.name}
-                                              ref={field.ref}
-                                              onBlur={field.onBlur}
-                                              autoComplete="off"
-                                              onChange={(e) => {
-                                                const raw = e.target.value;
-                                                if (raw === "") {
-                                                  field.onChange(undefined);
-                                                  return;
-                                                }
-                                                const n = e.target.valueAsNumber;
-                                                field.onChange(Number.isFinite(n) ? Math.trunc(n) : raw);
-                                              }}
-                                              value={field.value ?? ""}
-                                              className="bg-background/50 border-primary/20 placeholder:text-muted-foreground/50"
-                                              data-testid="input-weekly-bonus-min-players"
-                                            />
+                                            {isNhlRecurringWeeklyPickemBonus ? (
+                                              <Input
+                                                type="number"
+                                                readOnly
+                                                disabled
+                                                value={field.value ?? ""}
+                                                className="bg-muted/30 border-primary/20 opacity-100"
+                                                data-testid="input-weekly-bonus-min-players"
+                                              />
+                                            ) : (
+                                              <Input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                placeholder="5"
+                                                name={field.name}
+                                                ref={field.ref}
+                                                onBlur={field.onBlur}
+                                                autoComplete="off"
+                                                onChange={(e) => {
+                                                  const raw = e.target.value;
+                                                  if (raw === "") {
+                                                    field.onChange(undefined);
+                                                    return;
+                                                  }
+                                                  const n = e.target.valueAsNumber;
+                                                  field.onChange(Number.isFinite(n) ? Math.trunc(n) : raw);
+                                                }}
+                                                value={field.value ?? ""}
+                                                className="bg-background/50 border-primary/20 placeholder:text-muted-foreground/50"
+                                                data-testid="input-weekly-bonus-min-players"
+                                              />
+                                            )}
                                           </FormControl>
-                                          <FormDescription className="text-xs">Below this threshold, the winner gets bragging rights only</FormDescription>
+                                          <FormDescription className="text-xs">
+                                            {isNhlRecurringWeeklyPickemBonus
+                                              ? "Auto-calculated from entry fee and weekly prize (same reserve model as NFL season pools)"
+                                              : "Below this threshold, the winner gets bragging rights only"}
+                                          </FormDescription>
                                           <FormMessage />
                                         </FormItem>
                                       )}
