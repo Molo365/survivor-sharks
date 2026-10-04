@@ -1006,37 +1006,45 @@ export default function CreatePool() {
                                 }}
                                 className={cn(
                                   "flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                  isSelected
-                                     ? "border-primary-foreground/80 bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-1 ring-offset-background"
-                                     : "border-primary/40 bg-primary text-primary-foreground hover:border-primary-foreground/70 hover:bg-primary/90",
+                                  isUnavailable
+                                    ? cn(
+                                        "border-slate-600 bg-slate-700 text-slate-300",
+                                        isSelected && "ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
+                                      )
+                                    : isSelected
+                                      ? "border-primary-foreground/80 bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-1 ring-offset-background"
+                                      : "border-primary/40 bg-primary text-primary-foreground hover:border-primary-foreground/70 hover:bg-primary/90",
                                   isRestricted && "cursor-not-allowed",
                                 )}
                               >
-                                <div className={cn("flex flex-col items-center gap-2", isUnavailable && "opacity-50 grayscale")}>
-                                  <div className="w-12 h-12 rounded-lg bg-primary/80 p-1 flex items-center justify-center">
-                                    <img
-                                      src={sport.logoImg}
-                                      alt={sport.label}
-                                      className={cn(
-                                        "w-12 h-12 object-contain",
-                                        sport.id === PoolInputSport.championsleague && "brightness-0 invert",
-                                      )}
-                                      onError={(e) => {
-                                        const fallback = (sport as { logoFallback?: string }).logoFallback;
-                                        if (fallback && e.currentTarget.src !== fallback) {
-                                          e.currentTarget.src = fallback;
-                                        }
-                                      }}
-                                    />
+                                <div className="w-12 h-12 rounded-lg bg-primary/80 p-1 flex items-center justify-center">
+                                  <img
+                                    src={sport.logoImg}
+                                    alt={sport.label}
+                                    className={cn(
+                                      "w-12 h-12 object-contain",
+                                      sport.id === PoolInputSport.championsleague && "brightness-0 invert",
+                                    )}
+                                    onError={(e) => {
+                                      const fallback = (sport as { logoFallback?: string }).logoFallback;
+                                      if (fallback && e.currentTarget.src !== fallback) {
+                                        e.currentTarget.src = fallback;
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="text-center leading-tight">
+                                  <div className={cn(
+                                    "font-bebas text-base tracking-wide leading-none",
+                                    isUnavailable ? "text-slate-100" : "text-primary-foreground",
+                                  )}>
+                                    {sport.label}
                                   </div>
-                                  <div className="text-center leading-tight">
-                                    <div className={cn(
-                                      "font-bebas text-base tracking-wide leading-none",
-                                      "text-primary-foreground",
-                                    )}>
-                                      {sport.label}
-                                    </div>
-                                    <div className="text-[10px] text-primary-foreground/75 mt-0.5">{sport.sublabel}</div>
+                                  <div className={cn(
+                                    "text-[10px] mt-0.5",
+                                    isUnavailable ? "text-slate-300" : "text-primary-foreground/75",
+                                  )}>
+                                    {sport.sublabel}
                                   </div>
                                 </div>
                                 {statusLabel && (
