@@ -5,7 +5,7 @@ import { requireAuth } from "../middlewares/auth";
 import { requireAdminAuth, verifyAdminToken } from "../middlewares/adminAuth";
 
 const router = Router();
-const VALID_STATUSES = ["open", "coming_soon", "paused"] as const;
+const VALID_STATUSES = ["open", "coming_soon", "paused", "season_over"] as const;
 
 function requireSportStatusReadAccess(req: Request, res: Response, next: NextFunction): void {
   const authorization = req.headers.authorization;
@@ -36,7 +36,7 @@ router.patch("/:sport", requireAdminAuth, async (req, res): Promise<void> => {
     return;
   }
   if (typeof status !== "string" || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
-    res.status(400).json({ error: "status must be open, coming_soon, or paused" });
+    res.status(400).json({ error: "status must be open, coming_soon, paused, or season_over" });
     return;
   }
 

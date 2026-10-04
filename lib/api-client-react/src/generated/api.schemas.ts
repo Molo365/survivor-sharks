@@ -12,6 +12,7 @@ export const SportPoolStatusValue = {
   open: 'open',
   coming_soon: 'coming_soon',
   paused: 'paused',
+  season_over: 'season_over',
 } as const;
 
 export interface SportPoolStatusUpdate {
@@ -2593,7 +2594,7 @@ export type UpdateDisplayName200 = {
   displayName: string;
 };
 
-export type GetSportPoolStatus200 = {[key: string]: 'open' | 'coming_soon' | 'paused'};
+export type GetSportPoolStatus200 = {[key: string]: 'open' | 'coming_soon' | 'paused' | 'season_over'};
 
 export type GetDailyScheduleParams = {
 /**

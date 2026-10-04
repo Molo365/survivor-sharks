@@ -39,12 +39,13 @@ const SPORT_POOL_OPTIONS = [
   { sport: "championsleague", label: "Champions League" },
 ] as const;
 
-type SportPoolStatus = "open" | "coming_soon" | "paused";
+type SportPoolStatus = "open" | "coming_soon" | "paused" | "season_over";
 type SportPoolStatusRecord = { sport: string; status: SportPoolStatus; updatedAt: string };
 const SPORT_POOL_STATUS_LABELS: Record<SportPoolStatus, string> = {
   open: "Open",
   coming_soon: "Coming Soon",
   paused: "Paused",
+  season_over: "Season Over",
 };
 
 function useAdminFetch() {
@@ -1629,6 +1630,7 @@ export default function AdminPanel() {
                             <SelectItem value="open">Open</SelectItem>
                             <SelectItem value="coming_soon">Coming Soon</SelectItem>
                             <SelectItem value="paused">Paused</SelectItem>
+                            <SelectItem value="season_over">Season Over</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

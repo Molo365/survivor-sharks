@@ -328,7 +328,9 @@ router.post("/", requireAuth, async (req, res) => {
       res.status(403).json({
         error: sportPoolStatus.status === "coming_soon"
           ? "This sport isn't open for new pools yet — coming soon!"
-          : "This sport is temporarily offline for maintenance — check back soon!",
+          : sportPoolStatus.status === "season_over"
+            ? "See you next season!"
+            : "This sport is temporarily offline for maintenance — check back soon!",
       });
       return;
     }

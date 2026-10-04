@@ -87,7 +87,7 @@ const SPORTS: ReadonlyArray<SportEntry> = [
   },
 ];
 
-type SportPoolStatus = "open" | "coming_soon" | "paused";
+type SportPoolStatus = "open" | "coming_soon" | "paused" | "season_over";
 
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s", "mlb_bracket"],
@@ -989,6 +989,8 @@ export default function CreatePool() {
                               ? "Coming Soon"
                               : status === "paused"
                                 ? "Offline for maintenance"
+                                : status === "season_over"
+                                  ? "See you next season!"
                                 : undefined;
                             return (
                               <button

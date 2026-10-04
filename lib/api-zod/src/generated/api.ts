@@ -220,7 +220,7 @@ export const GetPickEmDashboardStatsResponse = zod.array(GetPickEmDashboardStats
 /**
  * @summary Read per-sport pool creation availability (authentication required)
  */
-export const GetSportPoolStatusResponse = zod.record(zod.string(), zod.enum(['open', 'coming_soon', 'paused']))
+export const GetSportPoolStatusResponse = zod.record(zod.string(), zod.enum(['open', 'coming_soon', 'paused', 'season_over']))
 
 
 /**
@@ -231,12 +231,12 @@ export const UpdateSportPoolStatusParams = zod.object({
 })
 
 export const UpdateSportPoolStatusBody = zod.object({
-  "status": zod.enum(['open', 'coming_soon', 'paused'])
+  "status": zod.enum(['open', 'coming_soon', 'paused', 'season_over'])
 })
 
 export const UpdateSportPoolStatusResponse = zod.object({
   "sport": zod.string(),
-  "status": zod.enum(['open', 'coming_soon', 'paused']),
+  "status": zod.enum(['open', 'coming_soon', 'paused', 'season_over']),
   "updatedAt": zod.coerce.date()
 })
 

@@ -379,7 +379,7 @@ paths:
                 type: object
                 additionalProperties:
                   type: string
-                  enum: [open, coming_soon, paused]
+                  enum: [open, coming_soon, paused, season_over]
         "401":
           description: Not authenticated
           content:
@@ -2730,7 +2730,7 @@ components:
   schemas:
     SportPoolStatusValue:
       type: string
-      enum: [open, coming_soon, paused]
+      enum: [open, coming_soon, paused, season_over]
 
     SportPoolStatusUpdate:
       type: object
