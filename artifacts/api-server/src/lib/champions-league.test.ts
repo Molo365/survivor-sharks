@@ -115,10 +115,12 @@ describe("Champions League ESPN normalization", () => {
       },
     ] as Parameters<typeof resolveCurrentChampionsLeagueSlate>[0];
 
-    const slate = resolveCurrentChampionsLeagueSlate(games, new Date("2026-09-13T16:00:00Z"));
+    const tooEarly = resolveCurrentChampionsLeagueSlate(games, new Date("2026-09-13T16:00:00Z"));
+    assert.equal(tooEarly, null);
 
-    assert.deepEqual(slate?.dates, ["2026-10-13", "2026-10-14"]);
-    assert.deepEqual(slate?.games.map((game) => game.id), [
+    const withinWindow = resolveCurrentChampionsLeagueSlate(games, new Date("2026-10-07T12:00:00Z"));
+    assert.deepEqual(withinWindow?.dates, ["2026-10-13", "2026-10-14"]);
+    assert.deepEqual(withinWindow?.games.map((game) => game.id), [
       "matchday-2-tuesday",
       "matchday-2-wednesday",
     ]);
@@ -251,8 +253,7 @@ describe("Champions League ESPN normalization", () => {
     try {
       const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
       assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
-      assert.deepEqual(slate?.dates, ["2026-10-13", "2026-10-14"]);
-      assert.equal(slate?.games.length, 2);
+      assert.equal(slate, null);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -290,7 +291,7 @@ describe("Champions League ESPN normalization", () => {
       const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
       assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
       assert.match(requestedUrls[1]!, /dates=2026/);
-      assert.deepEqual(slate?.games.map((game) => game.id), ["inside-window"]);
+      assert.equal(slate, null);
     } finally {
       globalThis.fetch = originalFetch;
     }

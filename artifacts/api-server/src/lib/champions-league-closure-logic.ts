@@ -23,7 +23,9 @@ export function resolveTerminalChampionsLeagueSlate(
   games: EspnGame[],
   now = new Date(),
 ): ChampionsLeagueSlate | null {
-  const slate = resolveCurrentChampionsLeagueSlate(games, now);
+  const slate = resolveCurrentChampionsLeagueSlate(games, now, {
+    enforcePickemVisibilityWindow: false,
+  });
   if (
     !slate
     || slate.phaseSlug !== "final"

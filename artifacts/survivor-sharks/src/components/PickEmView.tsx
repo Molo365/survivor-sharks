@@ -3413,7 +3413,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               </p>
               <p className="text-sm mt-1 text-muted-foreground/60">
                 {sport === "championsleague"
-                  ? "Check back when ESPN posts the next competition period."
+                  ? "The next matchday appears here one week before its first kickoff."
                   : "Check back when the schedule is posted."}
               </p>
             </div>

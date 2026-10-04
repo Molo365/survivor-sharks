@@ -1199,6 +1199,18 @@ export interface ChampionsLeagueSlate {
 const CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS = 60;
 const CHAMPIONS_LEAGUE_PERIOD_MAX_GAP_DAYS = 3;
 const CHAMPIONS_LEAGUE_SEASON_FEED_LIMIT = 1000;
+/** Pick-Em pools expose a matchday/leg only within this window before first kickoff. */
+export const CHAMPIONS_LEAGUE_PICKEM_VISIBILITY_MS = 7 * 86_400_000;
+
+export function isChampionsLeaguePeriodWithinPickemVisibilityWindow(
+  period: EspnGame[],
+  now: Date,
+  leadMs = CHAMPIONS_LEAGUE_PICKEM_VISIBILITY_MS,
+): boolean {
+  if (period.length === 0) return false;
+  const earliestKickoff = Math.min(...period.map((game) => new Date(game.date).getTime()));
+  return earliestKickoff <= now.getTime() + leadMs;
+}
 
 function eventEtDate(date: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1253,7 +1265,9 @@ function groupChampionsLeaguePeriods(games: EspnGame[]): EspnGame[][] {
 export function resolveCurrentChampionsLeagueSlate(
   games: EspnGame[],
   now = new Date(),
+  options?: { enforcePickemVisibilityWindow?: boolean },
 ): ChampionsLeagueSlate | null {
+  const enforcePickemVisibilityWindow = options?.enforcePickemVisibilityWindow ?? true;
   const eligible = games
     .filter((game) => game.phaseSlug)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1278,6 +1292,13 @@ export function resolveCurrentChampionsLeagueSlate(
       `${gamesInPeriod.length} game(s) on ${periodDates[0]}. ` +
       "The ESPN response may be truncated.",
     );
+  }
+
+  if (
+    enforcePickemVisibilityWindow
+    && !isChampionsLeaguePeriodWithinPickemVisibilityWindow(gamesInPeriod, now)
+  ) {
+    return null;
   }
 
   return {
