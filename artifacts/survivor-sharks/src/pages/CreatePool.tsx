@@ -1039,7 +1039,12 @@ export default function CreatePool() {
                                   <div className="text-[10px] text-primary-foreground/75 mt-0.5">{sport.sublabel}</div>
                                 </div>
                                 {statusLabel && (
-                                  <span className="rounded-full border border-primary-foreground/25 bg-black/20 px-1.5 py-1 text-center text-[9px] leading-tight text-primary-foreground">
+                                  <span className={cn(
+                                    "rounded-full border border-primary-foreground/25 px-1.5 py-1 text-center text-[9px] leading-tight",
+                                    status === "coming_soon" && "bg-blue-500/20 text-blue-300",
+                                    status === "paused" && "bg-amber-500/20 text-amber-300",
+                                    status === "season_over" && "bg-slate-400/20 text-slate-300",
+                                  )}>
                                     {statusLabel}
                                   </span>
                                 )}
