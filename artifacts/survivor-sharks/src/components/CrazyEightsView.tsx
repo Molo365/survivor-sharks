@@ -31,6 +31,8 @@ interface CrazyEightsViewProps {
   pickFrequency?: string;
   poolName?: string;
   isActive?: boolean;
+  periodStart?: string;
+  viewingPastPeriod?: boolean;
 }
 
 interface PitcherInfo {
@@ -756,7 +758,14 @@ function GameCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActive = true }: CrazyEightsViewProps) {
+export function CrazyEightsView({
+  poolId,
+  sport,
+  pickFrequency = "daily",
+  isActive = true,
+  periodStart,
+  viewingPastPeriod = false,
+}: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -842,11 +851,13 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActi
   });
 
   const { data: slateData, isLoading: slateLoading } = useQuery<SlateResponse>({
-    queryKey: ["crazy-eights-slate", poolId],
-    queryFn: () => authedFetch<SlateResponse>(`/api/pools/${poolId}/crazy-eights/slate`),
+    queryKey: ["crazy-eights-slate", poolId, periodStart ?? "current"],
+    queryFn: () => authedFetch<SlateResponse>(
+      `/api/pools/${poolId}/crazy-eights/slate${periodStart ? `?periodStart=${encodeURIComponent(periodStart)}` : ""}`,
+    ),
     staleTime: 30_000,
-    refetchInterval: 30_000,
-    enabled: !!user && isActive,
+    refetchInterval: viewingPastPeriod ? false : 30_000,
+    enabled: !!user && isActive && !viewingPastPeriod,
   });
 
   const games: SlateGame[] = slateData?.games ?? [];
@@ -1094,6 +1105,16 @@ export function CrazyEightsView({ poolId, sport, pickFrequency = "daily", isActi
     }
     toast({ title: "Tiebreaker saved!", description: "Your guesses are locked in." });
     await queryClient.invalidateQueries({ queryKey: myPicksKey });
+  }
+
+  if (viewingPastPeriod) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+        <p className="font-bebas text-2xl tracking-wide mb-1">Past Weekend</p>
+        <p className="text-sm">Picks are closed for this week. Use Leaderboard or Weekend Grid to review results.</p>
+      </div>
+    );
   }
 
   if (hasPicks) {

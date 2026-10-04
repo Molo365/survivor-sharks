@@ -91,15 +91,20 @@ export function CrazyEightsSnapshotView({
   poolName,
   sport,
   sandboxMode = false,
-}: CrazyEightsSnapshotViewProps) {
+  periodStart,
+}: CrazyEightsSnapshotViewProps & { periodStart?: string }) {
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const dateParam = sandboxMode ? "" : todayEt;
+  const querySuffix = periodStart
+    ? `periodStart=${encodeURIComponent(periodStart)}`
+    : sandboxMode
+      ? ""
+      : `date=${todayEt}`;
 
   const { data, isLoading, isError, error } = useQuery<GridResponse>({
-    queryKey: ["crazy-eights-snapshot", poolId, sandboxMode ? "sandbox" : todayEt],
+    queryKey: ["crazy-eights-snapshot", poolId, periodStart ?? (sandboxMode ? "sandbox" : todayEt)],
     queryFn: () =>
       authedFetch<GridResponse>(
-        `/api/pools/${poolId}/crazy-eights/grid?date=${dateParam}`,
+        `/api/pools/${poolId}/crazy-eights/grid${querySuffix ? `?${querySuffix}` : ""}`,
       ),
     staleTime: 30_000,
     refetchInterval: 60_000,

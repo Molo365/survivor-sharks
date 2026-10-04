@@ -245,12 +245,16 @@ export function CrazyEightsLeaderboard({
   sandboxMode = false,
   defaultToPreviousWeek = false,
   poolIsActive = true,
+  periodStart,
+  usePeriodSelector = false,
 }: {
   poolId: number;
   sport?: string;
   sandboxMode?: boolean;
   defaultToPreviousWeek?: boolean;
   poolIsActive?: boolean;
+  periodStart?: string;
+  usePeriodSelector?: boolean;
 }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
@@ -279,9 +283,17 @@ export function CrazyEightsLeaderboard({
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
+  const gridQueryKey = usePeriodSelector
+    ? ["crazy-eights-grid", poolId, periodStart ?? "current"]
+    : ["crazy-eights-grid", poolId, nhlDate];
+
+  const gridUrl = usePeriodSelector
+    ? `/api/pools/${poolId}/crazy-eights/grid${periodStart ? `?periodStart=${encodeURIComponent(periodStart)}` : ""}`
+    : `/api/pools/${poolId}/crazy-eights/grid?date=${nhlDate}`;
+
   const { data: nhlData, isLoading: nhlLoading } = useQuery<GridResponse>({
-    queryKey: ["crazy-eights-grid", poolId, nhlDate],
-    queryFn: () => authedFetch<GridResponse>(`/api/pools/${poolId}/crazy-eights/grid?date=${nhlDate}`),
+    queryKey: gridQueryKey,
+    queryFn: () => authedFetch<GridResponse>(gridUrl),
     enabled: !!user && isWeekend,
     staleTime: 30_000,
     refetchInterval: 60_000,
@@ -305,8 +317,9 @@ export function CrazyEightsLeaderboard({
 
   // Lock in NHL anchor date on first load (sandbox NHL resolves date from server)
   useEffect(() => {
+    if (usePeriodSelector) return;
     if (isWeekend && nhlDate === "" && nhlData?.date) setNhlDate(nhlData.date);
-  }, [isWeekend, nhlDate, nhlData?.date]);
+  }, [usePeriodSelector, isWeekend, nhlDate, nhlData?.date]);
 
   const currentMonday = getMondayEt();
   const isCurrentMlbWeek = mlbWeekOf >= currentMonday;
@@ -350,6 +363,7 @@ export function CrazyEightsLeaderboard({
   if (isWeekend) {
     const maxDate = sandboxMode ? (nhlData?.date ?? "") : isNba ? getCurrentNbaFri() : getCurrentNhlSat();
     const isAtMax = nhlDate === "" || nhlDate >= maxDate;
+    const showWeekNav = !usePeriodSelector;
 
     const ranked = (nhlData?.players ?? [])
       .map((p) => {
@@ -376,25 +390,33 @@ export function CrazyEightsLeaderboard({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => setNhlDate((d) => offsetDate(d, -7))}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+          {showWeekNav ? (
+            <button
+              onClick={() => setNhlDate((d) => offsetDate(d, -7))}
+              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-8" />
+          )}
           <div className="text-center">
             <p className="font-bebas text-lg tracking-wide leading-none">{nhlData?.dateLabel ?? nhlDate}</p>
-            {isAtMax && (
+            {showWeekNav && isAtMax && (
               <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">This Weekend</span>
             )}
           </div>
-          <button
-            onClick={() => setNhlDate((d) => offsetDate(d, 7))}
-            disabled={isAtMax}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          {showWeekNav ? (
+            <button
+              onClick={() => setNhlDate((d) => offsetDate(d, 7))}
+              disabled={isAtMax}
+              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-8" />
+          )}
         </div>
 
         {ranked.length === 0 ? (

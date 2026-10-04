@@ -10,6 +10,12 @@ import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
+import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
+import {
+  listCrazyEightsPeriods,
+  resolveCrazyEightsPeriod,
+  type CrazyEightsPeriodPool,
+} from "../lib/crazy-eights-periods";
 
 const router = Router({ mergeParams: true });
 
@@ -61,6 +67,49 @@ router.get("/period-results", requireAuth, async (req, res) => {
   })));
 });
 
+function toCrazyEightsPeriodPool(pool: typeof poolsTable.$inferSelect): CrazyEightsPeriodPool {
+  return {
+    sport: pool.sport as string,
+    poolType: pool.poolType as string,
+    isRecurring: pool.isRecurring,
+    sandboxMode: pool.sandboxMode,
+    createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+    currentWeek: pool.currentWeek,
+    initialPeriodStart: pool.initialPeriodStart,
+  };
+}
+
+function parseCrazyEightsPeriodStart(
+  pool: typeof poolsTable.$inferSelect,
+  raw: unknown,
+): ReturnType<typeof resolveCrazyEightsPeriod> | null | undefined {
+  if (raw == null || raw === "") return undefined;
+  const periodStart = String(raw);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart)) return null;
+  return resolveCrazyEightsPeriod(toCrazyEightsPeriodPool(pool), periodStart);
+}
+
+// GET /api/pools/:poolId/crazy-eights/periods — recurring NHL / NBA weekend history
+router.get("/periods", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (!isRecurringNhlOrNbaCrazyEights(pool)) {
+    res.status(400).json({ error: "Period history is only available for recurring NHL and NBA Crazy 8s pools" });
+    return;
+  }
+
+  const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const payload = await listCrazyEightsPeriods(poolId, toCrazyEightsPeriodPool(pool));
+  res.json(payload);
+});
+
 function isGridPickRevealed(opts: {
   isOwnPick: boolean;
   sandboxMode: boolean;
@@ -75,7 +124,10 @@ function isGridPickRevealed(opts: {
 
 // ── NHL helper ────────────────────────────────────────────────────────────────
 
-async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise<{
+async function getNhlWeekendSlate(
+  pool: typeof poolsTable.$inferSelect,
+  weekNumber = pool.currentWeek,
+): Promise<{
   games: EspnGame[];
   satDate: string;
   sunDate: string;
@@ -87,7 +139,7 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   const anchor = isSandbox ? NHL_SANDBOX_ANCHOR : pool.createdAt;
   const { days } = getNhlWeekBounds(
     anchor,
-    pool.currentWeek,
+    weekNumber,
     isSandbox ? null : pool.initialPeriodStart,
   );
   const satDate = days.find(day => new Date(`${day}T00:00:00Z`).getUTCDay() === 6);
@@ -119,7 +171,10 @@ async function getNhlWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
 
 // ── NBA helper ────────────────────────────────────────────────────────────────
 
-async function getNbaWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise<{
+async function getNbaWeekendSlate(
+  pool: typeof poolsTable.$inferSelect,
+  weekNumber = pool.currentWeek,
+): Promise<{
   games: EspnGame[];
   friDate: string;
   satDate: string;
@@ -130,7 +185,7 @@ async function getNbaWeekendSlate(pool: typeof poolsTable.$inferSelect): Promise
   // 2025-26 season regardless of when the pool was actually created.
   const isSandbox = (pool as any).sandboxMode as boolean;
   const anchor = isSandbox ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-  const { espnDates, days } = getNbaWeekendBounds(anchor, pool.currentWeek);
+  const { espnDates, days } = getNbaWeekendBounds(anchor, weekNumber);
   const [friDate, satDate, sunDate] = days;
   const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
   const seen = new Set<string>();
@@ -181,6 +236,23 @@ router.get("/slate", requireAuth, async (req, res) => {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
+  const periodResolved = isRecurringNhlOrNbaCrazyEights(pool)
+    ? parseCrazyEightsPeriodStart(pool, req.query.periodStart)
+    : undefined;
+  if (req.query.periodStart != null && req.query.periodStart !== "" && isRecurringNhlOrNbaCrazyEights(pool)) {
+    if (periodResolved === null) {
+      res.status(400).json({ error: "periodStart must be YYYY-MM-DD" });
+      return;
+    }
+    if (!periodResolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+  }
+
+  const slateWeek = periodResolved?.weekNumber ?? pool.currentWeek;
+  const viewingPastPeriod = periodResolved?.viewingPastPeriod ?? false;
+
   const [entry] = await db.select().from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, req.user!.id)))
     .limit(1);
@@ -198,13 +270,13 @@ router.get("/slate", requireAuth, async (req, res) => {
 
   if (pool.sport === "nhl") {
     const isSandbox = (pool as any).sandboxMode as boolean;
-    const { games, satDate, sunDate } = await getNhlWeekendSlate(pool);
+    const { games, satDate, sunDate } = await getNhlWeekendSlate(pool, slateWeek);
 
     // Load sandbox scores so graded cards display final results
     const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
     if (isSandbox) {
       const rows = await db.select().from(sandboxGameScoresTable)
-        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, slateWeek)));
       for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
     }
 
@@ -214,11 +286,12 @@ router.get("/slate", requireAuth, async (req, res) => {
     const weekLabel = `${fmt.format(new Date(Date.UTC(sy, sm - 1, sd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
     res.json({
       sport: "nhl",
-      week: pool.currentWeek,
+      week: slateWeek,
       weekLabel,
       satDate,
       sunDate,
       sandboxMode: isSandbox,
+      viewingPastPeriod,
       games: games.map(g => {
         const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
         return {
@@ -234,13 +307,13 @@ router.get("/slate", requireAuth, async (req, res) => {
 
   if (pool.sport === "nba") {
     const isSandbox = (pool as any).sandboxMode as boolean;
-    const { games, friDate, satDate, sunDate } = await getNbaWeekendSlate(pool);
+    const { games, friDate, satDate, sunDate } = await getNbaWeekendSlate(pool, slateWeek);
 
     // Load sandbox scores so graded cards display final results
     const sandboxScores = new Map<string, { homeScore: number; awayScore: number }>();
     if (isSandbox) {
       const rows = await db.select().from(sandboxGameScoresTable)
-        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, pool.currentWeek)));
+        .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, slateWeek)));
       for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
     }
 
@@ -250,12 +323,13 @@ router.get("/slate", requireAuth, async (req, res) => {
     const weekLabel = `${fmt.format(new Date(Date.UTC(fy, fm - 1, fd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
     res.json({
       sport: "nba",
-      week: pool.currentWeek,
+      week: slateWeek,
       weekLabel,
       friDate,
       satDate,
       sunDate,
       sandboxMode: isSandbox,
+      viewingPastPeriod,
       games: games.map(g => {
         const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
         return {
@@ -308,11 +382,35 @@ router.get("/grid", requireAuth, async (req, res) => {
     return;
   }
 
+  let date = rawDate;
+
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
+  let gridWeek: number | null = null;
+  let viewingPastPeriod = false;
+  if (isRecurringNhlOrNbaCrazyEights(pool)) {
+    const periodResolved = req.query.periodStart != null && req.query.periodStart !== ""
+      ? parseCrazyEightsPeriodStart(pool, req.query.periodStart)
+      : resolveCrazyEightsPeriod(toCrazyEightsPeriodPool(pool), undefined);
+    if (req.query.periodStart != null && req.query.periodStart !== "") {
+      if (periodResolved === null) {
+        res.status(400).json({ error: "periodStart must be YYYY-MM-DD" });
+        return;
+      }
+      if (!periodResolved) {
+        res.status(404).json({ error: "Period not found" });
+        return;
+      }
+    }
+    if (periodResolved) {
+      date = periodResolved.anchorDate;
+      gridWeek = periodResolved.weekNumber;
+      viewingPastPeriod = periodResolved.viewingPastPeriod;
+    }
+  }
+
   // Resolve missing date: NHL sandbox → anchor Saturday for pool.currentWeek; else today
-  let date = rawDate;
   if (!date) {
     if (pool.sport === "nhl" && (pool as any).sandboxMode) {
       const { days } = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
@@ -364,6 +462,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         .where(and(
           eq(pickemPicksTable.poolId, poolId),
           inArray(pickemPicksTable.gameDate, [date, sunDate]),
+          ...(gridWeek != null ? [eq(pickemPicksTable.week, gridWeek)] : []),
         )),
     ]);
 
@@ -407,6 +506,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     res.json({
       date,
       dateLabel,
+      viewingPastPeriod,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
@@ -454,6 +554,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         .where(and(
           eq(pickemPicksTable.poolId, poolId),
           inArray(pickemPicksTable.gameDate, weekendDates),
+          ...(gridWeek != null ? [eq(pickemPicksTable.week, gridWeek)] : []),
         )),
     ]);
 
@@ -497,6 +598,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     res.json({
       date,
       dateLabel,
+      viewingPastPeriod,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },

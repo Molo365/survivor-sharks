@@ -199,11 +199,15 @@ export function CrazyEightsGrid({
   sport = "mlb",
   sandboxMode = false,
   initialDate,
+  periodStart,
+  usePeriodSelector = false,
 }: {
   poolId: number;
   sport?: string;
   sandboxMode?: boolean;
   initialDate?: string;
+  periodStart?: string;
+  usePeriodSelector?: boolean;
 }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
@@ -217,10 +221,16 @@ export function CrazyEightsGrid({
     return isNba ? getCurrentNbaFri() : getCurrentNhlSat();
   });
 
+  const gridUrl = usePeriodSelector
+    ? `/api/pools/${poolId}/crazy-eights/grid${periodStart ? `?periodStart=${encodeURIComponent(periodStart)}` : ""}`
+    : `/api/pools/${poolId}/crazy-eights/grid?date=${date}`;
+
   const { data, isLoading } = useQuery<GridResponse>({
-    queryKey: ["crazy-eights-grid", poolId, date],
-    queryFn: () => authedFetch<GridResponse>(`/api/pools/${poolId}/crazy-eights/grid?date=${date}`),
-    enabled: !!user,
+    queryKey: usePeriodSelector
+      ? ["crazy-eights-grid", poolId, periodStart ?? "current"]
+      : ["crazy-eights-grid", poolId, date],
+    queryFn: () => authedFetch<GridResponse>(gridUrl),
+    enabled: !!user && (!usePeriodSelector || isWeekend ? true : !!date),
     staleTime: 30_000,
     refetchInterval: (query) =>
       query.state.data?.games.some((game) => game.status === "in_progress")
@@ -230,12 +240,14 @@ export function CrazyEightsGrid({
 
   // Lock in the anchor date the first time the backend resolves it
   useEffect(() => {
+    if (usePeriodSelector) return;
     if (date === "" && data?.date) setDate(data.date);
-  }, [date, data?.date]);
+  }, [usePeriodSelector, date, data?.date]);
 
   // Sandbox NHL caps at the anchor Saturday (not the real current weekend)
   const maxDate = !isWeekend ? getTodayEt() : sandboxMode ? (data?.date ?? "") : isNba ? getCurrentNbaFri() : getCurrentNhlSat();
   const isAtMax = date === "" || date >= maxDate;
+  const showWeekNav = !usePeriodSelector;
 
   // Only show columns for games at least one player picked
   const pickedGameIds = new Set(
@@ -257,31 +269,39 @@ export function CrazyEightsGrid({
     <div className="space-y-4">
       {/* Date / week nav */}
       <div className="flex items-center justify-between gap-3">
-        <button
-          onClick={() => setDate((d) => offsetDate(d, isWeekend ? -7 : -1))}
-          className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+        {showWeekNav ? (
+          <button
+            onClick={() => setDate((d) => offsetDate(d, isWeekend ? -7 : -1))}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        ) : (
+          <div className="w-8" />
+        )}
 
         <div className="text-center">
           <p className="font-bebas text-lg tracking-wide leading-none">
             {data?.dateLabel ?? date}
           </p>
-          {isAtMax && (
+          {showWeekNav && isAtMax && (
             <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider">
               {isWeekend ? "This Weekend" : "Today"}
             </span>
           )}
         </div>
 
-        <button
-          onClick={() => setDate((d) => offsetDate(d, isWeekend ? 7 : 1))}
-          disabled={isAtMax}
-          className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        {showWeekNav ? (
+          <button
+            onClick={() => setDate((d) => offsetDate(d, isWeekend ? 7 : 1))}
+            disabled={isAtMax}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <div className="w-8" />
+        )}
       </div>
 
       {/* No picks yet */}
