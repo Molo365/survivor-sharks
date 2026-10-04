@@ -19,13 +19,14 @@ function useCountdown(target: Date) {
 }
 
 // Manual event configuration: update these values together for the next featured event.
-const NFL_KICKOFF_TARGET = new Date("2026-09-09T20:20:00-04:00");
-const NFL_KICKOFF_LABEL = "NFL Season Kickoff · September 9, 2026";
-const NFL_KICKOFF_PASSED_MESSAGE = "🏈 NFL KICK-OFF!";
+// NHL regular season is already underway (opened Sept 29); show the passed-state banner.
+const FEATURED_EVENT_TARGET = new Date("2026-09-29T19:00:00-04:00");
+const FEATURED_EVENT_LABEL = "NHL Season Puck Drop · September 29, 2026";
+const FEATURED_EVENT_PASSED_MESSAGE = "🏒 NHL PUCK DROP!";
 
 export default function Landing() {
   const { user, isLoading } = useAuth();
-  const countdown = useCountdown(NFL_KICKOFF_TARGET);
+  const countdown = useCountdown(FEATURED_EVENT_TARGET);
 
   if (!isLoading && user) return <Redirect to="/dashboard" />;
 
@@ -66,7 +67,7 @@ export default function Landing() {
             </Link>
           </div>
 
-          {/* ── NFL Season Countdown ── */}
+          {/* ── Featured-event countdown (NHL, season already started) ── */}
           <div className="w-full max-w-sm rounded-xl px-4 py-3 border flex flex-col items-center backdrop-blur-sm"
             style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="flex items-center gap-1.5 mb-0.5">
@@ -76,7 +77,7 @@ export default function Landing() {
                   ? "text-sm font-black tracking-[0.18em] text-primary uppercase"
                   : "text-[9px] font-bold tracking-[0.25em] text-primary uppercase"}
               >
-                {countdown.expired ? NFL_KICKOFF_PASSED_MESSAGE : NFL_KICKOFF_LABEL}
+                {countdown.expired ? FEATURED_EVENT_PASSED_MESSAGE : FEATURED_EVENT_LABEL}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
