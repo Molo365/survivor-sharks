@@ -3092,7 +3092,7 @@ components:
           type: string
         pickStatus:
           type: string
-          enum: [pending, incomplete, submitted]
+          enum: [pending, incomplete, submitted, not_required]
           description: Current-period pick state for pool types that support partial picks
         lastWinners:
           type: array

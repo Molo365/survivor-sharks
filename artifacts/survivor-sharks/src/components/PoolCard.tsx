@@ -54,6 +54,8 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const myIsTied = pickEmStat ? !!(pickEmStat.myStanding as any).isTied : false;
   const hasPartialPickStatus =
     pt === "pickem_season"
+    || pt === "nfl_confidence"
+    || pt === "nfl_confidence_weekly"
     || pt === "nba_ats"
     || (pt === "pickem" && isWeekly && (pool.sport === "superleague" || pool.sport === "nhl"));
 
@@ -232,7 +234,12 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   </div>
                 )
               ) : pt === "nfl_confidence" ? (
-                pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
+                pickEmStat.pickStatus === "not_required" ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                    <span aria-hidden>📅</span>
+                    <span>Nothing due yet this week</span>
+                  </div>
+                ) : pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   !pool.isActive ? (
                     <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
                       <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
@@ -402,6 +409,11 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
+              ) : hasPartialPickStatus && pickEmStat.pickStatus === "not_required" ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                  <span aria-hidden>📅</span>
+                  <span>Nothing due yet {isWeekly ? "this week" : periodLabel}</span>
+                </div>
               ) : hasPartialPickStatus && pickEmStat.pickStatus === "incomplete" ? (
                 <div className="flex items-center gap-1.5 text-xs text-blue-400">
                   <span aria-hidden>●</span>

@@ -33,6 +33,7 @@ import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { WC_PHASES, getWcPhase } from "../lib/wc";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
+import { fetchPoolSlateGames, loadSandboxLivePoolIds, openSlateGames, poolSlateHasLiveGames } from "../lib/pool-slate-live";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
@@ -68,7 +69,7 @@ function offsetDateStr(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-type DashboardPickStatus = "pending" | "incomplete" | "submitted";
+type DashboardPickStatus = "pending" | "incomplete" | "submitted" | "not_required";
 
 function datesInRange(start: string, end: string): string[] {
   const cursor = new Date(`${start}T00:00:00Z`);
@@ -95,45 +96,31 @@ async function getDashboardPickStatus(
     createdAt: Date;
     pickFrequency: string;
     initialPeriodStart: string | null;
+    id: number;
+    sandboxMode: boolean | null;
+    isActive: boolean;
   },
   pickedGameIds: string[],
 ): Promise<DashboardPickStatus> {
-  if (pickedGameIds.length === 0) return "pending";
-
-  let games: Awaited<ReturnType<typeof fetchGamesForDate>> = [];
-  if (pool.poolType === "pickem_season") {
-    games = await fetchNflGamesByWeek(pool.currentWeek, pool.season ?? undefined, pool.isPreseason ? 1 : 2);
-  } else if (pool.poolType === "nba_ats") {
-    const dates = getNbaWeekendBounds(pool.createdAt, pool.currentWeek).espnDates;
-    const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
-    const seen = new Set<string>();
-    games = results.flat().filter((game) => {
-      if (seen.has(game.id)) return false;
-      seen.add(game.id);
-      return true;
-    });
-  } else if (pool.sport === "superleague") {
-    const bounds = getSuperLeagueConfiguredPeriod(pool);
-    const results = await Promise.all(
-      datesInRange(bounds.weekStart, bounds.weekEnd).map(fetchSuperLeagueGamesForDate),
-    );
-    const seen = new Set<string>();
-    games = results.flat().filter((game) => {
-      if (seen.has(game.id)) return false;
-      seen.add(game.id);
-      return true;
-    });
-  } else {
-    games = await fetchNhlGamesByWeek(
-      pool.createdAt,
-      pool.currentWeek,
-      pool.isPreseason ? 1 : 2,
-      pool.initialPeriodStart,
-    );
+  const games = await fetchPoolSlateGames({
+    id: pool.id,
+    sport: pool.sport,
+    poolType: pool.poolType,
+    pickFrequency: pool.pickFrequency,
+    currentWeek: pool.currentWeek,
+    season: pool.season ?? new Date().getFullYear(),
+    isPreseason: pool.isPreseason,
+    sandboxMode: pool.sandboxMode,
+    isActive: pool.isActive,
+    createdAt: pool.createdAt,
+    initialPeriodStart: pool.initialPeriodStart,
+  });
+  const openGames = openSlateGames(games);
+  if (pickedGameIds.length === 0) {
+    return openGames.length === 0 ? "not_required" : "pending";
   }
 
   const pickedSet = new Set(pickedGameIds);
-  const openGames = games.filter((game) => !game.isPostponed && !isDashboardGameLocked(game));
   return openGames.some((game) => !pickedSet.has(game.id)) ? "incomplete" : "submitted";
 }
 
@@ -387,10 +374,24 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
           .groupBy(pickemPicksTable.userId)
           .orderBy(sql`COALESCE(SUM(CASE WHEN ${pickemPicksTable.result} = 'correct' THEN COALESCE((pickem_picks.confidence_points)::integer, 0) ELSE 0 END), 0) DESC`);
         const myRow = rows.find((r) => r.userId === userId) ?? null;
+        const currentPeriodPickRows = pool.isActive
+          ? await db
+              .select({ gameId: pickemPicksTable.gameId })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.userId, userId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+              ))
+          : [];
+        const pickStatus = pool.isActive
+          ? await getDashboardPickStatus(pool, currentPeriodPickRows.map((row) => row.gameId))
+          : undefined;
         return {
           poolId: pool.id,
           isActive: pool.isActive,
           poolType,
+          ...(pickStatus ? { pickStatus } : {}),
           lastWinners: null,
           myStanding: {
             rank: computeRank(rows.map((r) => ({ ...r, score: Number(r.score) })), userId),

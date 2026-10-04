@@ -11,7 +11,6 @@ import {
   mlbBracketPicksTable,
   groupStagePredictorPicksTable,
   pickemSeasonWeekGameCountsTable,
-  sandboxGameScoresTable,
 } from "@workspace/db";
 import { eq, and, count, inArray, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
@@ -35,6 +34,12 @@ import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 import { GSP_GROUP_COUNT } from "../lib/closePredictorPool";
 import { getGspLockState } from "../lib/gsp-lock";
+import {
+  fetchPoolSlateGames,
+  loadSandboxLivePoolIds,
+  openSlateGames,
+  poolSlateHasLiveGames,
+} from "../lib/pool-slate-live";
 
 const router = Router();
 
@@ -65,6 +70,8 @@ function allowsPartialPeriodStatus(pool: {
   pickFrequency: string;
 }): boolean {
   return pool.poolType === "pickem_season"
+    || pool.poolType === "nfl_confidence"
+    || pool.poolType === "nfl_confidence_weekly"
     || pool.poolType === "nba_ats"
     || (pool.sport === "superleague" && pool.pickFrequency === "weekly")
     || (pool.sport === "nhl" && pool.pickFrequency === "weekly");
@@ -81,7 +88,9 @@ async function getPartialPeriodGames(pool: {
   createdAt: Date;
   initialPeriodStart: string | null;
 }): Promise<Awaited<ReturnType<typeof fetchGamesForDate>>> {
-  if (pool.poolType === "pickem_season") {
+  if (pool.poolType === "pickem_season"
+    || pool.poolType === "nfl_confidence"
+    || pool.poolType === "nfl_confidence_weekly") {
     return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
   }
 
@@ -159,33 +168,32 @@ router.get("/summary", requireAuth, async (req, res) => {
   const todayDateStr = todayEt.replace(/-/g, "");
 
   const sandboxPoolIds2 = pools.filter((p) => p.sandboxMode).map((p) => p.id);
-  const sandboxLiveSet2 = new Set<number>();
-  if (sandboxPoolIds2.length > 0) {
-    const liveRows = await db
-      .select({ poolId: sandboxGameScoresTable.poolId })
-      .from(sandboxGameScoresTable)
-      .where(and(
-        inArray(sandboxGameScoresTable.poolId, sandboxPoolIds2),
-        inArray(sandboxGameScoresTable.gameStatus, ["q1", "q2", "half", "q3", "q4", "in_progress"]),
-      ));
-    for (const r of liveRows) sandboxLiveSet2.add(r.poolId);
-  }
+  const sandboxLiveSet2 = await loadSandboxLivePoolIds(sandboxPoolIds2);
 
-  const uniqueSports2 = [...new Set(pools.filter((p) => !p.sandboxMode).map((p) => p.sport))];
-  const sportsWithLive2 = new Set<string>();
+  const dailyPickemSports = [...new Set(
+    pools.filter((p) => p.poolType === "pickem" && p.pickFrequency === "daily").map((p) => p.sport as string),
+  )];
   const sportsWithGamesTodaySet = new Set<string>();
-  await Promise.all(uniqueSports2.map(async (sport) => {
+  await Promise.all(dailyPickemSports.map(async (sport) => {
     const games = sport === "superleague"
       ? await fetchSuperLeagueGamesForDate(todayDateStr)
       : await fetchGamesForDate(sport, todayDateStr);
-    if (games.some((g) => g.status === "in_progress")) sportsWithLive2.add(sport);
     if (games.length > 0) sportsWithGamesTodaySet.add(sport);
   }));
 
-  const hasLiveGamesFor2 = (pool: { id: number; sandboxMode: boolean | null; sport: string }): boolean => {
-    if (pool.sandboxMode) return sandboxLiveSet2.has(pool.id);
-    return sportsWithLive2.has(pool.sport);
-  };
+  const slateContext = (pool: typeof pools[number]) => ({
+    id: pool.id,
+    sport: pool.sport as string,
+    poolType: pool.poolType as string,
+    pickFrequency: pool.pickFrequency as string,
+    currentWeek: pool.currentWeek,
+    season: pool.season,
+    isPreseason: pool.isPreseason,
+    sandboxMode: pool.sandboxMode,
+    isActive: pool.isActive,
+    createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+    initialPeriodStart: pool.initialPeriodStart,
+  });
 
   const results = await Promise.all(
     pools.map(async (pool) => {
@@ -197,7 +205,7 @@ router.get("/summary", requireAuth, async (req, res) => {
         sport: pool.sport,
         currentWeek: pool.currentWeek,
         poolUrl: `/pools/${pool.id}`,
-        hasLiveGames: hasLiveGamesFor2(pool),
+        hasLiveGames: await poolSlateHasLiveGames(slateContext(pool), sandboxLiveSet2),
       };
 
       // ── Survivor (season / weekly / mid_season) ────────────────────────────
@@ -354,19 +362,32 @@ router.get("/summary", requireAuth, async (req, res) => {
         }
 
         let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
-        if (picked > 0 && allowsPartialPeriodStatus(pool)) {
+        if (allowsPartialPeriodStatus(pool)) {
           const games = await getPartialPeriodGames(pool);
-          const openGames = games.filter((game) => !game.isPostponed && !isGameLocked(game));
-          const pickedOpenGames = openGames.filter((game) => pickedGameIds.has(game.id));
-          if (pickedOpenGames.length < openGames.length) {
-            pickStatus = "incomplete";
+          const openGames = openSlateGames(games);
+          if (picked === 0) {
+            if (openGames.length === 0) {
+              pickStatus = "not_required";
+            }
+          } else {
+            const pickedOpenGames = openGames.filter((game) => pickedGameIds.has(game.id));
+            if (pickedOpenGames.length < openGames.length) {
+              pickStatus = "incomplete";
+            }
           }
         }
+
+        const summaryText =
+          pickStatus === "not_required" && (poolType === "pickem_season" || poolType === "nfl_confidence" || poolType === "nfl_confidence_weekly")
+            ? `Week ${pool.currentWeek} · slate not open yet`
+            : picked > 0 || total !== null
+              ? summary
+              : null;
 
         return {
           ...base,
           pickStatus,
-          summary: picked > 0 || total !== null ? summary : null,
+          summary: summaryText,
         };
       }
 
@@ -561,10 +582,34 @@ router.get("/summary", requireAuth, async (req, res) => {
           );
 
         const picked = countRow?.cnt ?? 0;
+        const isWeekendSport = pool.sport === "nhl" || pool.sport === "nba";
+        let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
+        let summary: string | null = picked > 0
+          ? `${picked} ${isWeekly ? "picks this week" : "picks today"}`
+          : null;
+
+        if (isWeekly && isWeekendSport && picked === 0) {
+          const [y, m, d] = todayEt.split("-").map(Number);
+          const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+          const isWeekendGameDay = pool.sport === "nhl"
+            ? (dow === 0 || dow === 6)
+            : (dow === 0 || dow === 5 || dow === 6);
+          if (!isWeekendGameDay) {
+            pickStatus = "not_required";
+            summary = null;
+          } else {
+            const games = await fetchPoolSlateGames(slateContext(pool));
+            if (openSlateGames(games).length === 0) {
+              pickStatus = "not_required";
+              summary = `Week ${pool.currentWeek} · slate not open yet`;
+            }
+          }
+        }
+
         return {
           ...base,
-          pickStatus: (picked > 0 ? "submitted" : "pending") as PickStatus,
-          summary: picked > 0 ? `${picked} ${isWeekly ? "picks this week" : "picks today"}` : null,
+          pickStatus,
+          summary,
         };
       }
 

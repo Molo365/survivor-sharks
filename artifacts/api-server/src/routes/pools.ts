@@ -27,6 +27,7 @@ import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } from "../lib/nhl-pool-period";
 import { sportPoolStatusTable } from "@workspace/db";
+import { loadSandboxLivePoolIds, poolSlateHasLiveGames } from "../lib/pool-slate-live";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -183,54 +184,31 @@ router.get("/", requireAuth, async (req, res) => {
       )
     ));
 
-  // ── Compute hasLiveGames per pool ──────────────────────────────────────
-  const todayEt = getTodayEtDate();
-  const todayDateStr = todayEt.replace(/-/g, "");
-
-  // Sandbox pools: check the DB for any row with game_status = "in_progress"
+  // ── Compute hasLiveGames per pool (slate-scoped, not whole sport) ───────
   const sandboxPoolIds = pools.filter((p) => p.sandboxMode).map((p) => p.id);
-  const sandboxLiveSet = new Set<number>();
-  if (sandboxPoolIds.length > 0) {
-    const liveRows = await db
-      .select({ poolId: sandboxGameScoresTable.poolId })
-      .from(sandboxGameScoresTable)
-      .where(and(
-        inArray(sandboxGameScoresTable.poolId, sandboxPoolIds),
-        inArray(sandboxGameScoresTable.gameStatus, ["q1", "q2", "half", "q3", "q4", "in_progress"]),
-      ));
-    for (const r of liveRows) sandboxLiveSet.add(r.poolId);
-  }
-
-  // Live pools: fetch ESPN once per unique sport (only active pools can have live games)
-  const activeLivePools = pools.filter((p) => p.isActive && !p.sandboxMode);
-  const uniqueSports = [...new Set(activeLivePools.map((p) => p.sport))];
-  const sportsWithLive = new Set<string>();
-  await Promise.all(uniqueSports.map(async (sport) => {
-    const games = sport === "superleague"
-      ? await fetchSuperLeagueGamesForDate(todayDateStr)
-      : await fetchGamesForDate(sport, todayDateStr);
-    if (games.some((g) => g.status === "in_progress")) sportsWithLive.add(sport);
-  }));
-
-  const hasLiveGamesFor = (pool: PoolRow): boolean => {
-    if (pool.sandboxMode) return sandboxLiveSet.has(pool.id);
-    if (!pool.isActive) return false;
-    if (pool.sport === "nhl" && (pool.poolType === "season" || pool.poolType === "crazy_8s")) {
-      const weekdayEt = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York",
-        weekday: "long",
-      }).format(new Date());
-      if (pool.poolType === "season" && weekdayEt !== "Saturday") return false;
-      if (pool.poolType === "crazy_8s" && weekdayEt !== "Saturday" && weekdayEt !== "Sunday") return false;
-    }
-    return sportsWithLive.has(pool.sport);
-  };
+  const sandboxLiveSet = await loadSandboxLivePoolIds(sandboxPoolIds);
 
   const result = await Promise.all(pools.map(async (pool) => {
     const [{ total }] = await db.select({ total: count() }).from(entriesTable).where(eq(entriesTable.poolId, pool.id));
     const [{ active }] = await db.select({ active: count() }).from(entriesTable).where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
     const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
-    return { ...formatPool(pool, Number(total), Number(active), commissioner?.username ?? ""), hasLiveGames: hasLiveGamesFor(pool) };
+    const hasLiveGames = await poolSlateHasLiveGames(
+      {
+        id: pool.id,
+        sport: pool.sport as string,
+        poolType: pool.poolType as string,
+        pickFrequency: pool.pickFrequency as string,
+        currentWeek: pool.currentWeek,
+        season: pool.season,
+        isPreseason: pool.isPreseason,
+        sandboxMode: pool.sandboxMode,
+        isActive: pool.isActive,
+        createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+        initialPeriodStart: pool.initialPeriodStart,
+      },
+      sandboxLiveSet,
+    );
+    return { ...formatPool(pool, Number(total), Number(active), commissioner?.username ?? ""), hasLiveGames };
   }));
 
   res.json(result);

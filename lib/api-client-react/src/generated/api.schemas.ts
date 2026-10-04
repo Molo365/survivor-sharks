@@ -322,6 +322,7 @@ export const PoolPickEmStatPickStatus = {
   pending: 'pending',
   incomplete: 'incomplete',
   submitted: 'submitted',
+  not_required: 'not_required',
 } as const;
 
 export type PoolPickEmStatLastWinnersItem = {

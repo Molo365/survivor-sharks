@@ -76,7 +76,7 @@ function StatusBadge({ status }: { status: PoolSummary["pickStatus"] }) {
   if (status === "not_required") {
     return (
       <span className="text-[12px] font-semibold text-muted-foreground/50 tracking-wide">
-        Picks open Sat–Sun
+        Nothing due right now
       </span>
     );
   }
