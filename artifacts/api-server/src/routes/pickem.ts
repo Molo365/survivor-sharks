@@ -45,6 +45,7 @@ import {
   fetchChampionsLeagueGamesForPeriodDates,
   resolveChampionsLeaguePeriodContext,
 } from "../lib/champions-league-pool-period";
+import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 import {
   listPickEmPeriodsForPool,
   loadChampionsLeaguePeriodSlate,
@@ -1912,6 +1913,68 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
+  const isNhlRecurringWeeklyBonus =
+    isNhlPickemWeekly && pool.isRecurring === true && pool.weeklyBonusEnabled === true;
+  const prevWeekNumberForBonus = prevNhlWeekNum ?? (requestedWeek ?? Math.max(1, pool.currentWeek - 1));
+  const enrolledPlayerCount = Number(memberCountRow[0]?.value ?? 0);
+  const prevWeekResolvedForBonus =
+    !pool.isActive || prevWeekNumberForBonus < pool.currentWeek || allGraded;
+  let weeklyBonusPayload: {
+    enabled: boolean;
+    thresholdMet: boolean;
+    amount: number | null;
+    perWinnerAmount: number | null;
+    minPlayers: number | null;
+    confirmedPlayerCount: number | null;
+  } | undefined;
+  if (isNhlRecurringWeeklyBonus) {
+    const weeklyBonusAmount =
+      pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null;
+    const weeklyBonusMinPlayers = pool.weeklyBonusMinPlayers ?? null;
+    const weeklyBonusThresholdMet = resolveWeeklyBonusThreshold({
+      poolType: pool.poolType,
+      sport: pool.sport,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring,
+      weeklyBonusEnabled: true,
+      weeklyBonusMinPlayers,
+      playerCount: enrolledPlayerCount,
+      isResolved: prevWeekResolvedForBonus,
+      persistedThreshold: pool.weeklyBonusLockedActive,
+    });
+    const weeklyWinnerIds: number[] = [];
+    if (allGraded && weekTopCorrect >= 0) {
+      const topScorers = aggregates.filter((r) => Number(r.correct) === weekTopCorrect);
+      if (tiebreakWinnerIds != null) {
+        for (const row of topScorers) {
+          if (tiebreakWinnerIds.has(row.userId)) weeklyWinnerIds.push(row.userId);
+        }
+      } else {
+        for (const row of topScorers) weeklyWinnerIds.push(row.userId);
+      }
+    }
+    const weeklyBonusPerWinner =
+      weeklyBonusThresholdMet &&
+      weeklyBonusAmount != null &&
+      weeklyWinnerIds.length > 0 &&
+      allGraded
+        ? Math.round((weeklyBonusAmount / weeklyWinnerIds.length) * 100) / 100
+        : null;
+    if (weeklyBonusPerWinner != null) {
+      for (const uid of weeklyWinnerIds) {
+        prizeWonByUser.set(uid, weeklyBonusPerWinner);
+      }
+    }
+    weeklyBonusPayload = {
+      enabled: true,
+      thresholdMet: weeklyBonusThresholdMet,
+      amount: weeklyBonusAmount,
+      perWinnerAmount: weeklyBonusPerWinner,
+      minPlayers: weeklyBonusMinPlayers,
+      confirmedPlayerCount: enrolledPlayerCount,
+    };
+  }
+
   let weekRank = 1;
   const tiebreakerActualsKnown = isMlb
     ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
@@ -1977,6 +2040,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
+    ...(weeklyBonusPayload ? { weeklyBonus: weeklyBonusPayload } : {}),
   });
 });
 

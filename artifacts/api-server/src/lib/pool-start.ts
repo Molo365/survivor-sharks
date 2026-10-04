@@ -46,8 +46,28 @@ export function joinBlockedByStart(poolType: string, hasStarted: boolean): boole
   return isSurvivorPoolType(poolType) && hasStarted;
 }
 
+export type WeeklyBonusPool = {
+  poolType: string;
+  sport?: string;
+  pickFrequency?: string | null;
+  isRecurring?: boolean | null;
+};
+
+export function isWeeklyBonusPoolType(pool: WeeklyBonusPool): boolean {
+  if (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence") return true;
+  return (
+    pool.poolType === "pickem" &&
+    pool.sport === "nhl" &&
+    pool.pickFrequency === "weekly" &&
+    pool.isRecurring === true
+  );
+}
+
 export type WeeklyBonusThresholdInput = {
   poolType: string;
+  sport?: string;
+  pickFrequency?: string | null;
+  isRecurring?: boolean | null;
   weeklyBonusEnabled: boolean;
   weeklyBonusMinPlayers: number | null;
   playerCount: number;
@@ -59,16 +79,26 @@ export type WeeklyBonusThresholdInput = {
  * Uses current enrollment for open-week evaluation. Resolved historical weeks
  * use the legacy pool-wide decision so later enrollment cannot change old results.
  * This compatibility value is read-only; it is not a per-week snapshot.
+ *
+ * NHL recurring weekly pick-em pools re-check enrollment for each closed week.
  */
 export function resolveWeeklyBonusThreshold(input: WeeklyBonusThresholdInput): boolean {
+  const poolContext: WeeklyBonusPool = {
+    poolType: input.poolType,
+    sport: input.sport,
+    pickFrequency: input.pickFrequency,
+    isRecurring: input.isRecurring,
+  };
   if (
     !input.weeklyBonusEnabled ||
     input.weeklyBonusMinPlayers === null ||
-    !["pickem_season", "nfl_confidence"].includes(input.poolType)
+    !isWeeklyBonusPoolType(poolContext)
   ) {
     return false;
   }
-  if (input.isResolved) return input.persistedThreshold === true;
+  const recurringWeekly =
+    poolContext.poolType === "pickem" && poolContext.sport === "nhl" && poolContext.isRecurring === true;
+  if (input.isResolved && !recurringWeekly) return input.persistedThreshold === true;
   return input.playerCount >= input.weeklyBonusMinPlayers;
 }
 

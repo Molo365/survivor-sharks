@@ -95,3 +95,18 @@ test("weekly bonus remains off when disabled, unconfigured, or used by an unsupp
   assert.equal(resolveWeeklyBonusThreshold({ ...baseThreshold, weeklyBonusMinPlayers: null }), false);
   assert.equal(resolveWeeklyBonusThreshold({ ...baseThreshold, poolType: "pickem" }), false);
 });
+
+test("nhl recurring weekly pick-em uses enrollment for closed weeks", () => {
+  const input = {
+    poolType: "pickem",
+    sport: "nhl",
+    pickFrequency: "weekly",
+    isRecurring: true,
+    weeklyBonusEnabled: true,
+    weeklyBonusMinPlayers: 5,
+    isResolved: true,
+    persistedThreshold: false,
+  };
+  assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 4 }), false);
+  assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 5 }), true);
+});

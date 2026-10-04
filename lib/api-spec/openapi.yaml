@@ -4563,6 +4563,22 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
+        weeklyBonus:
+          type: object
+          description: Present for NHL recurring weekly pick-em pools with weekly bonus enabled
+          properties:
+            enabled:
+              type: boolean
+            thresholdMet:
+              type: boolean
+            amount:
+              type: ["number", "null"]
+            perWinnerAmount:
+              type: ["number", "null"]
+            minPlayers:
+              type: ["integer", "null"]
+            confirmedPlayerCount:
+              type: ["integer", "null"]
 
     PickEmYesterdayWinner:
       type: object

@@ -21,7 +21,7 @@ import { bracketBlueprint, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-b
 import { validateMlbPoolCreation } from "../lib/mlb-pool-creation-validation";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
-import { resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "../lib/pool-start";
+import { isWeeklyBonusPoolType, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "../lib/pool-start";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
@@ -354,14 +354,18 @@ router.post("/", requireAuth, async (req, res) => {
     res.status(nbaCreationError.status).json({ error: nbaCreationError.error });
     return;
   }
-  const weeklyBonusEligible =
-    sport === "nfl" && (resolvedPoolType === "pickem_season" || resolvedPoolType === "nfl_confidence");
+  const weeklyBonusEligible = isWeeklyBonusPoolType({
+    poolType: resolvedPoolType,
+    sport,
+    pickFrequency: pickFrequency ?? "weekly",
+    isRecurring: isRecurring === true,
+  });
   const hasWeeklyBonusSettings =
     requestedWeeklyBonusEnabled === true ||
     requestedWeeklyBonusAmount !== undefined && requestedWeeklyBonusAmount !== null && requestedWeeklyBonusAmount !== "" ||
     requestedWeeklyBonusMinPlayers !== undefined && requestedWeeklyBonusMinPlayers !== null && requestedWeeklyBonusMinPlayers !== "";
   if (!weeklyBonusEligible && hasWeeklyBonusSettings) {
-    res.status(400).json({ error: "Weekly bonus prizes are only available for NFL Pick-Em Season and NFL Confidence Season pools" });
+    res.status(400).json({ error: "Weekly bonus prizes are only available for NFL Pick-Em Season, NFL Confidence Season, and NHL recurring weekly Pick-Em pools" });
     return;
   }
 
@@ -795,10 +799,12 @@ router.get("/:poolId", requireAuth, async (req, res) => {
 
   const [commissioner] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, pool.commissionerId));
   const weeklyBonusLockedActive =
-    pool.weeklyBonusEnabled &&
-    (pool.poolType === "pickem_season" || pool.poolType === "nfl_confidence")
+    pool.weeklyBonusEnabled && isWeeklyBonusPoolType(pool)
       ? resolveWeeklyBonusThreshold({
           poolType: pool.poolType,
+          sport: pool.sport,
+          pickFrequency: pool.pickFrequency,
+          isRecurring: pool.isRecurring,
           weeklyBonusEnabled: pool.weeklyBonusEnabled,
           weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers,
           playerCount: members.length,
@@ -877,11 +883,39 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     }
   }
 
-  const { name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek, doubleElimination, pickFrequency, isRecurring, sandboxMode } = updateBody;
+  const {
+    name, description, maxEntries, minEntries, currentWeek, season, isActive, poolType, startWeek,
+    doubleElimination, pickFrequency, isRecurring, sandboxMode,
+    weeklyBonusEnabled: patchWeeklyBonusEnabled,
+    weeklyBonusAmount: patchWeeklyBonusAmount,
+    weeklyBonusMinPlayers: patchWeeklyBonusMinPlayers,
+  } = updateBody;
 
   if (Object.prototype.hasOwnProperty.call(updateBody, "sandboxMode") && req.user!.role !== "admin") {
     res.status(403).json({ error: "Only admins can change sandbox mode." });
     return;
+  }
+
+  const patchHasWeeklyBonusSettings =
+    patchWeeklyBonusEnabled === true ||
+    patchWeeklyBonusAmount !== undefined && patchWeeklyBonusAmount !== null && patchWeeklyBonusAmount !== "" ||
+    patchWeeklyBonusMinPlayers !== undefined && patchWeeklyBonusMinPlayers !== null && patchWeeklyBonusMinPlayers !== "";
+  if (patchHasWeeklyBonusSettings && !isWeeklyBonusPoolType(pool)) {
+    res.status(400).json({ error: "Weekly bonus prizes are only available for NFL Pick-Em Season, NFL Confidence Season, and NHL recurring weekly Pick-Em pools" });
+    return;
+  }
+  const nextWeeklyBonusEnabled = patchWeeklyBonusEnabled === true;
+  const nextWeeklyBonusAmount = patchWeeklyBonusAmount !== undefined ? Number(patchWeeklyBonusAmount) : null;
+  const nextWeeklyBonusMinPlayers = patchWeeklyBonusMinPlayers !== undefined ? Number(patchWeeklyBonusMinPlayers) : null;
+  if (patchWeeklyBonusEnabled === true) {
+    if (!Number.isFinite(nextWeeklyBonusAmount) || nextWeeklyBonusAmount <= 0) {
+      res.status(400).json({ error: "Weekly prize amount must be greater than $0" });
+      return;
+    }
+    if (!Number.isInteger(nextWeeklyBonusMinPlayers) || nextWeeklyBonusMinPlayers < 1) {
+      res.status(400).json({ error: "Minimum players required must be a whole number of at least 1" });
+      return;
+    }
   }
 
   const setEndedAt = isActive === false && pool.isActive ? { endedAt: new Date() } : {};
@@ -900,6 +934,16 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
     ...(typeof isRecurring === "boolean" && { isRecurring }),
     ...(typeof sandboxMode === "boolean" && { sandboxMode }),
+    ...(patchWeeklyBonusEnabled === true && {
+      weeklyBonusEnabled: true,
+      weeklyBonusAmount: nextWeeklyBonusAmount!.toFixed(2),
+      weeklyBonusMinPlayers: nextWeeklyBonusMinPlayers!,
+    }),
+    ...(patchWeeklyBonusEnabled === false && {
+      weeklyBonusEnabled: false,
+      weeklyBonusAmount: null,
+      weeklyBonusMinPlayers: null,
+    }),
     ...setEndedAt,
   }).where(eq(poolsTable.id, poolId)).returning();
 
