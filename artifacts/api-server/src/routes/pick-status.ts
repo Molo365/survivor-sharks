@@ -229,6 +229,49 @@ export async function resolveNflGameIds(pool: typeof poolsTable.$inferSelect): P
   return new Set((await resolveNflSelectableGames(pool)).map((game) => game.id));
 }
 
+/** Matches picks-summary partial-period lock (kickoff passed or ESPN hasStarted). */
+function isPartialPeriodGameLocked(game: { date: string; hasStarted?: boolean }): boolean {
+  return Boolean(game.hasStarted) || new Date(game.date).getTime() <= Date.now();
+}
+
+function sandboxReplayGameLocked(status: string | null, startIso: string): boolean {
+  if (status && status !== "scheduled") return true;
+  return new Date(startIso).getTime() <= Date.now();
+}
+
+/** Games still pickable this week — used for pickem_season leaderboard dots. */
+export async function resolveNflOpenGameIds(pool: typeof poolsTable.$inferSelect): Promise<Set<string>> {
+  const week = pool.currentWeek;
+  if (pool.sandboxMode) {
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, pool.id),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      const open = replayRows.filter((row) => {
+        const start = row.replayKickoff?.toISOString() ?? "";
+        return !sandboxReplayGameLocked(row.gameStatus, start);
+      });
+      return new Set(open.map((row) => row.gameId));
+    }
+    const open = getSandboxGamesForWeek(week).filter(
+      (game) => !sandboxReplayGameLocked(null, game.gameTime),
+    );
+    return new Set(open.map((game) => game.id));
+  }
+
+  const seasonType = pool.isPreseason ? 1 : 2;
+  const games = await fetchNflGamesByWeek(week, pool.season, seasonType);
+  const open = selectableGames(games).filter(
+    (game) => !game.isPostponed && !isPartialPeriodGameLocked(game),
+  );
+  return new Set(open.map((game) => game.id));
+}
+
 export function buildStatuses(
   members: Member[],
   requiredCount: number,
@@ -334,7 +377,10 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   if (["nfl_confidence", "nfl_confidence_weekly", "pickem_season"].includes(pool.poolType as string)) {
-    const gameIds = await resolveNflGameIds(pool);
+    const isPickemSeason = pool.poolType === "pickem_season";
+    const gameIds = isPickemSeason
+      ? await resolveNflOpenGameIds(pool)
+      : await resolveNflGameIds(pool);
     const pickRows = await db
       .select({
         userId: pickemPicksTable.userId,
@@ -346,11 +392,20 @@ router.get("/", requireAuth, async (req, res) => {
         eq(pickemPicksTable.poolId, poolId),
         eq(pickemPicksTable.week, pool.currentWeek),
       ));
-    res.json(buildStatuses(
+    const confidenceRequired = !isPickemSeason;
+    let statuses = buildStatuses(
       members,
       gameIds.size,
-      countSubmittedPickemGames(pickRows, gameIds, pool.poolType !== "pickem_season"),
-    ));
+      countSubmittedPickemGames(pickRows, gameIds, confidenceRequired),
+    );
+    if (isPickemSeason && gameIds.size === 0) {
+      statuses = statuses.map((row) => ({
+        ...row,
+        pickStatus: "submitted" as const,
+        requiredCount: 0,
+      }));
+    }
+    res.json(statuses);
     return;
   }
 

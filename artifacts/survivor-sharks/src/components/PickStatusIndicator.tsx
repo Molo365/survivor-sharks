@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const statusCopy: Record<PoolPickStatus["pickStatus"], string> = {
   submitted: "Picks submitted",
-  pending: "Picks not submitted",
+  pending: "Unpicked games still open",
   not_required: "No pick required",
 };
 
