@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, Camera, Dice5, ShieldAlert } from "lucide-react";
@@ -50,6 +50,10 @@ export function CrazyEightsPoolTabs({
   const isPeriodHistory = pool.isRecurring && !sandboxMode && isWeekendSport;
   const [selectedPeriodStart, setSelectedPeriodStart] = useState<string | null>(null);
 
+  useEffect(() => {
+    setSelectedPeriodStart(null);
+  }, [pool.id]);
+
   const { data: periodList } = useQuery({
     queryKey: ["crazy-eights-periods", pool.id],
     queryFn: () => authedFetch<PickPeriodListResponse>(`/api/pools/${pool.id}/crazy-eights/periods`),
@@ -57,7 +61,11 @@ export function CrazyEightsPoolTabs({
     staleTime: 5 * 60 * 1000,
   });
 
-  const activePeriodStart = selectedPeriodStart ?? periodList?.defaultKey ?? undefined;
+  const activePeriodStart =
+    selectedPeriodStart
+    ?? periodList?.defaultKey
+    ?? periodList?.periods.find((p) => p.status === "current")?.key
+    ?? undefined;
 
   const viewingPastPeriod = useMemo(() => {
     if (!isPeriodHistory || !periodList?.periods.length || !activePeriodStart) return false;

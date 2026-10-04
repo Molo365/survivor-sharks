@@ -2389,6 +2389,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           : "Week";
   const [selectedPeriodStart, setSelectedPeriodStart] = useState<string | null>(null);
 
+  useEffect(() => {
+    setSelectedPeriodStart(null);
+  }, [poolId]);
+
   const { data: pickEmPeriods } = useQuery({
     queryKey: ["pickem-periods", poolId],
     queryFn: () => authedFetch<PickEmPeriodListResponse>(`/api/pools/${poolId}/pickem/periods`),
@@ -2396,7 +2400,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     staleTime: 5 * 60 * 1000,
   });
 
-  const activePeriodStart = selectedPeriodStart ?? pickEmPeriods?.defaultKey ?? undefined;
+  const activePeriodStart =
+    selectedPeriodStart
+    ?? pickEmPeriods?.defaultKey
+    ?? pickEmPeriods?.periods.find((p) => p.status === "current")?.key
+    ?? undefined;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
