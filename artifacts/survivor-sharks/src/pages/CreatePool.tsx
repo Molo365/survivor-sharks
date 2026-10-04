@@ -1042,9 +1042,9 @@ export default function CreatePool() {
                                 {statusLabel && (
                                   <span className={cn(
                                     "rounded-full border border-primary-foreground/25 px-1.5 py-1 text-center text-[9px] leading-tight",
-                                    status === "coming_soon" && "bg-blue-500/20 text-blue-300",
-                                    status === "paused" && "bg-amber-500/20 text-amber-300",
-                                    status === "season_over" && "bg-slate-400/20 text-slate-300",
+                                    status === "coming_soon" && "bg-slate-800/90 text-slate-100",
+                                    status === "paused" && "bg-amber-500/90 text-amber-950",
+                                    status === "season_over" && "bg-purple-600/90 text-white",
                                   )}>
                                     {statusLabel}
                                   </span>
