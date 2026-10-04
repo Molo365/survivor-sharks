@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreatePool, PoolInputSport, getListPoolsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -324,6 +324,32 @@ function formNumber(value: unknown): number | null {
   if (value === "" || value === undefined || value === null) return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+type CreatePoolFormValues = z.infer<typeof formSchema>;
+
+function NhlWeeklyBonusPreview({ control }: { control: Control<CreatePoolFormValues> }) {
+  const amountRaw = useWatch({ control, name: "weeklyBonusAmount" });
+  const minPlayersRaw = useWatch({ control, name: "weeklyBonusMinPlayers" });
+  const amount = formNumber(amountRaw);
+  const minPlayers = formNumber(minPlayersRaw);
+
+  return (
+    <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
+      <p className="text-sm text-muted-foreground">
+        Each closed week pays up to{" "}
+        <span className="font-semibold text-foreground">
+          {amount != null && amount > 0 ? `$${amount.toFixed(2)}` : "—"}
+        </span>
+        {" "}split among winners when at least{" "}
+        <span className="font-semibold text-foreground">
+          {minPlayers != null && minPlayers > 0 ? minPlayers : "—"}
+        </span>
+        {" "}players have joined.
+      </p>
+    </div>
+  );
 }
 
 function getMlbWeekOption(offsetWeeks: number) {
@@ -1815,7 +1841,19 @@ export default function CreatePool() {
                                                 min="0.01"
                                                 step="0.01"
                                                 placeholder="25.00"
-                                                {...field}
+                                                name={field.name}
+                                                ref={field.ref}
+                                                onBlur={field.onBlur}
+                                                autoComplete="off"
+                                                onChange={(e) => {
+                                                  const raw = e.target.value;
+                                                  if (raw === "") {
+                                                    field.onChange(undefined);
+                                                    return;
+                                                  }
+                                                  const n = e.target.valueAsNumber;
+                                                  field.onChange(Number.isFinite(n) ? n : raw);
+                                                }}
                                                 value={field.value ?? ""}
                                                 className="bg-background/50 border-primary/20 pl-7 placeholder:text-muted-foreground/50"
                                                 data-testid="input-weekly-bonus-amount"
@@ -1843,7 +1881,19 @@ export default function CreatePool() {
                                               min="1"
                                               step="1"
                                               placeholder="5"
-                                              {...field}
+                                              name={field.name}
+                                              ref={field.ref}
+                                              onBlur={field.onBlur}
+                                              autoComplete="off"
+                                              onChange={(e) => {
+                                                const raw = e.target.value;
+                                                if (raw === "") {
+                                                  field.onChange(undefined);
+                                                  return;
+                                                }
+                                                const n = e.target.valueAsNumber;
+                                                field.onChange(Number.isFinite(n) ? Math.trunc(n) : raw);
+                                              }}
                                               value={field.value ?? ""}
                                               className="bg-background/50 border-primary/20 placeholder:text-muted-foreground/50"
                                               data-testid="input-weekly-bonus-min-players"
@@ -1857,20 +1907,7 @@ export default function CreatePool() {
                                   </div>
 
                                   {isNhlRecurringWeeklyPickemBonus ? (
-                                    <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
-                                      <p className="text-sm text-muted-foreground">
-                                        Each closed week pays up to{" "}
-                                        <span className="font-semibold text-foreground">
-                                          {weeklyBonusAmount > 0 ? `$${weeklyBonusAmount.toFixed(2)}` : "—"}
-                                        </span>
-                                        {" "}split among winners when at least{" "}
-                                        <span className="font-semibold text-foreground">
-                                          {weeklyBonusMinPlayers > 0 ? weeklyBonusMinPlayers : "—"}
-                                        </span>
-                                        {" "}players have joined.
-                                      </p>
-                                    </div>
+                                    <NhlWeeklyBonusPreview control={form.control} />
                                   ) : (
                                     <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
                                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
