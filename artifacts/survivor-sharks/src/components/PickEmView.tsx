@@ -91,16 +91,18 @@ function authedFetch<T>(url: string): Promise<T> {
   });
 }
 
-function ChampionsLeaguePeriodBar({
+function PickEmPeriodBar({
   periods,
   activeKey,
   onChange,
   viewingPast,
+  periodLabel,
 }: {
   periods: PickEmPeriodListItem[];
   activeKey: string | undefined;
   onChange: (key: string) => void;
   viewingPast: boolean;
+  periodLabel: string;
 }) {
   if (periods.length === 0) return null;
   return (
@@ -109,7 +111,7 @@ function ChampionsLeaguePeriodBar({
         <p className="text-xs text-muted-foreground sm:mr-auto flex items-center gap-1.5 shrink-0">
           <CalendarRange className="h-3.5 w-3.5 opacity-60" aria-hidden />
           <span>
-            <span className="font-semibold text-foreground/75">Matchday</span>
+            <span className="font-semibold text-foreground/75">{periodLabel}</span>
             <span className="hidden sm:inline text-muted-foreground/80"> · all tabs</span>
           </span>
         </p>
@@ -138,7 +140,7 @@ function ChampionsLeaguePeriodBar({
       {viewingPast && (
         <p className="text-xs text-amber-400/75 flex items-center gap-1 sm:justify-end">
           <Lock className="h-3 w-3 shrink-0" aria-hidden />
-          Completed matchday — picks closed.
+          Past {periodLabel.toLowerCase()} — picks closed.
         </p>
       )}
     </div>
@@ -2430,17 +2432,19 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
   const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
-  const isClWeekly = sport === "championsleague" && isMlsWeekly;
-  const [clPeriodStart, setClPeriodStart] = useState<string | null>(null);
+  const isWeeklySoccerPeriodHistory = isMlsWeekly;
+  const weeklyPeriodLabel =
+    sport === "championsleague" ? "Matchday" : sport === "superleague" ? "Weekend" : "Week";
+  const [selectedPeriodStart, setSelectedPeriodStart] = useState<string | null>(null);
 
-  const { data: clPeriods } = useQuery({
+  const { data: pickEmPeriods } = useQuery({
     queryKey: ["pickem-periods", poolId],
     queryFn: () => authedFetch<PickEmPeriodListResponse>(`/api/pools/${poolId}/pickem/periods`),
-    enabled: isClWeekly,
+    enabled: isWeeklySoccerPeriodHistory,
     staleTime: 5 * 60 * 1000,
   });
 
-  const activeClPeriodStart = clPeriodStart ?? clPeriods?.defaultKey ?? undefined;
+  const activePeriodStart = selectedPeriodStart ?? pickEmPeriods?.defaultKey ?? undefined;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -2529,48 +2533,40 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     },
   });
 
-  const clLeaderboardParams = activeClPeriodStart ? { periodStart: activeClPeriodStart } : undefined;
+  const periodLeaderboardParams = activePeriodStart ? { periodStart: activePeriodStart } : undefined;
   const { data: leaderboardDefault, isLoading: lbLoadingDefault } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
-      enabled: !isClWeekly,
+      enabled: !isWeeklySoccerPeriodHistory,
       refetchInterval: () => pickRefetchInterval(slate),
     },
   });
-  const { data: leaderboardCl, isLoading: lbLoadingCl } = useQuery({
-    queryKey: getGetPickEmLeaderboardQueryKey(poolId, clLeaderboardParams),
+  const { data: leaderboardPeriod, isLoading: lbLoadingPeriod } = useQuery({
+    queryKey: getGetPickEmLeaderboardQueryKey(poolId, periodLeaderboardParams),
     queryFn: () => authedFetch<PickEmLeaderboard>(
-      `/api/pools/${poolId}/pickem/leaderboard${activeClPeriodStart ? `?periodStart=${encodeURIComponent(activeClPeriodStart)}` : ""}`,
+      `/api/pools/${poolId}/pickem/leaderboard${activePeriodStart ? `?periodStart=${encodeURIComponent(activePeriodStart)}` : ""}`,
     ),
-    enabled: isClWeekly && clPeriods !== undefined,
+    enabled: isWeeklySoccerPeriodHistory && pickEmPeriods !== undefined,
     refetchInterval: () => pickRefetchInterval(slate),
   });
-  const leaderboard = isClWeekly ? leaderboardCl : leaderboardDefault;
-  const lbLoading = isClWeekly ? lbLoadingCl : lbLoadingDefault;
+  const leaderboard = isWeeklySoccerPeriodHistory ? leaderboardPeriod : leaderboardDefault;
+  const lbLoading = isWeeklySoccerPeriodHistory ? lbLoadingPeriod : lbLoadingDefault;
 
   const submitPicks = useSubmitPickEmPicks();
 
   // MLS weekly combined view — fetch the full Mon–Sun slate in one request.
-  const { data: mlsWeekDataDefault, isLoading: mlsWeekLoadingDefault } = useGetPickEmWeekGames(poolId, {
-    query: {
-      queryKey: getGetPickEmWeekGamesQueryKey(poolId),
-      enabled: isMlsWeekly && !isClWeekly,
-      refetchInterval: isMlsWeekly ? 60_000 : false,
-      staleTime: 30_000,
-    },
-  });
-  const { data: mlsWeekDataCl, isLoading: mlsWeekLoadingCl } = useQuery({
-    queryKey: [...getGetPickEmWeekGamesQueryKey(poolId), { periodStart: activeClPeriodStart }],
+  const { data: mlsWeekDataPeriod, isLoading: mlsWeekLoadingPeriod } = useQuery({
+    queryKey: [...getGetPickEmWeekGamesQueryKey(poolId), { periodStart: activePeriodStart }],
     queryFn: () => authedFetch<MlsWeekGames>(
-      `/api/pools/${poolId}/pickem/week-games${activeClPeriodStart ? `?periodStart=${encodeURIComponent(activeClPeriodStart)}` : ""}`,
+      `/api/pools/${poolId}/pickem/week-games${activePeriodStart ? `?periodStart=${encodeURIComponent(activePeriodStart)}` : ""}`,
     ),
-    enabled: isClWeekly && clPeriods !== undefined,
+    enabled: isWeeklySoccerPeriodHistory && pickEmPeriods !== undefined,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  const mlsWeekData = isClWeekly ? mlsWeekDataCl : mlsWeekDataDefault;
-  const mlsWeekLoading = isClWeekly ? mlsWeekLoadingCl : mlsWeekLoadingDefault;
-  const clViewingPast = isClWeekly && Boolean(mlsWeekData?.viewingPastPeriod);
+  const mlsWeekData = isWeeklySoccerPeriodHistory ? mlsWeekDataPeriod : undefined;
+  const mlsWeekLoading = isWeeklySoccerPeriodHistory ? mlsWeekLoadingPeriod : false;
+  const viewingPastPeriod = isWeeklySoccerPeriodHistory && Boolean(mlsWeekData?.viewingPastPeriod);
 
   // For NHL weekly: fetch the full weekend schedule (both Sat + Sun) so we can
   // show all games on one combined page and derive day labels.
@@ -2991,7 +2987,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const slateLocked = isNhlWeekly
     ? (scheduleData?.deadlinePassed ?? false)
     : isMlsWeekly
-    ? clViewingPast || (openGames.length === 0 && mlsWeeklyAllGames.length > 0)
+    ? viewingPastPeriod || (openGames.length === 0 && mlsWeeklyAllGames.length > 0)
     : (slate?.deadlinePassed ?? false);
   const myPickCount = isNhlWeekly
     ? nhlWeeklyAllGames.filter((g) => !!g.userPickTeamId).length
@@ -3309,12 +3305,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </div>
       </div>
 
-      {isClWeekly && (
-        <ChampionsLeaguePeriodBar
-          periods={clPeriods?.periods ?? []}
-          activeKey={activeClPeriodStart}
-          onChange={setClPeriodStart}
-          viewingPast={clViewingPast}
+      {isWeeklySoccerPeriodHistory && (
+        <PickEmPeriodBar
+          periods={pickEmPeriods?.periods ?? []}
+          activeKey={activePeriodStart}
+          onChange={setSelectedPeriodStart}
+          viewingPast={viewingPastPeriod}
+          periodLabel={weeklyPeriodLabel}
         />
       )}
 
@@ -3707,7 +3704,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       <WcGameCard
                         game={game}
                         pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                        onPick={(opt) => { if (!clViewingPast) togglePick(game.id, opt); }}
+                        onPick={(opt) => { if (!viewingPastPeriod) togglePick(game.id, opt); }}
                         showHomeAwayLabels={showSoccerHomeAwayLabels}
                       />
                     </Fragment>

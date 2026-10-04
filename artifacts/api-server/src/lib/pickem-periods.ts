@@ -1,3 +1,6 @@
+import { db } from "@workspace/db";
+import { pickemPicksTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import {
   enrichPhaseLabel,
   fetchChampionsLeagueGamesForPeriodDates,
@@ -5,7 +8,9 @@ import {
   resolveChampionsLeaguePeriodContext,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
-import { fetchCurrentChampionsLeagueSlate } from "./espn";
+import { getMlsConfiguredPeriod } from "./mls-weekly-period";
+import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
+import { fetchCurrentChampionsLeagueSlate, getSuperLeagueWeekBoundsEt, getWeekBoundsEt } from "./espn";
 
 export type PickEmPeriodStatus = "current" | "completed";
 
@@ -117,4 +122,109 @@ export async function loadChampionsLeaguePeriodSlate(
 
   const games = await fetchChampionsLeagueGamesForPeriodDates(period.dates);
   return { period: await enrichPhaseLabel(period), games, viewingPastPeriod };
+}
+
+type CalendarSoccerSport = "mls" | "superleague";
+
+type CalendarWeeklyPool = {
+  sport: string;
+  pickFrequency: string;
+  initialPeriodStart: string | null;
+};
+
+function calendarWeekBounds(sport: CalendarSoccerSport, referenceDate: string) {
+  return sport === "superleague"
+    ? getSuperLeagueWeekBoundsEt(referenceDate)
+    : getWeekBoundsEt(referenceDate);
+}
+
+function formatCalendarRange(weekStart: string, weekEnd: string): string {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+  });
+  return `${fmt.format(new Date(`${weekStart}T12:00:00Z`))} – ${fmt.format(new Date(`${weekEnd}T12:00:00Z`))}`;
+}
+
+async function listWeekStartsFromPicks(poolId: number, sport: CalendarSoccerSport): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ gameDate: pickemPicksTable.gameDate })
+    .from(pickemPicksTable)
+    .where(eq(pickemPicksTable.poolId, poolId));
+  const weekStarts = new Set<string>();
+  for (const row of rows) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row.gameDate)) continue;
+    weekStarts.add(calendarWeekBounds(sport, row.gameDate).weekStart);
+  }
+  return [...weekStarts].sort();
+}
+
+export async function listCalendarSoccerPickEmPeriods(
+  poolId: number,
+  sport: CalendarSoccerSport,
+  pool: CalendarWeeklyPool,
+  now = new Date(),
+): Promise<{ periods: PickEmPeriodListItem[]; defaultKey: string | null }> {
+  const current = sport === "superleague"
+    ? getSuperLeagueConfiguredPeriod(pool, now)
+    : getMlsConfiguredPeriod(pool, now);
+  const fromPicks = await listWeekStartsFromPicks(poolId, sport);
+  const weekStarts = new Set(fromPicks);
+  weekStarts.add(current.weekStart);
+
+  const prefix = sport === "superleague" ? "Weekend" : "Week";
+  const periods: PickEmPeriodListItem[] = [...weekStarts].sort().map((weekStart) => {
+    const { weekEnd } = calendarWeekBounds(sport, weekStart);
+    const isCurrent = weekStart === current.weekStart;
+    const dates: string[] = [];
+    return {
+      key: weekStart,
+      label: `${prefix} · ${formatCalendarRange(weekStart, weekEnd)}`,
+      weekStart,
+      weekEnd,
+      dates,
+      status: isCurrent ? "current" : "completed",
+      canPick: isCurrent,
+    };
+  });
+
+  return { periods, defaultKey: current.weekStart };
+}
+
+export function resolveCalendarSoccerPeriodBounds(
+  sport: CalendarSoccerSport,
+  pool: CalendarWeeklyPool,
+  periodStart: string | undefined,
+  now = new Date(),
+): { weekStart: string; weekEnd: string; viewingPastPeriod: boolean } | null {
+  const current = sport === "superleague"
+    ? getSuperLeagueConfiguredPeriod(pool, now)
+    : getMlsConfiguredPeriod(pool, now);
+
+  if (!periodStart) {
+    return { ...current, viewingPastPeriod: false };
+  }
+
+  const bounds = calendarWeekBounds(sport, periodStart);
+  if (bounds.weekStart !== periodStart) return null;
+  return {
+    weekStart: bounds.weekStart,
+    weekEnd: bounds.weekEnd,
+    viewingPastPeriod: bounds.weekStart < current.weekStart,
+  };
+}
+
+export async function listPickEmPeriodsForPool(
+  poolId: number,
+  pool: CalendarWeeklyPool & { sport: string },
+  now = new Date(),
+): Promise<{ periods: PickEmPeriodListItem[]; defaultKey: string | null }> {
+  if (pool.sport === "championsleague" && pool.pickFrequency === "weekly") {
+    return listChampionsLeaguePickEmPeriods(poolId, now);
+  }
+  if ((pool.sport === "mls" || pool.sport === "superleague") && pool.pickFrequency === "weekly") {
+    return listCalendarSoccerPickEmPeriods(poolId, pool.sport as CalendarSoccerSport, pool, now);
+  }
+  throw new Error("unsupported_pool");
 }

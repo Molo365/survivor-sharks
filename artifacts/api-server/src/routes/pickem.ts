@@ -46,8 +46,9 @@ import {
   resolveChampionsLeaguePeriodContext,
 } from "../lib/champions-league-pool-period";
 import {
-  listChampionsLeaguePickEmPeriods,
+  listPickEmPeriodsForPool,
   loadChampionsLeaguePeriodSlate,
+  resolveCalendarSoccerPeriodBounds,
 } from "../lib/pickem-periods";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
@@ -478,8 +479,11 @@ router.get("/periods", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if (pool.sport !== "championsleague" || pool.pickFrequency !== "weekly") {
-    res.status(400).json({ error: "Period history is only available for Champions League weekly pick-em pools" });
+  const sport = pool.sport as string;
+  const supportsPeriods = pool.pickFrequency === "weekly"
+    && (sport === "championsleague" || sport === "mls" || sport === "superleague");
+  if (!supportsPeriods) {
+    res.status(400).json({ error: "Period history is only available for MLS, Super League, or Champions League weekly pick-em pools" });
     return;
   }
 
@@ -490,8 +494,12 @@ router.get("/periods", requireAuth, async (req, res) => {
     .limit(1);
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
-  const payload = await listChampionsLeaguePickEmPeriods(poolId);
-  res.json(payload);
+  try {
+    const payload = await listPickEmPeriodsForPool(poolId, pool);
+    res.json(payload);
+  } catch {
+    res.status(400).json({ error: "This pool does not support period history" });
+  }
 });
 
 // GET /api/pools/:poolId/pickem/week-games
@@ -517,9 +525,13 @@ router.get("/week-games", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const periodStartParam = periodSport === "championsleague" ? parsePickEmPeriodStartQuery(req) : undefined;
+  const supportsPeriodStart = periodSport === "championsleague"
+    || periodSport === "mls"
+    || periodSport === "superleague";
+  const periodStartParam = supportsPeriodStart ? parsePickEmPeriodStartQuery(req) : undefined;
   let championsLeagueSlate: ReturnType<typeof championsLeagueSlateFromLoaded> | null = null;
   let championsLeagueViewingPast = false;
+  let calendarSoccerViewingPast = false;
   if (periodSport === "championsleague") {
     const loaded = await loadChampionsLeaguePeriodSlate(poolId, periodStartParam);
     if (periodStartParam && !loaded) {
@@ -531,11 +543,33 @@ router.get("/week-games", requireAuth, async (req, res) => {
       championsLeagueViewingPast = loaded.viewingPastPeriod;
     }
   }
-  const { weekStart, weekEnd } = periodSport === "superleague"
-    ? getSuperLeagueConfiguredPeriod(pool)
-    : pool.sport === "mls"
-      ? getMlsConfiguredPeriod(pool)
-      : getWeekBoundsEt(todayEt);
+  let weekStart: string;
+  let weekEnd: string;
+  if (periodSport === "superleague") {
+    const resolved = resolveCalendarSoccerPeriodBounds("superleague", pool, periodStartParam);
+    if (periodStartParam && !resolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    const bounds = resolved ?? getSuperLeagueConfiguredPeriod(pool);
+    weekStart = bounds.weekStart;
+    weekEnd = bounds.weekEnd;
+    calendarSoccerViewingPast = resolved?.viewingPastPeriod ?? false;
+  } else if (pool.sport === "mls") {
+    const resolved = resolveCalendarSoccerPeriodBounds("mls", pool, periodStartParam);
+    if (periodStartParam && !resolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    const bounds = resolved ?? getMlsConfiguredPeriod(pool);
+    weekStart = bounds.weekStart;
+    weekEnd = bounds.weekEnd;
+    calendarSoccerViewingPast = resolved?.viewingPastPeriod ?? false;
+  } else {
+    const clBounds = getWeekBoundsEt(todayEt);
+    weekStart = clBounds.weekStart;
+    weekEnd = clBounds.weekEnd;
+  }
   if (isMlsWeeklyPreStart(pool)) {
     res.json({ poolNotStarted: true, startsAt: weekStart, weekStart, weekEnd, days: [] });
     return;
@@ -638,7 +672,9 @@ router.get("/week-games", requireAuth, async (req, res) => {
       : null,
     days,
     poolClosed,
-    ...(periodSport === "championsleague" ? { viewingPastPeriod: championsLeagueViewingPast } : {}),
+    ...((periodSport === "championsleague" || periodSport === "mls" || periodSport === "superleague")
+      ? { viewingPastPeriod: periodSport === "championsleague" ? championsLeagueViewingPast : calendarSoccerViewingPast }
+      : {}),
   });
 });
 
@@ -1954,11 +1990,14 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isWc = sport === "worldcup";
   const isIntl = sport === "intl";
   const isChampionsLeague = sport === "championsleague";
+  const isCalendarSoccerWeekly = (sport === "mls" || sport === "superleague") && pool.pickFrequency === "weekly";
   const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl && !isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
-  const periodStartParam = isChampionsLeague ? parsePickEmPeriodStartQuery(req) : undefined;
+  const periodStartParam = (isChampionsLeague || isCalendarSoccerWeekly)
+    ? parsePickEmPeriodStartQuery(req)
+    : undefined;
   let championsLeagueDisplayDates: string[] = [];
   let championsLeagueDisplayGames: EspnGame[] = [];
   if (isChampionsLeague) {
@@ -1974,6 +2013,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }
   const championsLeagueDates = championsLeagueDisplayDates;
 
+  let calendarSoccerWeekBounds: { weekStart: string; weekEnd: string } | null = null;
+  if (isCalendarSoccerWeekly) {
+    const soccerSport = sport as "mls" | "superleague";
+    const resolved = resolveCalendarSoccerPeriodBounds(soccerSport, pool, periodStartParam);
+    if (periodStartParam && !resolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    calendarSoccerWeekBounds = resolved
+      ?? (soccerSport === "superleague" ? getSuperLeagueConfiguredPeriod(pool) : getMlsConfiguredPeriod(pool));
+  }
+
   // For WC: resolve which phase to show — default to group_stage
   const phaseParam = req.query.phase as string | undefined;
   const wcPhase: WcPhase = (isWc && phaseParam && WC_PHASES[phaseParam as WcPhase])
@@ -1985,8 +2036,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // week bounds here so the picksWhereClause actually matches those rows.
   // For ended non-sandbox weekly pools, derive bounds from the most recent
   // pick's gameDate so we query the week the pool actually played, not today.
-  let weekBounds: { weekStart: string; weekEnd: string } | null = null;
-  if (isWeekly) {
+  let weekBounds: { weekStart: string; weekEnd: string } | null = calendarSoccerWeekBounds;
+  if (isWeekly && !weekBounds) {
     if (sport === "nhl" && pool.sandboxMode) {
       const b = getNhlWeekBounds(NHL_SANDBOX_ANCHOR, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
