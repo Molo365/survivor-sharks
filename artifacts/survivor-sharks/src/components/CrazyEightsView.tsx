@@ -174,6 +174,23 @@ function formatTimeEt(iso: string | null | undefined): string {
   }
 }
 
+function formatDateTimeEt(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  try {
+    const date = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }).format(d);
+    return `${date} · ${formatTimeEt(iso)}`;
+  } catch {
+    return "—";
+  }
+}
+
 function authedFetch<T>(url: string): Promise<T> {
   const token = localStorage.getItem("auth_token");
   return fetch(url, {
@@ -302,7 +319,7 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
                 <div className="flex items-center gap-0.5 mt-0.5">
                   <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
                   <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium whitespace-nowrap">
-                    {formatTimeEt(pick.startTime)}
+                    {sport === "nhl" ? formatDateTimeEt(pick.startTime) : formatTimeEt(pick.startTime)}
                   </span>
                 </div>
               </>
@@ -688,7 +705,7 @@ function GameCard({
             <span className="text-[10px] font-bold text-red-400">vs</span>
           ) : (
             <span className="text-[11px] md:text-xs text-muted-foreground font-semibold whitespace-nowrap text-center leading-tight">
-              {formatTimeEt(game.startTime)}
+              {isNhl ? formatDateTimeEt(game.startTime) : formatTimeEt(game.startTime)}
             </span>
           )}
           {isSelected ? (
