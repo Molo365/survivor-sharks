@@ -433,9 +433,16 @@ export default function CreatePool() {
   const watchedStartWeek = form.watch("startWeek");
   const watchedSeason = form.watch("season");
   const watchedPreseason = form.watch("isPreseason");
-  const isWeeklyBonusEligible =
+  const watchedIsRecurring = form.watch("isRecurring");
+  const isNhlRecurringWeeklyPickemBonus =
+    selectedSport === PoolInputSport.nhl &&
+    selectedType === "pickem" &&
+    watchedFreq === "weekly" &&
+    watchedIsRecurring === true;
+  const isNflSeasonWeeklyBonus =
     selectedSport === PoolInputSport.nfl &&
     (selectedType === "pickem_season" || selectedType === "nfl_confidence");
+  const isWeeklyBonusEligible = isNflSeasonWeeklyBonus || isNhlRecurringWeeklyPickemBonus;
   const weeklyBonusAmount = Number(watchedWeeklyBonusAmount) || 0;
   const weeklyBonusMinPlayers = Number(watchedWeeklyBonusMinPlayers) || 0;
   const weeklyBonusWeeks = 18;
@@ -1773,7 +1780,9 @@ export default function CreatePool() {
                                     Add a Weekly Bonus Prize?
                                   </div>
                                   <p className="text-xs leading-relaxed text-muted-foreground">
-                                    Adds a smaller weekly prize on top of your season-end prize, so players stay engaged even after a tough week.
+                                    {isNhlRecurringWeeklyPickemBonus
+                                      ? "Optional fixed weekly payout when enough players are in the pool. Below the threshold, there is no weekly payout that week."
+                                      : "Adds a smaller weekly prize on top of your season-end prize, so players stay engaged even after a tough week."}
                                   </p>
                                 </div>
                                 <Switch
@@ -1837,28 +1846,41 @@ export default function CreatePool() {
                                     />
                                   </div>
 
-                                  <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
-                                    <div className="space-y-1.5 text-sm">
-                                      <div className="flex items-center justify-between gap-4">
-                                        <span className="text-muted-foreground">Reserved for {weeklyBonusWeeks} regular-season weeks</span>
-                                        <span className="font-semibold text-foreground">${weeklyBonusReserved.toFixed(2)}</span>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-4">
-                                        <span className="text-muted-foreground">Season-end pot at {weeklyBonusMinPlayers || "chosen"} players</span>
-                                        <span className="font-semibold text-foreground">${weeklyBonusThresholdPot.toFixed(2)}</span>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
-                                        <span className="text-muted-foreground">Left for season-end prizes</span>
-                                        <span className={cn("font-semibold", weeklyBonusSeasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
-                                          ${weeklyBonusSeasonEndRemaining.toFixed(2)}
-                                        </span>
-                                      </div>
+                                  {isNhlRecurringWeeklyPickemBonus ? (
+                                    <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Each closed week pays up to{" "}
+                                        <span className="font-semibold text-foreground">${weeklyBonusAmount.toFixed(2)}</span>
+                                        {" "}split among winners when at least{" "}
+                                        <span className="font-semibold text-foreground">{weeklyBonusMinPlayers || "—"}</span>
+                                        {" "}players have joined.
+                                      </p>
                                     </div>
-                                    <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                                      Informational guidance only — you can continue even if the reserved amount exceeds the threshold pot.
-                                    </p>
-                                  </div>
+                                  ) : (
+                                    <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
+                                      <div className="space-y-1.5 text-sm">
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="text-muted-foreground">Reserved for {weeklyBonusWeeks} regular-season weeks</span>
+                                          <span className="font-semibold text-foreground">${weeklyBonusReserved.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="text-muted-foreground">Season-end pot at {weeklyBonusMinPlayers || "chosen"} players</span>
+                                          <span className="font-semibold text-foreground">${weeklyBonusThresholdPot.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
+                                          <span className="text-muted-foreground">Left for season-end prizes</span>
+                                          <span className={cn("font-semibold", weeklyBonusSeasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
+                                            ${weeklyBonusSeasonEndRemaining.toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                                        Informational guidance only — you can continue even if the reserved amount exceeds the threshold pot.
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
