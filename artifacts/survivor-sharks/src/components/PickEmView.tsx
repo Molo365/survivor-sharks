@@ -57,6 +57,7 @@ import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 import { BaseballLiveState } from "@/components/BaseballLiveState";
+import { PickPeriodBar } from "@/components/PickPeriodBar";
 
 type PrevWeekWinnerGroup = {
   entries: PickEmLeaderboardEntry[];
@@ -91,7 +92,7 @@ function authedFetch<T>(url: string): Promise<T> {
   });
 }
 
-import { PickPeriodBar } from "@/components/PickPeriodBar";(entries: PickEmLeaderboardEntry[]): PrevWeekWinnerGroup[] {
+function groupPrevWeekWinners(entries: PickEmLeaderboardEntry[]): PrevWeekWinnerGroup[] {
   const paidEntries = entries.filter((entry) => entry.prizeWon != null);
   const selectedEntries = paidEntries.length > 0
     ? paidEntries
