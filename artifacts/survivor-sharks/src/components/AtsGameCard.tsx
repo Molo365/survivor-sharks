@@ -29,6 +29,8 @@ export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
   const favoriteTeamId: string | null = (game as any).favoriteTeamId ?? null;
 
   const isLocked = game.deadlinePassed;
+  const hasLine = spread != null && favoriteTeamId != null;
+  const pickLocked = isLocked || !hasLine;
   const isFinal = game.status === "final";
   const isInProgress = game.status === "in_progress";
   const liveDetail = game.liveDetail ?? null;
@@ -84,15 +86,15 @@ export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
     return (
       <button
         type="button"
-        onClick={() => !isLocked && onPick(teamId)}
-        disabled={isLocked}
+        onClick={() => !pickLocked && onPick(teamId)}
+        disabled={pickLocked}
         aria-pressed={isPicked}
         className={cn(
           "relative flex-1 flex items-center gap-2 py-2.5 px-2.5 sm:py-3 sm:px-3",
           "transition-all select-none min-h-[72px] sm:min-h-[88px]",
           // Away: logo on far left → flex-row. Home: logo on far right → flex-row-reverse
           side === "away" ? "flex-row" : "flex-row-reverse",
-          isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+          pickLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
           // Pick state background
           pickResult === "correct"
             ? "bg-green-500/10"
@@ -108,7 +110,7 @@ export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
               ? "ring-2 ring-inset ring-red-500/50"
               : isPicked
                 ? "ring-2 ring-inset ring-primary/60"
-                : !isLocked
+                : !pickLocked
                   ? "hover:ring-1 hover:ring-inset hover:ring-primary/25"
                   : "",
         )}
@@ -169,8 +171,8 @@ export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
               )}>
                 {line}
               </span>
-            ) : spread == null && (
-              <span className="font-mono text-xs text-muted-foreground/35 ml-1">no line</span>
+            ) : !hasLine && (
+              <span className="font-mono text-xs text-muted-foreground/50 ml-1">no line</span>
             )}
           </p>
 
@@ -242,6 +244,11 @@ export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
             </>
           ) : isLocked ? (
             <Lock className="w-3.5 h-3.5 text-muted-foreground/30" />
+          ) : !hasLine ? (
+            <>
+              <span className="text-[8px] font-bold uppercase tracking-widest text-yellow-400/80 leading-none">Line</span>
+              <span className="text-[8px] text-yellow-400/60 leading-none">not out</span>
+            </>
           ) : (
             <>
               <span className="font-bebas text-sm text-muted-foreground/35 leading-none">@</span>

@@ -2777,6 +2777,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       .map(([gameId, teamId]) => {
         const game = slate.games.find((g) => g.id === gameId);
         if (!game || game.deadlinePassed) return null;
+        if ((game as { spread?: number | null }).spread == null) return null;
         const team = teamId === game.awayTeam.id ? game.awayTeam : game.homeTeam;
         const etDate = (game as any).etDate as string | undefined;
         return {
@@ -2859,7 +2860,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     : isMlsWeekly
     ? mlsWeeklyAllGames.filter((g) => g.deadlinePassed)
     : (slate?.games.filter((g) => g.deadlinePassed) ?? []);
-  const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
+  const pendingPickCount = (isNbaAts
+    ? openGames.filter((g) => (g as { spread?: number | null }).spread != null)
+    : openGames
+  ).filter((g) => !localPicks.has(g.id)).length;
 
   const slateLocked = isNhlWeekly
     ? (scheduleData?.deadlinePassed ?? false)
@@ -3179,7 +3183,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                       : pickFrequency === "weekly"
                       ? (isNbaAts
-                          ? "Pick every game on the Friday–Sunday NBA slate against the spread. The commissioner sets the spread line for each game — pick the favourite to cover or the underdog to beat the number. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                          ? "Pick every game on the Friday–Sunday NBA slate against the spread. Games show as soon as they are scheduled. You can pick a game once the line is out — NBA lines often arrive late. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
                           : isNhl
                           ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                           : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
@@ -3752,7 +3756,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8">
                       <span className="text-yellow-400 text-sm mt-0.5">⚡</span>
                       <p className="text-sm text-yellow-200/80">
-                        Spread lines haven&apos;t been set yet — check back before the first tip-off.
+                        Spread lines appear when ESPN posts them. You can see every matchup now; picks unlock per game once the number is in.
                       </p>
                     </div>
                   )}

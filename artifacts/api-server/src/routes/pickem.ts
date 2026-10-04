@@ -41,6 +41,7 @@ import {
   isThreeWayPickOption,
 } from "../lib/champions-league-pickem";
 import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
+import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
   buildTeamPickConfirmationItems,
@@ -240,17 +241,18 @@ router.get("/games", requireAuth, async (req, res) => {
     }
   }
 
-  // ATS: load commissioner-entered spread lines for the current week
-  const atsSpreadByGameId = new Map<string, { spread: number; favoriteTeamId: string }>();
-  if (isAts) {
-    const spreadRows = await db
-      .select()
-      .from(pickemGameSpreadsTable)
-      .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, pool.currentWeek)));
-    for (const row of spreadRows) {
-      atsSpreadByGameId.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
-    }
-  }
+  // ATS: stored commissioner lines, then ESPN fill for any game that still has no number.
+  const atsSpreadByGameId = isAts
+    ? await loadNbaAtsSpreads({
+        poolId,
+        week: pool.currentWeek,
+        games: allGames.map((g) => ({
+          id: g.id,
+          homeTeamId: g.homeTeam.id,
+          awayTeamId: g.awayTeam.id,
+        })),
+      })
+    : new Map<string, { spread: number; favoriteTeamId: string }>();
 
   const games = allGames.filter((g) => g.status !== "suspended");
 
@@ -868,6 +870,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     for (const dayGames of results) {
       for (const g of dayGames) {
         if (!gameMap.has(g.id)) gameMap.set(g.id, { date: g.date });
+        confirmationGameMap.set(g.id, g);
       }
     }
   } else {
@@ -908,6 +911,26 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (lockedGameIds.length > 0) {
     res.status(400).json({ error: `Games already locked: ${lockedGameIds.join(", ")}` });
     return;
+  }
+
+  if (isAts) {
+    const atsLines = await loadNbaAtsSpreads({
+      poolId,
+      week: pool.currentWeek,
+      games: picks.map((p) => {
+        const g = confirmationGameMap.get(p.gameId);
+        return {
+          id: p.gameId,
+          homeTeamId: g?.homeTeam.id ?? "",
+          awayTeamId: g?.awayTeam.id ?? "",
+        };
+      }),
+    });
+    const noLineIds = picks.filter((p) => !atsLines.has(p.gameId)).map((p) => p.gameId);
+    if (noLineIds.length > 0) {
+      res.status(409).json({ error: `Line not out yet for: ${noLineIds.join(", ")}` });
+      return;
+    }
   }
   if (mismatchedGameDateIds.length > 0) {
     res.status(400).json({ error: `Game date does not match the scheduled ET date: ${mismatchedGameDateIds.join(", ")}` });
@@ -2915,12 +2938,27 @@ router.get("/ats-spreads", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Commissioner only" }); return;
   }
 
-  const rows = await db
-    .select()
-    .from(pickemGameSpreadsTable)
-    .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, pool.currentWeek)));
+  const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+  const { espnDates } = getNbaWeekendBounds(anchor, pool.currentWeek);
+  const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+  const games = results.flat().map((g) => ({
+    id: g.id,
+    homeTeamId: g.homeTeam.id,
+    awayTeamId: g.awayTeam.id,
+  }));
+  const byGame = await loadNbaAtsSpreads({
+    poolId,
+    week: pool.currentWeek,
+    games,
+  });
+  const spreads = [...byGame.entries()].map(([gameId, line]) => ({
+    gameId,
+    week: pool.currentWeek,
+    spread: line.spread,
+    favoriteTeamId: line.favoriteTeamId,
+  }));
 
-  res.json({ week: pool.currentWeek, spreads: rows });
+  res.json({ week: pool.currentWeek, spreads });
 });
 
 // POST /api/pools/:poolId/pickem/ats-spreads — admin saves spread lines
