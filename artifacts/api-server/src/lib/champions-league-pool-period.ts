@@ -1,7 +1,12 @@
 import { db } from "@workspace/db";
 import { pickemPicksTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { fetchCurrentChampionsLeagueSlate, fetchGamesForDate, formatDateEtDash } from "./espn";
+import {
+  fetchCurrentChampionsLeagueSlate,
+  fetchGamesForDate,
+  formatDateEtDash,
+  type EspnGame,
+} from "./espn";
 
 /** Matches UEFA matchday clustering in espn.ts (gap > 3 days starts a new period). */
 export const CHAMPIONS_LEAGUE_POOL_PERIOD_MAX_GAP_DAYS = 3;
@@ -87,6 +92,67 @@ async function enrichPhaseLabel(period: ChampionsLeaguePoolPeriod): Promise<Cham
   }
 }
 
+export async function fetchChampionsLeagueGamesForPeriodDates(dates: string[]): Promise<EspnGame[]> {
+  const results = await Promise.all(
+    dates.map((date) => fetchGamesForDate("championsleague", date.replace(/-/g, ""))),
+  );
+  const seen = new Set<string>();
+  const games: EspnGame[] = [];
+  for (const dayGames of results) {
+    for (const game of dayGames) {
+      if (seen.has(game.id)) continue;
+      seen.add(game.id);
+      games.push(game);
+    }
+  }
+  return games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+/**
+ * Pure selection for tests: which period indices are "current" (open slate) vs "previous" (results).
+ */
+export function pickChampionsLeaguePeriodIndices(
+  periods: ChampionsLeaguePoolPeriod[],
+  gradedWeekStarts: string[],
+  slateDates: string[],
+): { current: number | null; previous: number | null } {
+  if (periods.length === 0) return { current: null, previous: null };
+
+  const graded = new Set(gradedWeekStarts);
+  const gradedIndices = periods
+    .map((period, index) => ({ index, period }))
+    .filter(({ period }) => graded.has(period.weekStart))
+    .map(({ index }) => index);
+
+  let current: number | null = null;
+  if (slateDates.length > 0) {
+    const slateSet = new Set(slateDates);
+    const idx = periods.findIndex((period) => period.dates.some((d) => slateSet.has(d)));
+    if (idx >= 0) current = idx;
+  }
+
+  let previous: number | null = null;
+
+  if (current !== null) {
+    for (let i = gradedIndices.length - 1; i >= 0; i--) {
+      const gi = gradedIndices[i]!;
+      if (periods[gi]!.weekEnd < periods[current]!.weekStart) {
+        previous = gi;
+        break;
+      }
+    }
+    // Only matchday so far, already graded — show results instead of an empty "current" slate.
+    if (previous === null && graded.has(periods[current]!.weekStart)) {
+      previous = current;
+      current = null;
+    }
+  } else if (gradedIndices.length > 0) {
+    previous = gradedIndices[gradedIndices.length - 1]!;
+  }
+
+  return { current, previous };
+}
+
 export type ChampionsLeaguePeriodContext = {
   current: ChampionsLeaguePoolPeriod | null;
   previous: ChampionsLeaguePoolPeriod | null;
@@ -104,23 +170,22 @@ export async function resolveChampionsLeaguePeriodContext(
     return { current: null, previous: null };
   }
 
-  const slate = await fetchCurrentChampionsLeagueSlate(now);
-  const slateDates = new Set(slate?.dates ?? []);
-
-  let currentIdx = -1;
-  if (slateDates.size > 0) {
-    currentIdx = periods.findIndex((period) => period.dates.some((d) => slateDates.has(d)));
-  }
-
-  const current = currentIdx >= 0 ? await enrichPhaseLabel(periods[currentIdx]!) : null;
-
-  const searchStart = currentIdx >= 0 ? currentIdx - 1 : periods.length - 1;
-  for (let i = searchStart; i >= 0; i--) {
-    const candidate = periods[i]!;
-    if (await periodHasGradedPicks(poolId, candidate.dates)) {
-      return { current, previous: await enrichPhaseLabel(candidate) };
+  const gradedWeekStarts: string[] = [];
+  for (const period of periods) {
+    if (await periodHasGradedPicks(poolId, period.dates)) {
+      gradedWeekStarts.push(period.weekStart);
     }
   }
 
-  return { current, previous: null };
+  const slate = await fetchCurrentChampionsLeagueSlate(now);
+  const { current: currentIdx, previous: previousIdx } = pickChampionsLeaguePeriodIndices(
+    periods,
+    gradedWeekStarts,
+    slate?.dates ?? [],
+  );
+
+  const current = currentIdx !== null ? await enrichPhaseLabel(periods[currentIdx]!) : null;
+  const previous = previousIdx !== null ? await enrichPhaseLabel(periods[previousIdx]!) : null;
+
+  return { current, previous };
 }

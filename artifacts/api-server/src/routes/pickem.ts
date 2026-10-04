@@ -41,7 +41,10 @@ import {
   isThreeWayPickOption,
 } from "../lib/champions-league-pickem";
 import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
-import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
+import {
+  fetchChampionsLeagueGamesForPeriodDates,
+  resolveChampionsLeaguePeriodContext,
+} from "../lib/champions-league-pool-period";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -466,9 +469,23 @@ router.get("/week-games", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  const championsLeagueSlate = periodSport === "championsleague"
+  let championsLeagueSlate = periodSport === "championsleague"
     ? await fetchCurrentChampionsLeagueSlate()
     : null;
+  let championsLeagueViewingPast = false;
+  if (periodSport === "championsleague" && !championsLeagueSlate) {
+    const clContext = await resolveChampionsLeaguePeriodContext(poolId);
+    if (clContext.previous) {
+      const games = await fetchChampionsLeagueGamesForPeriodDates(clContext.previous.dates);
+      championsLeagueSlate = {
+        phaseSlug: games[0]?.phaseSlug ?? "league-phase",
+        phaseLabel: clContext.previous.phaseLabel ?? games[0]?.phaseLabel ?? "Champions League",
+        dates: clContext.previous.dates,
+        games,
+      };
+      championsLeagueViewingPast = true;
+    }
+  }
   const { weekStart, weekEnd } = periodSport === "superleague"
     ? getSuperLeagueConfiguredPeriod(pool)
     : pool.sport === "mls"
@@ -576,6 +593,7 @@ router.get("/week-games", requireAuth, async (req, res) => {
       : null,
     days,
     poolClosed,
+    ...(periodSport === "championsleague" ? { viewingPastPeriod: championsLeagueViewingPast } : {}),
   });
 });
 
@@ -1898,7 +1916,22 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const championsLeagueSlate = isChampionsLeague
     ? await fetchCurrentChampionsLeagueSlate()
     : null;
-  const championsLeagueDates = championsLeagueSlate?.dates ?? [];
+  const championsLeagueContext = isChampionsLeague
+    ? await resolveChampionsLeaguePeriodContext(poolId)
+    : null;
+  let championsLeagueDisplayDates = championsLeagueSlate?.dates ?? [];
+  let championsLeagueDisplayGames: EspnGame[] = championsLeagueSlate?.games ?? [];
+  if (isChampionsLeague && championsLeagueContext) {
+    if (championsLeagueDisplayDates.length > 0 && championsLeagueContext.current) {
+      championsLeagueDisplayDates = championsLeagueContext.current.dates;
+    } else if (championsLeagueContext.previous) {
+      championsLeagueDisplayDates = championsLeagueContext.previous.dates;
+      championsLeagueDisplayGames = await fetchChampionsLeagueGamesForPeriodDates(
+        championsLeagueContext.previous.dates,
+      );
+    }
+  }
+  const championsLeagueDates = championsLeagueDisplayDates;
 
   // For WC: resolve which phase to show — default to group_stage
   const phaseParam = req.query.phase as string | undefined;
@@ -2020,7 +2053,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
-    : isChampionsLeague ? Promise.resolve(championsLeagueSlate?.games ?? [] as EspnGame[])
+    : isChampionsLeague ? Promise.resolve(championsLeagueDisplayGames)
     : (isNhl && pool.sandboxMode && isWeekly) ? fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, pool.currentWeek, pool.isPreseason ? 1 : 2)
     : (isNhl && isWeekly && pool.poolType === "pickem" && pool.isRecurring && pool.isActive)
       ? fetchNhlGamesByWeek(
