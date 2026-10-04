@@ -1182,6 +1182,8 @@ export interface MlsWeekGames {
   weekStart: string;
   /** Sunday date YYYY-MM-DD */
   weekEnd: string;
+  /** Champions League — viewing a completed matchday (read-only) */
+  viewingPastPeriod?: boolean;
   days: MlsWeekDay[];
 }
 
@@ -2623,6 +2625,10 @@ export type GetPickEmLeaderboardParams = {
  * World Cup phase filter (only used for worldcup sport pools)
  */
 phase?: GetPickEmLeaderboardPhase;
+/**
+ * Champions League matchday week start (YYYY-MM-DD)
+ */
+periodStart?: string;
 };
 
 export type GetPickEmLeaderboardPhase = typeof GetPickEmLeaderboardPhase[keyof typeof GetPickEmLeaderboardPhase];

@@ -45,6 +45,10 @@ import {
   fetchChampionsLeagueGamesForPeriodDates,
   resolveChampionsLeaguePeriodContext,
 } from "../lib/champions-league-pool-period";
+import {
+  listChampionsLeaguePickEmPeriods,
+  loadChampionsLeaguePeriodSlate,
+} from "../lib/pickem-periods";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -446,6 +450,50 @@ async function fetchSlWeekDays(weekStart: string): Promise<{ date: string; games
     .filter((day) => day.games.length > 0);
 }
 
+function parsePickEmPeriodStartQuery(req: { query: Record<string, unknown> }): string | undefined {
+  const raw = req.query.periodStart;
+  if (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  return raw;
+}
+
+function championsLeagueSlateFromLoaded(
+  loaded: NonNullable<Awaited<ReturnType<typeof loadChampionsLeaguePeriodSlate>>>,
+) {
+  const seed = loaded.games[0];
+  const legGame = loaded.games.find((g) => g.legLabel != null || g.legNumber != null);
+  return {
+    phaseSlug: seed?.phaseSlug ?? "league-phase",
+    phaseLabel: loaded.period.phaseLabel ?? seed?.phaseLabel ?? "Champions League",
+    dates: loaded.period.dates,
+    games: loaded.games,
+    legNumber: legGame?.legNumber ?? null,
+    legLabel: legGame?.legLabel ?? null,
+  };
+}
+
+// GET /api/pools/:poolId/pickem/periods
+router.get("/periods", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.sport !== "championsleague" || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "Period history is only available for Champions League weekly pick-em pools" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const payload = await listChampionsLeaguePickEmPeriods(poolId);
+  res.json(payload);
+});
+
 // GET /api/pools/:poolId/pickem/week-games
 // Returns the full Mon–Sun MLS slate or Fri–Mon Super League slate, grouped by day.
 // Only days that have at least one game are included. Game shape matches GET /pickem/games.
@@ -469,21 +517,18 @@ router.get("/week-games", requireAuth, async (req, res) => {
   if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
 
   const todayEt = getTodayEtDate();
-  let championsLeagueSlate = periodSport === "championsleague"
-    ? await fetchCurrentChampionsLeagueSlate()
-    : null;
+  const periodStartParam = periodSport === "championsleague" ? parsePickEmPeriodStartQuery(req) : undefined;
+  let championsLeagueSlate: ReturnType<typeof championsLeagueSlateFromLoaded> | null = null;
   let championsLeagueViewingPast = false;
-  if (periodSport === "championsleague" && !championsLeagueSlate) {
-    const clContext = await resolveChampionsLeaguePeriodContext(poolId);
-    if (clContext.previous) {
-      const games = await fetchChampionsLeagueGamesForPeriodDates(clContext.previous.dates);
-      championsLeagueSlate = {
-        phaseSlug: games[0]?.phaseSlug ?? "league-phase",
-        phaseLabel: clContext.previous.phaseLabel ?? games[0]?.phaseLabel ?? "Champions League",
-        dates: clContext.previous.dates,
-        games,
-      };
-      championsLeagueViewingPast = true;
+  if (periodSport === "championsleague") {
+    const loaded = await loadChampionsLeaguePeriodSlate(poolId, periodStartParam);
+    if (periodStartParam && !loaded) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    if (loaded) {
+      championsLeagueSlate = championsLeagueSlateFromLoaded(loaded);
+      championsLeagueViewingPast = loaded.viewingPastPeriod;
     }
   }
   const { weekStart, weekEnd } = periodSport === "superleague"
@@ -1913,22 +1958,18 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isAts = (pool.poolType as string) === "nba_ats";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
-  const championsLeagueSlate = isChampionsLeague
-    ? await fetchCurrentChampionsLeagueSlate()
-    : null;
-  const championsLeagueContext = isChampionsLeague
-    ? await resolveChampionsLeaguePeriodContext(poolId)
-    : null;
-  let championsLeagueDisplayDates = championsLeagueSlate?.dates ?? [];
-  let championsLeagueDisplayGames: EspnGame[] = championsLeagueSlate?.games ?? [];
-  if (isChampionsLeague && championsLeagueContext) {
-    if (championsLeagueDisplayDates.length > 0 && championsLeagueContext.current) {
-      championsLeagueDisplayDates = championsLeagueContext.current.dates;
-    } else if (championsLeagueContext.previous) {
-      championsLeagueDisplayDates = championsLeagueContext.previous.dates;
-      championsLeagueDisplayGames = await fetchChampionsLeagueGamesForPeriodDates(
-        championsLeagueContext.previous.dates,
-      );
+  const periodStartParam = isChampionsLeague ? parsePickEmPeriodStartQuery(req) : undefined;
+  let championsLeagueDisplayDates: string[] = [];
+  let championsLeagueDisplayGames: EspnGame[] = [];
+  if (isChampionsLeague) {
+    const loaded = await loadChampionsLeaguePeriodSlate(poolId, periodStartParam);
+    if (periodStartParam && !loaded) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    if (loaded) {
+      championsLeagueDisplayDates = loaded.period.dates;
+      championsLeagueDisplayGames = loaded.games;
     }
   }
   const championsLeagueDates = championsLeagueDisplayDates;

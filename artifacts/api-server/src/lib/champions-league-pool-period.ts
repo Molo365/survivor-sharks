@@ -79,7 +79,7 @@ async function periodHasGradedPicks(poolId: number, dates: string[]): Promise<bo
   return Number(row?.graded ?? 0) > 0;
 }
 
-async function enrichPhaseLabel(period: ChampionsLeaguePoolPeriod): Promise<ChampionsLeaguePoolPeriod> {
+export async function enrichPhaseLabel(period: ChampionsLeaguePoolPeriod): Promise<ChampionsLeaguePoolPeriod> {
   try {
     const games = await fetchGamesForDate("championsleague", period.weekStart.replace(/-/g, ""));
     const dateSet = new Set(period.dates);

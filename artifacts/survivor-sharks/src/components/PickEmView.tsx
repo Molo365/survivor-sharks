@@ -23,7 +23,7 @@ import {
   getGetPoolQueryKey,
   getGetPoolScheduleQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboard, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -38,12 +38,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PickEmTiebreakerCard } from "@/components/PickEmTiebreakerCard";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -64,6 +65,31 @@ type PrevWeekWinnerGroup = {
   picked: number;
   prizeWon: number | null;
 };
+
+type PickEmPeriodListItem = {
+  key: string;
+  label: string;
+  weekStart: string;
+  weekEnd: string;
+  status: "current" | "completed";
+  canPick: boolean;
+};
+
+type PickEmPeriodListResponse = {
+  periods: PickEmPeriodListItem[];
+  defaultKey: string | null;
+};
+
+function authedFetch<T>(url: string): Promise<T> {
+  const token = localStorage.getItem("auth_token");
+  return fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  }).then((r) => {
+    if (!r.ok) throw new Error("Request failed");
+    return r.json() as Promise<T>;
+  });
+}
 
 function groupPrevWeekWinners(entries: PickEmLeaderboardEntry[]): PrevWeekWinnerGroup[] {
   const paidEntries = entries.filter((entry) => entry.prizeWon != null);
@@ -2350,6 +2376,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
   const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
+  const isClWeekly = sport === "championsleague" && isMlsWeekly;
+  const [clPeriodStart, setClPeriodStart] = useState<string | null>(null);
+
+  const { data: clPeriods } = useQuery({
+    queryKey: ["pickem-periods", poolId],
+    queryFn: () => authedFetch<PickEmPeriodListResponse>(`/api/pools/${poolId}/pickem/periods`),
+    enabled: isClWeekly,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const activeClPeriodStart = clPeriodStart ?? clPeriods?.defaultKey ?? undefined;
 
   const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -2438,24 +2475,48 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     },
   });
 
-  const { data: leaderboard, isLoading: lbLoading } = useGetPickEmLeaderboard(poolId, undefined, {
+  const clLeaderboardParams = activeClPeriodStart ? { periodStart: activeClPeriodStart } : undefined;
+  const { data: leaderboardDefault, isLoading: lbLoadingDefault } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
+      enabled: !isClWeekly,
       refetchInterval: () => pickRefetchInterval(slate),
     },
   });
+  const { data: leaderboardCl, isLoading: lbLoadingCl } = useQuery({
+    queryKey: getGetPickEmLeaderboardQueryKey(poolId, clLeaderboardParams),
+    queryFn: () => authedFetch<PickEmLeaderboard>(
+      `/api/pools/${poolId}/pickem/leaderboard${activeClPeriodStart ? `?periodStart=${encodeURIComponent(activeClPeriodStart)}` : ""}`,
+    ),
+    enabled: isClWeekly && clPeriods !== undefined,
+    refetchInterval: () => pickRefetchInterval(slate),
+  });
+  const leaderboard = isClWeekly ? leaderboardCl : leaderboardDefault;
+  const lbLoading = isClWeekly ? lbLoadingCl : lbLoadingDefault;
 
   const submitPicks = useSubmitPickEmPicks();
 
   // MLS weekly combined view — fetch the full Mon–Sun slate in one request.
-  const { data: mlsWeekData, isLoading: mlsWeekLoading } = useGetPickEmWeekGames(poolId, {
+  const { data: mlsWeekDataDefault, isLoading: mlsWeekLoadingDefault } = useGetPickEmWeekGames(poolId, {
     query: {
       queryKey: getGetPickEmWeekGamesQueryKey(poolId),
-      enabled: isMlsWeekly,
+      enabled: isMlsWeekly && !isClWeekly,
       refetchInterval: isMlsWeekly ? 60_000 : false,
       staleTime: 30_000,
     },
   });
+  const { data: mlsWeekDataCl, isLoading: mlsWeekLoadingCl } = useQuery({
+    queryKey: [...getGetPickEmWeekGamesQueryKey(poolId), { periodStart: activeClPeriodStart }],
+    queryFn: () => authedFetch<MlsWeekGames>(
+      `/api/pools/${poolId}/pickem/week-games${activeClPeriodStart ? `?periodStart=${encodeURIComponent(activeClPeriodStart)}` : ""}`,
+    ),
+    enabled: isClWeekly && clPeriods !== undefined,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const mlsWeekData = isClWeekly ? mlsWeekDataCl : mlsWeekDataDefault;
+  const mlsWeekLoading = isClWeekly ? mlsWeekLoadingCl : mlsWeekLoadingDefault;
+  const clViewingPast = isClWeekly && Boolean(mlsWeekData?.viewingPastPeriod);
 
   // For NHL weekly: fetch the full weekend schedule (both Sat + Sun) so we can
   // show all games on one combined page and derive day labels.
@@ -2876,7 +2937,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const slateLocked = isNhlWeekly
     ? (scheduleData?.deadlinePassed ?? false)
     : isMlsWeekly
-    ? openGames.length === 0 && mlsWeeklyAllGames.length > 0
+    ? clViewingPast || (openGames.length === 0 && mlsWeeklyAllGames.length > 0)
     : (slate?.deadlinePassed ?? false);
   const myPickCount = isNhlWeekly
     ? nhlWeeklyAllGames.filter((g) => !!g.userPickTeamId).length
@@ -2908,6 +2969,33 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const mlsWeeklyLoading = isMlsWeekly && mlsWeekLoading;
   const mlsWeeklyEmpty = isMlsWeekly && !mlsWeeklyLoading && mlsWeeklyAllGames.length === 0;
   const mlsWeeklyPoolClosed = isMlsWeekly && ((mlsWeekData as any)?.poolClosed ?? false);
+
+  // Weekly soccer (MLS / Super League / Champions League) uses week-games, not GET /games?date=today.
+  const weeklySnapshotSlate = useMemo((): PickEmSlate | null => {
+    if (!isMlsWeekly || mlsWeeklyAllGames.length === 0) return null;
+    const weekStart = mlsWeekData?.weekStart ?? mlsWeeklyDays[0]?.date ?? todayEt;
+    const weekEnd = mlsWeekData?.weekEnd ?? mlsWeeklyDays.at(-1)?.date ?? weekStart;
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+    });
+    const rangeLabel = `${fmt.format(new Date(`${weekStart}T12:00:00Z`))} – ${fmt.format(new Date(`${weekEnd}T12:00:00Z`))}`;
+    const phaseLabel = (mlsWeekData as { phase?: { label?: string; legLabel?: string | null } })?.phase?.label;
+    const legLabel = (mlsWeekData as { phase?: { legLabel?: string | null } })?.phase?.legLabel;
+    const clTitle = phaseLabel
+      ? `${phaseLabel}${legLabel ? ` · ${legLabel}` : ""} (${rangeLabel})`
+      : rangeLabel;
+    return {
+      date: weekStart,
+      label: sport === "championsleague" ? clTitle : rangeLabel,
+      deadlinePassed: slateLocked,
+      sport,
+      games: mlsWeeklyAllGames,
+    };
+  }, [isMlsWeekly, mlsWeekData, mlsWeeklyAllGames, mlsWeeklyDays, todayEt, sport, slateLocked]);
+
+  const snapshotSlate = isMlsWeekly ? weeklySnapshotSlate : slate;
 
   return (
     <>
@@ -3494,6 +3582,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 />
               )}
 
+              {clViewingPast && (
+                <p className="text-sm text-muted-foreground border border-border/40 rounded-lg px-3 py-2 bg-muted/20">
+                  Viewing a completed matchday — picks are closed.
+                </p>
+              )}
+
               {/* Static week header — no day-navigation for combined view */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
@@ -3516,6 +3610,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {isClWeekly && (clPeriods?.periods.length ?? 0) > 0 && (
+                    <Select
+                      value={activeClPeriodStart ?? ""}
+                      onValueChange={(value) => setClPeriodStart(value)}
+                    >
+                      <SelectTrigger className="w-[min(100%,280px)] h-9 text-xs">
+                        <SelectValue placeholder="Matchday" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clPeriods!.periods.map((period) => (
+                          <SelectItem key={period.key} value={period.key} className="text-xs">
+                            {period.label}
+                            {period.status === "current" ? " (current)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   {mlsWeeklyAllGames.some((g) => g.status === "in_progress") ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
@@ -3557,7 +3669,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       <WcGameCard
                         game={game}
                         pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
-                        onPick={(opt) => togglePick(game.id, opt)}
+                        onPick={(opt) => { if (!clViewingPast) togglePick(game.id, opt); }}
                         showHomeAwayLabels={showSoccerHomeAwayLabels}
                       />
                     </Fragment>
@@ -4308,10 +4420,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </TabsContent>
 
         {/* ── Snapshot ── */}
-        {!isWc && (myPickCount > 0 || slateLocked) && slate && leaderboard && (
+        {!isWc && (myPickCount > 0 || slateLocked) && snapshotSlate && leaderboard && (
           <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
             <SnapshotView
-              slate={slate}
+              slate={snapshotSlate}
               entries={leaderboard.entries}
               lbGames={leaderboard.games}
               currentUserId={user?.id ?? null}
