@@ -404,25 +404,64 @@ router.get("/game/:gameId", async (req, res) => {
     //   (a pre-filtered top-level array). Its period shape is {number: N}, not
     //   {displayValue}, so we map to "Q1"/"Q2"/etc. manually.
     // For all other sports: d.plays filtered by scoringPlay === true.
-    let scoringSummary: { period: string; description: string }[];
+    // NHL (and NBA) scoring plays often only include team.id — resolve abbr/logo
+    // from the header competitors. Clock is on p.clock.displayValue (free ESPN field).
+    type ScoringSummaryItem = {
+      period: string;
+      clock: string | null;
+      teamAbbreviation: string | null;
+      teamLogo: string | null;
+      description: string;
+    };
+
+    const teamById = new Map<string, { abbreviation: string; logo: string | null }>();
+    for (const comp of [awayComp, homeComp]) {
+      const id = comp?.team?.id != null ? String(comp.team.id) : "";
+      if (!id) continue;
+      teamById.set(id, {
+        abbreviation: comp.team?.abbreviation ?? "",
+        logo: comp.team?.logo ?? comp.team?.logos?.[0]?.href ?? null,
+      });
+    }
+
+    function mapScoringPlay(p: any, period: string): ScoringSummaryItem {
+      const teamId = p.team?.id != null ? String(p.team.id) : null;
+      const looked = teamId ? teamById.get(teamId) : undefined;
+      const clock = typeof p.clock?.displayValue === "string" && p.clock.displayValue
+        ? p.clock.displayValue
+        : null;
+      return {
+        period,
+        clock,
+        teamAbbreviation: p.team?.abbreviation ?? looked?.abbreviation ?? null,
+        teamLogo: p.team?.logo ?? looked?.logo ?? null,
+        description: p.text ?? "",
+      };
+    }
+
+    let scoringSummary: ScoringSummaryItem[];
     if (sport === "nfl") {
       scoringSummary = (d.scoringPlays ?? [])
-        .map((p: any) => ({
-          period: p.period?.number != null ? `Q${p.period.number}` : "",
-          description: p.text ?? "",
-        }))
-        .filter((s: { period: string; description: string }) => s.description);
+        .map((p: any) => mapScoringPlay(p, p.period?.number != null ? `Q${p.period.number}` : ""))
+        .filter((s: ScoringSummaryItem) => s.description);
     } else {
       const sourcePlays: any[] = isSoccer ? (d.keyEvents ?? []) : (d.plays ?? []);
       scoringSummary = sourcePlays
         .filter((p: any) => p.scoringPlay === true)
-        .map((p: any) => ({
-          period: isSoccer
-            ? (p.clock?.displayValue ?? p.period?.displayValue ?? "")
-            : (p.period?.displayValue ?? ""),
-          description: p.text ?? "",
-        }))
-        .filter((s: { period: string; description: string }) => s.description);
+        .map((p: any) => {
+          // Soccer historically used clock as the left-hand column because period
+          // is often empty. Keep that, and do not also send the same value as clock.
+          if (isSoccer) {
+            const item = mapScoringPlay(p, p.period?.displayValue ?? "");
+            if (!item.period && item.clock) {
+              item.period = item.clock;
+              item.clock = null;
+            }
+            return item;
+          }
+          return mapScoringPlay(p, p.period?.displayValue ?? "");
+        })
+        .filter((s: ScoringSummaryItem) => s.description);
     }
 
     // ── Starting pitchers (MLB only) ──────────────────────────────────────────

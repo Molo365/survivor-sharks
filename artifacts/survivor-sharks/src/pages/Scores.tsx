@@ -120,7 +120,13 @@ interface GameDetail {
         lastPlay: string | null;
       }
   ) | null;
-  scoringSummary: Array<{ period: string; description: string }>;
+  scoringSummary: Array<{
+    period: string;
+    clock?: string | null;
+    teamAbbreviation?: string | null;
+    teamLogo?: string | null;
+    description: string;
+  }>;
   homePitcher: { name: string; era: string; record: string } | null;
   awayPitcher: { name: string; era: string; record: string } | null;
   odds: string | null;
@@ -837,16 +843,50 @@ function GameDetailSheet({
                         Scoring Summary
                       </h4>
                       <div className="space-y-2.5">
-                        {detail.scoringSummary.map((s, i) => (
+                        {detail.scoringSummary.map((s, i) => {
+                          const clock =
+                            s.clock && s.clock !== s.period ? s.clock : null;
+                          const darkLogo = s.teamLogo
+                            ? getDarkLogoUrl(s.teamLogo)
+                            : null;
+                          return (
                           <div key={i} className="flex gap-3 text-sm">
                             <span className="text-muted-foreground font-mono text-xs min-w-[32px] pt-0.5 flex-shrink-0">
                               {s.period}
                             </span>
+                            {clock && (
+                              <span className="text-muted-foreground font-mono text-xs min-w-[36px] pt-0.5 flex-shrink-0">
+                                {clock}
+                              </span>
+                            )}
+                            {(s.teamLogo || s.teamAbbreviation) && (
+                              <span className="flex items-center gap-1 min-w-[44px] pt-0.5 flex-shrink-0">
+                                {s.teamLogo ? (
+                                  <img
+                                    src={darkLogo ?? s.teamLogo}
+                                    alt={s.teamAbbreviation ?? ""}
+                                    className="h-4 w-4 object-contain"
+                                    onError={(event) => {
+                                      if (darkLogo) {
+                                        event.currentTarget.src = s.teamLogo!;
+                                        event.currentTarget.onerror = null;
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                {s.teamAbbreviation && (
+                                  <span className="text-xs font-semibold text-foreground/90">
+                                    {s.teamAbbreviation}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                             <span className="text-foreground/80 leading-snug">
                               {s.description}
                             </span>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
