@@ -41,6 +41,7 @@ import {
   isThreeWayPickOption,
 } from "../lib/champions-league-pickem";
 import { applyChampionsLeagueClosure } from "../lib/champions-league-closure";
+import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -1457,8 +1458,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   if (pool.poolType !== "pickem" && !isNbaAts) { res.status(400).json({ error: "Not a pick-em pool" }); return; }
 
   const sport = pool.sport as string;
+  const isChampionsLeagueWeekly = sport === "championsleague" && pool.pickFrequency === "weekly";
   const isWeekly = pool.pickFrequency === "weekly" && sport !== "worldcup" && sport !== "intl";
-  if (!isWeekly) {
+  if (!isWeekly && !isChampionsLeagueWeekly) {
     res.status(400).json({ error: "Pool is not a weekly pick-em pool" });
     return;
   }
@@ -1495,6 +1497,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const weekParam = req.query.week;
   const requestedWeek = weekParam !== undefined ? parseInt(String(weekParam)) : null;
   if (requestedWeek !== null) {
+    if (isChampionsLeagueWeekly) {
+      res.status(400).json({ error: "Champions League uses competition periods; omit the week parameter." });
+      return;
+    }
     if (isNaN(requestedWeek) || requestedWeek < 1 || requestedWeek >= pool.currentWeek) {
       res.status(400).json({ error: `week must be between 1 and ${pool.currentWeek - 1}` });
       return;
@@ -1502,13 +1508,31 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
 
   const todayEt = getTodayEtDate();
+  const championsLeaguePrevious = isChampionsLeagueWeekly
+    ? (await resolveChampionsLeaguePeriodContext(poolId)).previous
+    : null;
+  if (isChampionsLeagueWeekly && !championsLeaguePrevious) {
+    res.json({
+      hasResults: false,
+      weekStart: "",
+      weekEnd: "",
+      weekNumber: 0,
+      entries: [],
+    });
+    return;
+  }
 
   // Compute date bounds for the requested (or default previous) week.
   // For nba_ats: Fri–Sun weekend bounds keyed by week counter.
   // For Super League: Fri–Mon slate bounds. For all others: Mon–Sun calendar
   // week. Without a week param, default to the immediately prior full window.
   let prevWeekBounds: { weekStart: string; weekEnd: string };
-  if (isNbaAts) {
+  if (isChampionsLeagueWeekly && championsLeaguePrevious) {
+    prevWeekBounds = {
+      weekStart: championsLeaguePrevious.weekStart,
+      weekEnd: championsLeaguePrevious.weekEnd,
+    };
+  } else if (isNbaAts) {
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
     const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
     const { days } = getNbaWeekendBounds(anchor, weekNum);
@@ -1546,11 +1570,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
 
-  const picksWhere = and(
-    eq(pickemPicksTable.poolId, poolId),
-    gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
-    lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
-  );
+  const picksWhere = isChampionsLeagueWeekly && championsLeaguePrevious
+    ? and(
+      eq(pickemPicksTable.poolId, poolId),
+      inArray(pickemPicksTable.gameDate, championsLeaguePrevious.dates),
+    )
+    : and(
+      eq(pickemPicksTable.poolId, poolId),
+      gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
+      lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
+    );
 
   const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow] = await Promise.all([
     db
@@ -1819,7 +1848,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     hasResults,
     weekStart: prevWeekBounds.weekStart,
     weekEnd: prevWeekBounds.weekEnd,
-    weekNumber: requestedWeek ?? Math.max(1, pool.currentWeek - 1),
+    weekNumber: isChampionsLeagueWeekly ? 0 : (requestedWeek ?? Math.max(1, pool.currentWeek - 1)),
+    ...(isChampionsLeagueWeekly && championsLeaguePrevious?.phaseLabel
+      ? { periodLabel: championsLeaguePrevious.phaseLabel }
+      : {}),
     entries,
     tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,

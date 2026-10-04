@@ -99,21 +99,28 @@ function PrevWeekWinnerBanner({
   groups,
   weekStart,
   weekEnd,
+  periodLabel,
   onViewResults,
 }: {
   groups: PrevWeekWinnerGroup[];
   weekStart: string;
   weekEnd: string;
+  periodLabel?: string | null;
   onViewResults: () => void;
 }) {
   if (groups.length === 0) return null;
+
+  const periodTitle = periodLabel
+    ? (groups.length > 1 ? "Last period winners" : "Last period winner")
+    : (groups.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:");
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
       <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
         <span className="text-sm font-semibold text-yellow-200">
-          {groups.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:"}
+          {periodTitle}
+          {periodLabel ? ` (${periodLabel}):` : ""}
         </span>
         {groups.map((group, index) => (
           <React.Fragment key={`${group.correct}-${group.picked}-${group.prizeWon ?? "none"}-${index}`}>
@@ -2399,6 +2406,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const prevWeekWinnerGroups = prevWeekResults?.hasResults
     ? groupPrevWeekWinners(prevWeekResults.entries)
     : [];
+  const prevPeriodLabel = (prevWeekResults as { periodLabel?: string } | undefined)?.periodLabel;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
 
@@ -3481,6 +3489,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   groups={prevWeekWinnerGroups}
                   weekStart={prevWeekResults.weekStart}
                   weekEnd={prevWeekResults.weekEnd}
+                  periodLabel={prevPeriodLabel}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
               )}

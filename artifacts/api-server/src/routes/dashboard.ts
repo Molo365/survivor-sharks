@@ -36,6 +36,7 @@ import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
 import { getMlbBracketPickPoints, MLB_BRACKET_SLOTS, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
@@ -1618,17 +1619,33 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
 
       const isSuperLeagueWeekly = isWeekly && pool.sport === "superleague";
       const isMlsWeekly = isWeekly && pool.sport === "mls";
+      const isChampionsLeagueWeekly = isWeekly && pool.sport === "championsleague";
+      const championsLeaguePeriods = isChampionsLeagueWeekly
+        ? await resolveChampionsLeaguePeriodContext(pool.id)
+        : null;
       const superLeagueCurrentBounds = getSuperLeagueConfiguredPeriod(pool);
       const superLeaguePrevBounds = getSuperLeagueWeekBoundsEt(
         offsetDateStr(superLeagueCurrentBounds.weekStart, -7),
       );
       const mlsCurrentBounds = getMlsConfiguredPeriod(pool);
-      const weeklyCurrentBounds = isSuperLeagueWeekly
-        ? superLeagueCurrentBounds
-        : isMlsWeekly
-          ? mlsCurrentBounds
-          : currentWeekBounds;
-      const weeklyPrevBounds = isSuperLeagueWeekly ? superLeaguePrevBounds : prevWeekBounds;
+      const weeklyCurrentBounds = isChampionsLeagueWeekly && championsLeaguePeriods?.current
+        ? {
+          weekStart: championsLeaguePeriods.current.weekStart,
+          weekEnd: championsLeaguePeriods.current.weekEnd,
+        }
+        : isSuperLeagueWeekly
+          ? superLeagueCurrentBounds
+          : isMlsWeekly
+            ? mlsCurrentBounds
+            : currentWeekBounds;
+      const weeklyPrevBounds = isChampionsLeagueWeekly && championsLeaguePeriods?.previous
+        ? {
+          weekStart: championsLeaguePeriods.previous.weekStart,
+          weekEnd: championsLeaguePeriods.previous.weekEnd,
+        }
+        : isSuperLeagueWeekly
+          ? superLeaguePrevBounds
+          : prevWeekBounds;
       const currentStart = isWc
         ? WC_PHASES[currentWcPhase].start
         : isWeekly
@@ -1656,16 +1673,31 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         };
       }
 
-      const currentWhere = and(
-        eq(pickemPicksTable.poolId, pool.id),
-        gte(pickemPicksTable.gameDate, currentStart),
-        lte(pickemPicksTable.gameDate, currentEnd),
-      );
-      const prevWhere = and(
-        eq(pickemPicksTable.poolId, pool.id),
-        gte(pickemPicksTable.gameDate, prevStart),
-        lte(pickemPicksTable.gameDate, prevEnd),
-      );
+      const currentWhere = isChampionsLeagueWeekly && championsLeaguePeriods?.current
+        ? and(
+          eq(pickemPicksTable.poolId, pool.id),
+          inArray(pickemPicksTable.gameDate, championsLeaguePeriods.current.dates),
+        )
+        : isChampionsLeagueWeekly
+          ? and(
+            eq(pickemPicksTable.poolId, pool.id),
+            eq(pickemPicksTable.gameDate, "__no_active_cl_period__"),
+          )
+          : and(
+            eq(pickemPicksTable.poolId, pool.id),
+            gte(pickemPicksTable.gameDate, currentStart),
+            lte(pickemPicksTable.gameDate, currentEnd),
+          );
+      const prevWhere = isChampionsLeagueWeekly && championsLeaguePeriods?.previous
+        ? and(
+          eq(pickemPicksTable.poolId, pool.id),
+          inArray(pickemPicksTable.gameDate, championsLeaguePeriods.previous.dates),
+        )
+        : and(
+          eq(pickemPicksTable.poolId, pool.id),
+          gte(pickemPicksTable.gameDate, prevStart),
+          lte(pickemPicksTable.gameDate, prevEnd),
+        );
 
       const [prevRows, currentRows, championsLeagueHasFuturePicks] = await Promise.all([
         db
