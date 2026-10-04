@@ -1157,7 +1157,7 @@ export default function CreatePool() {
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className={cn("font-bebas text-lg tracking-wide", selectedType === "mlb_bracket" ? "text-foreground" : "text-muted-foreground")}>Postseason Bracket Challenge</span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">Pick all 11 postseason series and their lengths before the Wild Card round. Bracket opens once the playoff field is set; Sandbox is available now.</p>
+                                    <p className="text-xs text-muted-foreground leading-snug">Pick all 11 postseason series and their lengths before the Wild Card round. Live pools open once the playoff field is set and close when the postseason begins; use Sandbox to test anytime.</p>
                                   </div>
                                   <div className={cn("mt-1 w-4 h-4 rounded-full border-2 shrink-0 transition-all", selectedType === "mlb_bracket" ? "border-red-500 bg-red-500" : "border-muted-foreground/30")} />
                                 </div>

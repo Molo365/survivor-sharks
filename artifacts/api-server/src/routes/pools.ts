@@ -17,7 +17,8 @@ import {
   fetchCurrentChampionsLeagueSlate,
 } from "../lib/espn";
 import { validateNbaPoolCreation } from "../lib/nba-pool-creation-validation";
-import { bracketBlueprint, getMlbPostseasonField, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { bracketBlueprint, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
+import { validateMlbPoolCreation } from "../lib/mlb-pool-creation-validation";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "../lib/pool-start";
@@ -319,12 +320,14 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
-  if (req.user!.role !== "admin") {
-    const [sportPoolStatus] = await db.select({ status: sportPoolStatusTable.status })
-      .from(sportPoolStatusTable)
-      .where(eq(sportPoolStatusTable.sport, sport))
-      .limit(1);
-    if (sportPoolStatus && sportPoolStatus.status !== "open") {
+  const [sportPoolStatus] = await db.select({ status: sportPoolStatusTable.status })
+    .from(sportPoolStatusTable)
+    .where(eq(sportPoolStatusTable.sport, sport))
+    .limit(1);
+  if (sportPoolStatus) {
+    const seasonOverBlocked = sportPoolStatus.status === "season_over" && sandboxMode !== true;
+    const nonAdminBlocked = req.user!.role !== "admin" && sportPoolStatus.status !== "open";
+    if (seasonOverBlocked || nonAdminBlocked) {
       res.status(403).json({
         error: sportPoolStatus.status === "coming_soon"
           ? "This sport isn't open for new pools yet — coming soon!"
@@ -373,19 +376,21 @@ router.post("/", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Minimum players required must be a whole number of at least 1" });
     return;
   }
-  if (resolvedPoolType === "mlb_bracket") {
-    if (sport !== "mlb") {
-      res.status(400).json({ error: "MLB Postseason Bracket pools require MLB" });
-      return;
-    }
-    if (sandboxMode !== true) {
-      mlbPostseasonField = await getMlbPostseasonField(season ?? new Date().getFullYear());
-      if (!mlbPostseasonField) {
-        res.status(400).json({ error: "Bracket opens once the playoff field is set" });
-        return;
-      }
-    }
+  if (resolvedPoolType === "mlb_bracket" && sport !== "mlb") {
+    res.status(400).json({ error: "MLB Postseason Bracket pools require MLB" });
+    return;
   }
+  const mlbCreation = await validateMlbPoolCreation({
+    sport,
+    poolType: resolvedPoolType,
+    sandboxMode: sandboxMode === true,
+    season: season ?? new Date().getFullYear(),
+  });
+  if (!mlbCreation.ok) {
+    res.status(mlbCreation.status).json({ error: mlbCreation.error });
+    return;
+  }
+  mlbPostseasonField = mlbCreation.mlbPostseasonField;
   if (resolvedPoolType === "mid_season" && !startWeek) {
     res.status(400).json({ error: "startWeek is required for mid_season pools" });
     return;
