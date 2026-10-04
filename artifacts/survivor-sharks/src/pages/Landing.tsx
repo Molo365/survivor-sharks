@@ -19,10 +19,10 @@ function useCountdown(target: Date) {
 }
 
 // Manual event configuration: update these values together for the next featured event.
-// NHL regular season is already underway (opened Sept 29); show the passed-state banner.
-const FEATURED_EVENT_TARGET = new Date("2026-09-29T19:00:00-04:00");
-const FEATURED_EVENT_LABEL = "NHL Season Puck Drop · September 29, 2026";
-const FEATURED_EVENT_PASSED_MESSAGE = "🏒 NHL PUCK DROP!";
+// First 2026-27 NBA tip: BOS @ DET, Oct 20, 3:00pm ET (ESPN).
+const FEATURED_EVENT_TARGET = new Date("2026-10-20T15:00:00-04:00");
+const FEATURED_EVENT_LABEL = "NBA Season Tip-Off · October 20, 2026";
+const FEATURED_EVENT_PASSED_MESSAGE = "🏀 NBA TIP-OFF!";
 
 export default function Landing() {
   const { user, isLoading } = useAuth();
@@ -67,7 +67,7 @@ export default function Landing() {
             </Link>
           </div>
 
-          {/* ── Featured-event countdown (NHL, season already started) ── */}
+          {/* ── Featured-event countdown (NBA tip-off Oct 20) ── */}
           <div className="w-full max-w-sm rounded-xl px-4 py-3 border flex flex-col items-center backdrop-blur-sm"
             style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="flex items-center gap-1.5 mb-0.5">
