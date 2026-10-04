@@ -46,7 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2, CalendarRange } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
@@ -89,6 +89,80 @@ function authedFetch<T>(url: string): Promise<T> {
     if (!r.ok) throw new Error("Request failed");
     return r.json() as Promise<T>;
   });
+}
+
+function ChampionsLeaguePeriodBar({
+  periods,
+  activeKey,
+  onChange,
+  viewingPast,
+}: {
+  periods: PickEmPeriodListItem[];
+  activeKey: string | undefined;
+  onChange: (key: string) => void;
+  viewingPast: boolean;
+}) {
+  if (periods.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        "mt-4 rounded-xl border-2 px-3 py-3 sm:px-4 sm:py-3.5 shadow-lg",
+        viewingPast
+          ? "border-amber-400/70 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent shadow-amber-500/15"
+          : "border-yellow-400/60 bg-gradient-to-r from-yellow-500/25 via-yellow-500/12 to-primary/10 shadow-yellow-500/20",
+      )}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-lg border",
+              viewingPast
+                ? "border-amber-400/50 bg-amber-500/25 text-amber-200"
+                : "border-yellow-400/50 bg-yellow-500/30 text-yellow-100",
+            )}
+          >
+            <CalendarRange className="h-5 w-5" aria-hidden />
+          </span>
+          <div>
+            <p className="font-bebas text-lg leading-none tracking-wide text-yellow-300">
+              Pick a matchday
+            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-yellow-200/70 mt-0.5">
+              All tabs follow this selection
+            </p>
+          </div>
+        </div>
+        <Select value={activeKey ?? ""} onValueChange={onChange}>
+          <SelectTrigger
+            className={cn(
+              "w-full sm:flex-1 sm:max-w-md h-11 text-sm font-medium border-2 sm:ml-auto",
+              "bg-background/80 text-foreground shadow-inner",
+              viewingPast
+                ? "border-amber-400/80 ring-2 ring-amber-400/30 hover:bg-amber-500/10"
+                : "border-yellow-400/90 ring-2 ring-yellow-400/40 hover:bg-yellow-500/15",
+            )}
+          >
+            <SelectValue placeholder="Select matchday" />
+          </SelectTrigger>
+          <SelectContent>
+            {periods.map((period) => (
+              <SelectItem key={period.key} value={period.key} className="text-sm">
+                {period.label}
+                {period.status === "current" ? " (current)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {viewingPast && (
+        <p className="mt-2.5 text-sm font-medium text-amber-200/90 flex items-center gap-1.5">
+          <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Viewing a completed matchday — picks are closed.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function groupPrevWeekWinners(entries: PickEmLeaderboardEntry[]): PrevWeekWinnerGroup[] {
@@ -3255,6 +3329,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </div>
       </div>
 
+      {isClWeekly && (
+        <ChampionsLeaguePeriodBar
+          periods={clPeriods?.periods ?? []}
+          activeKey={activeClPeriodStart}
+          onChange={setClPeriodStart}
+          viewingPast={clViewingPast}
+        />
+      )}
 
       <div className="mt-8">
         {/* ── Today's Picks ── */}
@@ -3582,12 +3664,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 />
               )}
 
-              {clViewingPast && (
-                <p className="text-sm text-muted-foreground border border-border/40 rounded-lg px-3 py-2 bg-muted/20">
-                  Viewing a completed matchday — picks are closed.
-                </p>
-              )}
-
               {/* Static week header — no day-navigation for combined view */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
@@ -3610,24 +3686,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {isClWeekly && (clPeriods?.periods.length ?? 0) > 0 && (
-                    <Select
-                      value={activeClPeriodStart ?? ""}
-                      onValueChange={(value) => setClPeriodStart(value)}
-                    >
-                      <SelectTrigger className="w-[min(100%,280px)] h-9 text-xs">
-                        <SelectValue placeholder="Matchday" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clPeriods!.periods.map((period) => (
-                          <SelectItem key={period.key} value={period.key} className="text-xs">
-                            {period.label}
-                            {period.status === "current" ? " (current)" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
                   {mlsWeeklyAllGames.some((g) => g.status === "in_progress") ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-red-500/10 text-red-400 border-red-500/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
@@ -4245,7 +4303,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               </p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
-          ) : isWeekly && leaderboard.weekStart && leaderboard.weekEnd ? (
+          ) : (isWeekly || isMlsWeekly) && leaderboard.weekStart && leaderboard.weekEnd ? (
             <div className="space-y-4">
               <WeeklyLeaderboard
                 poolId={poolId}
