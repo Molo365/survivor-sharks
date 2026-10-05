@@ -133,16 +133,19 @@ function NflGameCard({
   pickedTeamId,
   onPick,
   forceReadOnly = false,
+  isAtsMode = false,
 }: {
   game: NflPickEmSeasonGame;
   pickedTeamId: string | null;
   onPick: (gameId: string, teamId: string) => void;
   forceReadOnly?: boolean;
+  isAtsMode?: boolean;
 }) {
+  const lineUnavailable = isAtsMode && (game.spread == null || game.favoriteTeamId == null);
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
   const isPPD = game.status === "postponed";
-  const isLocked = game.deadlinePassed || forceReadOnly;
+  const isLocked = game.deadlinePassed || forceReadOnly || lineUnavailable;
 
   const awayWon =
     isFinal &&
@@ -215,6 +218,12 @@ function NflGameCard({
     const isHome = side === "home";
     const isCorrect = result === "correct";
     const isWrong = result === "incorrect";
+    const spreadLabel =
+      isAtsMode && game.spread != null && game.favoriteTeamId != null
+        ? team.id === game.favoriteTeamId
+          ? `-${game.spread}`
+          : `+${game.spread}`
+        : null;
 
     return (
       <button
@@ -259,6 +268,12 @@ function NflGameCard({
           )}>
             {team.name}
           </span>
+
+          {spreadLabel && (
+            <span className="text-[11px] font-mono text-muted-foreground/80 leading-none">
+              {spreadLabel}
+            </span>
+          )}
 
           {record && (
             <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
@@ -341,6 +356,10 @@ function NflGameCard({
           ) : isPPD ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
               PPD
+            </span>
+          ) : lineUnavailable ? (
+            <span className="text-[10px] font-semibold text-center text-muted-foreground/70 leading-snug px-1">
+              Line pending
             </span>
           ) : (
             <>
@@ -1699,7 +1718,11 @@ export function PickEmSeasonView({
     toast({ title: "Invite code copied to clipboard!" });
   }
 
-  const openGames = slate?.games.filter((g) => !g.deadlinePassed) ?? [];
+  const isAtsMode = slate?.pickemScoringMode === "ats";
+  const openGames =
+    slate?.games.filter(
+      (g) => !g.deadlinePassed && (!isAtsMode || g.spread != null),
+    ) ?? [];
   const openPickedCount = openGames.filter((g) => localPicks.has(g.id)).length;
   const pendingPickCount = openGames.filter((g) => !localPicks.has(g.id)).length;
   // The week is globally locked only after every game has passed its deadline.
@@ -2075,6 +2098,12 @@ export function PickEmSeasonView({
                     </div>
                   )}
 
+                  {isAtsMode && slate.games.some((g) => !g.deadlinePassed && g.spread == null) && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted-foreground">
+                      Some games are waiting on spread lines from ESPN. You can pick each game once its line appears — games without a line are not pickable yet.
+                    </div>
+                  )}
+
                   {slate.games.map((game) => (
                     <NflGameCard
                       key={game.id}
@@ -2082,6 +2111,7 @@ export function PickEmSeasonView({
                       pickedTeamId={localPicks.get(game.id) ?? null}
                       onPick={isActive && !weekIsLocked ? togglePick : () => {}}
                       forceReadOnly={weekIsLocked}
+                      isAtsMode={isAtsMode}
                     />
                   ))}
 

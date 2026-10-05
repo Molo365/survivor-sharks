@@ -166,6 +166,17 @@ export const PoolInputPrizeMode = {
   pct: 'pct',
 } as const;
 
+/**
+ * NFL Pick-Ems Season only — straight-up winners vs against the spread
+ */
+export type PoolInputPickemScoringMode = typeof PoolInputPickemScoringMode[keyof typeof PoolInputPickemScoringMode];
+
+
+export const PoolInputPickemScoringMode = {
+  straight: 'straight',
+  ats: 'ats',
+} as const;
+
 export interface PoolInput {
   name: string;
   sport: PoolInputSport;
@@ -204,6 +215,8 @@ export interface PoolInput {
      * @nullable
      */
   weeklyBonusMinPlayers?: number | null;
+  /** NFL Pick-Ems Season only — straight-up winners vs against the spread */
+  pickemScoringMode?: PoolInputPickemScoringMode;
 }
 
 export type PoolUpdatePoolType = typeof PoolUpdatePoolType[keyof typeof PoolUpdatePoolType];
@@ -398,6 +411,17 @@ export const PoolPickFrequency = {
   daily: 'daily',
 } as const;
 
+/**
+ * NFL Pick-Ems Season scoring mode
+ */
+export type PoolPickemScoringMode = typeof PoolPickemScoringMode[keyof typeof PoolPickemScoringMode];
+
+
+export const PoolPickemScoringMode = {
+  straight: 'straight',
+  ats: 'ats',
+} as const;
+
 export interface Pool {
   id: number;
   name: string;
@@ -463,6 +487,8 @@ export interface Pool {
   weeklyBonusMinPlayers?: number | null;
   /** True when at least one game for this pool's sport is currently in progress */
   hasLiveGames?: boolean;
+  /** NFL Pick-Ems Season scoring mode */
+  pickemScoringMode?: PoolPickemScoringMode;
 }
 
 export type PoolDetailPoolType = typeof PoolDetailPoolType[keyof typeof PoolDetailPoolType];
@@ -494,6 +520,17 @@ export type PoolDetailPickFrequency = typeof PoolDetailPickFrequency[keyof typeo
 export const PoolDetailPickFrequency = {
   weekly: 'weekly',
   daily: 'daily',
+} as const;
+
+/**
+ * NFL Pick-Ems Season scoring mode
+ */
+export type PoolDetailPickemScoringMode = typeof PoolDetailPickemScoringMode[keyof typeof PoolDetailPickemScoringMode];
+
+
+export const PoolDetailPickemScoringMode = {
+  straight: 'straight',
+  ats: 'ats',
 } as const;
 
 export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberStatus];
@@ -575,6 +612,8 @@ export interface PoolDetail {
   sandboxWeek?: number;
   /** Whether this pool uses preseason games instead of regular-season games */
   isPreseason: boolean;
+  /** NFL Pick-Ems Season scoring mode */
+  pickemScoringMode?: PoolDetailPickemScoringMode;
   /** NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled */
   weeklyBonusEnabled?: boolean;
   /** @nullable */
@@ -1178,6 +1217,29 @@ export interface MlsWeekDay {
   games: PickEmGame[];
 }
 
+export type PickEmPeriodListItemStatus = typeof PickEmPeriodListItemStatus[keyof typeof PickEmPeriodListItemStatus];
+
+
+export const PickEmPeriodListItemStatus = {
+  current: 'current',
+  completed: 'completed',
+} as const;
+
+export interface PickEmPeriodListItem {
+  key: string;
+  label: string;
+  weekStart: string;
+  weekEnd: string;
+  dates: string[];
+  status: PickEmPeriodListItemStatus;
+  canPick: boolean;
+}
+
+export interface PickEmPeriodList {
+  periods: PickEmPeriodListItem[];
+  defaultKey: string | null;
+}
+
 export interface MlsWeekGames {
   /** Monday date YYYY-MM-DD */
   weekStart: string;
@@ -1552,6 +1614,22 @@ export interface PickEmDayWinnerEntry {
   prizeWon?: number | null;
 }
 
+/**
+ * Present for NHL recurring weekly pick-em pools with weekly bonus enabled
+ */
+export type PickEmPrevWeekResultsWeeklyBonus = {
+  enabled?: boolean;
+  thresholdMet?: boolean;
+  /** @nullable */
+  amount?: number | null;
+  /** @nullable */
+  perWinnerAmount?: number | null;
+  /** @nullable */
+  minPlayers?: number | null;
+  /** @nullable */
+  confirmedPlayerCount?: number | null;
+};
+
 export interface PickEmPrevWeekResults {
   /** True if at least one pick in the previous week has been graded */
   hasResults: boolean;
@@ -1562,6 +1640,8 @@ export interface PickEmPrevWeekResults {
   /** The 1-indexed week number whose results are returned */
   weekNumber?: number;
   entries: PickEmLeaderboardEntry[];
+  /** Present for NHL recurring weekly pick-em pools with weekly bonus enabled */
+  weeklyBonus?: PickEmPrevWeekResultsWeeklyBonus;
 }
 
 export interface PickEmYesterdayWinner {
@@ -2001,7 +2081,19 @@ export interface NflPickEmSeasonGame {
   liveDetail?: string | null;
   homeRecord?: string | null;
   awayRecord?: string | null;
+  /** ATS mode only — absolute spread (half-point line) */
+  spread?: number | null;
+  /** ATS mode only — ESPN team id of the favorite */
+  favoriteTeamId?: string | null;
 }
+
+export type NflPickEmSeasonSlatePickemScoringMode = typeof NflPickEmSeasonSlatePickemScoringMode[keyof typeof NflPickEmSeasonSlatePickemScoringMode];
+
+
+export const NflPickEmSeasonSlatePickemScoringMode = {
+  straight: 'straight',
+  ats: 'ats',
+} as const;
 
 /**
  * Present only when weeklyBonusEnabled is true
@@ -2016,6 +2108,7 @@ export interface NflPickEmSeasonSlate {
   week: number;
   totalWeeks: number;
   currentWeek: number;
+  pickemScoringMode?: NflPickEmSeasonSlatePickemScoringMode;
   /** Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks */
   tiebreakerGameId?: string | null;
   /** Present only when weeklyBonusEnabled is true */
@@ -2067,6 +2160,39 @@ export interface NflPickEmSeasonLeaderboard {
   actualRushingYards?: number | null;
   liveGamesInProgress?: number;
   entries: NflPickEmSeasonLeaderboardEntry[];
+}
+
+export interface NflPickEmSeasonAtsSpreadLine {
+  gameId: string;
+  /** @nullable */
+  spread: number | null;
+  /** @nullable */
+  favoriteTeamId: string | null;
+}
+
+export type NflPickEmSeasonAtsSpreadsResponsePickemScoringMode = typeof NflPickEmSeasonAtsSpreadsResponsePickemScoringMode[keyof typeof NflPickEmSeasonAtsSpreadsResponsePickemScoringMode];
+
+
+export const NflPickEmSeasonAtsSpreadsResponsePickemScoringMode = {
+  straight: 'straight',
+  ats: 'ats',
+} as const;
+
+export interface NflPickEmSeasonAtsSpreadsResponse {
+  week: number;
+  pickemScoringMode: NflPickEmSeasonAtsSpreadsResponsePickemScoringMode;
+  spreads: NflPickEmSeasonAtsSpreadLine[];
+}
+
+export type NflPickEmSeasonAtsSpreadsInputSpreadsItem = {
+  gameId: string;
+  spread: number;
+  favoriteTeamId: string;
+};
+
+export interface NflPickEmSeasonAtsSpreadsInput {
+  week?: number;
+  spreads: NflPickEmSeasonAtsSpreadsInputSpreadsItem[];
 }
 
 export interface NflPickEmSeasonProcessResult {
@@ -2621,6 +2747,14 @@ export type GetPickEmGamesParams = {
 date?: string;
 };
 
+export type GetPickEmWeekGamesParams = {
+/**
+ * Period week start (YYYY-MM-DD) — MLS Mon, Super League Fri, CL matchday. Defaults to current period.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+periodStart?: string;
+};
+
 export type GetPickEmLeaderboardParams = {
 /**
  * World Cup phase filter (only used for worldcup sport pools)
@@ -2628,6 +2762,7 @@ export type GetPickEmLeaderboardParams = {
 phase?: GetPickEmLeaderboardPhase;
 /**
  * Champions League matchday week start (YYYY-MM-DD)
+ * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 periodStart?: string;
 };
@@ -2729,5 +2864,14 @@ export type SetNflPickEmSeasonSandboxWeek200 = {
 export type SimulateNflPickEmSeasonGrading200 = {
   graded: number;
   week: number;
+};
+
+export type GetNflPickEmSeasonAtsSpreadsParams = {
+week?: number;
+};
+
+export type SetNflPickEmSeasonAtsSpreads200 = {
+  saved: number;
+  skipped: number;
 };
 

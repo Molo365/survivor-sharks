@@ -18,7 +18,7 @@
  */
 
 import { db } from "@workspace/db";
-import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable, crazyEightsPeriodResultsTable } from "@workspace/db";
+import { picksTable, pickemPicksTable, entriesTable, poolsTable, weekResultsTable, wcBracketPicksTable, wcBracketResultsTable, mlbBracketPicksTable, mlbBracketResultsTable, mlbBracketSlotsTable, sandboxGameScoresTable, usersTable, nflConfidenceResultsTable, crazyEightsPeriodResultsTable, pickemGameSpreadsTable } from "@workspace/db";
 import { eq, and, ne, inArray, count, or, isNull, max, gte, lte, lt, sql, desc } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import {
@@ -83,6 +83,12 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
+import {
+  gradePickemSeasonPendingPicksForFinalGame,
+  isNflPickemSeasonAts,
+  type PickemScoringMode,
+} from "./nfl-pickem-ats-grade";
+import { loadNflPickemAtsSpreads } from "./nfl-pickem-ats-spreads";
 import { logger } from "./logger";
 import { processReplayTick } from "./replayMode";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, resolveMlbBracketSlotTeams } from "./mlb-bracket";
@@ -3312,15 +3318,44 @@ export async function processPickEmResults(): Promise<{
         const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
         if (pool.poolType === "pickem_season") {
-          // pickem_season replay picks are stored with ESPN game IDs directly
-          await db
-            .update(pickemPicksTable)
-            .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
-            .where(and(
-              eq(pickemPicksTable.poolId, pool.id),
-              eq(pickemPicksTable.gameId, game.gameId),
-              eq(pickemPicksTable.result, "pending"),
-            ));
+          const homeAbbr = game.homeTeam;
+          const awayAbbr = game.awayTeam;
+          const homeTeamId = NFL_TEAM_INFO[homeAbbr]?.id ?? homeAbbr;
+          const awayTeamId = NFL_TEAM_INFO[awayAbbr]?.id ?? awayAbbr;
+          if (isNflPickemSeasonAts(pool)) {
+            const [spreadRow] = await db
+              .select()
+              .from(pickemGameSpreadsTable)
+              .where(and(
+                eq(pickemGameSpreadsTable.poolId, pool.id),
+                eq(pickemGameSpreadsTable.gameId, game.gameId),
+                eq(pickemGameSpreadsTable.week, game.week),
+              ))
+              .limit(1);
+            if (!spreadRow || game.homeScore == null || game.awayScore == null) continue;
+            await gradePickemSeasonPendingPicksForFinalGame({
+              poolId: pool.id,
+              gameId: game.gameId,
+              homeTeamId,
+              awayTeamId,
+              homeScore: game.homeScore,
+              awayScore: game.awayScore,
+              scoringMode: (pool.pickemScoringMode ?? "straight") as PickemScoringMode,
+              spreadLine: { spread: spreadRow.spread, favoriteTeamId: spreadRow.favoriteTeamId },
+            });
+          } else {
+            // pickem_season replay picks are stored with ESPN game IDs directly
+            const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
+            const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
+            await db
+              .update(pickemPicksTable)
+              .set({ result: sql`CASE WHEN picked_team_id = ${winnerTeamId} THEN 'correct'::pickem_result ELSE 'incorrect'::pickem_result END` })
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.gameId),
+                eq(pickemPicksTable.result, "pending"),
+              ));
+          }
         } else {
           // nfl_confidence / nfl_confidence_weekly — match by ESPN game ID directly
           await db
@@ -3489,10 +3524,37 @@ export async function processPickEmResults(): Promise<{
       const completedGames = games.filter(
         (g) => isUnambiguousFinalNflGame(g) && g.homeScore != null && g.awayScore != null,
       );
+      const scoringMode = (pool.pickemScoringMode ?? "straight") as PickemScoringMode;
+      const spreadByGame = isNflPickemSeasonAts(pool)
+        ? await loadNflPickemAtsSpreads({
+            poolId: pool.id,
+            week: pool.currentWeek,
+            games: games.map((g) => ({
+              id: g.id,
+              homeTeamId: g.homeTeam.id,
+              awayTeamId: g.awayTeam.id,
+            })),
+          })
+        : new Map<string, { spread: number; favoriteTeamId: string }>();
       if (completedGames.length > 0) {
         for (const game of completedGames) {
-          const home = game.homeScore!;
-          const away = game.awayScore!;
+          if (game.homeScore == null || game.awayScore == null) continue;
+          if (isNflPickemSeasonAts(pool) && !spreadByGame.has(game.id)) continue;
+          if (isNflPickemSeasonAts(pool)) {
+            await gradePickemSeasonPendingPicksForFinalGame({
+              poolId: pool.id,
+              gameId: game.id,
+              homeTeamId: game.homeTeam.id,
+              awayTeamId: game.awayTeam.id,
+              homeScore: game.homeScore,
+              awayScore: game.awayScore,
+              scoringMode,
+              spreadLine: spreadByGame.get(game.id) ?? null,
+            });
+            continue;
+          }
+          const home = game.homeScore;
+          const away = game.awayScore;
           if (home === away) {
             // Tied game: push — no winner declared, no loss charged to either side.
             // Does not count toward or against leaderboard scoring.
