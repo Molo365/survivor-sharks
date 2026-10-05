@@ -6,6 +6,7 @@ import { usersTable } from "./users";
 export const sportEnum = pgEnum("sport_type", ["nfl", "mlb", "nba", "nhl", "fifa", "worldcup", "intl", "mls", "superleague", "championsleague"]);
 export const poolTypeEnum = pgEnum("pool_type", ["season", "weekly", "mid_season", "pickem", "group_stage_predictor", "pickem_season", "nfl_division_predictor", "nhl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "wc_bracket", "mlb_bracket", "nba_ats"]);
 export const pickFrequencyEnum = pgEnum("pick_frequency", ["weekly", "daily"]);
+export const pickemScoringModeEnum = pgEnum("pickem_scoring_mode", ["straight", "ats"]);
 
 export const poolsTable = pgTable("pools", {
   id: serial("id").primaryKey(),
@@ -38,6 +39,8 @@ export const poolsTable = pgTable("pools", {
   weeklyBonusAmount: numeric("weekly_bonus_amount", { precision: 10, scale: 2 }),
   weeklyBonusMinPlayers: integer("weekly_bonus_min_players"),
   weeklyBonusLockedActive: boolean("weekly_bonus_locked_active"),
+  /** NFL Pick-Ems Season: straight-up winners vs against-the-spread. */
+  pickemScoringMode: pickemScoringModeEnum("pickem_scoring_mode").notNull().default("straight"),
   ndpTb1GameId: text("ndp_tb1_game_id"),
   ndpTb2GameId: text("ndp_tb2_game_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -188,7 +188,7 @@ export const SendFeedbackResponse = zod.object({
 export const GetPickEmDashboardStatsResponseItem = zod.object({
   "poolId": zod.number(),
   "poolType": zod.string(),
-  "pickStatus": zod.enum(['pending', 'incomplete', 'submitted']).optional().describe('Current-period pick state for pool types that support partial picks'),
+  "pickStatus": zod.enum(['pending', 'incomplete', 'submitted', 'not_required']).optional().describe('Current-period pick state for pool types that support partial picks'),
   "lastWinners": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
@@ -279,7 +279,8 @@ export const ListPoolsResponseItem = zod.object({
   "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
   "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
-  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional().describe('NFL Pick-Ems Season scoring mode')
 })
 export const ListPoolsResponse = zod.array(ListPoolsResponseItem)
 
@@ -293,7 +294,7 @@ export const createPoolBodyPickFrequencyDefault = `weekly`;
 export const createPoolBodyIsRecurringDefault = false;
 export const createPoolBodyPrizeModeDefault = `fixed`;
 export const createPoolBodyWeeklyBonusEnabledDefault = false;
-
+export const createPoolBodyPickemScoringModeDefault = `straight`;
 
 export const CreatePoolBody = zod.object({
   "name": zod.string(),
@@ -318,7 +319,8 @@ export const CreatePoolBody = zod.object({
 })).optional().describe('Ordered prize payouts. prizePot is auto-calculated as the sum.'),
   "weeklyBonusEnabled": zod.boolean().default(createPoolBodyWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: reserve a flat weekly bonus prize'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL season weekly bonus amount in dollars; only used when weeklyBonusEnabled is true'),
-  "weeklyBonusMinPlayers": zod.number().min(1).nullish().describe('Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true')
+  "weeklyBonusMinPlayers": zod.number().min(1).nullish().describe('Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).default(createPoolBodyPickemScoringModeDefault).describe('NFL Pick-Ems Season only — straight-up winners vs against the spread')
 })
 
 
@@ -365,7 +367,8 @@ export const JoinPoolResponse = zod.object({
   "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
   "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
-  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional().describe('NFL Pick-Ems Season scoring mode')
 })
 
 
@@ -473,6 +476,7 @@ export const GetPoolResponse = zod.object({
   "sandboxMode": zod.boolean().optional().describe('True when the pool uses a hardcoded schedule + simulated scores for testing'),
   "sandboxWeek": zod.number().optional().describe('Active week when sandboxMode is true'),
   "isPreseason": zod.boolean().describe('Whether this pool uses preseason games instead of regular-season games'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional().describe('NFL Pick-Ems Season scoring mode'),
   "weeklyBonusEnabled": zod.boolean().default(getPoolResponseWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled'),
   "weeklyBonusAmount": zod.number().nullish(),
   "weeklyBonusMinPlayers": zod.number().nullish(),
@@ -542,7 +546,8 @@ export const UpdatePoolResponse = zod.object({
   "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
   "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
-  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional().describe('NFL Pick-Ems Season scoring mode')
 })
 
 
@@ -1414,15 +1419,44 @@ export const GetPickEmGamesResponse = zod.object({
 
 
 /**
+ * @summary List pick-em periods for time-travel (MLS, Super League, Champions League, NHL weekly pick-em)
+ */
+export const GetPickEmPeriodsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmPeriodsResponse = zod.object({
+  "periods": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "weekStart": zod.string(),
+  "weekEnd": zod.string(),
+  "dates": zod.array(zod.string()),
+  "status": zod.enum(['current', 'completed']),
+  "canPick": zod.boolean()
+})),
+  "defaultKey": zod.string().nullable()
+})
+
+
+/**
  * @summary Get the full Mon–Sun week's MLS games for a weekly pick-em pool, grouped by day
  */
 export const GetPickEmWeekGamesParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const getPickEmWeekGamesQueryPeriodStartRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetPickEmWeekGamesQueryParams = zod.object({
+  "periodStart": zod.coerce.string().regex(getPickEmWeekGamesQueryPeriodStartRegExp).optional().describe('Period week start (YYYY-MM-DD) — MLS Mon, Super League Fri, CL matchday. Defaults to current period.')
+})
+
 export const GetPickEmWeekGamesResponse = zod.object({
   "weekStart": zod.string().describe('Monday date YYYY-MM-DD'),
   "weekEnd": zod.string().describe('Sunday date YYYY-MM-DD'),
+  "viewingPastPeriod": zod.boolean().optional().describe('Champions League — viewing a completed matchday (read-only)'),
   "days": zod.array(zod.object({
   "date": zod.string().describe('ET date YYYY-MM-DD'),
   "label": zod.string().describe('Formatted day label e.g. \"Wednesday, July 16\"'),
@@ -1555,8 +1589,12 @@ export const GetPickEmLeaderboardParams = zod.object({
   "poolId": zod.coerce.number()
 })
 
+export const getPickEmLeaderboardQueryPeriodStartRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
 export const GetPickEmLeaderboardQueryParams = zod.object({
-  "phase": zod.enum(['group_stage', 'knockout_stage']).optional().describe('World Cup phase filter (only used for worldcup sport pools)')
+  "phase": zod.enum(['group_stage', 'knockout_stage']).optional().describe('World Cup phase filter (only used for worldcup sport pools)'),
+  "periodStart": zod.coerce.string().regex(getPickEmLeaderboardQueryPeriodStartRegExp).optional().describe('Champions League matchday week start (YYYY-MM-DD)')
 })
 
 export const GetPickEmLeaderboardResponse = zod.object({
@@ -1786,7 +1824,15 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "tiebreakerPenaltyMinutesGuess": zod.number().nullish().describe('Player\'s tiebreaker penalty minutes guess (NHL weekly pools only)'),
   "tiebreakerNhlDiff": zod.number().nullish().describe('Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)'),
   "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
-}))
+})),
+  "weeklyBonus": zod.object({
+  "enabled": zod.boolean().optional(),
+  "thresholdMet": zod.boolean().optional(),
+  "amount": zod.number().nullish(),
+  "perWinnerAmount": zod.number().nullish(),
+  "minPlayers": zod.number().nullish(),
+  "confirmedPlayerCount": zod.number().nullish()
+}).optional().describe('Present for NHL recurring weekly pick-em pools with weekly bonus enabled')
 })
 
 
@@ -2703,7 +2749,8 @@ export const AdminListPoolsResponseItem = zod.object({
   "weeklyBonusEnabled": zod.boolean().optional().describe('NFL Pick-Em Season only in Stage 2: whether the weekly bonus display is enabled'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL Pick-Em Season weekly bonus display amount'),
   "weeklyBonusMinPlayers": zod.number().nullish().describe('Minimum confirmed players required for the weekly bonus display'),
-  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress')
+  "hasLiveGames": zod.boolean().optional().describe('True when at least one game for this pool\'s sport is currently in progress'),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional().describe('NFL Pick-Ems Season scoring mode')
 })
 export const AdminListPoolsResponse = zod.array(AdminListPoolsResponseItem)
 
@@ -2801,6 +2848,7 @@ export const GetNflPickEmSeasonGamesResponse = zod.object({
   "week": zod.number(),
   "totalWeeks": zod.number(),
   "currentWeek": zod.number(),
+  "pickemScoringMode": zod.enum(['straight', 'ats']).optional(),
   "tiebreakerGameId": zod.string().nullish().describe('Auto-designated tiebreaker game: last game of Week 18 by start time; null for other weeks'),
   "weeklyTiebreaker": zod.object({
   "targetGameId": zod.string().nullable(),
@@ -2830,7 +2878,9 @@ export const GetNflPickEmSeasonGamesResponse = zod.object({
   "userPickResult": zod.string().nullish(),
   "liveDetail": zod.string().nullish(),
   "homeRecord": zod.string().nullish(),
-  "awayRecord": zod.string().nullish()
+  "awayRecord": zod.string().nullish(),
+  "spread": zod.number().nullish().describe('ATS mode only — absolute spread (half-point line)'),
+  "favoriteTeamId": zod.string().nullish().describe('ATS mode only — ESPN team id of the favorite')
 }))
 })
 
@@ -2949,7 +2999,9 @@ export const GetNflPickEmSeasonWeekResultsResponse = zod.object({
   "userPickResult": zod.string().nullish(),
   "liveDetail": zod.string().nullish(),
   "homeRecord": zod.string().nullish(),
-  "awayRecord": zod.string().nullish()
+  "awayRecord": zod.string().nullish(),
+  "spread": zod.number().nullish().describe('ATS mode only — absolute spread (half-point line)'),
+  "favoriteTeamId": zod.string().nullish().describe('ATS mode only — ESPN team id of the favorite')
 })),
   "players": zod.array(zod.object({
   "userId": zod.number(),
@@ -3045,6 +3097,50 @@ export const SimulateNflPickEmSeasonGradingParams = zod.object({
 export const SimulateNflPickEmSeasonGradingResponse = zod.object({
   "graded": zod.number(),
   "week": zod.number()
+})
+
+
+/**
+ * @summary List ATS spread lines for a week (admin)
+ */
+export const GetNflPickEmSeasonAtsSpreadsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetNflPickEmSeasonAtsSpreadsQueryParams = zod.object({
+  "week": zod.coerce.number().optional()
+})
+
+export const GetNflPickEmSeasonAtsSpreadsResponse = zod.object({
+  "week": zod.number(),
+  "pickemScoringMode": zod.enum(['straight', 'ats']),
+  "spreads": zod.array(zod.object({
+  "gameId": zod.string(),
+  "spread": zod.number().nullable(),
+  "favoriteTeamId": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Insert missing ATS spread lines (admin; never overwrites)
+ */
+export const SetNflPickEmSeasonAtsSpreadsParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const SetNflPickEmSeasonAtsSpreadsBody = zod.object({
+  "week": zod.number().optional(),
+  "spreads": zod.array(zod.object({
+  "gameId": zod.string(),
+  "spread": zod.number(),
+  "favoriteTeamId": zod.string()
+}))
+})
+
+export const SetNflPickEmSeasonAtsSpreadsResponse = zod.object({
+  "saved": zod.number(),
+  "skipped": zod.number()
 })
 
 

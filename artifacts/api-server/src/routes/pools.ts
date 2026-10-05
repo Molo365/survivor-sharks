@@ -156,6 +156,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     sandboxMode: pool.sandboxMode ?? false,
     sandboxWeek: pool.sandboxWeek ?? 1,
     isPreseason: pool.isPreseason ?? false,
+    pickemScoringMode: pool.pickemScoringMode ?? "straight",
   };
 }
 
@@ -508,6 +509,10 @@ router.post("/", requireAuth, async (req, res) => {
     weeklyBonusEnabled,
     weeklyBonusAmount: weeklyBonusEnabled ? weeklyBonusAmount.toFixed(2) : null,
     weeklyBonusMinPlayers: weeklyBonusEnabled ? weeklyBonusMinPlayers : null,
+    pickemScoringMode:
+      resolvedPoolType === "pickem_season"
+        ? ((req.body.pickemScoringMode === "ats" ? "ats" : "straight") as "straight" | "ats")
+        : "straight",
   }).returning();
 
   await db.insert(entriesTable).values({ poolId: pool.id, userId: req.user!.id, status: "alive" });
@@ -821,6 +826,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     sandboxMode: (pool as any).sandboxMode ?? false,
     sandboxWeek: (pool as any).sandboxWeek ?? 1,
     isPreseason: pool.isPreseason ?? false,
+    pickemScoringMode: pool.pickemScoringMode ?? "straight",
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
     weeklyBonusAmount: pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null,
     weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers ?? null,

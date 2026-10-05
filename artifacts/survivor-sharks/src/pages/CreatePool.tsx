@@ -309,6 +309,7 @@ const formSchema = z.object({
   isRecurring: z.boolean().optional(),
   sandboxMode: z.boolean().default(false),
   isPreseason: z.boolean().default(false),
+  pickemScoringMode: z.enum(["straight", "ats"]).default("straight"),
   description: z.string().max(500).optional(),
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
@@ -491,6 +492,7 @@ export default function CreatePool() {
       pickFrequency: "weekly",
       description: "",
       weeklyBonusEnabled: false,
+      pickemScoringMode: "straight",
       season: new Date().getFullYear(),
     },
   });
@@ -759,12 +761,13 @@ export default function CreatePool() {
 
   // Whether the selected sport/type exposes any Step 3 options (double elim, recurring, sandbox)
   const hasOptions = (
+    selectedType === "pickem_season" ||
     ((selectedSport === PoolInputSport.mlb || selectedSport === PoolInputSport.nfl) &&
       selectedType !== "weekly" && selectedType !== "pickem") ||
     ((selectedSport === PoolInputSport.mlb && selectedType === "pickem") ||
       selectedType === "nfl_confidence_weekly") ||
     (user?.role === "admin" && (selectedType === "nfl_confidence" ||
-      selectedType === "pickem_season" || selectedType === "nba_ats" ||
+      selectedType === "nba_ats" ||
       (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
       (selectedSport === PoolInputSport.nba && selectedType === "season"))) ||
     showsRecurringToggle
@@ -965,6 +968,7 @@ export default function CreatePool() {
           ...(isStartPeriodPool && { initialPeriodStart: values.initialPeriodStart ?? thisPeriod.start }),
            ...(((values.sport === PoolInputSport.nfl && (values.poolType === "season" || values.poolType === "nfl_confidence" || values.poolType === "pickem_season")) ||
              (values.sport === PoolInputSport.nhl && (values.poolType === "season" || values.poolType === "pickem" || values.poolType === "crazy_8s"))) && { isPreseason: values.isPreseason }),
+          ...(values.poolType === "pickem_season" && { pickemScoringMode: values.pickemScoringMode }),
         } as any,
       },
       {
@@ -1607,6 +1611,55 @@ export default function CreatePool() {
                                     <span className="text-[11px] text-muted-foreground leading-snug">
                                       Runs once, then closes permanently when the period ends.
                                     </span>
+                                  </button>
+                                </div>
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {selectedType === "pickem_season" && (
+                        <FormField
+                          control={form.control}
+                          name="pickemScoringMode"
+                          render={({ field }) => (
+                            <FormItem className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+                              <FormLabel className="font-bebas text-lg tracking-wide text-green-300">
+                                Scoring mode
+                              </FormLabel>
+                              <FormDescription className="text-xs">
+                                Straight-up counts outright winners (ties push). Against the spread grades covers using frozen ESPN lines each week.
+                              </FormDescription>
+                              <FormControl>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  <button
+                                    type="button"
+                                    data-testid="pickem-scoring-straight"
+                                    onClick={() => field.onChange("straight")}
+                                    className={cn(
+                                      "flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all",
+                                      field.value === "straight"
+                                        ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30"
+                                        : "border-border/40 bg-card/50 hover:border-primary/30",
+                                    )}
+                                  >
+                                    <span className="font-bebas text-base tracking-wide">Straight-up winners</span>
+                                    <span className="text-[11px] text-muted-foreground">Pick the team that wins outright.</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-testid="pickem-scoring-ats"
+                                    onClick={() => field.onChange("ats")}
+                                    className={cn(
+                                      "flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all",
+                                      field.value === "ats"
+                                        ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30"
+                                        : "border-border/40 bg-card/50 hover:border-primary/30",
+                                    )}
+                                  >
+                                    <span className="font-bebas text-base tracking-wide">Against the spread</span>
+                                    <span className="text-[11px] text-muted-foreground">Pick who covers the frozen line — no pick until the line is posted.</span>
                                   </button>
                                 </div>
                               </FormControl>

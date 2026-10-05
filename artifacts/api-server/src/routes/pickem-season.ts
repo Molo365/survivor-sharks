@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable } from "@workspace/db";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceResultsTable, pickemSeasonWeekGameCountsTable, sandboxGameScoresTable, nflWeeklyTiebreakersTable, pickemGameSpreadsTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
@@ -22,8 +22,56 @@ import {
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
 import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
+import { loadNflPickemAtsSpreads } from "../lib/nfl-pickem-ats-spreads";
+import {
+  computeLiveCorrectAts,
+  gradePickemSeasonPendingPicksForFinalGame,
+  isNflPickemSeasonAts,
+  type PickemScoringMode,
+} from "../lib/nfl-pickem-ats-grade";
 
 const router = Router({ mergeParams: true });
+
+type SpreadLine = { spread: number; favoriteTeamId: string };
+
+function pickemScoringModeForPool(pool: typeof poolsTable.$inferSelect): PickemScoringMode {
+  return (pool.pickemScoringMode ?? "straight") as PickemScoringMode;
+}
+
+function withSpreadFields<T extends { id: string }>(
+  game: T,
+  spreadByGame: Map<string, SpreadLine>,
+): T & { spread: number | null; favoriteTeamId: string | null } {
+  const line = spreadByGame.get(game.id);
+  return {
+    ...game,
+    spread: line?.spread ?? null,
+    favoriteTeamId: line?.favoriteTeamId ?? null,
+  };
+}
+
+async function loadSpreadsForPickemSeasonWeek(
+  pool: typeof poolsTable.$inferSelect,
+  poolId: number,
+  week: number,
+  games: Array<{ id: string; homeTeamId: string; awayTeamId: string }>,
+): Promise<Map<string, SpreadLine>> {
+  if (!isNflPickemSeasonAts(pool)) return new Map();
+  return loadNflPickemAtsSpreads({ poolId, week, games });
+}
+
+async function assertAtsLinesForPicks(
+  pool: typeof poolsTable.$inferSelect,
+  poolId: number,
+  week: number,
+  picks: Array<{ gameId: string }>,
+  games: Array<{ id: string; homeTeamId: string; awayTeamId: string }>,
+): Promise<string[] | null> {
+  if (!isNflPickemSeasonAts(pool)) return null;
+  const spreadByGame = await loadNflPickemAtsSpreads({ poolId, week, games });
+  const missing = picks.filter((p) => !spreadByGame.has(p.gameId)).map((p) => p.gameId);
+  return missing.length > 0 ? missing : null;
+}
 
 function isGameLocked(startIso: string): boolean {
   return new Date(startIso).getTime() <= Date.now();
@@ -239,11 +287,23 @@ router.get("/games", requireAuth, async (req, res) => {
             formattedGames.map((game) => ({ id: game.id, startTime: game.startTime })),
           )
         : null;
+      const spreadByGame = await loadSpreadsForPickemSeasonWeek(
+        pool,
+        poolId,
+        week,
+        formattedGames.map((g) => ({
+          id: g.id,
+          homeTeamId: g.homeTeam.id,
+          awayTeamId: g.awayTeam.id,
+        })),
+      );
+      const gamesWithSpreads = formattedGames.map((g) => withSpreadFields(g, spreadByGame));
       res.json({
         week,
         totalWeeks: NFL_TOTAL_WEEKS,
         currentWeek: pool.currentWeek,
-        games: formattedGames,
+        pickemScoringMode: pickemScoringModeForPool(pool),
+        games: gamesWithSpreads,
         sandboxMode: true,
         replayMode: true,
         ...(replayTiebreakerGameId !== null && { tiebreakerGameId: replayTiebreakerGameId }),
@@ -288,11 +348,19 @@ router.get("/games", requireAuth, async (req, res) => {
           formattedGames.map((game) => ({ id: game.id, startTime: game.startTime })),
         )
       : null;
+    const spreadByGame = await loadSpreadsForPickemSeasonWeek(
+      pool,
+      poolId,
+      week,
+      sandboxGames.map((g) => ({ id: g.id, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId })),
+    );
+    const gamesWithSpreads = formattedGames.map((g) => withSpreadFields(g, spreadByGame));
     res.json({
       week,
       totalWeeks: NFL_TOTAL_WEEKS,
       currentWeek: pool.currentWeek,
-      games: formattedGames,
+      pickemScoringMode: pickemScoringModeForPool(pool),
+      games: gamesWithSpreads,
       ...(staticTiebreakerGameId !== null && { tiebreakerGameId: staticTiebreakerGameId }),
       ...(pool.weeklyBonusEnabled && {
         weeklyTiebreaker: {
@@ -362,11 +430,24 @@ router.get("/games", requireAuth, async (req, res) => {
     };
   });
 
+  const spreadByGame = await loadSpreadsForPickemSeasonWeek(
+    pool,
+    poolId,
+    week,
+    games.map((g) => ({
+      id: g.id,
+      homeTeamId: g.homeTeam.id,
+      awayTeamId: g.awayTeam.id,
+    })),
+  );
+  const gamesWithSpreads = formattedGames.map((g) => withSpreadFields(g, spreadByGame));
+
   res.json({
     week,
     totalWeeks: NFL_TOTAL_WEEKS,
     currentWeek: pool.currentWeek,
-    games: formattedGames,
+    pickemScoringMode: pickemScoringModeForPool(pool),
+    games: gamesWithSpreads,
     ...(tiebreakerGameId !== null && { tiebreakerGameId }),
     ...(pool.weeklyBonusEnabled && {
       weeklyTiebreaker: {
@@ -458,6 +539,20 @@ router.post("/picks", requireAuth, async (req, res) => {
       if (lockedIds.length > 0) {
         res.status(400).json({ error: "Some games have already locked." }); return;
       }
+      const atsGames = replayRows.map((r) => {
+        const awayInfo = NFL_TEAM_INFO[r.awayTeam ?? ""];
+        const homeInfo = NFL_TEAM_INFO[r.homeTeam ?? ""];
+        return {
+          id: r.gameId,
+          homeTeamId: homeInfo?.id ?? r.homeTeam ?? "",
+          awayTeamId: awayInfo?.id ?? r.awayTeam ?? "",
+        };
+      });
+      const missingSpreads = await assertAtsLinesForPicks(pool, poolId, numWeek, picks, atsGames);
+      if (missingSpreads) {
+        res.status(400).json({ error: `Spread line not available yet for game(s): ${missingSpreads.join(", ")}` });
+        return;
+      }
       const confirmationGames: ConfirmationGame[] = replayRows.map((row) => {
         const awayInfo = NFL_TEAM_INFO[row.awayTeam ?? ""];
         const homeInfo = NFL_TEAM_INFO[row.homeTeam ?? ""];
@@ -515,6 +610,17 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: `Unknown sandbox game IDs: ${unknownSandboxIds.join(", ")}` }); return;
     }
     const sandboxGameMap = new Map(sandboxGames.map(g => [g.id, g]));
+    const missingSpreadsStatic = await assertAtsLinesForPicks(
+      pool,
+      poolId,
+      numWeek,
+      picks,
+      sandboxGames.map((g) => ({ id: g.id, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId })),
+    );
+    if (missingSpreadsStatic) {
+      res.status(400).json({ error: `Spread line not available yet for game(s): ${missingSpreadsStatic.join(", ")}` });
+      return;
+    }
     let saved = 0;
     const confirmation = await db.transaction(async (tx) => {
     for (const pick of picks) {
@@ -617,6 +723,18 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(400).json({
       error: `Cannot change picks for already-graded games: ${gradedIds.join(", ")}`,
     });
+    return;
+  }
+
+  const missingSpreads = await assertAtsLinesForPicks(
+    pool,
+    poolId,
+    numWeek,
+    picks,
+    games.map((g) => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id })),
+  );
+  if (missingSpreads) {
+    res.status(400).json({ error: `Spread line not available yet for game(s): ${missingSpreads.join(", ")}` });
     return;
   }
 
@@ -957,7 +1075,20 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           pool.season ?? undefined,
           pool.isPreseason ? 1 : 2,
         );
-        const live = computeLiveCorrect(liveGames, pendingPicks);
+        const spreadByGame = isNflPickemSeasonAts(pool)
+          ? await loadNflPickemAtsSpreads({
+              poolId,
+              week: pool.currentWeek,
+              games: liveGames.map((g) => ({
+                id: g.id,
+                homeTeamId: g.homeTeam.id,
+                awayTeamId: g.awayTeam.id,
+              })),
+            })
+          : new Map<string, SpreadLine>();
+        const live = isNflPickemSeasonAts(pool)
+          ? computeLiveCorrectAts(liveGames, pendingPicks, spreadByGame)
+          : computeLiveCorrect(liveGames, pendingPicks);
         liveGamesInProgress = live.liveGamesInProgress;
         for (const leaderboardEntry of entries) {
           leaderboardEntry.liveCorrect =
@@ -1017,6 +1148,8 @@ router.post("/process-results", requireAuth, async (req, res) => {
     res.json({ graded: 0, week, message: "No completed games found for that week" }); return;
   }
 
+  const completedGameIds = completedGames.map((g) => g.id);
+
   const winnerMap = new Map<string, string | null>();
   for (const game of completedGames) {
     if (game.homeScore != null && game.awayScore != null) {
@@ -1026,48 +1159,38 @@ router.post("/process-results", requireAuth, async (req, res) => {
     }
   }
 
-  const completedGameIds = Array.from(winnerMap.keys());
+  const scoringMode = pickemScoringModeForPool(pool);
+  const spreadByGame = isNflPickemSeasonAts(pool)
+    ? await loadNflPickemAtsSpreads({
+        poolId,
+        week,
+        games: completedGames.map((g) => ({
+          id: g.id,
+          homeTeamId: g.homeTeam.id,
+          awayTeamId: g.awayTeam.id,
+        })),
+      })
+    : new Map<string, SpreadLine>();
 
-  const pendingPicks = await db
-    .select()
-    .from(pickemPicksTable)
-    .where(
-      and(
-        eq(pickemPicksTable.poolId, poolId),
-        eq(pickemPicksTable.week, week),
-        eq(pickemPicksTable.result, "pending"),
-        inArray(pickemPicksTable.gameId, completedGameIds),
-      )
-    );
-
-  // Build a score/winner map for storage alongside each pick's result
-  const gameScoreMap = new Map<string, { awayScore: number; homeScore: number; winnerTeamId: string | null }>();
+  let graded = 0;
   for (const game of completedGames) {
-    if (game.homeScore != null && game.awayScore != null) {
-      gameScoreMap.set(game.id, {
+    if (game.homeScore == null || game.awayScore == null) continue;
+    if (isNflPickemSeasonAts(pool) && !spreadByGame.has(game.id)) continue;
+    graded += await gradePickemSeasonPendingPicksForFinalGame({
+      poolId,
+      gameId: game.id,
+      homeTeamId: game.homeTeam.id,
+      awayTeamId: game.awayTeam.id,
+      homeScore: game.homeScore,
+      awayScore: game.awayScore,
+      scoringMode,
+      spreadLine: spreadByGame.get(game.id) ?? null,
+      scoreFields: {
         awayScore: game.awayScore,
         homeScore: game.homeScore,
         winnerTeamId: winnerMap.get(game.id) ?? null,
-      });
-    }
-  }
-
-  let graded = 0;
-  for (const pick of pendingPicks) {
-    const winner = winnerMap.get(pick.gameId);
-    if (winner === undefined) continue;
-    const result: "correct" | "incorrect" | "push" =
-      winner === null ? "push" : pick.pickedTeamId === winner ? "correct" : "incorrect";
-    const scores = gameScoreMap.get(pick.gameId);
-    await db
-      .update(pickemPicksTable)
-      .set({
-        result,
-        updatedAt: new Date(),
-        ...(scores ? { awayScore: scores.awayScore, homeScore: scores.homeScore, winnerTeamId: scores.winnerTeamId } : {}),
-      })
-      .where(eq(pickemPicksTable.id, pick.id));
-    graded++;
+      },
+    });
   }
 
   // Week 18: fetch tiebreaker actuals for the auto-designated last game only.
@@ -1467,40 +1590,46 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
   const games = getSandboxGamesForWeek(week);
 
   // Random NFL-realistic scores (10–45, no ties), stored per game for display
-  const winnerByTeamId = new Map<string, string>();
   const gameScores = new Map<string, { awayScore: number; homeScore: number; winnerTeamId: string }>();
   for (const game of games) {
     let homeScore = 10 + Math.floor(Math.random() * 36);
     let awayScore = 10 + Math.floor(Math.random() * 36);
     if (homeScore === awayScore) homeScore += 3;
     const winner = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
-    winnerByTeamId.set(game.homeTeamId, winner);
-    winnerByTeamId.set(game.awayTeamId, winner);
     gameScores.set(game.id, { awayScore, homeScore, winnerTeamId: winner });
   }
 
-  const completedGameIds = Array.from(new Set(games.map(g => g.id)));
-  const pendingPicks = await db.select().from(pickemPicksTable).where(
-    and(
-      eq(pickemPicksTable.poolId, poolId),
-      eq(pickemPicksTable.week, week),
-      eq(pickemPicksTable.result, "pending"),
-      inArray(pickemPicksTable.gameId, completedGameIds),
-    )
-  );
+  const scoringMode = pickemScoringModeForPool(pool);
+  const spreadByGame = isNflPickemSeasonAts(pool)
+    ? await db
+        .select()
+        .from(pickemGameSpreadsTable)
+        .where(and(eq(pickemGameSpreadsTable.poolId, poolId), eq(pickemGameSpreadsTable.week, week)))
+        .then((rows) => {
+          const map = new Map<string, SpreadLine>();
+          for (const row of rows) {
+            map.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
+          }
+          return map;
+        })
+    : new Map<string, SpreadLine>();
 
   let graded = 0;
-  for (const pick of pendingPicks) {
-    const winner = winnerByTeamId.get(pick.pickedTeamId);
-    if (winner === undefined) continue;
-    const result: "correct" | "incorrect" = pick.pickedTeamId === winner ? "correct" : "incorrect";
-    const scores = gameScores.get(pick.gameId);
-    await db.update(pickemPicksTable).set({
-      result,
-      updatedAt: new Date(),
-      ...(scores ? { awayScore: scores.awayScore, homeScore: scores.homeScore, winnerTeamId: scores.winnerTeamId } : {}),
-    }).where(eq(pickemPicksTable.id, pick.id));
-    graded++;
+  for (const game of games) {
+    const scores = gameScores.get(game.id);
+    if (!scores) continue;
+    if (isNflPickemSeasonAts(pool) && !spreadByGame.has(game.id)) continue;
+    graded += await gradePickemSeasonPendingPicksForFinalGame({
+      poolId,
+      gameId: game.id,
+      homeTeamId: game.homeTeamId,
+      awayTeamId: game.awayTeamId,
+      homeScore: scores.homeScore,
+      awayScore: scores.awayScore,
+      scoringMode,
+      spreadLine: spreadByGame.get(game.id) ?? null,
+      scoreFields: scores,
+    });
   }
 
   // Record the full game count for this week (same as process-results does for real games)
@@ -1726,6 +1855,114 @@ router.get("/grid", requireAuth, async (req, res) => {
     picks: Object.fromEntries(u.picks.entries()),
   }));
   res.json({ week, games, players });
+});
+
+// GET /api/pools/:poolId/pickem-season/ats-spreads?week=N
+router.get("/ats-spreads", requireAuth, requireAdmin, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
+  }
+  if (!isNflPickemSeasonAts(pool)) {
+    res.status(400).json({ error: "Pool is not in against-the-spread mode" }); return;
+  }
+
+  const rawWeek = parseInt(String(req.query.week ?? pool.currentWeek));
+  const week = Math.max(1, Math.min(NFL_TOTAL_WEEKS, isNaN(rawWeek) ? pool.currentWeek : rawWeek));
+
+  let games: Array<{ id: string; homeTeamId: string; awayTeamId: string }> = [];
+  if (pool.sandboxMode) {
+    const replayRows = await db
+      .select()
+      .from(sandboxGameScoresTable)
+      .where(and(
+        eq(sandboxGameScoresTable.poolId, poolId),
+        eq(sandboxGameScoresTable.week, week),
+        isNotNull(sandboxGameScoresTable.gameStatus),
+      ));
+    if (replayRows.length > 0) {
+      games = replayRows.map((r) => {
+        const awayInfo = NFL_TEAM_INFO[r.awayTeam ?? ""];
+        const homeInfo = NFL_TEAM_INFO[r.homeTeam ?? ""];
+        return {
+          id: r.gameId,
+          homeTeamId: homeInfo?.id ?? r.homeTeam ?? "",
+          awayTeamId: awayInfo?.id ?? r.awayTeam ?? "",
+        };
+      });
+    } else {
+      games = getSandboxGamesForWeek(week).map((g) => ({
+        id: g.id,
+        homeTeamId: g.homeTeamId,
+        awayTeamId: g.awayTeamId,
+      }));
+    }
+  } else {
+    const espnGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    games = espnGames.map((g) => ({
+      id: g.id,
+      homeTeamId: g.homeTeam.id,
+      awayTeamId: g.awayTeam.id,
+    }));
+  }
+
+  const byGame = await loadNflPickemAtsSpreads({ poolId, week, games });
+  const spreads = games.map((g) => ({
+    gameId: g.id,
+    spread: byGame.get(g.id)?.spread ?? null,
+    favoriteTeamId: byGame.get(g.id)?.favoriteTeamId ?? null,
+  }));
+
+  res.json({ week, pickemScoringMode: pickemScoringModeForPool(pool), spreads });
+});
+
+// POST /api/pools/:poolId/pickem-season/ats-spreads — admin fills missing lines only
+router.post("/ats-spreads", requireAuth, requireAdmin, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
+  }
+  if (!isNflPickemSeasonAts(pool)) {
+    res.status(400).json({ error: "Pool is not in against-the-spread mode" }); return;
+  }
+
+  const { week: bodyWeek, spreads } = req.body as {
+    week?: number;
+    spreads: Array<{ gameId: string; spread: number; favoriteTeamId: string }>;
+  };
+  const week = Math.max(
+    1,
+    Math.min(NFL_TOTAL_WEEKS, Number(bodyWeek ?? pool.currentWeek) || pool.currentWeek),
+  );
+
+  if (!Array.isArray(spreads) || spreads.length === 0) {
+    res.status(400).json({ error: "spreads must be a non-empty array" }); return;
+  }
+
+  let saved = 0;
+  let skipped = 0;
+  for (const s of spreads) {
+    if (!s.gameId || typeof s.spread !== "number" || s.spread <= 0 || !s.favoriteTeamId) continue;
+    const inserted = await db
+      .insert(pickemGameSpreadsTable)
+      .values({
+        poolId,
+        gameId: s.gameId,
+        week,
+        spread: s.spread,
+        favoriteTeamId: s.favoriteTeamId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: pickemGameSpreadsTable.id });
+    if (inserted.length > 0) saved++;
+    else skipped++;
+  }
+
+  res.json({ saved, skipped });
 });
 
 export default router;

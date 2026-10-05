@@ -2770,6 +2770,50 @@ paths:
                   week:
                     type: integer
 
+  /pools/{poolId}/pickem-season/ats-spreads:
+    get:
+      operationId: getNflPickEmSeasonAtsSpreads
+      tags: [pickem-season]
+      summary: List ATS spread lines for a week (admin)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+        - name: week
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Spread lines for the slate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NflPickEmSeasonAtsSpreadsResponse"
+    post:
+      operationId: setNflPickEmSeasonAtsSpreads
+      tags: [pickem-season]
+      summary: Insert missing ATS spread lines (admin; never overwrites)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NflPickEmSeasonAtsSpreadsInput"
+      responses:
+        "200":
+          description: Lines saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [saved, skipped]
+                properties:
+                  saved:
+                    type: integer
+                  skipped:
+                    type: integer
+
 components:
   parameters:
     PoolId:
@@ -3001,6 +3045,11 @@ components:
           type: ["integer", "null"]
           minimum: 1
           description: "Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true"
+        pickemScoringMode:
+          type: string
+          enum: [straight, ats]
+          default: straight
+          description: "NFL Pick-Ems Season only — straight-up winners vs against the spread"
 
     PoolUpdate:
       type: object
@@ -3250,6 +3299,10 @@ components:
         hasLiveGames:
           type: boolean
           description: "True when at least one game for this pool's sport is currently in progress"
+        pickemScoringMode:
+          type: string
+          enum: [straight, ats]
+          description: "NFL Pick-Ems Season scoring mode"
 
     PoolDetail:
       type: object
@@ -3339,6 +3392,10 @@ components:
         isPreseason:
           type: boolean
           description: "Whether this pool uses preseason games instead of regular-season games"
+        pickemScoringMode:
+          type: string
+          enum: [straight, ats]
+          description: "NFL Pick-Ems Season scoring mode"
         weeklyBonusEnabled:
           type: boolean
           default: false
@@ -5272,6 +5329,14 @@ components:
         awayRecord:
           type: string
           nullable: true
+        spread:
+          type: number
+          nullable: true
+          description: "ATS mode only — absolute spread (half-point line)"
+        favoriteTeamId:
+          type: string
+          nullable: true
+          description: "ATS mode only — ESPN team id of the favorite"
 
     NflPickEmSeasonSlate:
       type: object
@@ -5283,6 +5348,9 @@ components:
           type: integer
         currentWeek:
           type: integer
+        pickemScoringMode:
+          type: string
+          enum: [straight, ats]
         tiebreakerGameId:
           type: string
           nullable: true
@@ -5396,6 +5464,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NflPickEmSeasonLeaderboardEntry"
+
+    NflPickEmSeasonAtsSpreadLine:
+      type: object
+      required: [gameId, spread, favoriteTeamId]
+      properties:
+        gameId:
+          type: string
+        spread:
+          type: ["number", "null"]
+        favoriteTeamId:
+          type: ["string", "null"]
+
+    NflPickEmSeasonAtsSpreadsResponse:
+      type: object
+      required: [week, pickemScoringMode, spreads]
+      properties:
+        week:
+          type: integer
+        pickemScoringMode:
+          type: string
+          enum: [straight, ats]
+        spreads:
+          type: array
+          items:
+            $ref: "#/components/schemas/NflPickEmSeasonAtsSpreadLine"
+
+    NflPickEmSeasonAtsSpreadsInput:
+      type: object
+      required: [spreads]
+      properties:
+        week:
+          type: integer
+        spreads:
+          type: array
+          items:
+            type: object
+            required: [gameId, spread, favoriteTeamId]
+            properties:
+              gameId:
+                type: string
+              spread:
+                type: number
+              favoriteTeamId:
+                type: string
 
     NflPickEmSeasonProcessResult:
       type: object
