@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { Download, Check, X, Camera } from "lucide-react";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
-import { nflAtsMatchupLines, nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
+import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -264,11 +264,6 @@ export function NflConfidenceSnapshot({
                         style={{ width: 82 }}
                       >
                         <div>{g.awayTeam.abbreviation} @ {g.homeTeam.abbreviation}</div>
-                        {variant === "pickem_season" && nflAtsMatchupLines(g) && (
-                          <div className="font-mono text-[9px] text-muted-foreground/50 mt-0.5 tabular-nums">
-                            {nflAtsMatchupLines(g)!.away} · {nflAtsMatchupLines(g)!.home}
-                          </div>
-                        )}
                         {g.awayScore != null && g.homeScore != null && (
                           <div className="text-[9px] text-muted-foreground/40 mt-0.5">
                             {g.awayScore}–{g.homeScore}
