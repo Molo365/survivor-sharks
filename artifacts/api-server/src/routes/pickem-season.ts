@@ -1396,7 +1396,8 @@ router.get("/week-results", requireAuth, async (req, res) => {
         const isLocked = startTime
           ? isGameLocked(startTime)
           : false;
-        if (!isLocked) {
+        const reveal = isLocked || uid === userId;
+        if (!reveal) {
           return {
             gameId: p.gameId,
             pickedTeamId: null as string | null,
@@ -1458,31 +1459,48 @@ router.get("/week-results", requireAuth, async (req, res) => {
     : { status: "not_needed" as const, actual: null, winners: scoreWinners };
   const winners = weeklyTiebreakerResolution.winners;
 
-  const formattedGames = games.map(g => ({
-    id: g.id,
-    startTime: g.date,
-    status: g.status,
-    deadlinePassed: isGameLocked(g.date),
-    awayTeam: {
-      id: g.awayTeam.id,
-      name: g.awayTeam.displayName,
-      abbreviation: g.awayTeam.abbreviation,
-      logoUrl: g.awayTeam.logo ?? null,
-    },
-    homeTeam: {
-      id: g.homeTeam.id,
-      name: g.homeTeam.displayName,
-      abbreviation: g.homeTeam.abbreviation,
-      logoUrl: g.homeTeam.logo ?? null,
-    },
-    awayScore: g.awayScore ?? null,
-    homeScore: g.homeScore ?? null,
-    userPickTeamId: null,
-    userPickResult: null,
-    liveDetail: g.liveState?.shortDetail ?? null,
-    homeRecord: g.homeRecord ?? null,
-    awayRecord: g.awayRecord ?? null,
-  }));
+  const spreadByGame = isNflPickemSeasonAts(pool)
+    ? await loadNflPickemAtsSpreads({
+        poolId,
+        week,
+        games: games.map((g) => ({
+          id: g.id,
+          homeTeamId: g.homeTeam.id,
+          awayTeamId: g.awayTeam.id,
+        })),
+      })
+    : new Map<string, SpreadLine>();
+
+  const formattedGames = games.map(g => {
+    const line = spreadByGame.get(g.id);
+    return {
+      id: g.id,
+      startTime: g.date,
+      status: g.status,
+      deadlinePassed: isGameLocked(g.date),
+      awayTeam: {
+        id: g.awayTeam.id,
+        name: g.awayTeam.displayName,
+        abbreviation: g.awayTeam.abbreviation,
+        logoUrl: g.awayTeam.logo ?? null,
+      },
+      homeTeam: {
+        id: g.homeTeam.id,
+        name: g.homeTeam.displayName,
+        abbreviation: g.homeTeam.abbreviation,
+        logoUrl: g.homeTeam.logo ?? null,
+      },
+      awayScore: g.awayScore ?? null,
+      homeScore: g.homeScore ?? null,
+      userPickTeamId: null,
+      userPickResult: null,
+      liveDetail: g.liveState?.shortDetail ?? null,
+      homeRecord: g.homeRecord ?? null,
+      awayRecord: g.awayRecord ?? null,
+      spread: line?.spread ?? null,
+      favoriteTeamId: line?.favoriteTeamId ?? null,
+    };
+  });
 
   const weeklyBonusAmount =
     pool.weeklyBonusEnabled && pool.weeklyBonusAmount != null
@@ -1529,7 +1547,6 @@ router.get("/week-results", requireAuth, async (req, res) => {
         new Date(g.date).getTime() <= now ||
         (g.status && g.status !== "scheduled"),
     );
-  console.log("WEEK-RESULTS GATE - pool:", pool.id, "games.length:", games.length, "slateIsLive:", slateIsLive, "userId:", userId);
   if (!slateIsLive) {
     for (const player of rankedPlayers) {
       if (player.userId === userId) continue;
@@ -1779,6 +1796,19 @@ router.get("/grid", requireAuth, async (req, res) => {
       }
     } catch { /* ESPN unavailable */ }
   }
+
+  const spreadByGame = isNflPickemSeasonAts(pool)
+    ? await loadNflPickemAtsSpreads({
+        poolId,
+        week,
+        games: [...gameMap.values()].map((g: { id: string; homeTeam: { id: string }; awayTeam: { id: string } }) => ({
+          id: g.id,
+          homeTeamId: g.homeTeam.id,
+          awayTeamId: g.awayTeam.id,
+        })),
+      })
+    : new Map<string, SpreadLine>();
+
   const userMap = new Map<number, {
     userId: number;
     username: string;
@@ -1839,15 +1869,20 @@ router.get("/grid", requireAuth, async (req, res) => {
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const games = [...gameMap.values()].map((g: any) => ({
-    id: g.id,
-    awayTeam: g.awayTeam,
-    homeTeam: g.homeTeam,
-    startTime: g.startTime,
-    status: g.status,
-    awayScore: g.awayScore ?? null,
-    homeScore: g.homeScore ?? null,
-  }));
+  const games = [...gameMap.values()].map((g: any) => {
+    const line = spreadByGame.get(g.id);
+    return {
+      id: g.id,
+      awayTeam: g.awayTeam,
+      homeTeam: g.homeTeam,
+      startTime: g.startTime,
+      status: g.status,
+      awayScore: g.awayScore ?? null,
+      homeScore: g.homeScore ?? null,
+      spread: line?.spread ?? null,
+      favoriteTeamId: line?.favoriteTeamId ?? null,
+    };
+  });
   const players = Array.from(userMap.values()).map(u => ({
     userId: u.userId,
     username: u.username,
