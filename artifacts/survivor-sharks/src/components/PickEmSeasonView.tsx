@@ -94,7 +94,7 @@ import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
-import { nflAtsMatchupLines, nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
+import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 const NFL_TOTAL_WEEKS = 18;
 
@@ -163,7 +163,6 @@ function NflGameCard({
   const pickedHome = pickedTeamId === game.homeTeam.id;
   const awayResult = pickedAway ? (game.userPickResult ?? null) : null;
   const homeResult = pickedHome ? (game.userPickResult ?? null) : null;
-  const matchupLines = isAtsMode ? nflAtsMatchupLines(game) : null;
 
   function teamBtnClass(isPicked: boolean, result: string | null) {
     if (isPicked && result === "correct")
@@ -220,6 +219,10 @@ function NflGameCard({
     const isHome = side === "home";
     const isCorrect = result === "correct";
     const isWrong = result === "incorrect";
+    const spreadLabel =
+      isAtsMode && game.spread != null && game.favoriteTeamId
+        ? nflAtsSpreadLabelForTeam(team.id, game)
+        : null;
 
     return (
       <button
@@ -264,6 +267,12 @@ function NflGameCard({
           )}>
             {team.name}
           </span>
+
+          {spreadLabel && (
+            <span className="font-mono text-sm sm:text-lg font-bold text-foreground/90 tabular-nums leading-none">
+              {spreadLabel}
+            </span>
+          )}
 
           {record && (
             <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
@@ -323,21 +332,8 @@ function NflGameCard({
           result={awayResult}
         />
 
-        {/* Center divider */}
-        <div className="flex flex-col items-center justify-center gap-1.5 px-2 min-w-[88px] sm:min-w-[104px] shrink-0">
-          {matchupLines && (
-            <div className="flex flex-col items-center gap-0.5 rounded-lg border border-primary/20 bg-primary/5 px-2 py-1.5 w-full">
-              <span className="font-mono font-bold text-sm sm:text-base text-foreground tabular-nums leading-tight">
-                {matchupLines.away}
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/45">
-                @
-              </span>
-              <span className="font-mono font-bold text-sm sm:text-base text-foreground tabular-nums leading-tight">
-                {matchupLines.home}
-              </span>
-            </div>
-          )}
+        {/* Center divider — status / kickoff only (ATS lines live on team panels) */}
+        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[72px] sm:px-3 sm:min-w-[88px] shrink-0">
           {isLive ? (
             <>
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
@@ -789,21 +785,12 @@ function WeeklyGrid({
                       key={game.id}
                       className="px-1 py-2 text-center min-w-[68px]"
                     >
-                        <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex flex-col items-center gap-0.5">
                         <div className="flex items-center gap-0.5 text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
                           <span>{game.awayTeam.abbreviation}</span>
                           <span className="text-muted-foreground/40">@</span>
                           <span>{game.homeTeam.abbreviation}</span>
                         </div>
-                        {(() => {
-                          const lines = nflAtsMatchupLines(game);
-                          if (!lines) return null;
-                          return (
-                            <span className="font-mono text-[9px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
-                              {lines.away} · {lines.home}
-                            </span>
-                          );
-                        })()}
                         {game.awayScore != null && game.homeScore != null && (
                           <span className="text-[11px] font-bold text-foreground tabular-nums">
                             {game.awayScore}–{game.homeScore}
