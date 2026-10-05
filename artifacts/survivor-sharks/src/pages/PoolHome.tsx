@@ -45,6 +45,7 @@ import { PoolRulesSheet } from "@/components/PoolRulesSheet";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 import { getPoolRules } from "@/lib/poolRules";
+import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -58,6 +59,8 @@ export default function PoolHome() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useAndroidPoolBackToDashboard(Boolean(user && poolId));
 
   const { data: pool, isLoading, error } = useGetPool(poolId, {
     query: {
@@ -162,7 +165,7 @@ export default function PoolHome() {
 
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
   if (pool && ((pool.poolType as string) === "pickem" || isNbaAts) && !location.endsWith("/pickem")) {
-    return <Redirect to={`/pools/${poolId}/pickem`} />;
+    return <Redirect to={`/pools/${poolId}/pickem`} replace />;
   }
 
   if (error) {
