@@ -17,6 +17,7 @@ import type {
   NflPickEmSeasonGame,
   NflPickEmSeasonPlayerPick,
 } from "@workspace/api-client-react";
+import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 // ── PickEm player shape (must satisfy LeaderboardPlayer) ─────────────────────
 
@@ -68,6 +69,10 @@ function PickCard({
   const matchup = game
     ? `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
     : null;
+  const spreadLabel =
+    game && pick.pickedTeamId
+      ? nflAtsSpreadLabelForTeam(pick.pickedTeamId, game)
+      : null;
 
   return (
     <div
@@ -100,6 +105,11 @@ function PickCard({
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-foreground truncate leading-tight">
           {teamName}
+          {spreadLabel && (
+            <span className="ml-1.5 font-mono text-[11px] text-primary/80">
+              {spreadLabel}
+            </span>
+          )}
         </p>
         {matchup && (
           <p className="text-[10px] text-muted-foreground/50 truncate leading-tight">

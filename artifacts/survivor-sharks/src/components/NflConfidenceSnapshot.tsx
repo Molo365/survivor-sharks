@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { Download, Check, X, Camera } from "lucide-react";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+import { nflAtsMatchupLines, nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ interface GridGame {
   status: string;
   awayScore: number | null;
   homeScore: number | null;
+  spread?: number | null;
+  favoriteTeamId?: string | null;
 }
 
 interface GridPick {
@@ -261,6 +264,11 @@ export function NflConfidenceSnapshot({
                         style={{ width: 82 }}
                       >
                         <div>{g.awayTeam.abbreviation} @ {g.homeTeam.abbreviation}</div>
+                        {variant === "pickem_season" && nflAtsMatchupLines(g) && (
+                          <div className="font-mono text-[9px] text-muted-foreground/50 mt-0.5 tabular-nums">
+                            {nflAtsMatchupLines(g)!.away} · {nflAtsMatchupLines(g)!.home}
+                          </div>
+                        )}
                         {g.awayScore != null && g.homeScore != null && (
                           <div className="text-[9px] text-muted-foreground/40 mt-0.5">
                             {g.awayScore}–{g.homeScore}
@@ -341,6 +349,10 @@ export function NflConfidenceSnapshot({
                           const isAway = pick.pickedTeamId === g.awayTeam.id;
                           const team = isAway ? g.awayTeam : g.homeTeam;
                           const logoUrl = pick.pickedTeamLogoUrl ?? team.logoUrl;
+                          const spreadLabel =
+                            variant === "pickem_season"
+                              ? nflAtsSpreadLabelForTeam(pick.pickedTeamId, g)
+                              : null;
 
                           return (
                             <td key={g.id} className="px-1 py-2 text-center">
@@ -379,6 +391,11 @@ export function NflConfidenceSnapshot({
                                 >
                                   {team.abbreviation}
                                 </span>
+                                {spreadLabel && (
+                                  <span className="font-mono text-[10px] font-bold text-primary/80 leading-none">
+                                    {spreadLabel}
+                                  </span>
+                                )}
                                 {/* Confidence points */}
                                 {pick.confidencePoints != null && (
                                   <span
