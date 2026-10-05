@@ -8,7 +8,8 @@ const NO_BACK_PATHS = new Set(["/", "/dashboard", "/login", "/register"]);
 export function NavBar() {
   const { user, isLoading, logout } = useAuth();
   const [location] = useLocation();
-  const showBack = user && !NO_BACK_PATHS.has(location);
+  const pathname = location.split(/[?#]/, 1)[0] || location;
+  const showBack = user && !NO_BACK_PATHS.has(pathname);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -31,8 +32,8 @@ export function NavBar() {
               className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
               data-testid="nav-back"
             >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Dashboard</span>
+              <ChevronLeft className="w-4 h-4 shrink-0" />
+              <span className="sm:inline">Dashboard</span>
             </Link>
           )}
         </div>

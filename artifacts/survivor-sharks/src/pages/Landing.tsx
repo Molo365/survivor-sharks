@@ -28,7 +28,7 @@ export default function Landing() {
   const { user, isLoading } = useAuth();
   const countdown = useCountdown(FEATURED_EVENT_TARGET);
 
-  if (!isLoading && user) return <Redirect to="/dashboard" />;
+  if (!isLoading && user) return <Redirect to="/dashboard" replace />;
 
   return (
     <div className="min-h-[100dvh] flex flex-col">

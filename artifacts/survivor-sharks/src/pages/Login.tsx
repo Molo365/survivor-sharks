@@ -63,7 +63,7 @@ export default function Login() {
     normalizedLocation.endsWith("/super-admin");
 
   if (!isLoading && user && !pendingCode && !isSuperAdminLogin) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to="/dashboard" replace />;
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -81,7 +81,7 @@ export default function Login() {
           if (pendingCode) {
             setLocation(continuationPath(pendingCode));
           } else {
-            setLocation("/dashboard");
+            setLocation("/dashboard", { replace: true });
           }
         },
         onError: (error: any) => {

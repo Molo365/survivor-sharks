@@ -42,7 +42,7 @@ export default function Register() {
   const pendingCode = getPendingInviteCode(location);
 
   if (!isLoading && user && !pendingCode) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to="/dashboard" replace />;
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -61,7 +61,7 @@ export default function Register() {
           if (pendingCode) {
             setLocation(continuationPath(pendingCode));
           } else {
-            setLocation("/dashboard");
+            setLocation("/dashboard", { replace: true });
           }
         },
         onError: (error: any) => {
