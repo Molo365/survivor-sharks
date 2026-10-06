@@ -106,7 +106,7 @@ function PickCard({
         <p className="text-xs font-semibold text-foreground truncate leading-tight">
           {teamName}
           {spreadLabel && (
-            <span className="ml-1.5 font-mono text-[11px] text-primary/80">
+            <span className="ml-1.5 font-mono text-[11px] text-yellow-400">
               {spreadLabel}
             </span>
           )}

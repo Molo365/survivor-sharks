@@ -387,7 +387,7 @@ export function NflConfidenceSnapshot({
                                   {team.abbreviation}
                                 </span>
                                 {spreadLabel && (
-                                  <span className="font-mono text-[10px] font-bold text-primary/80 leading-none">
+                                  <span className="font-mono text-[10px] font-bold text-yellow-400 leading-none">
                                     {spreadLabel}
                                   </span>
                                 )}
