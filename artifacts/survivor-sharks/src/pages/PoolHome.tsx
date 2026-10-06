@@ -254,8 +254,8 @@ export default function PoolHome() {
                     Prize Pot: ${mobilePrizeData.pot.toLocaleString()}
                   </div>
                 ) : null}
-                <div className="flex items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap [&>*]:shrink-0">
-                  <span className="inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded text-foreground">
+                <div className="flex w-full max-w-full flex-col items-start gap-2 text-[10px] md:flex-row md:flex-wrap md:items-center md:gap-2 md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 px-2 py-1 rounded text-foreground">
                     <SportLogo sport={pool.sport} className="h-4 w-4 rounded-sm" />
                     {SPORT_LABELS[pool.sport] ?? pool.sport}
                   </span>
@@ -349,8 +349,8 @@ export default function PoolHome() {
                       🎬 Replay
                     </span>
                   )}
-                  <span>Season {pool.season}</span>
-                  <span className="flex items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
+                  <span className="inline-flex w-fit max-w-full items-center gap-1 text-muted-foreground">Season {pool.season}</span>
+                  <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
                     {pool.isRecurring ? <RefreshCw className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
                     {pool.isRecurring ? "Recurring" : "One-time"}
                   </span>
