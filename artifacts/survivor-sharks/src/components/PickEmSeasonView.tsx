@@ -228,25 +228,25 @@ function NflGameCard({
         disabled={isLocked}
         onClick={() => !isLocked && onPick(game.id, team.id)}
         className={cn(
-          "flex-1 flex items-center gap-2 p-2.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
+          "flex-1 min-w-0 basis-0 flex items-center gap-1 p-1.5 sm:gap-3 sm:p-4 rounded-xl border-2 transition-all select-none",
           isLocked ? "cursor-default" : "cursor-pointer hover:brightness-110 active:scale-[0.98]",
           teamBtnClass(isPicked, result),
           isHome ? "flex-row-reverse" : "flex-row",
         )}
       >
         {/* Logo in white circle */}
-        <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+        <div className="shrink-0 rounded-full bg-white/90 p-1 sm:p-1.5 shadow-sm">
           {team.logoUrl ? (
             <img
               src={team.logoUrl}
               alt={team.name}
-              className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+              className="w-8 h-8 sm:w-12 sm:h-12 object-contain"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";
               }}
             />
           ) : (
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-muted/40 flex items-center justify-center">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-muted/40 flex items-center justify-center">
               <span className="font-bebas text-xs text-muted-foreground">
                 {team.abbreviation.slice(0, 2)}
               </span>
@@ -269,7 +269,7 @@ function NflGameCard({
           >
             <span
               className={cn(
-                "font-bebas tracking-wide text-lg sm:text-xl leading-none shrink-0",
+                "font-bebas tracking-wide text-base sm:text-xl leading-none shrink-0",
                 isPicked ? "text-foreground" : "text-muted-foreground",
               )}
             >
@@ -284,20 +284,24 @@ function NflGameCard({
 
           <span
             className={cn(
-              "w-full truncate text-[10px] sm:text-[11px] uppercase tracking-wide leading-tight text-muted-foreground/55",
+              "hidden sm:block w-full truncate text-[11px] uppercase tracking-wide leading-tight text-muted-foreground/55",
               isPicked && "text-muted-foreground/70",
             )}
           >
             {team.name}
           </span>
 
-          {isPicked && <PickBadge result={result} />}
+          {isPicked && (
+            <span className="hidden sm:inline-flex">
+              <PickBadge result={result} />
+            </span>
+          )}
         </div>
 
         {(isFinal || isLive) && score != null && (
           <div
             className={cn(
-              "shrink-0 flex items-center self-stretch",
+              "hidden sm:flex shrink-0 items-center self-stretch",
               isHome ? "pr-1 sm:pr-2 border-r border-border/25" : "pl-1 sm:pl-2 border-l border-border/25",
             )}
           >
@@ -342,7 +346,7 @@ function NflGameCard({
         </span>
       )}
 
-      <div className="flex items-stretch gap-0">
+      <div className="flex items-stretch gap-0 w-full min-w-0 max-w-full">
         <TeamBtn
           team={game.awayTeam}
           side="away"
@@ -351,26 +355,42 @@ function NflGameCard({
           result={awayResult}
         />
 
-        {/* Center divider — status / kickoff only (ATS lines live on team panels) */}
-        <div className="flex flex-col items-center justify-center gap-1 px-2 min-w-[72px] sm:px-3 sm:min-w-[88px] shrink-0">
+        {/* Center divider — status / kickoff; mobile final/live scores live here */}
+        <div className="flex flex-col items-center justify-center gap-0.5 px-1 min-w-[3.25rem] max-w-[4.25rem] sm:gap-1 sm:px-3 sm:min-w-[88px] sm:max-w-none shrink-0">
           {isLive ? (
             <>
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
+              {(game.awayScore != null || game.homeScore != null) && (
+                <div className="sm:hidden font-bebas text-lg leading-none tabular-nums text-foreground/80">
+                  {game.awayScore ?? "–"}
+                  <span className="text-muted-foreground/35 mx-0.5">-</span>
+                  {game.homeScore ?? "–"}
+                </div>
+              )}
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/50 animate-pulse leading-none whitespace-nowrap">
                 ● LIVE
               </span>
-              <span className="text-[10px] text-muted-foreground/70 leading-none whitespace-nowrap">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground/70 leading-none text-center max-w-full">
                 {formatGameDateEt(game.startTime)}
               </span>
               {game.liveDetail && (
-                <span className="font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
+                <span className="hidden sm:block font-bebas text-[11px] text-red-300/80 leading-none tracking-wide whitespace-nowrap">
                   {game.liveDetail}
                 </span>
               )}
             </>
           ) : isFinal ? (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
-              Final
-            </span>
+            <>
+              {game.awayScore != null && game.homeScore != null && (
+                <div className="sm:hidden font-bebas text-lg leading-none tabular-nums text-foreground/80">
+                  {game.awayScore}
+                  <span className="text-muted-foreground/35 mx-0.5">-</span>
+                  {game.homeScore}
+                </div>
+              )}
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground/60 border-border/30 leading-none">
+                Final
+              </span>
+            </>
           ) : isPPD ? (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/40 leading-none">
               PPD
@@ -381,15 +401,15 @@ function NflGameCard({
             </span>
           ) : (
             <>
-              <span className="font-bebas text-xs text-muted-foreground/70 tracking-widest uppercase">
+              <span className="font-bebas text-[10px] sm:text-xs text-muted-foreground/70 tracking-widest uppercase">
                 vs
               </span>
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground/80 leading-tight font-semibold whitespace-nowrap">
+              <span className="text-[9px] sm:text-[11px] text-muted-foreground/80 leading-tight font-semibold text-center max-w-full">
                 {formatGameDateEt(game.startTime)}
               </span>
-              <div className="flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3 text-primary/60 shrink-0" />
-                <span className="text-[11px] sm:text-xs text-muted-foreground leading-tight font-semibold whitespace-nowrap">
+              <div className="flex items-center justify-center gap-0.5 mt-0.5 max-w-full">
+                <Clock className="hidden sm:block w-3 h-3 text-primary/60 shrink-0" />
+                <span className="text-[9px] sm:text-xs text-muted-foreground leading-tight font-semibold text-center">
                   {formatGameTimeEt(game.startTime)}
                 </span>
               </div>
@@ -2070,7 +2090,7 @@ export function PickEmSeasonView({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 min-w-0 max-w-full overflow-x-hidden">
                   {/* Week header */}
                   <div className="flex items-center justify-between">
                     <div>
