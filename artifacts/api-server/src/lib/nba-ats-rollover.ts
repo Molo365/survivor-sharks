@@ -4,6 +4,10 @@ import {
   getNbaWeekendBounds,
   type EspnGame,
 } from "./espn";
+import {
+  computeNbaAtsWeeklyLeaderGroups,
+  nbaAtsWeeklyPeriodReason,
+} from "./nba-ats-weekly-groups";
 
 export interface NbaAtsRolloverPool {
   id: number;
@@ -20,10 +24,10 @@ export interface NbaAtsRolloverPool {
 export interface NbaAtsRolloverStore {
   listPools(): Promise<NbaAtsRolloverPool[]>;
   countPendingPicks(poolId: number, week: number): Promise<number>;
-  advanceWeekIfCurrent(
+  recordPeriodAndAdvance(
     pool: NbaAtsRolloverPool,
-    expectedWeek: number,
-    nextWeek: number,
+    groups: number[][],
+    reason: string,
   ): Promise<boolean>;
 }
 
@@ -50,7 +54,17 @@ function isEligiblePool(pool: NbaAtsRolloverPool): boolean {
     && (pool.pickFrequency == null || pool.pickFrequency === "weekly");
 }
 
-/** Advance completed live NBA ATS weekends without closing or paying out the pool. */
+function buildNbaAtsGameScoreMap(weekendGames: EspnGame[]): Map<string, number> {
+  const gameScoreMap = new Map<string, number>();
+  for (const game of weekendGames) {
+    if (game.isCompleted && game.homeScore != null && game.awayScore != null) {
+      gameScoreMap.set(game.id, Math.abs(game.homeScore - game.awayScore));
+    }
+  }
+  return gameScoreMap;
+}
+
+/** Settle completed live NBA ATS weekends (period payout row) and advance currentWeek. */
 export async function advanceRecurringNbaAtsPools({
   store,
   fetchChecked,
@@ -133,13 +147,19 @@ export async function advanceRecurringNbaAtsPools({
         continue;
       }
 
-      const nextWeek = pool.currentWeek + 1;
-      const advanced = await store.advanceWeekIfCurrent(pool, pool.currentWeek, nextWeek);
-      if (!advanced) {
+      const gameScoreMap = buildNbaAtsGameScoreMap(weekendGames);
+      const { groups } = await computeNbaAtsWeeklyLeaderGroups(
+        pool.id,
+        pool.currentWeek,
+        gameScoreMap,
+      );
+      const reason = nbaAtsWeeklyPeriodReason(groups);
+      const settled = await store.recordPeriodAndAdvance(pool, groups, reason);
+      if (!settled) {
         log(
           "info",
-          { poolId: pool.id, currentWeek: pool.currentWeek },
-          "NBA ATS recurring rollover: pool changed before compare-and-set, skipping",
+          { poolId: pool.id, currentWeek: pool.currentWeek, reason },
+          "NBA ATS recurring settlement: period already recorded or pool changed, skipping",
         );
         continue;
       }
@@ -149,11 +169,13 @@ export async function advanceRecurringNbaAtsPools({
         {
           poolId: pool.id,
           previousWeek: pool.currentWeek,
-          nextWeek,
+          nextWeek: pool.currentWeek + 1,
           days: bounds.days,
           gameCount: weekendGames.length,
+          reason,
+          placeGroups: groups.length,
         },
-        "NBA ATS recurring rollover: advanced after the completed Fri–Sun slate",
+        "NBA ATS recurring settlement: recorded weekly payout and advanced after Fri–Sun slate",
       );
     } catch (err) {
       log(

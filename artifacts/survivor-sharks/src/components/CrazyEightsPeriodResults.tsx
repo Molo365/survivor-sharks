@@ -43,6 +43,19 @@ export function useCrazyEightsPeriodResults(poolId: number, sport: string) {
   });
 }
 
+export function useNbaAtsPeriodResults(poolId: number, enabled: boolean) {
+  const { user } = useAuth();
+
+  return useQuery<CrazyEightsPeriodResult[]>({
+    queryKey: ["nba-ats-period-results", poolId],
+    queryFn: () => authedFetch<CrazyEightsPeriodResult[]>(
+      `/api/pools/${poolId}/pickem/period-results`,
+    ),
+    staleTime: 60_000,
+    enabled: enabled && !!user,
+  });
+}
+
 function ResultLines({ result }: { result: CrazyEightsPeriodResult }) {
   return (
     <div className="space-y-1">
