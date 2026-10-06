@@ -276,7 +276,7 @@ function NflGameCard({
               {team.abbreviation}
             </span>
             {spreadLabel && (
-              <span className="font-mono text-xs sm:text-sm font-bold text-primary/90 tabular-nums leading-none shrink-0">
+              <span className="font-mono text-xs sm:text-sm font-bold text-yellow-400 tabular-nums leading-none shrink-0">
                 {spreadLabel}
               </span>
             )}
@@ -570,7 +570,7 @@ function PickEmPickCard({
         <p className="text-xs font-semibold text-foreground truncate leading-tight">
           {teamName}
           {spreadLabel && (
-            <span className="ml-1.5 font-mono text-[11px] text-primary/80">
+            <span className="ml-1.5 font-mono text-[11px] text-yellow-400">
               {spreadLabel}
             </span>
           )}
@@ -952,7 +952,7 @@ function WeeklyGrid({
                                 {team.abbreviation}
                               </span>
                               {spreadLabel && (
-                                <span className="font-mono text-[10px] font-semibold text-primary/80 leading-none">
+                                <span className="font-mono text-[10px] font-semibold text-yellow-400 leading-none">
                                   {spreadLabel}
                                 </span>
                               )}
