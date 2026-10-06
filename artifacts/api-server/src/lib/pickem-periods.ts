@@ -72,8 +72,8 @@ export async function listChampionsLeaguePickEmPeriods(
     }),
   );
 
-  const defaultKey = currentKey
-    ?? (ctx.previous?.weekStart ?? periods.at(-1)?.key ?? null);
+  /** Default to the live matchday only; history is chosen explicitly in the dropdown. */
+  const defaultKey = currentKey;
 
   return { periods, defaultKey };
 }
@@ -112,12 +112,9 @@ export async function loadChampionsLeaguePeriodSlate(
     period = await resolveChampionsLeaguePeriodByKey(poolId, periodStart, now);
     if (!period) return null;
     viewingPastPeriod = !(liveSlate && ctx.current?.weekStart === period.weekStart);
-  } else if (liveSlate && ctx.current) {
+  } else if (ctx.current) {
     period = ctx.current;
-    viewingPastPeriod = false;
-  } else if (ctx.previous) {
-    period = ctx.previous;
-    viewingPastPeriod = true;
+    viewingPastPeriod = !(liveSlate && ctx.current.weekStart === period.weekStart);
   } else {
     return null;
   }
