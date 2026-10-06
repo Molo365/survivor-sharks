@@ -205,14 +205,12 @@ function NflGameCard({
     team,
     side,
     score,
-    record,
     isPicked,
     result,
   }: {
     team: NflPickEmSeasonGame["awayTeam"];
     side: "away" | "home";
     score: number | null | undefined;
-    record: string | null | undefined;
     isPicked: boolean;
     result: string | null;
   }) {
@@ -282,11 +280,6 @@ function NflGameCard({
                 {spreadLabel}
               </span>
             )}
-            {record && (
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground/80 font-semibold tabular-nums leading-none shrink-0">
-                {record}
-              </span>
-            )}
           </div>
 
           <span
@@ -354,7 +347,6 @@ function NflGameCard({
           team={game.awayTeam}
           side="away"
           score={game.awayScore}
-          record={game.awayRecord}
           isPicked={pickedAway}
           result={awayResult}
         />
@@ -409,7 +401,6 @@ function NflGameCard({
           team={game.homeTeam}
           side="home"
           score={game.homeScore}
-          record={game.homeRecord}
           isPicked={pickedHome}
           result={homeResult}
         />
