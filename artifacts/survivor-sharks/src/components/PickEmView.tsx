@@ -3321,29 +3321,29 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     <Tabs defaultValue="picks" className="w-full">
       <div className="relative">
         <div>
-        <TabsList className="bg-transparent border-0 grid grid-cols-2 gap-1 h-auto p-1.5 shadow-sm w-full md:flex md:flex-wrap md:gap-1">
+        <TabsList className="bg-transparent border-0 flex flex-wrap items-center gap-1.5 h-auto p-1.5 shadow-sm w-full md:gap-1">
           <TabsTrigger
             value="picks"
-            className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+            className="w-auto max-w-full shrink-0 md:flex-1 md:min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
           >
             <Target className="w-4 h-4 md:w-5 md:h-5" /> Today's Picks
           </TabsTrigger>
           <TabsTrigger
             value="leaderboard"
-            className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
+            className="w-auto max-w-full shrink-0 md:flex-1 md:min-w-0 rounded-full truncate border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent font-bebas text-sm md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2"
           >
             <Trophy className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
           </TabsTrigger>
           <TabsTrigger
             value="grid"
-            className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-purple-500/20 bg-purple-500/5 text-purple-400/70 hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-400 font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
+            className="w-auto max-w-full shrink-0 md:flex-1 md:min-w-0 rounded-full truncate border border-purple-500/20 bg-purple-500/5 text-purple-400/70 hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-400 font-bebas text-sm md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2"
           >
             <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" /> {is3way ? "Pick Grid" : "Daily Grid"}
           </TabsTrigger>
           {!isWc && (myPickCount > 0 || slateLocked) && (leaderboard?.entries.length ?? 0) > 0 && (
             <TabsTrigger
               value="snapshot"
-              className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
+              className="w-auto max-w-full shrink-0 md:flex-1 md:min-w-0 rounded-full truncate border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 font-bebas text-sm md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400 flex gap-2"
             >
               <Camera className="w-4 h-4 md:w-5 md:h-5" /> Snapshot
             </TabsTrigger>
@@ -3351,7 +3351,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           {isCommissioner && (
             <TabsTrigger
               value="commissioner"
-              className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 md:ml-auto flex gap-2"
+              className="w-auto max-w-full shrink-0 md:flex-1 md:min-w-0 rounded-full truncate border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 font-bebas text-sm md:text-xl tracking-wider px-3 md:px-5 py-2 md:py-2.5 md:ml-auto flex gap-2"
             >
               <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
             </TabsTrigger>
