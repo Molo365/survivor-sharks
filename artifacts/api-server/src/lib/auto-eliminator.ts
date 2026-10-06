@@ -83,6 +83,7 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
+import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import {
   gradePickemSeasonPendingPicksForFinalGame,
   isNflPickemSeasonAts,
@@ -2264,7 +2265,23 @@ export async function processPickEmResults(): Promise<{
       eq(poolsTable.sandboxMode, false),
     ));
 
-  if (pickemPools.length === 0 && nflReplayPools.length === 0 && nflConfidenceLivePools.length === 0) return { picksGraded };
+  const nbaAtsLivePools = await db
+    .select({ id: poolsTable.id })
+    .from(poolsTable)
+    .where(and(
+      eq(poolsTable.poolType, "nba_ats"),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.sandboxMode, false),
+    ));
+
+  if (
+    pickemPools.length === 0
+    && nflReplayPools.length === 0
+    && nflConfidenceLivePools.length === 0
+    && nbaAtsLivePools.length === 0
+  ) {
+    return { picksGraded };
+  }
 
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -4914,6 +4931,9 @@ export async function processPickEmResults(): Promise<{
       logger.error({ poolId: pool.id, err }, "Super League recurring weekly advancement error");
     }
   }
+
+  // ── NBA ATS: auto-grade pending picks (poolType nba_ats is excluded from pickemPools above) ──
+  picksGraded += await gradeLiveNbaAtsPickEmPools();
 
   // ── NBA ATS Weekly: auto-closure for non-recurring pools ──────────────────
   // Mirrors the MLS weekly close block. No tiebreaker for v1 — tied players
