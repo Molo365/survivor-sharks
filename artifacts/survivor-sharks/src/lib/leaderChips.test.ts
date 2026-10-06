@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { NflPickEmSeasonLeaderboardEntry } from "@workspace/api-client-react";
-import { getLeaders } from "./leaderChips";
+import { getLeaders, resolveLeaderChipLeftDisplay, shouldShowNflPickEmSeasonCurrentWeekLeader } from "./leaderChips";
 
 function entry(
   overrides: Partial<NflPickEmSeasonLeaderboardEntry> = {},
@@ -128,4 +128,61 @@ test("uses live points for week leaders and keeps the largest tied live value", 
     points: 5,
     live: 2,
   });
+});
+
+test("shouldShowNflPickEmSeasonCurrentWeekLeader is false on Thursday", () => {
+  const thu = new Date("2026-10-09T18:00:00-04:00");
+  assert.equal(shouldShowNflPickEmSeasonCurrentWeekLeader(thu), false);
+});
+
+test("shouldShowNflPickEmSeasonCurrentWeekLeader is false Sunday before 5pm ET", () => {
+  const sunAfternoon = new Date("2026-10-11T16:00:00-04:00");
+  assert.equal(shouldShowNflPickEmSeasonCurrentWeekLeader(sunAfternoon), false);
+});
+
+test("shouldShowNflPickEmSeasonCurrentWeekLeader is true Sunday at 5pm ET", () => {
+  const sunEvening = new Date("2026-10-11T17:00:00-04:00");
+  assert.equal(shouldShowNflPickEmSeasonCurrentWeekLeader(sunEvening), true);
+});
+
+test("shouldShowNflPickEmSeasonCurrentWeekLeader is true on Monday", () => {
+  const mon = new Date("2026-10-12T10:00:00-04:00");
+  assert.equal(shouldShowNflPickEmSeasonCurrentWeekLeader(mon), true);
+});
+
+test("resolveLeaderChipLeftDisplay shows previous week winner before Sunday evening", () => {
+  const tue = new Date("2026-10-07T12:00:00-04:00");
+  const left = resolveLeaderChipLeftDisplay({
+    currentWeek: 5,
+    leaders: getLeaders(
+      [entry({ weeklyScores: { "5": { correct: 1, total: 1 } } })],
+      5,
+    ),
+    previousWeekNumber: 4,
+    previousWeekWinners: [{ username: "winner", correct: 12 }],
+    now: tue,
+  });
+  assert.equal(left.mode, "previous-week");
+  assert.equal(left.weekNumber, 4);
+  assert.deepEqual(left.leader?.names, ["winner"]);
+});
+
+test("resolveLeaderChipLeftDisplay shows current week leader Sunday night", () => {
+  const sun = new Date("2026-10-11T18:00:00-04:00");
+  const left = resolveLeaderChipLeftDisplay({
+    currentWeek: 5,
+    leaders: getLeaders(
+      [
+        entry({ weeklyScores: { "5": { correct: 8, total: 10 } } }),
+        entry({ userId: 2, username: "other", weeklyScores: { "5": { correct: 6, total: 10 } } }),
+      ],
+      5,
+    ),
+    previousWeekNumber: 4,
+    previousWeekWinners: [{ username: "old", correct: 12 }],
+    now: sun,
+  });
+  assert.equal(left.mode, "current-week");
+  assert.equal(left.weekNumber, 5);
+  assert.deepEqual(left.leader?.names, ["username"]);
 });

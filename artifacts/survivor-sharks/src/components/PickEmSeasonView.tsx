@@ -89,7 +89,7 @@ import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
 import { LeaderChips } from "@/components/LeaderChips";
-import { getLeaders } from "@/lib/leaderChips";
+import { getLeaders, resolveLeaderChipLeftDisplay } from "@/lib/leaderChips";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
@@ -1788,6 +1788,20 @@ export function PickEmSeasonView({
   const hasAnySubmittedPick =
     slate?.games.some((g) => g.userPickTeamId !== null) ?? false;
   const entries = leaderboard?.entries ?? [];
+  const currentLbWeek = leaderboard?.currentWeek ?? currentWeek;
+  const leaderChipLeaders = useMemo(
+    () => getLeaders(entries, currentLbWeek),
+    [entries, currentLbWeek],
+  );
+  const leaderChipLeft = useMemo(
+    () => resolveLeaderChipLeftDisplay({
+      currentWeek: currentLbWeek,
+      leaders: leaderChipLeaders,
+      previousWeekNumber: prevWeek,
+      previousWeekWinners: prevWeekWinners,
+    }),
+    [currentLbWeek, leaderChipLeaders, prevWeek, prevWeekWinners],
+  );
   const actualPassingYards = leaderboard?.actualPassingYards ?? null;
   const actualRushingYards = leaderboard?.actualRushingYards ?? null;
   const tbActualsKnown = actualPassingYards !== null && actualRushingYards !== null;
@@ -1917,8 +1931,8 @@ export function PickEmSeasonView({
       {!lbLoading && leaderboard && entries.length > 0 && (
         <div className="mb-3">
           <LeaderChips
-            leaders={getLeaders(entries, leaderboard.currentWeek)}
-            currentWeek={leaderboard.currentWeek}
+            left={leaderChipLeft}
+            seasonLeader={leaderChipLeaders.season}
             liveGamesInProgress={leaderboard.liveGamesInProgress ?? 0}
             onSelect={() => handleActiveTabChange("leaderboard")}
           />
