@@ -256,49 +256,76 @@ function NflGameCard({
           )}
         </div>
 
-        {/* Team info */}
-        <div className={cn(
-          "flex-1 flex flex-col gap-0.5 min-w-0",
-          isHome ? "items-end text-right" : "items-start text-left",
-        )}>
-          <span className={cn(
-            "font-bebas tracking-wide text-base sm:text-xl leading-tight",
-            isPicked ? "text-foreground" : "text-muted-foreground",
-          )}>
+        {/* Team info — compact toward center; score sits in its own column */}
+        <div
+          className={cn(
+            "flex-1 flex flex-col gap-0.5 min-w-0 justify-center",
+            isHome ? "items-end text-right" : "items-start text-left",
+          )}
+        >
+          <div
+            className={cn(
+              "flex flex-wrap items-baseline gap-x-1.5 gap-y-0 max-w-full",
+              isHome ? "justify-end" : "justify-start",
+            )}
+          >
+            <span
+              className={cn(
+                "font-bebas tracking-wide text-lg sm:text-xl leading-none shrink-0",
+                isPicked ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {team.abbreviation}
+            </span>
+            {spreadLabel && (
+              <span className="font-mono text-xs sm:text-sm font-bold text-primary/90 tabular-nums leading-none shrink-0">
+                {spreadLabel}
+              </span>
+            )}
+            {record && (
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground/80 font-semibold tabular-nums leading-none shrink-0">
+                {record}
+              </span>
+            )}
+          </div>
+
+          <span
+            className={cn(
+              "w-full truncate text-[10px] sm:text-[11px] uppercase tracking-wide leading-tight text-muted-foreground/55",
+              isPicked && "text-muted-foreground/70",
+            )}
+          >
             {team.name}
           </span>
 
-          {spreadLabel && (
-            <span className="font-mono text-sm sm:text-lg font-bold text-foreground/90 tabular-nums leading-none">
-              {spreadLabel}
-            </span>
-          )}
-
-          {record && (
-            <span className="text-[12px] text-white font-semibold tabular-nums leading-none">
-              {record}
-            </span>
-          )}
-
-          {(isFinal || isLive) && score != null && (
-            <span className={cn(
-              "font-bebas text-3xl leading-none mt-0.5",
-              isLive
-                ? "text-white"
-                : isPicked && isCorrect
-                  ? "text-green-400"
-                  : isPicked && isWrong
-                    ? "text-destructive/70"
-                    : isPicked && result === "push"
-                      ? "text-muted-foreground/60"
-                      : "text-foreground/60",
-            )}>
-              {score}
-            </span>
-          )}
-
           {isPicked && <PickBadge result={result} />}
         </div>
+
+        {(isFinal || isLive) && score != null && (
+          <div
+            className={cn(
+              "shrink-0 flex items-center self-stretch",
+              isHome ? "pr-1 sm:pr-2 border-r border-border/25" : "pl-1 sm:pl-2 border-l border-border/25",
+            )}
+          >
+            <span
+              className={cn(
+                "font-bebas text-2xl sm:text-3xl leading-none tabular-nums min-w-[2ch] text-center",
+                isLive
+                  ? "text-white"
+                  : isPicked && isCorrect
+                    ? "text-green-400"
+                    : isPicked && isWrong
+                      ? "text-destructive/70"
+                      : isPicked && result === "push"
+                        ? "text-muted-foreground/60"
+                        : "text-foreground/60",
+              )}
+            >
+              {score}
+            </span>
+          </div>
+        )}
       </button>
     );
   }
