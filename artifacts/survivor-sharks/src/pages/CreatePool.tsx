@@ -210,7 +210,7 @@ const POOL_TYPES = [
     icon: Zap,
     tagline: "18 Weeks. Points Stack. Season Champion.",
     description:
-      "Pick every game every week. Assign confidence points 1 through N (where N equals the number of games that week). Points accumulate all 18 weeks. Season champion wins the pot.",
+      "Pick every game every week. Assign confidence points 1 through N (where N equals the number of games that week). Points accumulate all 18 weeks. Season champion wins the pot. Straight-up winners only.",
     badge: "NFL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
@@ -222,7 +222,7 @@ const POOL_TYPES = [
     icon: Zap,
     tagline: "Pick Every Game. Win The Week.",
     description:
-      "Pick every game on the weekly NFL slate. Assign confidence points 1 through N (where N equals the number of games that week). Highest weekly total wins. Fresh start every week.",
+      "Pick every game on the weekly NFL slate. Assign confidence points 1 through N (where N equals the number of games that week). Highest weekly total wins. Fresh start every week. Straight-up winners only.",
     badge: "NFL",
     badgeClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     cardClass:
@@ -232,9 +232,9 @@ const POOL_TYPES = [
     id: "pickem_season" as const,
     label: "NFL Pick-Ems Season",
     icon: Target,
-    tagline: "Pick Every Game. Win The Season.",
+    tagline: "Straight-Up or Spread · Season Champion.",
     description:
-      "Pick the winner of every NFL game each week. Most correct picks at the end of the season wins. Tiebreaker on Week 18.",
+      "Pick every NFL game each week — most correct at season’s end wins. At setup you choose straight-up winners (ties push) or against the spread (ESPN lines, cover = correct). Week 18 tiebreaker.",
     badge: "NFL",
     badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
     cardClass:
@@ -1366,6 +1366,26 @@ export default function CreatePool() {
                                               : type.badge}
                                           </span>
                                           )}
+                                          {type.id === "pickem_season" && (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-yellow-500/15 text-yellow-400 border-yellow-500/35">
+                                              Straight-up or spread
+                                            </span>
+                                          )}
+                                          {(type.id === "nfl_confidence" || type.id === "nfl_confidence_weekly") && (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-muted/30 text-muted-foreground/80 border-border/40">
+                                              Straight-up
+                                            </span>
+                                          )}
+                                          {type.id === "crazy_8s" && selectedSport === PoolInputSport.nba && (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-muted/30 text-muted-foreground/80 border-border/40">
+                                              Straight-up
+                                            </span>
+                                          )}
+                                          {type.id === "nba_ats" && (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-yellow-500/15 text-yellow-400 border-yellow-500/35">
+                                              Spread only
+                                            </span>
+                                          )}
                                         </div>
                                         <p className={cn(
                                           "text-xs font-semibold uppercase tracking-wider mb-1",
@@ -1378,7 +1398,7 @@ export default function CreatePool() {
                                          <p className="text-sm text-muted-foreground leading-snug whitespace-pre-line">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                                           : type.id === "pickem" && (selectedSport as string) === "superleague" ? "Pick the winner of every Super League match — Home Win, Draw, or Away Win. Friday through Monday games only. Most correct picks across the period wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
-                                          : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "Pick any 8 games from the weekend (Fri+Sat+Sun) NBA slate. Assign confidence points 1–8. Highest total wins."
+                                          : type.id === "crazy_8s" && selectedSport === PoolInputSport.nba ? "Pick any 8 games from the weekend (Fri+Sat+Sun) NBA slate. Assign confidence points 1–8. Highest total wins. Straight-up winners only."
                                           : type.id === "season"
                                             ? selectedSport === PoolInputSport.nfl
                                               ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot."
