@@ -254,7 +254,7 @@ export default function PoolHome() {
                     Prize Pot: ${mobilePrizeData.pot.toLocaleString()}
                   </div>
                 ) : null}
-                <div className="flex w-full max-w-full flex-col items-start gap-2 text-[10px] md:flex-row md:flex-wrap md:items-center md:gap-2 md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="flex w-full max-w-full flex-row flex-wrap items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                   <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 px-2 py-1 rounded text-foreground">
                     <SportLogo sport={pool.sport} className="h-4 w-4 rounded-sm" />
                     {SPORT_LABELS[pool.sport] ?? pool.sport}
