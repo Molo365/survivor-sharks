@@ -46,6 +46,8 @@ import { SPORT_LABELS } from "@/lib/sport-branding";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 import { getPoolRules } from "@/lib/poolRules";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_ICON_CLASS } from "@/lib/poolTabStyles";
+import { cn } from "@/lib/utils";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -110,6 +112,27 @@ export default function PoolHome() {
   const isNflSurvivor =
     pool?.sport === "nfl" &&
     ["season", "weekly", "mid_season"].includes(pool.poolType);
+
+  const hasPoolLeaderboardTab = Boolean(
+    pool &&
+      (isPickEm ||
+        isNbaAts ||
+        isPickEmSeason ||
+        isCrazyEights ||
+        isNflConfidence ||
+        isNflConfidenceWeekly ||
+        (!isGsp &&
+          !isNdp &&
+          !isNhlNdp &&
+          !isWcBracket &&
+          !isMlbBracket &&
+          !isPickEm &&
+          !isNbaAts &&
+          !isPickEmSeason &&
+          !isCrazyEights &&
+          !isNflConfidence &&
+          !isNflConfidenceWeekly)),
+  );
 
   useEffect(() => {
     if (!pool || requestedTab === "leaderboard") return;
@@ -191,7 +214,7 @@ export default function PoolHome() {
     <div className="min-h-[100dvh] flex flex-col bg-background">
       <NavBar />
       
-      <main className="flex-1 container px-4 py-8 max-w-7xl mx-auto">
+      <main className="flex-1 container px-4 py-4 md:py-8 max-w-7xl mx-auto">
         
         {isLoading || !pool ? (
           <div className="space-y-8">
@@ -225,7 +248,10 @@ export default function PoolHome() {
                         setPickemSeasonDetailedView(true);
                       }
                     }}
-                    className="h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300"
+                    className={cn(
+                      "h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300",
+                      hasPoolLeaderboardTab && "hidden md:inline-flex",
+                    )}
                   >
                     <Trophy className="h-3.5 w-3.5" />
                     Standings
@@ -602,19 +628,49 @@ export default function PoolHome() {
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="relative">
               <div>
-              <TabsList className="bg-transparent border-0 grid grid-cols-2 gap-1 h-auto p-1.5 shadow-sm w-full md:flex md:flex-wrap md:gap-1">
-                <TabsTrigger value="picks" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary flex gap-2">
-                  <Target className="w-4 h-4 md:w-5 md:h-5" /> Make Pick
+              <TabsList className={POOL_TABS_LIST_CLASS}>
+                <TabsTrigger
+                  value="picks"
+                  className={cn(
+                    POOL_TAB_TRIGGER_BASE,
+                    "border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
+                  )}
+                >
+                  <Target className={POOL_TAB_ICON_CLASS} />
+                  <span className="sm:hidden">Pick</span>
+                  <span className="hidden sm:inline">Make Pick</span>
                 </TabsTrigger>
-                <TabsTrigger value="leaderboard" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 data-[state=active]:bg-accent/10 data-[state=active]:text-accent flex gap-2">
-                  <Activity className="w-4 h-4 md:w-5 md:h-5" /> Leaderboard
+                <TabsTrigger
+                  value="leaderboard"
+                  className={cn(
+                    POOL_TAB_TRIGGER_BASE,
+                    "border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent data-[state=active]:bg-accent/10 data-[state=active]:text-accent",
+                  )}
+                >
+                  <Activity className={POOL_TAB_ICON_CLASS} />
+                  <span className="sm:hidden">Board</span>
+                  <span className="hidden sm:inline">Leaderboard</span>
                 </TabsTrigger>
-                <TabsTrigger value="grid" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-purple-500/20 bg-purple-500/5 text-purple-400/70 hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-400 font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 flex gap-2">
+                <TabsTrigger
+                  value="grid"
+                  className={cn(
+                    POOL_TAB_TRIGGER_BASE,
+                    "border border-purple-500/20 bg-purple-500/5 text-purple-400/70 hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-400",
+                  )}
+                >
                   Grid
                 </TabsTrigger>
                 {isCommissioner && (
-                  <TabsTrigger value="commissioner" className="w-full md:flex-1 md:min-w-0 rounded-full truncate border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 font-bebas text-sm md:text-xl tracking-wider px-4 md:px-5 py-2.5 md:py-2.5 md:ml-auto flex gap-2">
-                    <ShieldAlert className="w-4 h-4 md:w-5 md:h-5" /> Commissioner
+                  <TabsTrigger
+                    value="commissioner"
+                    className={cn(
+                      POOL_TAB_TRIGGER_BASE,
+                      "border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 md:ml-auto",
+                    )}
+                  >
+                    <ShieldAlert className={POOL_TAB_ICON_CLASS} />
+                    <span className="sm:hidden">Comm.</span>
+                    <span className="hidden sm:inline">Commissioner</span>
                   </TabsTrigger>
                 )}
               </TabsList>
