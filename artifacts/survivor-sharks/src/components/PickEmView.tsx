@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { WcScheduleView } from "@/components/WcScheduleView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CrazyEightsPeriodResults, useNbaAtsPeriodResults } from "@/components/CrazyEightsPeriodResults";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
@@ -2414,6 +2415,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isSandbox = poolDetail?.sandboxMode === true;
   const isLiveNhlWeekly = isNhlWeekly && !isSandbox;
   const isNbaAts = (poolDetail?.poolType as string) === "nba_ats";
+  const { data: nbaAtsPeriodResults = [] } = useNbaAtsPeriodResults(poolId, isNbaAts && isRecurring);
   const weeklyStartsAt = (isMlb || sport === "mls") && isWeekly ? poolDetail?.initialPeriodStart : null;
 
   const todayEt = getTodayEt();
@@ -4240,6 +4242,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
         {/* ── Leaderboard (simple standings) ── */}
         <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+          {isNbaAts && isRecurring && nbaAtsPeriodResults.length > 0 && (
+            <div className="mb-4">
+              <CrazyEightsPeriodResults results={nbaAtsPeriodResults} />
+            </div>
+          )}
           {lbLoading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4].map((i) => (

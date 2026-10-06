@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable, pickemGameSpreadsTable } from "@workspace/db";
-import { eq, and, sql, gte, lte, inArray, count } from "drizzle-orm";
+import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable, pickemGameSpreadsTable, crazyEightsPeriodResultsTable } from "@workspace/db";
+import { eq, and, sql, gte, lte, inArray, count, desc } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
@@ -473,6 +473,59 @@ function championsLeagueSlateFromLoaded(
     legLabel: legGame?.legLabel ?? null,
   };
 }
+
+// GET /api/pools/:poolId/pickem/period-results
+router.get("/period-results", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if (pool.poolType !== "nba_ats" || !pool.isRecurring) {
+    res.status(400).json({ error: "Weekly payout history is only available for recurring NBA ATS pools" });
+    return;
+  }
+
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const results = await db.select().from(crazyEightsPeriodResultsTable)
+    .where(eq(crazyEightsPeriodResultsTable.poolId, poolId))
+    .orderBy(desc(crazyEightsPeriodResultsTable.resolvedAt));
+
+  const userIds = [...new Set(results.flatMap((result) =>
+    result.groups.flatMap((group) => group.userIds),
+  ))];
+  const users = userIds.length > 0
+    ? await db.select({
+      id: usersTable.id,
+      username: usersTable.username,
+      displayName: usersTable.displayName,
+    }).from(usersTable).where(inArray(usersTable.id, userIds))
+    : [];
+  const nameByUserId = new Map(users.map((user) => [
+    user.id,
+    user.displayName ?? user.username,
+  ]));
+
+  res.json(results.map((result) => ({
+    week: result.week,
+    resolvedAt: result.resolvedAt,
+    reason: result.reason,
+    groups: result.groups.map((group) => ({
+      position: group.position,
+      prize: group.prize,
+      players: group.userIds.map((playerUserId) => ({
+        userId: playerUserId,
+        username: nameByUserId.get(playerUserId) ?? "Unknown player",
+      })),
+    })),
+  })));
+});
 
 // GET /api/pools/:poolId/pickem/periods
 router.get("/periods", requireAuth, async (req, res) => {

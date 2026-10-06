@@ -84,6 +84,8 @@ import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
+import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
+import { recordNbaAtsPeriodAndAdvance } from "./nba-ats-recurring-settlement";
 import {
   gradePickemSeasonPendingPicksForFinalGame,
   isNflPickemSeasonAts,
@@ -4938,12 +4940,12 @@ export async function processPickEmResults(): Promise<{
   // ── NBA ATS Weekly: auto-closure for non-recurring pools ──────────────────
   // Mirrors the MLS weekly close block. No tiebreaker for v1 — tied players
   // become co-winners with an even prize split.
-  // Recurring nba_ats pools are intentionally left open.
+  // Recurring nba_ats pools stay open; weekly payouts are recorded in crazy_eights_period_results.
   // NOTE: nba_ats pools are NOT in the main pickemPools list (which only fetches
   // poolType = 'pickem'). We query them separately here.
 
-  // ── NBA ATS recurring weekly rollover ───────────────────────────────────
-  // Advance completed live weekends only; never close the pool or award prizes.
+  // ── NBA ATS recurring weekly settlement ─────────────────────────────────
+  // Record weekly payout rows (Fast Break parity) and advance currentWeek.
   await advanceRecurringNbaAtsPools({
     store: {
       listPools: async () => db
@@ -4967,25 +4969,11 @@ export async function processPickEmResults(): Promise<{
           ));
         return Number(row?.pendingCount ?? 0);
       },
-      advanceWeekIfCurrent: async (pool, expectedWeek, nextWeek) => {
-        const conditions = [
-          eq(poolsTable.id, pool.id),
-          eq(poolsTable.sport, "nba"),
-          eq(poolsTable.poolType, "nba_ats"),
-          eq(poolsTable.currentWeek, expectedWeek),
-          eq(poolsTable.isRecurring, true),
-          eq(poolsTable.isActive, true),
-          eq(poolsTable.sandboxMode, false),
-        ];
-        if (pool.pickFrequency != null) {
-          conditions.push(eq(poolsTable.pickFrequency, "weekly"));
-        }
-        const updated = await db
-          .update(poolsTable)
-          .set({ currentWeek: nextWeek })
-          .where(and(...conditions))
-          .returning({ currentWeek: poolsTable.currentWeek });
-        return updated.length > 0;
+      recordPeriodAndAdvance: async (pool, groups, reason) => {
+        if (pool.pickFrequency != null && pool.pickFrequency !== "weekly") return false;
+        const [fullPool] = await db.select().from(poolsTable).where(eq(poolsTable.id, pool.id)).limit(1);
+        if (!fullPool) return false;
+        return recordNbaAtsPeriodAndAdvance(fullPool, groups, reason);
       },
     },
     fetchChecked: fetchGamesForDateChecked,
@@ -5104,103 +5092,16 @@ export async function processPickEmResults(): Promise<{
         continue;
       }
 
-      // 2. Sum correct picks per user for this week.
-      const scoreRows = await db
-        .select({ userId: pickemPicksTable.userId, correct: count() })
-        .from(pickemPicksTable)
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.week, pool.currentWeek),
-            eq(pickemPicksTable.result, "correct"),
-          ),
-        )
-        .groupBy(pickemPicksTable.userId);
-
-      const allPickUsers = await db
-        .selectDistinct({ userId: pickemPicksTable.userId })
-        .from(pickemPicksTable)
-        .where(
-          and(
-            eq(pickemPicksTable.poolId, pool.id),
-            eq(pickemPicksTable.week, pool.currentWeek),
-          ),
-        );
-
-      const scoreByUser = new Map<number, number>();
-      for (const row of scoreRows) scoreByUser.set(row.userId, Number(row.correct));
-      for (const { userId } of allPickUsers) {
-        if (!scoreByUser.has(userId)) scoreByUser.set(userId, 0);
-      }
-
-      // 3. Group players by correct count, then apply a margin-of-victory
-      //    tiebreaker within any tied groups. Margin = sum of raw score
-      //    differentials (|home − away|) across the player's correct picks.
-      //    Highest total margin wins the tie outright; equal margins → co-winners.
-      const byScore = new Map<number, number[]>();
-      for (const [userId, correct] of scoreByUser) {
-        if (!byScore.has(correct)) byScore.set(correct, []);
-        byScore.get(correct)!.push(userId);
-      }
-      const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
-
-      // Compute per-user margin totals for all players who are in a tied group.
-      const marginByUser = new Map<number, number>(); // userId → total margin
-      const tiedUserIds = sortedScores
-        .filter((score) => byScore.get(score)!.length > 1)
-        .flatMap((score) => byScore.get(score)!);
-
-      if (tiedUserIds.length > 0 && nbaGameScoreMap.size > 0) {
-        const tiedCorrectPicks = await db
-          .select({ userId: pickemPicksTable.userId, gameId: pickemPicksTable.gameId })
-          .from(pickemPicksTable)
-          .where(
-            and(
-              eq(pickemPicksTable.poolId, pool.id),
-              eq(pickemPicksTable.week, pool.currentWeek),
-              eq(pickemPicksTable.result, "correct"),
-              inArray(pickemPicksTable.userId, tiedUserIds),
-            ),
-          );
-
-        for (const pick of tiedCorrectPicks) {
-          const margin = nbaGameScoreMap.get(pick.gameId) ?? 0;
-          marginByUser.set(pick.userId, (marginByUser.get(pick.userId) ?? 0) + margin);
-        }
-        logger.info(
-          { poolId: pool.id, week: pool.currentWeek, tiedUserIds, margins: Object.fromEntries(marginByUser) },
-          "NBA ATS Weekly auto-closure: margin-of-victory tiebreaker computed",
-        );
-      }
-
-      // Resolve each score group into (possibly sub-divided) position groups.
-      const groups: number[][] = [];
-      for (const score of sortedScores) {
-        const usersAtScore = byScore.get(score)!;
-        if (usersAtScore.length === 1) {
-          groups.push(usersAtScore);
-          continue;
-        }
-        // Multiple players at same correct count — sort by margin DESC then
-        // split into sub-groups where equal margin = co-winner position.
-        const ranked = usersAtScore
-          .map((uid) => ({ userId: uid, margin: marginByUser.get(uid) ?? 0 }))
-          .sort((a, b) => b.margin - a.margin);
-
-        let i = 0;
-        while (i < ranked.length) {
-          const topMargin = ranked[i]!.margin;
-          const coGroup: number[] = [];
-          while (i < ranked.length && ranked[i]!.margin === topMargin) {
-            coGroup.push(ranked[i]!.userId);
-            i++;
-          }
-          groups.push(coGroup);
-        }
-      }
+      // 2. Rank players for the week (correct ATS count + margin tiebreaker).
+      const { groups, totalParticipants } = await computeNbaAtsWeeklyLeaderGroups(
+        pool.id,
+        pool.currentWeek,
+        nbaGameScoreMap,
+      );
+      const totalEntries = totalParticipants;
+      if (totalEntries === 0) continue;
 
       // 4. Write finishPosition and prizeAmount to entries.
-      const totalEntries = scoreByUser.size;
       const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
       let placeIndex = 0;
 
