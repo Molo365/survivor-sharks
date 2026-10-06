@@ -1,7 +1,9 @@
-/** Shared pool action tab bar — wraps chips on small screens instead of a 2-col grid. */
+/** Shared pool action tab bar — single row on mobile (equal-width chips), wraps from md up when needed. */
 export const POOL_TABS_LIST_CLASS =
-  "bg-transparent border-0 flex h-auto min-h-0 w-full flex-wrap items-center justify-start gap-1.5 p-1.5 shadow-sm md:gap-1";
+  "bg-transparent border-0 flex h-auto min-h-0 w-full flex-nowrap items-stretch justify-between gap-1 p-1 shadow-sm md:flex-wrap md:justify-start md:gap-1 md:p-1.5";
 
-/** Trigger: content-width on mobile; equal flex only from md up. */
+/** Trigger: equal flex on mobile; content-width grows from md up. */
 export const POOL_TAB_TRIGGER_BASE =
-  "inline-flex max-w-full shrink-0 grow-0 basis-auto items-center md:min-w-0 md:flex-1 rounded-full truncate font-bebas tracking-wider px-2.5 py-2 text-xs sm:px-3 sm:text-sm md:px-5 md:py-2.5 md:text-xl gap-1.5 sm:gap-2";
+  "inline-flex min-w-0 flex-1 basis-0 items-center justify-center rounded-full truncate font-bebas tracking-wide px-1 py-1.5 text-[10px] leading-none gap-0.5 sm:gap-1 sm:px-1.5 sm:py-2 sm:text-xs md:max-w-none md:shrink md:grow md:basis-auto md:min-w-0 md:flex-1 md:px-5 md:py-2.5 md:text-xl md:tracking-wider md:gap-2";
+
+export const POOL_TAB_ICON_CLASS = "w-3 h-3 shrink-0 md:w-5 md:h-5";
