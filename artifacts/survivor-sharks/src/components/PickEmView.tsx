@@ -50,7 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_ICON_CLASS } from "@/lib/poolTabStyles";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
@@ -3329,7 +3329,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               "border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
             )}
           >
-            <Target className={POOL_TAB_ICON_CLASS} />
             <span className="sm:hidden">Picks</span>
             <span className="hidden sm:inline">Today&apos;s Picks</span>
           </TabsTrigger>
@@ -3340,7 +3339,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               "border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent data-[state=active]:bg-accent/10 data-[state=active]:text-accent",
             )}
           >
-            <Trophy className={POOL_TAB_ICON_CLASS} />
             <span className="sm:hidden">Board</span>
             <span className="hidden sm:inline">Leaderboard</span>
           </TabsTrigger>
@@ -3351,7 +3349,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               "border border-purple-500/20 bg-purple-500/5 text-purple-400/70 hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-400 data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
             )}
           >
-            <LayoutGrid className={POOL_TAB_ICON_CLASS} />
             <span className="sm:hidden">Grid</span>
             <span className="hidden sm:inline">{is3way ? "Pick Grid" : "Daily Grid"}</span>
           </TabsTrigger>
@@ -3363,7 +3360,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 "border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400",
               )}
             >
-              <Camera className={POOL_TAB_ICON_CLASS} />
               <span className="sm:hidden">Snap</span>
               <span className="hidden sm:inline">Snapshot</span>
             </TabsTrigger>
@@ -3376,7 +3372,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 "border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 md:ml-auto",
               )}
             >
-              <ShieldAlert className={POOL_TAB_ICON_CLASS} />
               <span className="sm:hidden">Comm.</span>
               <span className="hidden sm:inline">Commissioner</span>
             </TabsTrigger>
