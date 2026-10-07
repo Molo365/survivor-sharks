@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PickEmTiebreakerCard } from "@/components/PickEmTiebreakerCard";
+import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2487,22 +2488,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     ?? pickEmPeriods?.periods.find((p) => p.status === "current")?.key
     ?? undefined;
 
-  const welcomeKey = `pickem-welcome-dismissed-${poolId}-${user?.id ?? "guest"}`;
-  const [showWelcome, setShowWelcome] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    try {
-      setShowWelcome(localStorage.getItem(welcomeKey) !== "1");
-    } catch {
-      setShowWelcome(false);
-    }
-  }, [welcomeKey]);
-
-  function dismissWelcome() {
-    try { localStorage.setItem(welcomeKey, "1"); } catch { /* ignore */ }
-    setShowWelcome(false);
-  }
-
   const { data: poolDetail } = useGetPool(poolId, {
     query: { queryKey: getGetPoolQueryKey(poolId), staleTime: 5 * 60 * 1000 },
   });
@@ -3414,42 +3399,25 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         {/* ── Today's Picks ── */}
         <TabsContent value="picks" className="m-0 focus-visible:outline-none">
           <div className="space-y-6">
-            {/* Welcome banner — shown once per user per pool, all sport types */}
-            {showWelcome === true && (
-              <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
-                <span className="text-xl leading-none mt-0.5">🎯</span>
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm text-foreground leading-snug">
-                    Welcome to {poolName}!
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-                    {is3way
-                      ? sport === "championsleague"
-                        ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. The player with the most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
-                        : sport === "mls"
-                        ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
-                        : sport === "superleague"
-                        ? "Welcome to Super League Pick-Ems! Pick Home Win, Draw, or Away Win for this weekend's matches across Europe's top leagues. You can change any pick until that match kicks off. Most correct picks each week wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
-                        : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
-                      : pickFrequency === "weekly"
-                      ? (isNbaAts
-                          ? "Pick every game on the Friday–Sunday NBA slate against the spread. Games show as soon as they are scheduled. You can pick a game once the line is out — NBA lines often arrive late. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
-                          : isNhl
-                          ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
-                          : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
-                      : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={dismissWelcome}
-                  className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-                  aria-label="Dismiss welcome message"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            <PickEmWelcomePanel poolId={poolId} userId={user?.id} emoji="🎯" poolName={poolName}>
+              <p>
+                {is3way
+                  ? sport === "championsleague"
+                    ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. The player with the most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
+                    : sport === "mls"
+                    ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
+                    : sport === "superleague"
+                    ? "Welcome to Super League Pick-Ems! Pick Home Win, Draw, or Away Win for this weekend's matches across Europe's top leagues. You can change any pick until that match kicks off. Most correct picks each week wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
+                    : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
+                  : pickFrequency === "weekly"
+                  ? (isNbaAts
+                      ? "Pick every game on the Friday–Sunday NBA slate against the spread. Games show as soon as they are scheduled. You can pick a game once the line is out — NBA lines often arrive late. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                      : isNhl
+                      ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
+                      : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
+                  : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
+              </p>
+            </PickEmWelcomePanel>
 
           {isWc ? (
             <WcScheduleView poolId={poolId} commissionerId={commissionerId} />
