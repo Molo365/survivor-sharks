@@ -46,7 +46,7 @@ import { PoolRulesSheet } from "@/components/PoolRulesSheet";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { getPoolRules } from "@/lib/poolRules";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
-import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_ICON_CLASS } from "@/lib/poolTabStyles";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
 import { cn } from "@/lib/utils";
 
 export default function PoolHome() {
@@ -592,7 +592,6 @@ export default function PoolHome() {
                     "border border-primary/20 bg-primary/5 text-primary/70 hover:border-primary/40 hover:bg-primary/10 hover:text-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
                   )}
                 >
-                  <Target className={POOL_TAB_ICON_CLASS} />
                   <span className="sm:hidden">Pick</span>
                   <span className="hidden sm:inline">Make Pick</span>
                 </TabsTrigger>
@@ -603,7 +602,6 @@ export default function PoolHome() {
                     "border border-accent/20 bg-accent/5 text-accent/70 hover:border-accent/40 hover:bg-accent/10 hover:text-accent data-[state=active]:bg-accent/10 data-[state=active]:text-accent",
                   )}
                 >
-                  <Activity className={POOL_TAB_ICON_CLASS} />
                   <span className="sm:hidden">Board</span>
                   <span className="hidden sm:inline">Leaderboard</span>
                 </TabsTrigger>
@@ -624,7 +622,6 @@ export default function PoolHome() {
                       "border border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 md:ml-auto",
                     )}
                   >
-                    <ShieldAlert className={POOL_TAB_ICON_CLASS} />
                     <span className="sm:hidden">Comm.</span>
                     <span className="hidden sm:inline">Commissioner</span>
                   </TabsTrigger>
