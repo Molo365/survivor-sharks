@@ -447,7 +447,7 @@ export default function Profile() {
           <Card className="w-full max-w-md shark-card border-primary/25">
             <CardContent className="p-4 space-y-3 text-left">
               <div>
-                <p className="font-medium text-sm">Real name (People list)</p>
+                <p className="font-medium text-sm">Name (People list)</p>
                 <p className="text-xs text-muted-foreground">
                   Separate from the pool name above. Shown when someone taps your name or opens{" "}
                   <span className="text-foreground/80">People</span> in a pool.
@@ -460,7 +460,7 @@ export default function Profile() {
                   placeholder="e.g. Smith, Andy"
                   className="bg-background/50"
                   disabled={updateRealName.isPending}
-                  aria-label="Real name"
+                  aria-label="Name"
                 />
                 <Button
                   type="button"
@@ -480,7 +480,7 @@ export default function Profile() {
                           void invalidateAllPoolDetailQueries(queryClient);
                           setRealNameDraft(realName ?? "");
                           toast({
-                            title: "Real name saved",
+                            title: "Name saved",
                             description: realName
                               ? "Reopen People in your pool to see it."
                               : "Cleared — People list will show a dash again.",

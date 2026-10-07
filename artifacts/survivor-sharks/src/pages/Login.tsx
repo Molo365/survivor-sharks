@@ -28,7 +28,7 @@ import { useState } from "react";
 import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
 
 const formSchema = z.object({
-  email: z.string().trim().min(1, "Email or username is required"),
+  email: z.string().trim().min(1, "Email is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -138,9 +138,9 @@ export default function Login() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-bebas text-lg tracking-wide">Email or Username</FormLabel>
+                      <FormLabel className="font-bebas text-lg tracking-wide">Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="Email or username" {...field} data-testid="input-email" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
+                        <Input type="email" placeholder="shark@example.com" {...field} data-testid="input-email" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

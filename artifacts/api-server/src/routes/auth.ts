@@ -7,6 +7,8 @@ import { eq, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { signToken } from "../lib/jwt";
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../lib/mailer";
+import { normalizeRealName } from "../lib/real-name";
+import { generateRegisterUsername } from "../lib/register-username";
 
 const router = Router();
 
@@ -61,15 +63,12 @@ async function sendVerificationEmailSafely(email: string, rawToken: string, req:
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
-  const { username, password, displayName } = req.body;
-  const email = typeof req.body.email === "string" ? req.body.email.trim() : req.body.email;
+  const { password, displayName } = req.body;
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const realNameRaw = req.body.realName ?? req.body.name;
 
-  if (!username || !email || !password) {
-    res.status(400).json({ error: "username, email, and password are required" });
-    return;
-  }
-  if (username.length < 3) {
-    res.status(400).json({ error: "Username must be at least 3 characters" });
+  if (!email || !password) {
+    res.status(400).json({ error: "email and password are required" });
     return;
   }
   if (password.length < 6) {
@@ -77,19 +76,19 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const [takenUsername] = await db.select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.username, username))
-    .limit(1);
-
-  if (takenUsername) {
-    res.status(409).json({ error: `Username "${username}" is already taken. Please choose a different one.` });
+  const normalizedReal = normalizeRealName(realNameRaw);
+  if (!normalizedReal.ok) {
+    res.status(400).json({ error: normalizedReal.error });
+    return;
+  }
+  if (!normalizedReal.value) {
+    res.status(400).json({ error: "Name is required." });
     return;
   }
 
   const [takenEmail] = await db.select({ id: usersTable.id })
     .from(usersTable)
-    .where(eq(usersTable.email, email.toLowerCase()))
+    .where(eq(usersTable.email, email))
     .limit(1);
 
   if (takenEmail) {
@@ -97,13 +96,34 @@ router.post("/register", async (req, res) => {
     return;
   }
 
+  let username =
+    typeof req.body.username === "string" ? req.body.username.trim() : "";
+  if (username) {
+    if (username.length < 3) {
+      res.status(400).json({ error: "Username must be at least 3 characters" });
+      return;
+    }
+    const [takenUsername] = await db.select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.username, username))
+      .limit(1);
+    if (takenUsername) {
+      res.status(409).json({ error: `Username "${username}" is already taken. Please choose a different one.` });
+      return;
+    }
+  } else {
+    username = await generateRegisterUsername(email, normalizedReal.value);
+  }
+
   const ADMIN_USERNAMES = ["mule"];
   const passwordHash = await bcrypt.hash(password, 12);
+  const display = typeof displayName === "string" ? displayName.trim() : "";
   const [user] = await db.insert(usersTable).values({
     username,
-    email: email.toLowerCase(),
+    email,
     passwordHash,
-    displayName: displayName?.trim() || null,
+    displayName: display || null,
+    realName: normalizedReal.value,
     role: ADMIN_USERNAMES.includes(username.toLowerCase()) ? "admin" : "user",
   }).returning();
 

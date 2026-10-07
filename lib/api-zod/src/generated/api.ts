@@ -29,17 +29,19 @@ export const GetMaintenanceStatusResponse = zod.object({
 /**
  * @summary Register a new user
  */
-export const registerUserBodyUsernameMin = 3;
 
 export const registerUserBodyPasswordMin = 6;
+
+export const registerUserBodyUsernameMin = 3;
 
 
 
 export const RegisterUserBody = zod.object({
-  "username": zod.string().min(registerUserBodyUsernameMin),
+  "realName": zod.string().min(1).describe('Person\'s real name (shown in pool People list)'),
   "email": zod.string().email(),
   "password": zod.string().min(registerUserBodyPasswordMin),
-  "displayName": zod.string().optional()
+  "displayName": zod.string().optional().describe('Pool \/ leaderboard nickname'),
+  "username": zod.string().min(registerUserBodyUsernameMin).optional().describe('Optional; auto-generated from email when omitted')
 })
 
 

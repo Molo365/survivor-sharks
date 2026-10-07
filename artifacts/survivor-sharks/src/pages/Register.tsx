@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -20,8 +21,13 @@ import { useToast } from "@/hooks/use-toast";
 import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
 
 const formSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters").max(20),
-  displayName: z.string().optional(),
+  realName: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .max(80, "Name must be 80 characters or fewer")
+    .refine((v) => /[\p{L}\p{N}]/u.test(v), "Name must include at least one letter or number"),
+  displayName: z.string().trim().max(80, "Display name must be 80 characters or fewer").optional(),
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
@@ -35,7 +41,7 @@ export default function Register() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { username: "", displayName: "", email: "", password: "" },
+    defaultValues: { realName: "", displayName: "", email: "", password: "" },
   });
 
   const [location] = useLocation();
@@ -46,8 +52,16 @@ export default function Register() {
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const displayName = values.displayName?.trim();
     registerUser.mutate(
-      { data: values },
+      {
+        data: {
+          realName: values.realName.trim(),
+          email: values.email,
+          password: values.password,
+          ...(displayName ? { displayName } : {}),
+        },
+      },
       {
         onSuccess: (data: any) => {
           if (data?.token) {
@@ -68,7 +82,7 @@ export default function Register() {
           toast({
             variant: "destructive",
             title: "Registration Failed",
-            description: error?.data?.error || error?.message || "Failed to create account. Username or email might be taken.",
+            description: error?.data?.error || error?.message || "Failed to create account. That email may already be registered.",
           });
         },
       }
@@ -92,13 +106,16 @@ export default function Register() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="username"
+                name="realName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-bebas text-lg tracking-wide">Username</FormLabel>
+                    <FormLabel className="font-bebas text-lg tracking-wide">Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="shark_slayer" {...field} data-testid="input-username" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
+                      <Input placeholder="Domenic Molo" {...field} data-testid="input-real-name" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Your real name — shown in the pool People list so friends know who you are.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -108,10 +125,13 @@ export default function Register() {
                 name="displayName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-bebas text-lg tracking-wide">Display Name <span className="text-muted-foreground text-sm font-normal">(Optional)</span></FormLabel>
+                    <FormLabel className="font-bebas text-lg tracking-wide">Display name <span className="text-muted-foreground text-sm font-normal">(optional)</span></FormLabel>
                     <FormControl>
                       <Input placeholder="The Megalodon" {...field} data-testid="input-display-name" className="bg-background/50 border-primary/20 focus-visible:ring-primary/50" />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Nickname on leaderboards and picks. Leave blank to use your name.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

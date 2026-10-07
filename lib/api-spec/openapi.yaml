@@ -2950,11 +2950,12 @@ components:
 
     RegisterInput:
       type: object
-      required: [username, email, password]
+      required: [realName, email, password]
       properties:
-        username:
+        realName:
           type: string
-          minLength: 3
+          minLength: 1
+          description: Person's real name (shown in pool People list)
         email:
           type: string
           format: email
@@ -2963,6 +2964,11 @@ components:
           minLength: 6
         displayName:
           type: string
+          description: Pool / leaderboard nickname
+        username:
+          type: string
+          minLength: 3
+          description: Optional; auto-generated from email when omitted
 
     LoginInput:
       type: object
