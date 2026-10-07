@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getGetMeQueryKey,
   useGetUserBalance,
   useUpdateDisplayName,
+  useUpdateRealName,
   useUpdateReminderPreferences,
 } from "@workspace/api-client-react";
 import type { AuthUser, UserBalanceActivePool, UserBalancePastPool } from "@workspace/api-client-react";
@@ -267,12 +268,19 @@ export default function Profile() {
   const { toast } = useToast();
   const { data: balance, isLoading } = useGetUserBalance();
   const updateDisplayName = useUpdateDisplayName();
+  const updateRealName = useUpdateRealName();
   const updateReminderPreferences = useUpdateReminderPreferences();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [realNameDraft, setRealNameDraft] = useState("");
+  const [realNameError, setRealNameError] = useState<string | null>(null);
   const remindersEnabled = user?.remindersEnabled ?? false;
+
+  useEffect(() => {
+    setRealNameDraft(user?.realName ?? "");
+  }, [user?.realName, user?.id]);
 
   const initials = (user?.displayName ?? user?.username ?? "?")
     .charAt(0)
@@ -422,7 +430,7 @@ export default function Profile() {
                     Edit display name
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">This is the name other players see.</p>
+                <p className="text-xs text-muted-foreground">This is the name other players see on the board.</p>
               </>
             )}
             {user?.displayName && (
@@ -540,6 +548,56 @@ export default function Profile() {
 
           {/* ── ACCOUNT tab ── */}
           <TabsContent value="account" className="space-y-4 mt-0">
+            <Card className="shark-card">
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <p className="font-medium text-sm">Real name</p>
+                  <p className="text-xs text-muted-foreground">
+                    Shown when pool members tap your name or open the participant list.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={realNameDraft}
+                    onChange={(e) => setRealNameDraft(e.target.value)}
+                    placeholder="e.g. Martin, Andy"
+                    className="bg-background/50"
+                    disabled={updateRealName.isPending}
+                    aria-label="Real name"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={updateRealName.isPending || !user}
+                    onClick={() => {
+                      if (!user) return;
+                      setRealNameError(null);
+                      updateRealName.mutate(
+                        { data: { realName: realNameDraft.trim() || null } },
+                        {
+                          onSuccess: ({ realName }) => {
+                            queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cached) =>
+                              cached ? { ...cached, realName } : cached,
+                            );
+                            setRealNameDraft(realName ?? "");
+                            toast({ title: "Real name saved" });
+                          },
+                          onError: (error) => {
+                            setRealNameError(error.message || "Please try again.");
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    Save real name
+                  </Button>
+                </div>
+                {realNameError && (
+                  <p role="alert" className="text-xs text-destructive">{realNameError}</p>
+                )}
+              </CardContent>
+            </Card>
             <Card className="shark-card">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>

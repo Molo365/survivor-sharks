@@ -260,6 +260,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/me/real-name:
+    patch:
+      operationId: updateRealName
+      tags: [users]
+      summary: Update the current user's real name (shown to pool members)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [realName]
+              properties:
+                realName:
+                  type: ["string", "null"]
+                  description: Legal or table name; empty string clears the value
+      responses:
+        "200":
+          description: Updated real name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [realName]
+                properties:
+                  realName:
+                    type: ["string", "null"]
+        "400":
+          description: Invalid real name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /users/me/display-name:
     patch:
       operationId: updateDisplayName
@@ -2945,6 +2985,9 @@ components:
           type: string
         displayName:
           type: ["string", "null"]
+        realName:
+          type: ["string", "null"]
+          description: Optional name shown in pool participant lists to other members
         role:
           type: string
           enum: [user, admin, agent]
@@ -3448,6 +3491,9 @@ components:
           type: string
         displayName:
           type: ["string", "null"]
+        realName:
+          type: ["string", "null"]
+          description: Member-provided real name; only returned on pool detail for participants
         status:
           type: string
           enum: [alive, eliminated]

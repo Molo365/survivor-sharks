@@ -51,6 +51,7 @@ import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, La
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
+import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
@@ -1227,7 +1228,14 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                               isMe ? "text-primary" : "text-foreground",
                             )}
                           >
-                            {entry.displayName || entry.username}
+                            <MemberNameButton
+                              userId={entry.userId}
+                              sheetExtras={{ rank: entry.rank, subtitle: `${entry.correct}/${entry.picked} correct` }}
+                              className={cn("inline truncate max-w-full", isMe ? "text-primary" : "text-foreground")}
+                              asChildWrapper
+                            >
+                              {entry.displayName || entry.username}
+                            </MemberNameButton>
                             {isMe && (
                               <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
                                 you
@@ -1629,7 +1637,14 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                 </span>
                 <span className={cn("font-medium text-sm truncate min-w-0 flex-1", isMe ? "text-primary" : "text-foreground")}>
                   <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} className="mr-1.5 align-middle" />
-                  {entry.displayName || entry.username}
+                  <MemberNameButton
+                    userId={entry.userId}
+                    sheetExtras={{ rank: entry.rank, subtitle: `${entry.correct}/${entry.picked} correct this week` }}
+                    className={cn("inline", isMe ? "text-primary" : "text-foreground")}
+                    asChildWrapper
+                  >
+                    {entry.displayName || entry.username}
+                  </MemberNameButton>
                   {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                 </span>
                 <div className="shrink-0 text-right">
@@ -1706,7 +1721,14 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                           </span>
                           <span className={cn("font-medium text-sm truncate", isMe ? "text-primary" : "text-foreground")}>
                             <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} className="mr-1.5 align-middle" />
-                            {entry.displayName || entry.username}
+                            <MemberNameButton
+                              userId={entry.userId}
+                              sheetExtras={{ rank: entry.rank, subtitle: `${entry.correct}/${entry.picked} correct this week` }}
+                              className={cn("inline", isMe ? "text-primary" : "text-foreground")}
+                              asChildWrapper
+                            >
+                              {entry.displayName || entry.username}
+                            </MemberNameButton>
                             {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                           </span>
                         </div>
@@ -3512,7 +3534,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                           .map(w => (
                             <div key={w.userId} className="flex items-center gap-2 flex-wrap">
                               <span className="text-xl">🏆</span>
-                              <span className="font-semibold text-foreground text-lg">{w.displayName || w.username}</span>
+                              <MemberNameButton
+                                userId={w.userId}
+                                sheetExtras={{ subtitle: `${w.correct}/${w.picked} correct` }}
+                                className="font-semibold text-foreground text-lg inline"
+                              >
+                                {w.displayName || w.username}
+                              </MemberNameButton>
                               {w.userId === user?.id && <span className="text-xs text-primary/60 font-medium">(you)</span>}
                               <span className="text-muted-foreground text-sm">— {w.correct}/{w.picked} correct</span>
                             </div>
@@ -3532,8 +3560,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
                                 {idx + 1}
                               </span>
-                              <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
-                                {entry.displayName || entry.username}
+                              <span className={cn("flex-1 font-medium truncate min-w-0", isMe ? "text-primary" : "text-foreground")}>
+                                <MemberNameButton
+                                  userId={entry.userId}
+                                  sheetExtras={{ rank: idx + 1, subtitle: `${entry.correct}/${entry.picked} correct` }}
+                                  className={cn("inline truncate max-w-full", isMe ? "text-primary" : "text-foreground")}
+                                  asChildWrapper
+                                >
+                                  {entry.displayName || entry.username}
+                                </MemberNameButton>
                                 {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                               </span>
                               <span className="shrink-0 text-right">
@@ -3654,7 +3689,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       .map(w => (
                         <div key={w.userId} className="flex items-center gap-2 flex-wrap">
                           <span className="text-xl">🏆</span>
-                          <span className="font-semibold text-foreground text-lg">{w.displayName || w.username}</span>
+                          <MemberNameButton
+                            userId={w.userId}
+                            sheetExtras={{ subtitle: `${w.correct}/${w.picked} correct` }}
+                            className="font-semibold text-foreground text-lg inline"
+                          >
+                            {w.displayName || w.username}
+                          </MemberNameButton>
                           {w.userId === user?.id && <span className="text-xs text-primary/60 font-medium">(you)</span>}
                           <span className="text-muted-foreground text-sm">— {w.correct}/{w.picked} correct</span>
                         </div>
@@ -3677,8 +3718,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                           )}>
                             {idx + 1}
                           </span>
-                          <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
-                            {entry.displayName || entry.username}
+                          <span className={cn("flex-1 font-medium truncate min-w-0", isMe ? "text-primary" : "text-foreground")}>
+                            <MemberNameButton
+                              userId={entry.userId}
+                              sheetExtras={{ rank: idx + 1, subtitle: `${entry.correct}/${entry.picked} correct` }}
+                              className={cn("inline truncate max-w-full", isMe ? "text-primary" : "text-foreground")}
+                              asChildWrapper
+                            >
+                              {entry.displayName || entry.username}
+                            </MemberNameButton>
                             {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                           </span>
                           <span className="shrink-0 text-right">
@@ -3926,8 +3974,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                                 <span className={cn("font-bebas text-xl w-7 shrink-0 text-center", idx === 0 ? "text-yellow-400" : idx === 1 ? "text-zinc-300" : idx === 2 ? "text-amber-600" : "text-muted-foreground/40")}>
                                   {idx + 1}
                                 </span>
-                                <span className={cn("flex-1 font-medium truncate", isMe ? "text-primary" : "text-foreground")}>
-                                  {entry.displayName || entry.username}
+                                <span className={cn("flex-1 font-medium truncate min-w-0", isMe ? "text-primary" : "text-foreground")}>
+                                  <MemberNameButton
+                                    userId={entry.userId}
+                                    sheetExtras={{ rank: idx + 1, subtitle: `${entry.correct}/${entry.picked} correct` }}
+                                    className={cn("inline truncate max-w-full", isMe ? "text-primary" : "text-foreground")}
+                                    asChildWrapper
+                                  >
+                                    {entry.displayName || entry.username}
+                                  </MemberNameButton>
                                   {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                                 </span>
                                 <span className="shrink-0 text-right">

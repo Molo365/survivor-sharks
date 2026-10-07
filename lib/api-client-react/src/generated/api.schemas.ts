@@ -73,6 +73,11 @@ export interface AuthUser {
   email: string;
   /** @nullable */
   displayName?: string | null;
+  /**
+     * Optional name shown in pool participant lists to other members
+     * @nullable
+     */
+  realName?: string | null;
   role: AuthUserRole;
   /** @nullable */
   emailVerifiedAt: string | null;
@@ -546,6 +551,11 @@ export interface PoolMember {
   username: string;
   /** @nullable */
   displayName?: string | null;
+  /**
+     * Member-provided real name; only returned on pool detail for participants
+     * @nullable
+     */
+  realName?: string | null;
   status: PoolMemberStatus;
   /** @nullable */
   eliminatedWeek?: number | null;
@@ -2713,6 +2723,19 @@ export type UpdateReminderPreferencesBody = {
 
 export type UpdateReminderPreferences200 = {
   remindersEnabled: boolean;
+};
+
+export type UpdateRealNameBody = {
+  /**
+     * Legal or table name; empty string clears the value
+     * @nullable
+     */
+  realName: string | null;
+};
+
+export type UpdateRealName200 = {
+  /** @nullable */
+  realName: string | null;
 };
 
 export type UpdateDisplayNameBody = {

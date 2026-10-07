@@ -8,6 +8,7 @@ import { useState } from "react";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
+import { MemberNameButton } from "@/components/PoolMemberIdentity";
 
 type SovBreakdownItem = { week: number; teamName: string; marginOfVictory: number };
 
@@ -269,7 +270,14 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                   </div>
                   <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-medium text-sm">
                     <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                    <span className="truncate">{entry.displayName || entry.username}</span>
+                    <MemberNameButton
+                      userId={entry.userId}
+                      sheetExtras={{ rank: entry.rank }}
+                      className="truncate inline max-w-full"
+                      asChildWrapper
+                    >
+                      {entry.displayName || entry.username}
+                    </MemberNameButton>
                   </div>
                 </div>
                 <Badge
@@ -298,9 +306,16 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                   <div className="flex items-center gap-3 sm:gap-5 mb-2 sm:mb-0">
                     <div className="font-bebas text-2xl sm:text-3xl text-primary/40 w-8 text-center">{entry.rank}</div>
                     <div>
-                      <div className="font-medium text-base sm:text-xl flex items-center gap-2">
+                      <div className="font-medium text-base sm:text-xl flex items-center gap-2 flex-wrap">
                         <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                        {entry.displayName || entry.username}
+                        <MemberNameButton
+                          userId={entry.userId}
+                          sheetExtras={{ rank: entry.rank }}
+                          className="inline"
+                          asChildWrapper
+                        >
+                          {entry.displayName || entry.username}
+                        </MemberNameButton>
                         {maxLives > 1 && strikeCount > 0 && (
                           <span
                             title={strikeCount >= maxLives - 1
@@ -384,9 +399,14 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                     </div>
                     <div className="flex min-w-0 items-center gap-1.5 font-medium text-sm text-muted-foreground">
                       <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                      <span className="truncate line-through whitespace-nowrap">
+                      <MemberNameButton
+                        userId={entry.userId}
+                        sheetExtras={{ rank: entry.rank, subtitle: entry.eliminatedWeek != null ? `Eliminated week ${entry.eliminatedWeek}` : undefined }}
+                        className="truncate line-through whitespace-nowrap inline max-w-full"
+                        asChildWrapper
+                      >
                         {entry.displayName || entry.username}
-                      </span>
+                      </MemberNameButton>
                     </div>
                   </div>
                   <div className="shrink-0 whitespace-nowrap text-right font-bebas text-xs tracking-wider text-destructive">
@@ -406,7 +426,14 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                     </div>
                     <div className="font-medium text-sm sm:text-lg line-through text-muted-foreground">
                       <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
-                      {entry.displayName || entry.username}
+                      <MemberNameButton
+                        userId={entry.userId}
+                        sheetExtras={{ rank: entry.rank, subtitle: entry.eliminatedWeek != null ? `Eliminated week ${entry.eliminatedWeek}` : undefined }}
+                        className="inline line-through"
+                        asChildWrapper
+                      >
+                        {entry.displayName || entry.username}
+                      </MemberNameButton>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">

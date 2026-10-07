@@ -773,6 +773,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     userId: entriesTable.userId,
     username: usersTable.username,
     displayName: usersTable.displayName,
+    realName: usersTable.realName,
     status: entriesTable.status,
     eliminatedWeek: entriesTable.eliminatedWeek,
     joinedAt: entriesTable.joinedAt,
