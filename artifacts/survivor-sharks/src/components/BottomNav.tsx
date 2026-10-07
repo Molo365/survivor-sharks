@@ -18,23 +18,16 @@ function isHiddenRoute(path: string): boolean {
   return HIDDEN_PREFIXES.slice(1).some((prefix) => path.startsWith(prefix));
 }
 
-function isPoolRoute(path: string): boolean {
-  return /^\/pools\/[^/]+/.test(path);
-}
-
 export function BottomNav() {
   const { user } = useAuth();
   const [location] = useLocation();
 
   if (!user || isHiddenRoute(location)) return null;
 
-  const inPool = isPoolRoute(location);
-  const tabs = inPool ? TABS.filter((t) => t.href !== "/picks" && t.href !== "/standings") : TABS;
-
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border/20 bg-[#060810]/60 backdrop-blur-md">
       <div className="flex items-stretch h-16">
-        {tabs.map(({ label, icon: Icon, href }) => {
+        {TABS.map(({ label, icon: Icon, href }) => {
           const active = location === href || location.startsWith(href + "/");
           return (
             <Link
