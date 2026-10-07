@@ -8,6 +8,9 @@ import {
 } from "react";
 import { Link } from "wouter";
 import { Users, UserCircle2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGetPool, getGetPoolQueryKey } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -18,7 +21,6 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
-  poolMemberLookup,
   poolMemberStageName,
   type PoolMemberLike,
 } from "@/lib/poolMemberDisplay";
@@ -44,19 +46,50 @@ export function usePoolMemberIdentity(): PoolMemberIdentityContextValue | null {
   return useContext(PoolMemberIdentityContext);
 }
 
+function mergeMembersWithAuthRealName(
+  members: PoolMemberLike[],
+  userId: number | undefined,
+  realName: string | null | undefined,
+): PoolMemberLike[] {
+  if (userId == null || !realName?.trim()) return members;
+  return members.map((m) =>
+    m.userId === userId ? { ...m, realName: realName.trim() } : m,
+  );
+}
+
 export function PoolMemberIdentityProvider({
-  members,
+  poolId,
   currentUserId,
   children,
 }: {
-  members: PoolMemberLike[];
+  poolId: number;
   currentUserId?: number;
   children: ReactNode;
 }) {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { data: pool } = useGetPool(poolId, {
+    query: { enabled: poolId > 0, queryKey: getGetPoolQueryKey(poolId) },
+  });
+
+  const members = useMemo(
+    () =>
+      mergeMembersWithAuthRealName(
+        pool?.members ?? [],
+        user?.id,
+        user?.realName,
+      ),
+    [pool?.members, user?.id, user?.realName],
+  );
+
   const [profileOpen, setProfileOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [sheetExtras, setSheetExtras] = useState<MemberSheetExtras | undefined>();
+
+  const refreshPoolMembers = useCallback(() => {
+    void queryClient.refetchQueries({ queryKey: getGetPoolQueryKey(poolId) });
+  }, [poolId, queryClient]);
 
   const membersByUserId = useMemo(
     () => new Map(members.map((m) => [m.userId, m])),
@@ -71,19 +104,25 @@ export function PoolMemberIdentityProvider({
     [membersByUserId],
   );
 
-  const openMember = useCallback((userId: number, extras?: MemberSheetExtras) => {
-    setSelectedUserId(userId);
-    setSheetExtras(extras);
-    setProfileOpen(true);
-  }, []);
+  const openMember = useCallback(
+    (userId: number, extras?: MemberSheetExtras) => {
+      refreshPoolMembers();
+      setSelectedUserId(userId);
+      setSheetExtras(extras);
+      setProfileOpen(true);
+    },
+    [refreshPoolMembers],
+  );
 
   const openParticipants = useCallback(() => {
+    refreshPoolMembers();
     setParticipantsOpen(true);
-  }, []);
+  }, [refreshPoolMembers]);
 
   const selectedMember =
     selectedUserId != null ? membersByUserId.get(selectedUserId) : undefined;
   const isYou = selectedUserId != null && selectedUserId === currentUserId;
+  const selectedRealName = selectedMember?.realName?.trim() ?? "";
 
   const sortedMembers = useMemo(
     () =>
@@ -125,7 +164,8 @@ export function PoolMemberIdentityProvider({
                   )}
                 </SheetTitle>
                 <SheetDescription>
-                  Pool name on the board — tap any name on standings to see who it is.
+                  Board name above; real name below is what each player adds in Profile (not the
+                  display name).
                 </SheetDescription>
               </SheetHeader>
 
@@ -135,17 +175,21 @@ export function PoolMemberIdentityProvider({
                     Real name
                   </p>
                   <p className="text-base font-medium text-foreground">
-                    {selectedMember.realName?.trim()
-                      ? selectedMember.realName
-                      : "Not added yet"}
+                    {selectedRealName ? selectedRealName : "Not added yet"}
                   </p>
-                  {isYou && !selectedMember.realName?.trim() && (
+                  {isYou && !selectedRealName && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Add your real name in{" "}
+                      Add it under{" "}
                       <Link href="/profile" className="text-primary underline-offset-2 hover:underline">
-                        Profile
-                      </Link>{" "}
-                      so people at the table know who you are.
+                        Profile → Account → Real name
+                      </Link>
+                      , then reopen this sheet (or refresh the pool).
+                    </p>
+                  )}
+                  {!isYou && !selectedRealName && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      They haven&apos;t added a real name in their profile yet — only they can set
+                      it.
                     </p>
                   )}
                 </div>
@@ -194,7 +238,8 @@ export function PoolMemberIdentityProvider({
               Participants
             </SheetTitle>
             <SheetDescription>
-              Stage name and real name for everyone in this pool.
+              Each person adds their own real name in Profile → Account. Pool names stay on the
+              board.
             </SheetDescription>
           </SheetHeader>
 
@@ -210,6 +255,7 @@ export function PoolMemberIdentityProvider({
                 {sortedMembers.map((m, idx) => {
                   const stage = poolMemberStageName(m);
                   const isRowYou = m.userId === currentUserId;
+                  const real = m.realName?.trim();
                   return (
                     <tr
                       key={m.userId}
@@ -234,7 +280,7 @@ export function PoolMemberIdentityProvider({
                         </button>
                       </td>
                       <td className="px-3 py-2.5 text-muted-foreground">
-                        {m.realName?.trim() || "—"}
+                        {real || "—"}
                       </td>
                     </tr>
                   );
@@ -276,7 +322,6 @@ export function MemberNameButton({
   className?: string;
   children?: ReactNode;
   sheetExtras?: MemberSheetExtras;
-  /** When true, renders a span styled like text but still tappable (for grid cells). */
   asChildWrapper?: boolean;
 }) {
   const ctx = usePoolMemberIdentity();
