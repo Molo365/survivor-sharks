@@ -3399,7 +3399,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         {/* ── Today's Picks ── */}
         <TabsContent value="picks" className="m-0 focus-visible:outline-none">
           <div className="space-y-6">
-            <PickEmWelcomePanel poolId={poolId} userId={user?.id} emoji="🎯" poolName={poolName}>
+            <PickEmWelcomePanel
+              poolId={poolId}
+              userId={user?.id}
+              emoji="🎯"
+              poolName={poolName}
+              poolWeek={poolDetail?.currentWeek ?? 1}
+            >
               <p>
                 {is3way
                   ? sport === "championsleague"

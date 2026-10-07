@@ -2006,7 +2006,13 @@ export function PickEmSeasonView({
           {/* ── This Week's Picks ── */}
           <TabsContent value="picks" className="m-0 focus-visible:outline-none">
             <div className="space-y-5">
-              <PickEmWelcomePanel poolId={poolId} userId={user?.id} emoji="🏈" poolName={poolName}>
+              <PickEmWelcomePanel
+                poolId={poolId}
+                userId={user?.id}
+                emoji="🏈"
+                poolName={poolName}
+                poolWeek={sandboxMode ? sandboxWeek : currentWeek}
+              >
                 <p>
                   Pick the winner of every NFL game each week. Points accumulate all season — whoever has
                   the most correct picks after Week 18 wins. Each game locks at kickoff. In Week 18, enter

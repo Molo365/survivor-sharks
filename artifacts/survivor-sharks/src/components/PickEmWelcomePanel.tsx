@@ -9,7 +9,11 @@ function legacyDismissedKey(poolId: string | number, userId: string | number | u
   return `pickem-welcome-dismissed-${poolId}-${userId ?? "guest"}`;
 }
 
-function readStartsCollapsed(poolId: string | number, userId: string | number | undefined): boolean {
+function readStartsCollapsed(
+  poolId: string | number,
+  userId: string | number | undefined,
+  poolWeek?: number,
+): boolean {
   try {
     const key = collapsedStorageKey(poolId, userId);
     if (localStorage.getItem(key) === "1") return true;
@@ -18,6 +22,8 @@ function readStartsCollapsed(poolId: string | number, userId: string | number | 
       localStorage.setItem(key, "1");
       return true;
     }
+    // Week 1: show full rules; week 2+ default to the slim bar (user can still expand).
+    if (poolWeek != null && poolWeek > 1) return true;
     return false;
   } catch {
     return false;
@@ -38,6 +44,8 @@ type PickEmWelcomePanelProps = {
   userId?: string | number | null;
   emoji: string;
   poolName: string;
+  /** Pool week (e.g. NFL wk 5). Week 1 opens expanded; week 2+ opens collapsed unless user saved collapse. */
+  poolWeek?: number;
   children: ReactNode;
 };
 
@@ -47,16 +55,17 @@ export function PickEmWelcomePanel({
   userId,
   emoji,
   poolName,
+  poolWeek,
   children,
 }: PickEmWelcomePanelProps) {
   const [ready, setReady] = useState(false);
   const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
-    const collapsed = readStartsCollapsed(poolId, userId ?? undefined);
+    const collapsed = readStartsCollapsed(poolId, userId ?? undefined, poolWeek);
     setExpanded(!collapsed);
     setReady(true);
-  }, [poolId, userId]);
+  }, [poolId, userId, poolWeek]);
 
   if (!ready) return null;
 
