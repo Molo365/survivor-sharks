@@ -431,18 +431,81 @@ export default function Profile() {
                     Edit display name
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">This is the name other players see on the board.</p>
+                <p className="text-xs text-muted-foreground">
+                  Pool / board name — what shows on standings (e.g. El Puerco).
+                </p>
               </>
             )}
-            {user?.displayName && (
-              <p className="text-sm text-muted-foreground">@{user.username}</p>
-            )}
+            <p className="text-sm text-muted-foreground mt-1">@{user?.username}</p>
             {user?.createdAt && (
               <p className="text-xs text-muted-foreground/60 mt-0.5">
                 Member since {formatMemberSince(user.createdAt)}
               </p>
             )}
           </div>
+
+          <Card className="w-full max-w-md shark-card border-primary/25">
+            <CardContent className="p-4 space-y-3 text-left">
+              <div>
+                <p className="font-medium text-sm">Real name (People list)</p>
+                <p className="text-xs text-muted-foreground">
+                  Separate from the pool name above. Shown when someone taps your name or opens{" "}
+                  <span className="text-foreground/80">People</span> in a pool.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  value={realNameDraft}
+                  onChange={(e) => setRealNameDraft(e.target.value)}
+                  placeholder="e.g. Smith, Andy"
+                  className="bg-background/50"
+                  disabled={updateRealName.isPending}
+                  aria-label="Real name"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={updateRealName.isPending || !user}
+                  onClick={() => {
+                    if (!user) return;
+                    setRealNameError(null);
+                    updateRealName.mutate(
+                      { data: { realName: realNameDraft.trim() || null } },
+                      {
+                        onSuccess: ({ realName }) => {
+                          queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cached) =>
+                            cached ? { ...cached, realName } : cached,
+                          );
+                          void invalidateAllPoolDetailQueries(queryClient);
+                          setRealNameDraft(realName ?? "");
+                          toast({
+                            title: "Real name saved",
+                            description: realName
+                              ? "Reopen People in your pool to see it."
+                              : "Cleared — People list will show a dash again.",
+                          });
+                        },
+                        onError: (error) => {
+                          setRealNameError(error.message || "Please try again.");
+                        },
+                      },
+                    );
+                  }}
+                >
+                  Save real name
+                </Button>
+              </div>
+              {user?.realName?.trim() && (
+                <p className="text-xs text-green-400/90">
+                  Saved as: <span className="font-medium">{user.realName}</span>
+                </p>
+              )}
+              {realNameError && (
+                <p role="alert" className="text-xs text-destructive">{realNameError}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Link
@@ -549,57 +612,6 @@ export default function Profile() {
 
           {/* ── ACCOUNT tab ── */}
           <TabsContent value="account" className="space-y-4 mt-0">
-            <Card className="shark-card">
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <p className="font-medium text-sm">Real name</p>
-                  <p className="text-xs text-muted-foreground">
-                    Shown when pool members tap your name or open the participant list.
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    value={realNameDraft}
-                    onChange={(e) => setRealNameDraft(e.target.value)}
-                    placeholder="e.g. Martin, Andy"
-                    className="bg-background/50"
-                    disabled={updateRealName.isPending}
-                    aria-label="Real name"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={updateRealName.isPending || !user}
-                    onClick={() => {
-                      if (!user) return;
-                      setRealNameError(null);
-                      updateRealName.mutate(
-                        { data: { realName: realNameDraft.trim() || null } },
-                        {
-                          onSuccess: ({ realName }) => {
-                            queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cached) =>
-                              cached ? { ...cached, realName } : cached,
-                            );
-                            void invalidateAllPoolDetailQueries(queryClient);
-                            setRealNameDraft(realName ?? "");
-                            toast({ title: "Real name saved" });
-                          },
-                          onError: (error) => {
-                            setRealNameError(error.message || "Please try again.");
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Save real name
-                  </Button>
-                </div>
-                {realNameError && (
-                  <p role="alert" className="text-xs text-destructive">{realNameError}</p>
-                )}
-              </CardContent>
-            </Card>
             <Card className="shark-card">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
