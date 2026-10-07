@@ -44,7 +44,6 @@ import { SportLogo } from "@/components/SportLogo";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { PoolRulesSheet } from "@/components/PoolRulesSheet";
 import { SPORT_LABELS } from "@/lib/sport-branding";
-import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
 import { getPoolRules } from "@/lib/poolRules";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_ICON_CLASS } from "@/lib/poolTabStyles";
@@ -174,19 +173,6 @@ export default function PoolHome() {
     staleTime: 25_000,
   });
 
-  const mobilePrizeData = (() => {
-    if (!pool) return null;
-    const breakdown = calculatePayouts(
-      (pool as any).prizeStructure,
-      pool.maxEntries,
-      pool.totalMembers,
-      (pool as any).prizeMode ?? "fixed",
-      pool.entryFee,
-    );
-    const pot = scaledPrizePot(pool.prizePot, pool.maxEntries, pool.totalMembers);
-    return { breakdown, pot };
-  })();
-
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
   if (pool && ((pool.poolType as string) === "pickem" || isNbaAts) && !location.endsWith("/pickem")) {
     return <Redirect to={`/pools/${poolId}/pickem`} replace />;
@@ -235,54 +221,51 @@ export default function PoolHome() {
         ) : (
           <div className="space-y-2 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2">{pool.name}</h1>
-                  {poolRules && <PoolRulesSheet rules={poolRules} />}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setActiveTab("leaderboard");
-                      if (pool.poolType === "pickem_season") {
-                        setPickemSeasonDetailedView(true);
-                      }
-                    }}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2 w-full">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <h1 className="font-bebas text-3xl md:text-6xl tracking-wide text-primary drop-shadow-sm mb-1 md:mb-2 min-w-0 break-words">
+                      {pool.name}
+                    </h1>
+                    {poolRules && <PoolRulesSheet rules={poolRules} />}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab("leaderboard");
+                        if (pool.poolType === "pickem_season") {
+                          setPickemSeasonDetailedView(true);
+                        }
+                      }}
+                      className={cn(
+                        "h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300",
+                        hasPoolLeaderboardTab && "hidden md:inline-flex",
+                      )}
+                    >
+                      <Trophy className="h-3.5 w-3.5" />
+                      Standings
+                    </Button>
+                  </div>
+                  <div className="md:hidden shrink-0 pt-0.5">
+                    <PrizeDisplay
+                      variant="pool-home-compact"
+                      prizeStructure={(pool as any).prizeStructure}
+                      prizePot={pool.prizePot}
+                      prizeMode={(pool as any).prizeMode ?? "fixed"}
+                      entryFee={pool.entryFee}
+                      maxEntries={pool.maxEntries}
+                      actualEntries={pool.totalMembers}
+                    />
+                  </div>
+                </div>
+                <div className="flex w-full max-w-full flex-row flex-wrap items-center gap-1.5 md:gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  <span
                     className={cn(
-                      "h-8 shrink-0 gap-1.5 border-green-500/40 bg-green-500/5 px-2.5 text-xs text-green-400 hover:bg-green-500/10 hover:text-green-300",
-                      hasPoolLeaderboardTab && "hidden md:inline-flex",
+                      "inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 px-2 py-1 rounded text-foreground",
+                      pool.sport === "superleague" && "hidden md:inline-flex",
                     )}
                   >
-                    <Trophy className="h-3.5 w-3.5" />
-                    Standings
-                  </Button>
-                </div>
-                {mobilePrizeData?.breakdown && mobilePrizeData.breakdown.length > 0 ? (
-                  <div className="md:hidden flex items-center flex-wrap gap-x-1 gap-y-0.5 text-sm font-semibold text-yellow-400 mt-1">
-                    <Trophy className="w-3.5 h-3.5 shrink-0 mr-0.5" />
-                    {mobilePrizeData.breakdown.slice(0, 3).map((p, i) => (
-                      <span key={p.place} className="flex items-center gap-x-1">
-                        {i > 0 && <span className="text-yellow-400/40 select-none">·</span>}
-                        <span className="text-yellow-300/70 text-xs font-medium">{ORDINALS[p.place - 1]}</span>
-                        <span>${p.amount.toLocaleString()}</span>
-                      </span>
-                    ))}
-                    {mobilePrizeData.breakdown.length > 3 && (
-                      <>
-                        <span className="text-yellow-400/40 select-none">·</span>
-                        <span className="text-yellow-400/60 text-xs font-medium">+{mobilePrizeData.breakdown.length - 3} more</span>
-                      </>
-                    )}
-                  </div>
-                ) : mobilePrizeData?.pot && mobilePrizeData.pot > 0 ? (
-                  <div className="md:hidden flex items-center gap-1.5 text-sm font-semibold text-yellow-400 mt-1">
-                    <Trophy className="w-3.5 h-3.5" />
-                    Prize Pot: ${mobilePrizeData.pot.toLocaleString()}
-                  </div>
-                ) : null}
-                <div className="flex w-full max-w-full flex-row flex-wrap items-center gap-2 text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 px-2 py-1 rounded text-foreground">
                     <SportLogo sport={pool.sport} className="h-4 w-4 rounded-sm" />
                     {SPORT_LABELS[pool.sport] ?? pool.sport}
                   </span>
@@ -303,7 +286,13 @@ export default function PoolHome() {
                   )}
                   {((pool.poolType as string) === "pickem" || (pool.poolType as string) === "pickem_season" || isNbaAts) && (
                     <span className="flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded">
-                      <Crosshair className="w-3 h-3" /> {isNbaAts ? "ATS · Weekly" : `Pick-Ems${(pool.poolType as string) === "pickem_season" ? " · Season" : (pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}`}
+                      <Crosshair className="w-3 h-3 shrink-0" />
+                      <span className="md:hidden">{isNbaAts ? "ATS" : "Pick'ems"}</span>
+                      <span className="hidden md:inline">
+                        {isNbaAts
+                          ? "ATS · Weekly"
+                          : `Pick-Ems${(pool.poolType as string) === "pickem_season" ? " · Season" : (pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}`}
+                      </span>
                     </span>
                   )}
                   {(pool.poolType as string) === "group_stage_predictor" && (
@@ -376,7 +365,9 @@ export default function PoolHome() {
                       🎬 Replay
                     </span>
                   )}
-                  <span className="inline-flex w-fit max-w-full items-center gap-1 text-muted-foreground">Season {pool.season}</span>
+                  <span className="hidden md:inline-flex w-fit max-w-full items-center gap-1 text-muted-foreground">
+                    Season {pool.season}
+                  </span>
                   <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
                     {pool.isRecurring ? <RefreshCw className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
                     {pool.isRecurring ? "Recurring" : "One-time"}

@@ -8,7 +8,7 @@ interface PrizeDisplayProps {
   actualEntries?: number | null;
   prizeMode?: "fixed" | "pct";
   entryFee?: number | null;
-  variant: "pool-home" | "join-invite" | "pool-card" | "leaderboard";
+  variant: "pool-home" | "pool-home-compact" | "join-invite" | "pool-card" | "leaderboard";
 }
 
 const SCALE_DISCLAIMER = "Payouts shown are based on reaching the maximum entries. With fewer players, amounts scale proportionally.";
@@ -76,6 +76,41 @@ export function PrizeDisplay({
               {SCALE_DISCLAIMER}
             </p>
           )}
+        </div>
+      );
+    }
+    return null;
+  }
+
+  if (variant === "pool-home-compact") {
+    if (displayScaled && displayScaled.length > 0) {
+      const top = displayScaled.slice(0, 3);
+      return (
+        <div className="bg-primary/5 border border-primary/20 px-2.5 py-2 rounded-lg shadow-sm min-w-[4.75rem] max-w-[6.5rem]">
+          <div className="text-[9px] text-primary/80 uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-0.5">
+            <Trophy className="w-2.5 h-2.5 shrink-0" />
+            <span>Prizes</span>
+          </div>
+          <div className="space-y-0.5">
+            {top.map((p) => (
+              <div key={p.place} className="flex items-center justify-between gap-1.5 leading-none">
+                <span className="text-muted-foreground text-[9px]">{ORDINALS[p.place - 1]}</span>
+                <span className="font-bebas text-[11px] text-primary tabular-nums">
+                  ${p.amount.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    if (pot && pot > 0) {
+      return (
+        <div className="bg-primary/5 border border-primary/20 px-2.5 py-2 rounded-lg text-center shadow-sm min-w-[4.75rem]">
+          <div className="text-[9px] text-primary/80 uppercase font-bold tracking-wider mb-0.5">Pot</div>
+          <div className="font-bebas text-sm text-primary leading-none tabular-nums">
+            ${pot.toLocaleString()}
+          </div>
         </div>
       );
     }
