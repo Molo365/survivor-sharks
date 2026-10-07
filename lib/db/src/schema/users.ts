@@ -10,6 +10,8 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name"),
+  /** Optional name for pool member directories (visible to pool members only). */
+  realName: text("real_name"),
   role: userRoleEnum("role").notNull().default("user"),
   agentId: integer("agent_id").references((): AnyPgColumn => usersTable.id, { onDelete: "set null" }),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),

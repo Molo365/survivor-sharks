@@ -58,6 +58,7 @@ export const LoginUserResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "displayName": zod.string().nullish(),
+  "realName": zod.string().nullish().describe('Optional name shown in pool participant lists to other members'),
   "role": zod.enum(['user', 'admin', 'agent']),
   "emailVerifiedAt": zod.coerce.date().nullable(),
   "remindersEnabled": zod.boolean(),
@@ -83,6 +84,7 @@ export const GetMeResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "displayName": zod.string().nullish(),
+  "realName": zod.string().nullish().describe('Optional name shown in pool participant lists to other members'),
   "role": zod.enum(['user', 'admin', 'agent']),
   "emailVerifiedAt": zod.coerce.date().nullable(),
   "remindersEnabled": zod.boolean(),
@@ -150,6 +152,18 @@ export const UpdateReminderPreferencesBody = zod.object({
 
 export const UpdateReminderPreferencesResponse = zod.object({
   "remindersEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update the current user's real name (shown to pool members)
+ */
+export const UpdateRealNameBody = zod.object({
+  "realName": zod.string().nullable().describe('Legal or table name; empty string clears the value')
+})
+
+export const UpdateRealNameResponse = zod.object({
+  "realName": zod.string().nullable()
 })
 
 
@@ -461,6 +475,7 @@ export const GetPoolResponse = zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
+  "realName": zod.string().nullish().describe('Member-provided real name; only returned on pool detail for participants'),
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string()
@@ -843,6 +858,7 @@ export const GetSurvivorGridResponse = zod.object({
   "userId": zod.number(),
   "username": zod.string(),
   "displayName": zod.string().nullish(),
+  "realName": zod.string().nullish().describe('Member-provided real name; only returned on pool detail for participants'),
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string()

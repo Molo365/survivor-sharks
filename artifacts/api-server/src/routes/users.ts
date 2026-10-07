@@ -4,6 +4,7 @@ import { entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq, inArray, sql, desc, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { normalizeDisplayName } from "../lib/display-name";
+import { normalizeRealName } from "../lib/real-name";
 
 const router = Router();
 
@@ -55,6 +56,23 @@ router.patch("/me/display-name", requireAuth, async (req, res) => {
     .returning({ displayName: usersTable.displayName });
 
   res.json({ displayName: user?.displayName ?? normalized.value });
+});
+
+// PATCH /api/users/me/real-name
+router.patch("/me/real-name", requireAuth, async (req, res) => {
+  const normalized = normalizeRealName(req.body?.realName);
+  if (!normalized.ok) {
+    res.status(400).json({ error: normalized.error });
+    return;
+  }
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ realName: normalized.value })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning({ realName: usersTable.realName });
+
+  res.json({ realName: user?.realName ?? null });
 });
 
 // GET /api/users/me/balance

@@ -136,6 +136,8 @@ import type {
   TeamInjuryReport,
   UpdateDisplayName200,
   UpdateDisplayNameBody,
+  UpdateRealName200,
+  UpdateRealNameBody,
   UpdateReminderPreferences200,
   UpdateReminderPreferencesBody,
   UserBalance,
@@ -905,6 +907,77 @@ export const useUpdateReminderPreferences = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateReminderPreferencesMutationOptions(options));
+    }
+
+export const getUpdateRealNameUrl = () => {
+
+
+
+
+  return `/api/users/me/real-name`
+}
+
+/**
+ * @summary Update the current user's real name (shown to pool members)
+ */
+export const updateRealName = async (updateRealNameBody: UpdateRealNameBody, options?: RequestInit): Promise<UpdateRealName200> => {
+
+  return customFetch<UpdateRealName200>(getUpdateRealNameUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateRealNameBody,)
+  }
+);}
+
+
+
+
+export const getUpdateRealNameMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRealName>>, TError,{data: BodyType<UpdateRealNameBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRealName>>, TError,{data: BodyType<UpdateRealNameBody>}, TContext> => {
+
+const mutationKey = ['updateRealName'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRealName>>, {data: BodyType<UpdateRealNameBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateRealName(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRealNameMutationResult = NonNullable<Awaited<ReturnType<typeof updateRealName>>>
+    export type UpdateRealNameMutationBody = BodyType<UpdateRealNameBody>
+    export type UpdateRealNameMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update the current user's real name (shown to pool members)
+ */
+export const useUpdateRealName = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRealName>>, TError,{data: BodyType<UpdateRealNameBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRealName>>,
+        TError,
+        {data: BodyType<UpdateRealNameBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateRealNameMutationOptions(options));
     }
 
 export const getUpdateDisplayNameUrl = () => {

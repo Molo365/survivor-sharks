@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Users, X, Info } from "lucide-react";
 import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
+import { MemberNameButton } from "@/components/PoolMemberIdentity";
 
 // ── Base player shape every consumer must satisfy ──────────────────────────
 
@@ -247,12 +248,19 @@ export function PoolLeaderboardGrid<TPlayer extends LeaderboardPlayer>({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={cn(
-                            "text-sm font-semibold truncate",
+                            "text-sm font-semibold truncate min-w-0",
                             isMe ? "text-purple-300" : "text-foreground",
                           )}
                         >
                           <PickStatusIndicator status={pickStatusByUserId.get(player.userId)} />
-                          {player.displayName ?? player.username}
+                          <MemberNameButton
+                            userId={player.userId}
+                            sheetExtras={{ rank: player.rank, rankLabel: "Season rank" }}
+                            className={cn("inline truncate max-w-full", isMe ? "text-purple-300" : "text-foreground")}
+                            asChildWrapper
+                          >
+                            {player.displayName ?? player.username}
+                          </MemberNameButton>
                         </span>
                         {isMe && (
                           <span className="shrink-0 text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">

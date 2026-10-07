@@ -43,6 +43,7 @@ import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { SportLogo } from "@/components/SportLogo";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { PoolRulesSheet } from "@/components/PoolRulesSheet";
+import { PoolMemberIdentityProvider, PoolParticipantsTrigger } from "@/components/PoolMemberIdentity";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { getPoolRules } from "@/lib/poolRules";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
@@ -219,6 +220,7 @@ export default function PoolHome() {
             <Skeleton className="h-[400px] w-full rounded-md" />
           </div>
         ) : (
+          <PoolMemberIdentityProvider members={pool.members} currentUserId={user?.id}>
           <div className="space-y-2 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0 flex-1">
@@ -228,6 +230,7 @@ export default function PoolHome() {
                       {pool.name}
                     </h1>
                     {poolRules && <PoolRulesSheet rules={poolRules} />}
+                    <PoolParticipantsTrigger />
                     <Button
                       type="button"
                       variant="outline"
@@ -663,6 +666,7 @@ export default function PoolHome() {
             </Tabs>
             )}
           </div>
+          </PoolMemberIdentityProvider>
         )}
 
         <div className="mt-12">
