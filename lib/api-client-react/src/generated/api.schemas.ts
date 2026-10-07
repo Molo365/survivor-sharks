@@ -91,12 +91,21 @@ export interface AuthToken {
 }
 
 export interface RegisterInput {
-  /** @minLength 3 */
-  username: string;
+  /**
+     * Person's real name (shown in pool People list)
+     * @minLength 1
+     */
+  realName: string;
   email: string;
   /** @minLength 6 */
   password: string;
+  /** Pool / leaderboard nickname */
   displayName?: string;
+  /**
+     * Optional; auto-generated from email when omitted
+     * @minLength 3
+     */
+  username?: string;
 }
 
 export interface LoginInput {
