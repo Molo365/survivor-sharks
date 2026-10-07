@@ -220,7 +220,7 @@ export default function PoolHome() {
             <Skeleton className="h-[400px] w-full rounded-md" />
           </div>
         ) : (
-          <PoolMemberIdentityProvider members={pool.members} currentUserId={user?.id}>
+          <PoolMemberIdentityProvider poolId={pool.id} currentUserId={user?.id}>
           <div className="space-y-2 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6 pb-2 md:pb-6 border-b border-border/50">
               <div className="min-w-0 flex-1">

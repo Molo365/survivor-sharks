@@ -25,6 +25,7 @@ import { KeyRound, MessageSquare, Pencil, Trophy, Wallet, User, History } from "
 import { cn } from "@/lib/utils";
 import { SportLogo } from "@/components/SportLogo";
 import { SPORT_LABELS } from "@/lib/sport-branding";
+import { invalidateAllPoolDetailQueries } from "@/lib/queryUtils";
 
 const POOL_TYPE_LABELS: Record<string, string> = {
   season: "Survivor",
@@ -580,6 +581,7 @@ export default function Profile() {
                             queryClient.setQueryData<AuthUser>(getGetMeQueryKey(), (cached) =>
                               cached ? { ...cached, realName } : cached,
                             );
+                            void invalidateAllPoolDetailQueries(queryClient);
                             setRealNameDraft(realName ?? "");
                             toast({ title: "Real name saved" });
                           },
