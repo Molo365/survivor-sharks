@@ -3,6 +3,7 @@ import { useGetSurvivorGrid, getGetSurvivorGridQueryKey } from "@workspace/api-c
 import { Skeleton } from "@/components/ui/skeleton";
 import { Skull } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { StrikeBadge } from "@/components/StrikeBadge";
 
 export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; poolName?: string }) {
   const { data: grid, isLoading } = useGetSurvivorGrid(poolId, { query: { enabled: !!poolId, queryKey: getGetSurvivorGridQueryKey(poolId) } });
@@ -11,14 +12,18 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
   if (!grid || !grid.weeks) return <div className="text-center p-8 text-muted-foreground">No grid data available yet.</div>;
 
   const sortedWeeks = [...grid.weeks].sort((a, b) => a - b);
+  const maxLives = grid.maxLives ?? 1;
 
   function handleDownloadPdf() {
     if (!grid) return;
     const columns = ["Player", "Status", ...grid.weeks.map(w => `WK ${w}`)];
     const rows = grid.members.map(member => {
+      const strikes = member.strikeCount ?? 0;
       const statusLabel = member.status === "eliminated"
         ? `Out W${member.eliminatedWeek ?? "?"}`
-        : "Alive";
+        : strikes > 0
+          ? `${strikes} strike${strikes === 1 ? "" : "s"}`
+          : "Alive";
       const weekCells = grid.weeks.map(w => {
         const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
         if (!pick) return "—";
@@ -75,6 +80,11 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
                   <span className={`truncate ${member.status === 'eliminated' ? 'text-destructive line-through opacity-70' : 'text-foreground'}`}>
                     {member.displayName || member.username}
                   </span>
+                  <StrikeBadge
+                    strikeCount={member.strikeCount ?? 0}
+                    maxLives={maxLives}
+                    size="sm"
+                  />
                 </td>
                 {sortedWeeks.map(w => {
                   const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);

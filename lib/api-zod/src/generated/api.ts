@@ -480,7 +480,8 @@ export const GetPoolResponse = zod.object({
   "realName": zod.string().nullish().describe('Member-provided real name; only returned on pool detail for participants'),
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
-  "joinedAt": zod.string()
+  "joinedAt": zod.string(),
+  "strikeCount": zod.number().optional().describe('Warning strikes used while still alive (NHL\/NBA 3-life, MLB double-elim)')
 })),
   "createdAt": zod.string().optional(),
   "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
@@ -855,6 +856,7 @@ export const GetSurvivorGridParams = zod.object({
 
 export const GetSurvivorGridResponse = zod.object({
   "poolId": zod.number(),
+  "maxLives": zod.number().optional().describe('Lives in this pool (1 single elim, 2 double elim, 3 NHL\/NBA season survivor)'),
   "weeks": zod.array(zod.number()),
   "members": zod.array(zod.object({
   "userId": zod.number(),
@@ -863,7 +865,8 @@ export const GetSurvivorGridResponse = zod.object({
   "realName": zod.string().nullish().describe('Member-provided real name; only returned on pool detail for participants'),
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
-  "joinedAt": zod.string()
+  "joinedAt": zod.string(),
+  "strikeCount": zod.number().optional().describe('Warning strikes used while still alive (NHL\/NBA 3-life, MLB double-elim)')
 })),
   "picks": zod.array(zod.object({
   "id": zod.number(),

@@ -137,7 +137,12 @@ router.get("/", requireAuth, async (req, res) => {
       viewWeek: historicalWeek,
       isHistorical: true,
       doubleElimination: pool.doubleElimination,
-      maxLives: pool.doubleElimination ? 2 : 1,
+      maxLives:
+        (pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season"
+          ? 3
+          : pool.doubleElimination
+            ? 2
+            : 1,
       deadlinePassed: false,
       prizeStructure,
       sovTiebreaker: false,
@@ -349,9 +354,12 @@ router.get("/", requireAuth, async (req, res) => {
     }
   }
 
-  const maxLives = (pool.sport === "nhl" && pool.poolType === "season")
-    ? 3
-    : pool.doubleElimination ? 2 : 1;
+  const maxLives =
+    (pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season"
+      ? 3
+      : pool.doubleElimination
+        ? 2
+        : 1;
 
   res.json({
     poolId,

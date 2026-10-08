@@ -24,6 +24,7 @@ router.get("/", requireAuth, async (req, res) => {
     displayName: usersTable.displayName,
     status: entriesTable.status,
     eliminatedWeek: entriesTable.eliminatedWeek,
+    strikeCount: entriesTable.strikeCount,
     joinedAt: entriesTable.joinedAt,
   }).from(entriesTable)
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -65,8 +66,16 @@ router.get("/", requireAuth, async (req, res) => {
     .innerJoin(usersTable, eq(picksTable.userId, usersTable.id))
     .where(eq(picksTable.poolId, poolId));
 
+  const maxLives =
+    (pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season"
+      ? 3
+      : pool.doubleElimination
+        ? 2
+        : 1;
+
   res.json({
     poolId,
+    maxLives,
     weeks,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
     picks: picksWithUsername.map(({ pick, username }) => {
