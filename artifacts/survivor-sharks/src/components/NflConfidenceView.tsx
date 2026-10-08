@@ -1045,7 +1045,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   }
 
   async function doSubmit(
-    tiebreaker?: { passing: number; rushing: number },
+    tiebreaker?: { passing: number },
     weeklyGuess?: number,
   ) {
     setSubmitting(true);
@@ -1064,7 +1064,6 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
       const body: Record<string, unknown> = { picks };
       if (tiebreaker) {
         body.tiebreakerPassingYards = tiebreaker.passing;
-        body.tiebreakerRushingYards = tiebreaker.rushing;
       }
       if (weeklyBonusEnabled && weeklyGuess != null) {
         body.weeklyTiebreakerGuess = weeklyGuess;
@@ -1132,12 +1131,12 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   }
 
   async function handleFinalSubmit() {
-    if (!tbPassingYards || !tbRushingYards) {
-      toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
+    if (!tbPassingYards) {
+      toast({ title: "Tiebreaker required", description: "Enter combined passing yards.", variant: "destructive" });
       return;
     }
     await doSubmit(
-      { passing: parseInt(tbPassingYards, 10), rushing: parseInt(tbRushingYards, 10) },
+      { passing: parseInt(tbPassingYards, 10) },
       weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
     );
   }
@@ -1345,7 +1344,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
           <div>
             <p className="font-bebas text-lg tracking-wide text-yellow-300">Weekly bonus tiebreaker</p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Enter the combined passing and rushing yards for the last scheduled game of Week {currentWeek}.
+              Enter combined passing yards for the last scheduled game of Week {currentWeek}.
               This guess is collected now; weekly tiebreaker resolution is handled separately.
             </p>
           </div>
@@ -1435,17 +1434,6 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
                 onChange={(e) => setTbPassingYards(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tb-rushing">Combined rushing yards — both teams</Label>
-              <Input
-                id="tb-rushing"
-                type="number"
-                min="0"
-                placeholder="e.g. 210"
-                value={tbRushingYards}
-                onChange={(e) => setTbRushingYards(e.target.value)}
-              />
-            </div>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="outline" onClick={() => setShowTiebreaker(false)} disabled={submitting}>
@@ -1453,7 +1441,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
             </Button>
             <Button
               onClick={handleFinalSubmit}
-              disabled={submitting || !tbPassingYards || !tbRushingYards}
+              disabled={submitting || !tbPassingYards}
               className="bg-purple-600 hover:bg-purple-500 text-white"
             >
               {submitting ? "Submitting…" : "Lock In Picks"}

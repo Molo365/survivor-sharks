@@ -1592,9 +1592,7 @@ export function PickEmSeasonView({
         data: {
           week: displayWeek,
           picks,
-          ...(py != null && ry != null
-            ? { tiebreakerPassingYards: py, tiebreakerRushingYards: ry }
-            : {}),
+          ...(py != null ? { tiebreakerPassingYards: py } : {}),
           ...(weeklyBonusEnabled && weeklyGuess != null
             ? { weeklyTiebreakerGuess: weeklyGuess }
             : {}),
@@ -1818,8 +1816,7 @@ export function PickEmSeasonView({
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-snug">
               It&apos;s Week 18 — the final week of the season! In case of a tie, your tiebreaker guess decides the winner.{" "}
-              Guess the <strong className="text-foreground">combined passing yards</strong> and{" "}
-              <strong className="text-foreground">combined rushing yards</strong> for the last scheduled game of the week. Closest guess wins.
+              Guess <strong className="text-foreground">combined passing yards</strong> (both teams) for the last scheduled game of the week. Closest guess wins.
             </DialogDescription>
           </DialogHeader>
           {tiebreakerGame && (
@@ -1854,35 +1851,6 @@ export function PickEmSeasonView({
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Combined Rushing Yards — Tiebreaker Game
-              </label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="e.g. 180"
-                value={tbRushingYards}
-                onChange={(e) => setTbRushingYards(e.target.value)}
-                className="text-lg font-mono h-12"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const py = parseInt(tbPassingYards, 10);
-                    const ry = parseInt(tbRushingYards, 10);
-                    if (!isNaN(py) && py >= 0 && !isNaN(ry) && ry >= 0) {
-                      setShowTbModal(false);
-                      doFinalSubmit(
-                        pendingPicksRef.current,
-                        py,
-                        ry,
-                        weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
-                      );
-                    }
-                  }
-                }}
-              />
-            </div>
           </div>
           <DialogFooter className="flex flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setShowTbModal(false)}>
@@ -1893,12 +1861,11 @@ export function PickEmSeasonView({
               disabled={submitPicks.isPending}
               onClick={() => {
                 const py = parseInt(tbPassingYards, 10);
-                const ry = parseInt(tbRushingYards, 10);
-                if (isNaN(py) || py < 0 || isNaN(ry) || ry < 0) {
+                if (isNaN(py) || py < 0) {
                   toast({
                     variant: "destructive",
-                    title: "Enter valid guesses",
-                    description: "Both fields are required and must be 0 or greater.",
+                    title: "Enter valid guess",
+                    description: "Combined passing yards must be 0 or greater.",
                   });
                   return;
                 }
@@ -1906,7 +1873,7 @@ export function PickEmSeasonView({
                 doFinalSubmit(
                   pendingPicksRef.current,
                   py,
-                  ry,
+                  undefined,
                   weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
                 );
               }}
@@ -2011,7 +1978,7 @@ export function PickEmSeasonView({
                 <p>
                   Pick the winner of every NFL game each week. Points accumulate all season — whoever has
                   the most correct picks after Week 18 wins. Each game locks at kickoff. In Week 18, enter
-                  a passing and rushing yards tiebreaker to settle any ties. Good luck! 🦈🏈
+                  a combined passing-yards tiebreaker on the last game to settle any ties. Good luck! 🦈🏈
                 </p>
               </PickEmWelcomePanel>
 

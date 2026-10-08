@@ -408,8 +408,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // Existing Week 18 season tiebreaker remains separate, but all validation
   // must finish before any picks or weekly tiebreaker values are written.
-  if (week === 18 && (tiebreakerPassingYards == null || tiebreakerRushingYards == null)) {
-    res.status(400).json({ error: "Tiebreaker guesses are required for Week 18" });
+  if (week === 18 && tiebreakerPassingYards == null) {
+    res.status(400).json({ error: "tiebreakerPassingYards is required for Week 18" });
     return;
   }
 
@@ -528,7 +528,10 @@ router.post("/picks", requireAuth, async (req, res) => {
     if (week === 18) {
       await tx
         .update(entriesTable)
-        .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
+        .set({
+          tiebreakerPassingYards,
+          ...(typeof tiebreakerRushingYards === "number" ? { tiebreakerRushingYards } : {}),
+        } as any)
         .where(eq(entriesTable.id, entry.id));
     }
 

@@ -3202,30 +3202,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Strikeouts — Tiebreaker Game
-            </label>
-            <Input
-              type="number"
-              min={0}
-              placeholder="e.g. 28"
-              value={tbStrikeouts}
-              onChange={(e) => setTbStrikeouts(e.target.value)}
-              className="text-lg font-mono h-12"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const runs = parseInt(tbRuns, 10);
-                  const strikes = parseInt(tbStrikeouts, 10);
-                  if (!isNaN(runs) && runs >= 0 && !isNaN(strikes) && strikes >= 0) {
-                    setShowTiebreaker(false);
-                    doFinalSubmit(pendingPicksRef.current, runs, strikes);
-                  }
-                }
-              }}
-            />
-          </div>
         </div>
         <DialogFooter className="flex flex-row gap-2">
           <Button variant="outline" className="flex-1" onClick={() => setShowTiebreaker(false)}>
@@ -3235,13 +3211,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             className="flex-1 font-bebas text-xl tracking-widest"
             onClick={() => {
               const runs = parseInt(tbRuns, 10);
-              const strikes = parseInt(tbStrikeouts, 10);
-              if (isNaN(runs) || runs < 0 || isNaN(strikes) || strikes < 0) {
-                toast({ variant: "destructive", title: "Enter valid guesses", description: "Both fields are required and must be ≥ 0." });
+              if (isNaN(runs) || runs < 0) {
+                toast({ variant: "destructive", title: "Enter valid guess", description: "Combined runs scored must be ≥ 0." });
                 return;
               }
               setShowTiebreaker(false);
-              doFinalSubmit(pendingPicksRef.current, runs, strikes);
+              doFinalSubmit(pendingPicksRef.current, runs);
             }}
           >
             Submit Picks
@@ -3263,9 +3238,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
               : "It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
             <br />
-            {isLiveNhlWeekly
-               ? <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the weekend&apos;s latest-starting game. Closest shots on goal wins. Penalty minutes only break an exact shots-difference tie.</>
-               : <>Guess the <strong className="text-foreground">combined shots on goal</strong> and <strong className="text-foreground">total penalty minutes</strong> for the last game on today&apos;s slate. Closest shots on goal wins. Penalty minutes only break an exact tie.</>}
+            Guess <strong className="text-foreground">combined shots on goal</strong> (both teams) for the tiebreaker game. Closest guess wins; same distance splits the prize.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -3283,30 +3256,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Penalty Minutes — Tiebreaker Game
-            </label>
-            <Input
-              type="number"
-              min={0}
-              placeholder="e.g. 12"
-              value={tbPim}
-              onChange={(e) => setTbPim(e.target.value)}
-              className="text-lg font-mono h-12"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const shots = parseInt(tbShots, 10);
-                  const pim = parseInt(tbPim, 10);
-                  if (!isNaN(shots) && shots >= 0 && !isNaN(pim) && pim >= 0) {
-                    setShowNhlTiebreaker(false);
-                    doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots, pim);
-                  }
-                }
-              }}
-            />
-          </div>
         </div>
         <DialogFooter className="flex flex-row gap-2">
           <Button variant="outline" className="flex-1" onClick={() => setShowNhlTiebreaker(false)}>
@@ -3316,13 +3265,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             className="flex-1 font-bebas text-xl tracking-widest"
             onClick={() => {
               const shots = parseInt(tbShots, 10);
-              const pim = parseInt(tbPim, 10);
-              if (isNaN(shots) || shots < 0 || isNaN(pim) || pim < 0) {
-                toast({ variant: "destructive", title: "Enter valid guesses", description: "Both fields are required and must be ≥ 0." });
+              if (isNaN(shots) || shots < 0) {
+                toast({ variant: "destructive", title: "Enter valid guess", description: "Combined shots on goal must be ≥ 0." });
                 return;
               }
               setShowNhlTiebreaker(false);
-              doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots, pim);
+              doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots);
             }}
           >
             Submit Picks
@@ -4120,7 +4068,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
                       {isNhl
                         ? "When you submit today you'll be asked to guess combined shots on goal and penalty minutes for the weekend's latest-starting game. Shots difference decides first; penalty minutes only break a shots-difference tie."
-                        : "When you submit today you'll be asked to guess combined runs scored + total strikeouts. The last game on today's slate is the tiebreaker reference game."}
+                        : "When you submit today you'll be asked for combined runs scored on the last game of today's slate."}
                     </p>
                   </div>
                 </div>

@@ -984,27 +984,27 @@ export function CrazyEightsView({
 
   async function handleFinalSubmit() {
     if (isNhl) {
-      if (!tbShots || !tbPim) {
-        toast({ title: "Tiebreaker required", description: "Enter both shots on goal and penalty minutes.", variant: "destructive" });
+      if (!tbShots) {
+        toast({ title: "Tiebreaker required", description: "Enter combined shots on goal.", variant: "destructive" });
         return;
       }
     } else if (isNba) {
-      if (!tbPoints || !tbThrees) {
-        toast({ title: "Tiebreaker required", description: "Enter both total points and 3-pointers made.", variant: "destructive" });
+      if (!tbPoints) {
+        toast({ title: "Tiebreaker required", description: "Enter combined points.", variant: "destructive" });
         return;
       }
     } else {
-      if (!tbRuns || !tbStrikeouts) {
-        toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
+      if (!tbRuns) {
+        toast({ title: "Tiebreaker required", description: "Enter combined runs scored.", variant: "destructive" });
         return;
       }
     }
     const picks = buildPicks();
     const body = isNhl
-      ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10), tiebreakerPenaltyMinutes: parseInt(tbPim, 10) }
+      ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10) }
       : isNba
-        ? { picks, tiebreakerPoints: parseInt(tbPoints, 10), tiebreakerThrees: parseInt(tbThrees, 10) }
-        : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
+        ? { picks, tiebreakerPoints: parseInt(tbPoints, 10) }
+        : { picks, tiebreakerRuns: parseInt(tbRuns, 10) };
     await postPicks(body);
   }
 
@@ -1352,68 +1352,31 @@ export function CrazyEightsView({
                     onChange={(e) => setTbPoints(e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-threes">Total combined 3-pointers made</Label>
-                  <Input
-                    id="tb-threes"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 26"
-                    value={tbThrees}
-                    onChange={(e) => setTbThrees(e.target.value)}
-                  />
-                </div>
               </>
             ) : isNhl ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-shots">Total combined shots on goal</Label>
-                  <Input
-                    id="tb-shots"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 58"
-                    value={tbShots}
-                    onChange={(e) => setTbShots(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-pim">Total combined penalty minutes</Label>
-                  <Input
-                    id="tb-pim"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 12"
-                    value={tbPim}
-                    onChange={(e) => setTbPim(e.target.value)}
-                  />
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <Label htmlFor="tb-shots">Total combined shots on goal</Label>
+                <Input
+                  id="tb-shots"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 58"
+                  value={tbShots}
+                  onChange={(e) => setTbShots(e.target.value)}
+                />
+              </div>
             ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-runs">Total combined runs scored</Label>
-                  <Input
-                    id="tb-runs"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 9"
-                    value={tbRuns}
-                    onChange={(e) => setTbRuns(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-k">Total combined strikeouts</Label>
-                  <Input
-                    id="tb-k"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 16"
-                    value={tbStrikeouts}
-                    onChange={(e) => setTbStrikeouts(e.target.value)}
-                  />
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <Label htmlFor="tb-runs">Total combined runs scored</Label>
+                <Input
+                  id="tb-runs"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 9"
+                  value={tbRuns}
+                  onChange={(e) => setTbRuns(e.target.value)}
+                />
+              </div>
             )}
           </div>
           <div className="flex gap-3 justify-end pt-2">
@@ -1422,7 +1385,7 @@ export function CrazyEightsView({
             </Button>
             <Button
               onClick={handleFinalSubmit}
-              disabled={submitting || (isNhl ? !tbShots || !tbPim : isNba ? !tbPoints || !tbThrees : !tbRuns || !tbStrikeouts)}
+              disabled={submitting || (isNhl ? !tbShots : isNba ? !tbPoints : !tbRuns)}
               className="bg-purple-600 hover:bg-purple-500 text-white"
             >
               {submitting ? "Submitting…" : "Lock In Picks"}
