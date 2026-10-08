@@ -3507,6 +3507,9 @@ components:
           type: ["integer", "null"]
         joinedAt:
           type: string
+        strikeCount:
+          type: integer
+          description: Warning strikes used while still alive (NHL/NBA 3-life, MLB double-elim)
 
     PoolStats:
       type: object
@@ -3586,6 +3589,9 @@ components:
       properties:
         poolId:
           type: integer
+        maxLives:
+          type: integer
+          description: "Lives in this pool (1 single elim, 2 double elim, 3 NHL/NBA season survivor)"
         weeks:
           type: array
           items:

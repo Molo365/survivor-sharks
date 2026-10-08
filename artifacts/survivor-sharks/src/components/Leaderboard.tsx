@@ -1,6 +1,7 @@
 import { useGetLeaderboard, getGetLeaderboardQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Skull, Activity, Check, Zap, Clock, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Swords, Info } from "lucide-react";
+import { Skull, Activity, Check, Clock, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Swords, Info } from "lucide-react";
+import { StrikeBadge } from "@/components/StrikeBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -268,7 +269,7 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                   <div className="w-6 shrink-0 text-center font-bebas text-lg text-primary/40">
                     {entry.rank}
                   </div>
-                  <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-medium text-sm">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 font-medium text-sm">
                     <PickStatusIndicator status={pickStatusByUserId.get(entry.userId)} />
                     <MemberNameButton
                       userId={entry.userId}
@@ -278,6 +279,11 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                     >
                       {entry.displayName || entry.username}
                     </MemberNameButton>
+                    <StrikeBadge
+                      strikeCount={entry.strikeCount ?? 0}
+                      maxLives={maxLives}
+                      size="sm"
+                    />
                   </div>
                 </div>
                 <Badge
@@ -316,16 +322,7 @@ export function Leaderboard({ poolId, sport, poolType, pickFrequency, maxEntries
                         >
                           {entry.displayName || entry.username}
                         </MemberNameButton>
-                        {maxLives > 1 && strikeCount > 0 && (
-                          <span
-                            title={strikeCount >= maxLives - 1
-                              ? "Final warning — one more loss eliminates this player"
-                              : `Warning strike ${strikeCount} of ${maxLives - 1}`}
-                            className="inline-flex items-center gap-0.5 text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30"
-                          >
-                            <Zap className="w-3 h-3" /> {strikeCount === 1 ? "Strike" : `${strikeCount} Strikes`}
-                          </span>
-                        )}
+                        <StrikeBadge strikeCount={strikeCount} maxLives={maxLives} />
                       </div>
                       {streak >= 2 && (
                         <span className="text-[11px] font-semibold text-orange-400 flex items-center gap-1 mt-0.5">

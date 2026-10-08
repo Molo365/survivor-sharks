@@ -569,6 +569,8 @@ export interface PoolMember {
   /** @nullable */
   eliminatedWeek?: number | null;
   joinedAt: string;
+  /** Warning strikes used while still alive (NHL/NBA 3-life, MLB double-elim) */
+  strikeCount?: number;
 }
 
 export interface PoolDetail {
@@ -749,6 +751,8 @@ export interface Pick {
 
 export interface SurvivorGrid {
   poolId: number;
+  /** Lives in this pool (1 single elim, 2 double elim, 3 NHL/NBA season survivor) */
+  maxLives?: number;
   weeks: number[];
   members: PoolMember[];
   picks: Pick[];
