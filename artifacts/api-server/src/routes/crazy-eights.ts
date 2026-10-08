@@ -1319,15 +1319,13 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
   }
 
   if (pool.sport === "nhl") {
-    if (typeof tiebreakerShotsOnGoal !== "number" || typeof tiebreakerPenaltyMinutes !== "number"
-      || tiebreakerShotsOnGoal < 0 || tiebreakerPenaltyMinutes < 0) {
-      res.status(400).json({ error: "tiebreakerShotsOnGoal and tiebreakerPenaltyMinutes must be numbers ≥ 0" });
+    if (typeof tiebreakerShotsOnGoal !== "number" || tiebreakerShotsOnGoal < 0) {
+      res.status(400).json({ error: "tiebreakerShotsOnGoal must be a number ≥ 0" });
       return;
     }
   } else {
-    if (typeof tiebreakerPoints !== "number" || typeof tiebreakerThrees !== "number"
-      || tiebreakerPoints < 0 || tiebreakerThrees < 0) {
-      res.status(400).json({ error: "tiebreakerPoints and tiebreakerThrees must be numbers ≥ 0" });
+    if (typeof tiebreakerPoints !== "number" || tiebreakerPoints < 0) {
+      res.status(400).json({ error: "tiebreakerPoints must be a number ≥ 0" });
       return;
     }
   }

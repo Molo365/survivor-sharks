@@ -34,8 +34,8 @@ export function PickEmTiebreakerCard({
       <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-1">Tiebreaker</p>
       <p className="text-[10px] text-muted-foreground/50 mb-2">
         {isNhl
-          ? "Closest to actual shots on goal wins; penalty minutes break a tie."
-          : "Closest to actual runs wins; strikeouts break a runs tie."}
+          ? "Closest combined shots on goal wins; equally close splits the prize."
+          : "Closest combined runs wins; equally close splits the prize."}
       </p>
 
       {isNhl ? (

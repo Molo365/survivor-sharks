@@ -280,15 +280,6 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: "tiebreakerPassingYards is required and must be a non-negative integer" });
       return;
     }
-    if (
-      typeof tiebreakerRushingYards !== "number"
-      || !Number.isInteger(tiebreakerRushingYards)
-      || tiebreakerRushingYards < 0
-    ) {
-      res.status(400).json({ error: "tiebreakerRushingYards is required and must be a non-negative integer" });
-      return;
-    }
-
     liveGames = sortConfidenceGamesByKickoff(await fetchNflGamesByWeek(
       week,
       pool.season,
@@ -405,7 +396,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     await tx
       .update(entriesTable)
-      .set({ tiebreakerPassingYards, tiebreakerRushingYards } as any)
+      .set({
+        tiebreakerPassingYards,
+        ...(typeof tiebreakerRushingYards === "number" ? { tiebreakerRushingYards } : {}),
+      } as any)
       .where(eq(entriesTable.id, entry.id));
 
     return { ok: true as const, saved };

@@ -677,9 +677,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // ── Week 18 tiebreaker — required on final week, forbidden/ignored on all others ──
   if (numWeek === NFL_TOTAL_WEEKS) {
-    if (typeof tiebreakerPassingYards !== "number" || !isFinite(tiebreakerPassingYards) ||
-        typeof tiebreakerRushingYards !== "number" || !isFinite(tiebreakerRushingYards)) {
-      res.status(400).json({ error: "tiebreakerPassingYards and tiebreakerRushingYards are required for Week 18" });
+    if (typeof tiebreakerPassingYards !== "number" || !isFinite(tiebreakerPassingYards)) {
+      res.status(400).json({ error: "tiebreakerPassingYards is required for Week 18" });
       return;
     }
   }
@@ -772,7 +771,12 @@ router.post("/picks", requireAuth, async (req, res) => {
   // Persist tiebreaker guesses for Week 18 (season champion resolution)
   if (numWeek === NFL_TOTAL_WEEKS) {
     await tx.update(entriesTable)
-      .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards as number), tiebreakerRushingYards: Math.round(tiebreakerRushingYards as number) } as any)
+      .set({
+        tiebreakerPassingYards: Math.round(tiebreakerPassingYards as number),
+        ...(typeof tiebreakerRushingYards === "number" && isFinite(tiebreakerRushingYards)
+          ? { tiebreakerRushingYards: Math.round(tiebreakerRushingYards) }
+          : {}),
+      } as any)
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
@@ -889,11 +893,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   }]));
 
   // When Week 18 actuals exist, re-sort to break ties by closest tiebreaker guess
-  if (actualPassingYards !== null && actualRushingYards !== null) {
+  if (actualPassingYards !== null) {
     const tbDelta = (uid: number) => {
       const g = tiebreakerMap.get(uid);
-      if (g?.tiebreakerPassingYards == null || g?.tiebreakerRushingYards == null) return Infinity;
-      return Math.abs(g.tiebreakerPassingYards - actualPassingYards) + Math.abs(g.tiebreakerRushingYards - actualRushingYards);
+      if (g?.tiebreakerPassingYards == null) return Infinity;
+      return Math.abs(g.tiebreakerPassingYards - actualPassingYards);
     };
     seasonAggregates.sort((a, b) => {
       const diff = Number(b.seasonCorrect) - Number(a.seasonCorrect);

@@ -107,7 +107,7 @@ async function applySeasonClosureCore(
       actualRushingYards = stored?.actualRushingYards ?? null;
     }
 
-    if (actualPassingYards !== null && actualRushingYards !== null) {
+    if (actualPassingYards !== null) {
       const topUserIds = topGroup.map((r) => r.userId);
       const tbGuesses = await db
         .select({

@@ -85,8 +85,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
   if (isNhlHitTheIce || isNbaHitTheIce) {
     const sportName = isNhlHitTheIce ? "NHL" : "NBA";
     const gameDays = isNhlHitTheIce ? "Saturday and Sunday" : "Friday, Saturday and Sunday";
-    const primaryTiebreaker = isNhlHitTheIce ? "shots on goal" : "total points";
-    const secondaryTiebreaker = isNhlHitTheIce ? "penalty minutes" : "three-pointers made";
+    const tiebreakerStat = isNhlHitTheIce ? "shots on goal" : "total points";
 
     return {
       title: `${sportName} Hit the Ice Rules`,
@@ -116,9 +115,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Tiebreakers",
           items: [
-            `When you submit, enter two guesses for the last game of the weekend: ${primaryTiebreaker} and ${secondaryTiebreaker}, both teams combined.`,
-            `If players tie on points, the closest ${primaryTiebreaker} guess wins. ${secondaryTiebreaker} is used only if ${primaryTiebreaker} is tied exactly.`,
-            "If players are still tied, the prize is split evenly.",
+            `When you submit, enter one guess for the last game of the weekend: combined ${tiebreakerStat} (both teams).`,
+            `If players tie on points, the closest guess wins. If the guess is equally close, the prize is split evenly.`,
           ],
         },
         {
@@ -170,10 +168,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Tiebreakers",
           items: [
-            "If picks include Sunday games, you will be asked to guess the shots on goal and penalty minutes for the last game of Sunday's slate.",
-            "The closest shots-on-goal guess wins.",
-            "Penalty minutes only break an exact shots-on-goal tie.",
-            "If both are tied, the prize is split evenly.",
+            "If picks include Sunday games, you will be asked for combined shots on goal (both teams) on the last game of Sunday's slate.",
+            "The closest guess wins; equally close guesses split the prize.",
             "Other players' guesses stay hidden until that game starts.",
           ],
         },
@@ -307,9 +303,9 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Tiebreakers",
           items: [
-            "For a Week 18 season tie, guess the combined passing yards and combined rushing yards in the last scheduled game.",
-            "Passing-yard accuracy decides first. Rushing-yard accuracy is used only when passing-yard accuracy is exactly tied.",
-            "If neither tiebreaker separates the leaders, or the needed data is missing, the prize is split evenly.",
+            "Weekly bonus ties use combined passing yards on that week's last scheduled game (when weekly bonus is enabled).",
+            "For a Week 18 season tie, guess combined passing yards on the last scheduled game.",
+            "Closest guess wins; equally close or missing data splits the prize.",
           ],
         },
         {

@@ -132,19 +132,9 @@ test("existing Week 18 season tiebreaker remains sequential passing then rushing
     [1, 500],
     [2, 540],
   ]);
-  assert.deepEqual(
-    resolveSequentialTiebreaker([1, 2], tiedPassing, rushingGuesses, 520, 207),
-    new Set([2]),
-  );
-
+  // Same distance from actual → split (secondary stat no longer used).
   assert.equal(
-    resolveSequentialTiebreaker(
-      [1, 2],
-      tiedPassing,
-      new Map([[1, 200], [2, 214]]),
-      520,
-      207,
-    ),
+    resolveSequentialTiebreaker([1, 2], tiedPassing, rushingGuesses, 520, 207),
     null,
   );
 });

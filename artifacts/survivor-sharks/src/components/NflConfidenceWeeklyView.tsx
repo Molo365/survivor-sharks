@@ -1074,8 +1074,8 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
   }
 
   async function handleFinalSubmit() {
-    if (!tbPassingYards || !tbRushingYards) {
-      toast({ title: "Tiebreaker required", description: "Enter both tiebreaker values.", variant: "destructive" });
+    if (!tbPassingYards) {
+      toast({ title: "Tiebreaker required", description: "Enter combined passing yards.", variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -1090,7 +1090,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: "include",
-        body: JSON.stringify({ picks, tiebreakerPassingYards: parseInt(tbPassingYards, 10), tiebreakerRushingYards: parseInt(tbRushingYards, 10) }),
+        body: JSON.stringify({ picks, tiebreakerPassingYards: parseInt(tbPassingYards, 10) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -1296,16 +1296,12 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
               <Label htmlFor="tb-passing-w">Combined passing yards — both QBs</Label>
               <Input id="tb-passing-w" type="number" min="0" placeholder="e.g. 540" value={tbPassingYards} onChange={(e) => setTbPassingYards(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tb-rushing-w">Combined rushing yards — both teams</Label>
-              <Input id="tb-rushing-w" type="number" min="0" placeholder="e.g. 210" value={tbRushingYards} onChange={(e) => setTbRushingYards(e.target.value)} />
-            </div>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="outline" onClick={() => setShowTiebreaker(false)} disabled={submitting}>Back</Button>
             <Button
               onClick={handleFinalSubmit}
-              disabled={submitting || !tbPassingYards || !tbRushingYards}
+              disabled={submitting || !tbPassingYards}
               className="bg-cyan-600 hover:bg-cyan-500 text-white"
             >
               {submitting ? "Submitting…" : "Lock In Picks"}
