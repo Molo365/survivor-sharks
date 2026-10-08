@@ -38,25 +38,25 @@ function LeaderValue({ leader }: { leader: LeaderChipSummary | null }) {
   );
 }
 
-function leftChipLabel(left: LeaderChipLeftDisplay, liveGamesInProgress: number): string {
+function leftChipLabel(left: LeaderChipLeftDisplay): string {
   if (left.mode === "previous-week") {
     return `WEEK ${left.weekNumber} WINNER`;
   }
-  if (left.mode === "current-week") {
-    return `WEEK ${left.weekNumber} LEADER`;
-  }
-  return `WEEK ${left.weekNumber}`;
+  return `WEEK ${left.weekNumber} LEADER`;
 }
 
 function leftChipAria(left: LeaderChipLeftDisplay): string {
   if (left.mode === "previous-week") {
     return `Week ${left.weekNumber} winner`;
   }
-  if (left.mode === "current-week") {
-    return `Week ${left.weekNumber} leader`;
+  if (left.mode === "upcoming") {
+    return `Week ${left.weekNumber} leader — updates Sunday evening during the main slate`;
   }
-  return `Week ${left.weekNumber} picks in progress`;
+  return `Week ${left.weekNumber} leader`;
 }
+
+const UPCOMING_LEADER_HINT =
+  "Weekly leader updates Sunday evening (ET) once the main slate is underway.";
 
 export function LeaderChips({
   left,
@@ -65,9 +65,7 @@ export function LeaderChips({
   onSelect,
 }: LeaderChipsProps) {
   const showLivePulse = left.mode === "current-week" && liveGamesInProgress > 0;
-  const leftPlaceholder = left.mode === "upcoming"
-    ? "Leaderboard updates Sun evening"
-    : null;
+  const leftTitle = left.mode === "upcoming" ? UPCOMING_LEADER_HINT : undefined;
 
   return (
     <div className="flex w-full gap-2">
@@ -75,21 +73,25 @@ export function LeaderChips({
         type="button"
         className="min-w-0 flex-1 rounded-lg border border-border/50 bg-card px-3 py-2 text-left shadow-sm transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onSelect}
+        title={leftTitle}
         aria-label={`${leftChipAria(left)}: ${leaderValue(left.leader)}`}
       >
         <span className="flex min-w-0 items-center gap-1 truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {showLivePulse && (
             <span className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-400" aria-hidden="true" />
           )}
-          {leftChipLabel(left, liveGamesInProgress)}
+          {leftChipLabel(left)}
+          {left.mode === "upcoming" && (
+            <span className="hidden font-sans font-semibold normal-case tracking-normal text-muted-foreground/70 sm:inline">
+              · Sun eve
+            </span>
+          )}
         </span>
         <span className="flex min-w-0 items-baseline gap-1 truncate font-bebas text-lg leading-tight text-foreground">
           {left.leader ? (
             <LeaderValue leader={left.leader} />
           ) : (
-            <span className="truncate text-base text-muted-foreground/80">
-              {leftPlaceholder ?? "—"}
-            </span>
+            <span className="text-muted-foreground/80">—</span>
           )}
         </span>
       </button>
