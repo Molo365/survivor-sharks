@@ -1143,13 +1143,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   // For MLB pools: save tiebreaker guesses onto the entry row when provided
   const isMlb = sport === "mlb";
-  if (isMlb && typeof tiebreakerRuns === "number") {
+  if (isMlb && typeof tiebreakerRuns === "number" && typeof tiebreakerStrikeouts === "number") {
     await tx
       .update(entriesTable)
-      .set({
-        tiebreakerRuns,
-        ...(typeof tiebreakerStrikeouts === "number" ? { tiebreakerStrikeouts } : {}),
-      })
+      .set({ tiebreakerRuns, tiebreakerStrikeouts })
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
@@ -1920,7 +1917,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
           primaryGuesses,
           secondaryGuesses,
           tiebreakerActualShotsOnGoal,
-          tiebreakerActualPenaltyMinutes,
+          null,
         );
       }
     }

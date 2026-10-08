@@ -1,19 +1,11 @@
 /**
- * Tiebreaker resolution — single stat, closest guess wins.
+ * Tiebreaker resolution.
  *
- * Product rule (all pick'em / confidence / crazy-8s game slates):
- *   - One guess per tiebreaker moment, tied to the last game on the slate.
- *   - Smallest |guess − actual| wins.
- *   - If multiple players share the same smallest distance, split the prize (null).
- *   - Missing guess or missing actual → split (null).
+ * Default (NFL, NHL, NBA): one guess on the last slate game — closest wins; same
+ * distance → split.
  *
- * Stat by sport (what players enter):
- *   NFL — combined passing yards (both teams)
- *   MLB — combined runs scored
- *   NHL — combined shots on goal
- *   NBA — combined points (Hit the Ice)
- *
- * Legacy DB columns for a "secondary" stat may still exist; resolution ignores them.
+ * MLB exception: runs (primary) then strikeouts (secondary) when primary distance
+ * ties exactly — O/U totals often cluster on the same run guess in big pools.
  */
 
 export function resolveClosestTiebreaker(
@@ -36,13 +28,46 @@ export function resolveClosestTiebreaker(
   return null;
 }
 
-/** @deprecated Secondary guesses are ignored; use resolveClosestTiebreaker via primary only. */
+function narrow(
+  candidates: number[],
+  guesses: Map<number, number | null>,
+  actual: number | null,
+): number[] | null {
+  if (actual == null) return null;
+  const diffs = candidates.map((uid) => ({
+    uid,
+    diff: guesses.get(uid) != null ? Math.abs(guesses.get(uid)! - actual) : Infinity,
+  }));
+  const min = Math.min(...diffs.map((d) => d.diff));
+  if (!isFinite(min)) return null;
+  const winners = diffs.filter((d) => d.diff === min).map((d) => d.uid);
+  return winners.length < candidates.length ? winners : null;
+}
+
+/**
+ * Primary stat decides; secondary used only when multiple players share the same
+ * primary distance (MLB). Pass null secondary actuals to use single-stat mode only.
+ */
 export function resolveSequentialTiebreaker(
   tiedUserIds: number[],
   primaryGuesses: Map<number, number | null>,
-  _secondaryGuesses: Map<number, number | null>,
+  secondaryGuesses: Map<number, number | null>,
   primaryActual: number | null,
-  _secondaryActual: number | null,
+  secondaryActual: number | null,
 ): Set<number> | null {
-  return resolveClosestTiebreaker(tiedUserIds, primaryGuesses, primaryActual);
+  if (tiedUserIds.length <= 1) return null;
+
+  if (secondaryActual == null) {
+    return resolveClosestTiebreaker(tiedUserIds, primaryGuesses, primaryActual);
+  }
+
+  const afterPrimary = narrow(tiedUserIds, primaryGuesses, primaryActual);
+  if (afterPrimary !== null) {
+    if (afterPrimary.length === 1) return new Set(afterPrimary);
+    const afterSecondary = narrow(afterPrimary, secondaryGuesses, secondaryActual);
+    return afterSecondary ? new Set(afterSecondary) : new Set(afterPrimary);
+  }
+
+  const afterSecondary = narrow(tiedUserIds, secondaryGuesses, secondaryActual);
+  return afterSecondary ? new Set(afterSecondary) : null;
 }

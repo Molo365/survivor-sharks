@@ -994,8 +994,8 @@ export function CrazyEightsView({
         return;
       }
     } else {
-      if (!tbRuns) {
-        toast({ title: "Tiebreaker required", description: "Enter combined runs scored.", variant: "destructive" });
+      if (!tbRuns || !tbStrikeouts) {
+        toast({ title: "Tiebreaker required", description: "Enter runs and strikeouts.", variant: "destructive" });
         return;
       }
     }
@@ -1004,7 +1004,7 @@ export function CrazyEightsView({
       ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10) }
       : isNba
         ? { picks, tiebreakerPoints: parseInt(tbPoints, 10) }
-        : { picks, tiebreakerRuns: parseInt(tbRuns, 10) };
+        : { picks, tiebreakerRuns: parseInt(tbRuns, 10), tiebreakerStrikeouts: parseInt(tbStrikeouts, 10) };
     await postPicks(body);
   }
 
@@ -1366,17 +1366,30 @@ export function CrazyEightsView({
                 />
               </div>
             ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="tb-runs">Total combined runs scored</Label>
-                <Input
-                  id="tb-runs"
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 9"
-                  value={tbRuns}
-                  onChange={(e) => setTbRuns(e.target.value)}
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tb-runs">Total combined runs scored</Label>
+                  <Input
+                    id="tb-runs"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 9"
+                    value={tbRuns}
+                    onChange={(e) => setTbRuns(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tb-k">Total combined strikeouts</Label>
+                  <Input
+                    id="tb-k"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 16"
+                    value={tbStrikeouts}
+                    onChange={(e) => setTbStrikeouts(e.target.value)}
+                  />
+                </div>
+              </>
             )}
           </div>
           <div className="flex gap-3 justify-end pt-2">
@@ -1385,7 +1398,7 @@ export function CrazyEightsView({
             </Button>
             <Button
               onClick={handleFinalSubmit}
-              disabled={submitting || (isNhl ? !tbShots : isNba ? !tbPoints : !tbRuns)}
+              disabled={submitting || (isNhl ? !tbShots : isNba ? !tbPoints : !tbRuns || !tbStrikeouts)}
               className="bg-purple-600 hover:bg-purple-500 text-white"
             >
               {submitting ? "Submitting…" : "Lock In Picks"}

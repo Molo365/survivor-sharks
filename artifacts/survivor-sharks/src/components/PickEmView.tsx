@@ -3195,12 +3195,28 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             <Input
               type="number"
               min={0}
-              placeholder="e.g. 42"
+              placeholder="e.g. 9"
               value={tbRuns}
               onChange={(e) => setTbRuns(e.target.value)}
               className="text-lg font-mono h-12"
               autoFocus
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Strikeouts — Tiebreaker Game
+            </label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 16"
+              value={tbStrikeouts}
+              onChange={(e) => setTbStrikeouts(e.target.value)}
+              className="text-lg font-mono h-12"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Runs decide first; strikeouts break a tie on run distance (common when many players guess the same total).
+            </p>
           </div>
         </div>
         <DialogFooter className="flex flex-row gap-2">
@@ -3211,12 +3227,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             className="flex-1 font-bebas text-xl tracking-widest"
             onClick={() => {
               const runs = parseInt(tbRuns, 10);
-              if (isNaN(runs) || runs < 0) {
-                toast({ variant: "destructive", title: "Enter valid guess", description: "Combined runs scored must be ≥ 0." });
+              const strikes = parseInt(tbStrikeouts, 10);
+              if (isNaN(runs) || runs < 0 || isNaN(strikes) || strikes < 0) {
+                toast({ variant: "destructive", title: "Enter valid guesses", description: "Runs and strikeouts must be ≥ 0." });
                 return;
               }
               setShowTiebreaker(false);
-              doFinalSubmit(pendingPicksRef.current, runs);
+              doFinalSubmit(pendingPicksRef.current, runs, strikes);
             }}
           >
             Submit Picks
@@ -4067,8 +4084,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     </p>
                     <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
                       {isNhl
-                        ? "When you submit today you'll be asked to guess combined shots on goal and penalty minutes for the weekend's latest-starting game. Shots difference decides first; penalty minutes only break a shots-difference tie."
-                        : "When you submit today you'll be asked for combined runs scored on the last game of today's slate."}
+                        ? "When you submit today you'll be asked for combined shots on goal on the weekend's latest-starting game."
+                        : "When you submit today you'll be asked for combined runs and total strikeouts on the last game of today's slate."}
                     </p>
                   </div>
                 </div>

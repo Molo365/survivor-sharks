@@ -2165,7 +2165,7 @@ export async function settleNflConfidenceWeeklyPool(
         primaryGuesses,
         secondaryGuesses,
         actualPassingYards,
-        actualRushingYards,
+        null,
       );
 
       if (winnerIds !== null) {
@@ -3821,9 +3821,7 @@ export async function processPickEmResults(): Promise<{
       }
       const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      // 5. Build finish-position groups using sequential tiebreaker resolution.
-      //    Primary stat (passing yards) decides alone; secondary (rushing yards)
-      //    breaks a primary-stat tie. Tied on both → co-winner even split.
+      // 5. Build finish-position groups — NFL passing yards only (single-stat).
       const groups: number[][] = [];
       for (const score of sortedScores) {
         const tiedIds = byScore.get(score)!;
@@ -3831,7 +3829,7 @@ export async function processPickEmResults(): Promise<{
           groups.push(tiedIds);
         } else {
           const resolved = resolveSequentialTiebreaker(
-            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, null,
           );
           if (resolved) {
             groups.push([...resolved]);
@@ -4310,15 +4308,13 @@ export async function processPickEmResults(): Promise<{
       }
       const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      // 5. Build finish-position groups using sequential tiebreaker resolution.
-      //    Primary stat (shots on goal) decides alone; secondary (penalty minutes)
-      //    breaks a primary-stat tie. Tied on both → co-winner even split.
+      // 5. Build finish-position groups — NHL shots on goal only (single-stat).
       const groups: number[][] = [];
       for (const score of sortedScores) {
         let remainingIds = [...byScore.get(score)!];
         while (remainingIds.length > 1) {
           const resolved = resolveSequentialTiebreaker(
-            remainingIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+            remainingIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, null,
           );
           if (resolved) {
             groups.push([...resolved]);
@@ -4721,8 +4717,7 @@ export async function processPickEmResults(): Promise<{
       }
       const sortedScores = [...byScore.keys()].sort((a, b) => b - a);
 
-      // 5. Build finish-position groups using sequential tiebreaker resolution.
-      //    MLS pools have no tiebreaker stats; actuals are always null → even split.
+      // 5. Build finish-position groups — passing yards only (single-stat).
       const groups: number[][] = [];
       for (const score of sortedScores) {
         const tiedIds = byScore.get(score)!;
@@ -4730,7 +4725,7 @@ export async function processPickEmResults(): Promise<{
           groups.push(tiedIds);
         } else {
           const resolved = resolveSequentialTiebreaker(
-            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, actualSecondary,
+            tiedIds, primaryGuessByUser, secondaryGuessByUser, actualPrimary, null,
           );
           if (resolved) {
             groups.push([...resolved]);

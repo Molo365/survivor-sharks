@@ -131,7 +131,7 @@ async function applySeasonClosureCore(
         primaryGuesses,
         secondaryGuesses,
         actualPassingYards,
-        actualRushingYards,
+        null,
       );
 
       if (winnerIds !== null) {

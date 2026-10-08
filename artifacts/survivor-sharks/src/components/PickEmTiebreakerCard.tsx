@@ -35,7 +35,7 @@ export function PickEmTiebreakerCard({
       <p className="text-[10px] text-muted-foreground/50 mb-2">
         {isNhl
           ? "Closest combined shots on goal wins; equally close splits the prize."
-          : "Closest combined runs wins; equally close splits the prize."}
+          : "Closest runs wins; strikeouts break a tie on run distance."}
       </p>
 
       {isNhl ? (

@@ -1610,7 +1610,7 @@ router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
           if (sport === "nhl") {
             const stats = await fetchNhlTiebreakerStats(lastGame.id);
             actualPrimary = stats.shotsOnGoal;
-            actualSecondary = stats.penaltyMinutes;
+            actualSecondary = null;
           } else if (sport === "nba") {
             const stats = await fetchNbaTiebreakerStats(lastGame.id);
             actualPrimary =
@@ -1618,7 +1618,7 @@ router.get("/weekly-leaderboard", requireAuth, async (req, res) => {
               (lastGame.homeScore != null && lastGame.awayScore != null
                 ? lastGame.homeScore + lastGame.awayScore
                 : null);
-            actualSecondary = stats.threePointersMade;
+            actualSecondary = null;
           } else {
             // MLB: runs = combined score; strikeouts from MLB Stats API
             actualPrimary =

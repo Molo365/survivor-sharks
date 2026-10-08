@@ -8,8 +8,8 @@ const STAT: Record<TiebreakerSport, { short: string; phrase: string }> = {
     phrase: "combined passing yards (both teams)",
   },
   mlb: {
-    short: "Combined runs scored",
-    phrase: "combined runs scored (both teams)",
+    short: "Runs + strikeouts",
+    phrase: "combined runs scored and total strikeouts on the tiebreaker game",
   },
   nhl: {
     short: "Combined shots on goal",
