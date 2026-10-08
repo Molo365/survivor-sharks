@@ -385,7 +385,7 @@ export default function JoinInvite() {
                   data-testid="status-pool-started-notice"
                 >
                   <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
-                  <p>This pool has already started — you'll be joining with a disadvantage compared to players who joined at the beginning. You can still join if you'd like.</p>
+                  <p>This pool has already started — you might be joining with a disadvantage compared to players who joined at the beginning. You can still join if you'd like.</p>
                 </div>
               )}
 
