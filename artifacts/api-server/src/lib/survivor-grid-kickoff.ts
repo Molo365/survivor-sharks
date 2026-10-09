@@ -13,11 +13,19 @@ type SurvivorGridPool = Pick<
   "sport" | "season" | "isPreseason" | "sandboxMode" | "createdAt" | "initialPeriodStart"
 >;
 
-export function applyGamesToTeamKickoffMap(games: EspnGame[], map: Map<string, Date>): void {
+export function survivorGridKickoffKey(week: number, teamId: string): string {
+  return `${week}:${teamId}`;
+}
+
+export function applyGamesToTeamKickoffMap(
+  week: number,
+  games: EspnGame[],
+  map: Map<string, Date>,
+): void {
   for (const game of games) {
     const kickoff = new Date(game.date);
-    map.set(game.homeTeam.id, kickoff);
-    map.set(game.awayTeam.id, kickoff);
+    map.set(survivorGridKickoffKey(week, game.homeTeam.id), kickoff);
+    map.set(survivorGridKickoffKey(week, game.awayTeam.id), kickoff);
   }
 }
 
@@ -46,7 +54,7 @@ export async function buildSurvivorGridTeamKickoffMap(
       } else {
         games = await fetchGames(pool.sport, week, pool.season ?? undefined, seasonType);
       }
-      applyGamesToTeamKickoffMap(games, map);
+      applyGamesToTeamKickoffMap(week, games, map);
     }),
   );
 

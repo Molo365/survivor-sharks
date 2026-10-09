@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { buildSurvivorGridTeamKickoffMap } from "../lib/survivor-grid-kickoff";
+import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
 
 const router = Router({ mergeParams: true });
 
@@ -37,7 +37,7 @@ router.get("/", requireAuth, async (req, res) => {
     ? [...weekSet].sort((a, b) => a - b)
     : Array.from({ length: pool.currentWeek }, (_, i) => i + 1);
 
-  // Build teamId -> kickoff Date map by fetching each unique week's games once.
+  // Build week+teamId -> kickoff map (one entry per pool week; never reuse week 1 times for week 2).
   // A grid must never expose an opponent's pending pick before that team plays.
   const teamKickoffMap = !pool.sandboxMode && weekSet.size > 0
     ? await buildSurvivorGridTeamKickoffMap(pool, [...weekSet])
@@ -73,8 +73,8 @@ router.get("/", requireAuth, async (req, res) => {
       const isGraded  = pick.result !== "pending";
 
       let kickoffPassed = false;
-       if (pick.teamId) {
-        const kickoff = teamKickoffMap.get(pick.teamId);
+      if (pick.teamId) {
+        const kickoff = teamKickoffMap.get(survivorGridKickoffKey(pick.week, pick.teamId));
         kickoffPassed = kickoff !== undefined && now >= kickoff;
       }
 
