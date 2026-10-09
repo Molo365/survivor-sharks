@@ -23,6 +23,8 @@ import {
   fetchSuperLeagueGamesForDate,
   getWeekBoundsEt,
   getSuperLeagueWeekBoundsEt,
+  getNhlWeekBounds,
+  NHL_SANDBOX_ANCHOR,
 } from "../lib/espn";
 import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
@@ -62,6 +64,20 @@ function datesInRange(start: string, end: string): string[] {
 
 function isGameLocked(game: { date: string; hasStarted: boolean }): boolean {
   return game.hasStarted || new Date(game.date).getTime() <= Date.now();
+}
+
+/** Align My Picks tab with dashboard pool cards (slate loaded, games not started yet). */
+async function pickStatusFromOpenSlate(
+  pool: Parameters<typeof fetchPoolSlateGames>[0],
+  pickedGameIds: string[],
+): Promise<PickStatus> {
+  const games = await fetchPoolSlateGames(pool);
+  const openGames = openSlateGames(games);
+  if (pickedGameIds.length === 0) {
+    return openGames.length === 0 ? "not_required" : "pending";
+  }
+  const pickedSet = new Set(pickedGameIds);
+  return openGames.some((game) => !pickedSet.has(game.id)) ? "incomplete" : "submitted";
 }
 
 function allowsPartialPeriodStatus(pool: {
@@ -346,21 +362,6 @@ router.get("/summary", requireAuth, async (req, res) => {
           }
         }
 
-        // NHL weekly Pick-Ems only have games on Sat–Sun; suppress "Pick needed"
-        // on weekdays so players aren't nagged when there's nothing to pick.
-        if (picked === 0 && pool.sport === "nhl" && pool.pickFrequency === "weekly") {
-          const [y, m, d] = todayEt.split("-").map(Number);
-          const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun, 6=Sat
-          const isWeekendGameDay = dow === 0 || dow === 6;
-          if (!isWeekendGameDay) {
-            return {
-              ...base,
-              pickStatus: "not_required" as PickStatus,
-              summary: null,
-            };
-          }
-        }
-
         let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
         if (allowsPartialPeriodStatus(pool)) {
           const games = await getPartialPeriodGames(pool);
@@ -568,42 +569,53 @@ router.get("/summary", requireAuth, async (req, res) => {
         }
 
         const isWeekly = pool.pickFrequency === "weekly";
-        const [countRow] = await db
-          .select({ cnt: count() })
+        const ctx = slateContext(pool);
+
+        let periodFilter;
+        if (isWeekly && pool.sport === "nhl") {
+          const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+          const initialPeriodStart = pool.sandboxMode ? null : pool.initialPeriodStart;
+          const { days } = getNhlWeekBounds(anchor, pool.currentWeek, initialPeriodStart);
+          periodFilter = inArray(pickemPicksTable.gameDate, days);
+        } else {
+          periodFilter = isWeekly
+            ? eq(pickemPicksTable.week, pool.currentWeek)
+            : eq(pickemPicksTable.gameDate, todayEt);
+        }
+
+        const pickRows = await db
+          .select({ gameId: pickemPicksTable.gameId })
           .from(pickemPicksTable)
           .where(
             and(
               eq(pickemPicksTable.poolId, pool.id),
               eq(pickemPicksTable.userId, userId),
-              isWeekly
-                ? eq(pickemPicksTable.week, pool.currentWeek)
-                : eq(pickemPicksTable.gameDate, todayEt),
+              periodFilter,
             ),
           );
 
-        const picked = countRow?.cnt ?? 0;
-        const isWeekendSport = pool.sport === "nhl" || pool.sport === "nba";
-        let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
-        let summary: string | null = picked > 0
-          ? `${picked} ${isWeekly ? "picks this week" : "picks today"}`
-          : null;
+        const picked = pickRows.length;
+        const pickedGameIds = pickRows.map((row) => row.gameId);
+        const slateGames = await fetchPoolSlateGames(ctx);
+        const openGames = openSlateGames(slateGames);
+        const pickStatus: PickStatus = pickedGameIds.length === 0
+          ? (openGames.length === 0 ? "not_required" : "pending")
+          : openGames.some((game) => !pickedGameIds.includes(game.id))
+            ? "incomplete"
+            : "submitted";
+        const requiredPicks = isWeekly && (pool.sport === "nhl" || pool.sport === "nba")
+          ? Math.min(8, openGames.length)
+          : openGames.length;
 
-        if (isWeekly && isWeekendSport && picked === 0) {
-          const [y, m, d] = todayEt.split("-").map(Number);
-          const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-          const isWeekendGameDay = pool.sport === "nhl"
-            ? (dow === 0 || dow === 6)
-            : (dow === 0 || dow === 5 || dow === 6);
-          if (!isWeekendGameDay) {
-            pickStatus = "not_required";
-            summary = null;
-          } else {
-            const games = await fetchPoolSlateGames(slateContext(pool));
-            if (openSlateGames(games).length === 0) {
-              pickStatus = "not_required";
-              summary = `Week ${pool.currentWeek} · slate not open yet`;
-            }
-          }
+        let summary: string | null = null;
+        if (pickStatus === "not_required") {
+          summary = openGames.length === 0
+            ? `Week ${pool.currentWeek} · slate not open yet`
+            : null;
+        } else if (isWeekly && (pool.sport === "nhl" || pool.sport === "nba") && requiredPicks > 0) {
+          summary = `${picked}/${requiredPicks} picked`;
+        } else if (picked > 0) {
+          summary = `${picked} ${isWeekly ? "picks this week" : "picks today"}`;
         }
 
         return {
