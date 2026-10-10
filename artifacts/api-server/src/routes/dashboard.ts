@@ -736,7 +736,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
             correct: 0,
             picked: 0,
             hasPicks: picksByUser.has(userId),
-            status: pool.isActive && !picksByUser.has(userId) && lockState.locked ? "closed" : null,
+            status: pool.isActive && lockState.locked && !picksByUser.has(userId) ? "closed" : null,
             eliminatedWeek: null,
             score: myRow?.total ?? null,
             maxScore: 96,
