@@ -174,7 +174,8 @@ router.get("/picks", requireAuth, async (req, res) => {
   });
 
   const tiebreakerPassingYards = (entry as any).tiebreakerPassingYards ?? null;
-  const tiebreakerRushingYards = (entry as any).tiebreakerRushingYards ?? null;
+  // Legacy column — NFL weekly uses passing yards only; do not surface stale rushing values.
+  const tiebreakerRushingYards = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allGames = isSandbox ? ([...gameMap.values()] as any[]) : [];
@@ -398,7 +399,8 @@ router.post("/picks", requireAuth, async (req, res) => {
       .update(entriesTable)
       .set({
         tiebreakerPassingYards,
-        ...(typeof tiebreakerRushingYards === "number" ? { tiebreakerRushingYards } : {}),
+        // Single-stat NFL tiebreaker: clear legacy rushing column so stale values are not shown.
+        tiebreakerRushingYards: typeof tiebreakerRushingYards === "number" ? tiebreakerRushingYards : null,
       } as any)
       .where(eq(entriesTable.id, entry.id));
 

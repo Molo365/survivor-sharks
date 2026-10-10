@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2, BarChart3, Play, Clapperboard } from "lucide-react";
@@ -300,11 +301,9 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
 function LockedPicksView({
   picks,
   tiebreakerPassingYards,
-  tiebreakerRushingYards,
 }: {
   picks: SubmittedPick[];
   tiebreakerPassingYards: number | null;
-  tiebreakerRushingYards: number | null;
 }) {
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
 
@@ -344,17 +343,11 @@ function LockedPicksView({
 
       <div className="rounded-lg border border-border/40 bg-card/50 p-4">
         <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">
-          Tiebreaker Answers
+          Tiebreaker Answer
         </p>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Combined passing yards</p>
-            <p className="font-bebas text-2xl text-cyan-300">{tiebreakerPassingYards ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Combined rushing yards</p>
-            <p className="font-bebas text-2xl text-cyan-300">{tiebreakerRushingYards ?? "—"}</p>
-          </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground/70 mb-0.5">{tiebreakerStatLabel("nfl")}</p>
+          <p className="font-bebas text-2xl text-cyan-300">{tiebreakerPassingYards ?? "—"}</p>
         </div>
       </div>
     </div>
@@ -972,7 +965,6 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
   const [confidence, setConfidence] = useState<Record<string, number>>({});
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [tbPassingYards, setTbPassingYards] = useState("");
-  const [tbRushingYards, setTbRushingYards] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultsWeek, setResultsWeek] = useState<number | null>(null);
 
@@ -1122,8 +1114,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
       <div className="space-y-4">
         <LockedPicksView
           picks={myPicksData!.picks}
-          tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
-          tiebreakerRushingYards={myPicksData?.tiebreakerRushingYards ?? null}
+        tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
         />
       </div>
     );
@@ -1285,7 +1276,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
                     </span>
                   )}
                   <span className="block">
-                    If tied at week's end, the player closest to each actual number wins. Both answers are locked with your picks.
+                    If tied at week&apos;s end, the closest combined passing yards guess wins. Your answer is locked with your picks.
                   </span>
                 </DialogDescription>
               );

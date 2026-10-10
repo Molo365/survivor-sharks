@@ -26,6 +26,7 @@ import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Set
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NflConfidenceGrid } from "@/components/NflConfidenceGrid";
+import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -245,11 +246,9 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
 function LockedPicksView({
   picks,
   tiebreakerPassingYards,
-  tiebreakerRushingYards,
 }: {
   picks: SubmittedPick[];
   tiebreakerPassingYards: number | null;
-  tiebreakerRushingYards: number | null;
 }) {
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
 
@@ -287,21 +286,17 @@ function LockedPicksView({
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/40 bg-card/50 p-4">
-        <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">
-          Tiebreaker Answers
-        </p>
-        <div className="grid grid-cols-2 gap-4">
+      {tiebreakerPassingYards != null && (
+        <div className="rounded-lg border border-border/40 bg-card/50 p-4">
+          <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">
+            Tiebreaker Answer
+          </p>
           <div>
-            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Combined passing yards</p>
-            <p className="font-bebas text-2xl text-purple-300">{tiebreakerPassingYards ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground/70 mb-0.5">Combined rushing yards</p>
-            <p className="font-bebas text-2xl text-purple-300">{tiebreakerRushingYards ?? "—"}</p>
+            <p className="text-[10px] text-muted-foreground/70 mb-0.5">{tiebreakerStatLabel("nfl")}</p>
+            <p className="font-bebas text-2xl text-purple-300">{tiebreakerPassingYards}</p>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1160,7 +1155,6 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
       <LockedPicksView
         picks={myPicksData!.picks}
         tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
-        tiebreakerRushingYards={myPicksData?.tiebreakerRushingYards ?? null}
       />
     );
   }
@@ -1416,7 +1410,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
                     </span>
                   )}
                   <span className="block">
-                    If two players finish the season tied on points, the player closest to each actual number wins. Both answers are locked with your Week 18 picks.
+                    If two players finish the season tied on points, the closest combined passing yards guess wins. Your answer is locked with your Week 18 picks.
                   </span>
                 </DialogDescription>
               );

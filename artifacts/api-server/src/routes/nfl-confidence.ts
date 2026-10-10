@@ -530,7 +530,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         .update(entriesTable)
         .set({
           tiebreakerPassingYards,
-          ...(typeof tiebreakerRushingYards === "number" ? { tiebreakerRushingYards } : {}),
+          tiebreakerRushingYards: typeof tiebreakerRushingYards === "number" ? tiebreakerRushingYards : null,
         } as any)
         .where(eq(entriesTable.id, entry.id));
     }
