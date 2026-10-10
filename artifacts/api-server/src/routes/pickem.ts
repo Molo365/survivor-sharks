@@ -52,6 +52,7 @@ import {
   resolveCalendarSoccerPeriodBounds,
   resolveNhlPickEmPeriod,
 } from "../lib/pickem-periods";
+import { mergeWeeklySoccerLeaderboardAggregates } from "../lib/pickem-leaderboard-members";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -2311,8 +2312,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
+  const weeklySoccerLeaderboard = isChampionsLeague || isCalendarSoccerWeekly;
 
-  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl] = await Promise.all([
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl, poolMembersForLb] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -2395,7 +2397,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
         sql`COUNT(*) DESC`,
       ),
-    isWeekly
+    (isWeekly || weeklySoccerLeaderboard)
       ? db
           .select({
             userId: pickemPicksTable.userId,
@@ -2430,7 +2432,22 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           .from(entriesTable)
           .where(eq(entriesTable.poolId, poolId))
       : Promise.resolve(null as null),
+    weeklySoccerLeaderboard
+      ? db
+          .select({
+            userId: entriesTable.userId,
+            username: usersTable.username,
+            displayName: usersTable.displayName,
+          })
+          .from(entriesTable)
+          .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
+          .where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve([]),
   ]);
+
+  const leaderboardAggregates = weeklySoccerLeaderboard
+    ? mergeWeeklySoccerLeaderboardAggregates(aggregates, poolMembersForLb)
+    : aggregates;
 
   if (!isWc) {
     espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -2579,8 +2596,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     : isNhl
       ? tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null
       : false;
-  const entries = aggregates.map((row, i) => {
-    if (i > 0 && Number(row.correct) === Number(aggregates[i - 1].correct)) {
+  const entries = leaderboardAggregates.map((row, i) => {
+    if (i > 0 && Number(row.correct) === Number(leaderboardAggregates[i - 1].correct)) {
       // same correct count as previous player — keep rank unchanged (tie)
     } else {
       lbRank = i + 1;
@@ -2641,7 +2658,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           pickOption: (isWc || isIntl) ? p.pickedTeamId : undefined as string | null | undefined,
         };
       }),
-      dailyBreakdown: isWeekly ? (dailyByUser.get(row.userId) ?? []) : undefined,
+      dailyBreakdown: (isWeekly || weeklySoccerLeaderboard) ? (dailyByUser.get(row.userId) ?? []) : undefined,
       tiebreakerRunsGuess: isMlb ? (revealTiebreakerGuess ? runsGuess : null) : undefined,
       tiebreakerStrikeoutsGuess: isMlb ? (revealTiebreakerGuess ? strikesGuess : null) : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,

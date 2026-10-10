@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey } from "@workspace/api-client-react";
+import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey, useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
@@ -147,6 +147,23 @@ export default function PoolHome() {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
     },
   });
+
+  const isWeeklySoccerPickem =
+    isPickEm
+    && pool?.pickFrequency === "weekly"
+    && (pool.sport === "mls" || pool.sport === "superleague" || pool.sport === "championsleague");
+
+  const { data: weeklySoccerPickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: Boolean(isWeeklySoccerPickem && poolId),
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+
+  const pickemPlayersPickedCount = isWeeklySoccerPickem
+    ? (weeklySoccerPickStatuses?.filter((s) => s.pickStatus === "submitted").length ?? 0)
+    : (pickemLeaderboard?.entries.filter((e) => e.picked > 0).length ?? 0);
 
   // Reuse the same query key as WcBracketView — TanStack Query deduplicates the
   // request so no extra network call is made when both components are mounted.
@@ -382,7 +399,7 @@ export default function PoolHome() {
                   <span className="md:hidden bg-card border border-border/50 px-2 py-1 rounded-lg text-center shadow-sm">
                     {isPickEm ? (
                       <span className="font-bebas text-sm text-green-400 leading-none">
-                        {pickemLeaderboard?.entries.length ?? 0}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
+                        {pickemPlayersPickedCount}<span className="text-[10px] text-muted-foreground/60">/{pool.totalMembers}</span>
                       </span>
                     ) : (
                       <span className="font-bebas text-sm text-accent leading-none">
@@ -400,7 +417,7 @@ export default function PoolHome() {
                       <Target className="w-3 h-3" /> Players Picked
                     </div>
                     <div className="font-bebas text-3xl text-green-400">
-                      {pickemLeaderboard?.entries.length ?? 0}
+                      {pickemPlayersPickedCount}
                       <span className="text-xl text-muted-foreground/60"> / {pool.totalMembers} players</span>
                     </div>
                   </div>
