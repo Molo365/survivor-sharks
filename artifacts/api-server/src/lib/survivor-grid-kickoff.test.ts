@@ -13,7 +13,7 @@ test("applyGamesToTeamKickoffMap maps both teams to the same kickoff for that we
     date: "2026-01-03T18:00:00.000Z",
     homeTeam: { id: "vgk", name: "Golden Knights" },
     awayTeam: { id: "lak", name: "Kings" },
-  } as EspnGame;
+  } as unknown as EspnGame;
 
   const map = new Map<string, Date>();
   applyGamesToTeamKickoffMap(2, [game], map);
@@ -30,13 +30,13 @@ test("week 1 kickoff does not satisfy week 2 lookup for the same team", () => {
     date: "2026-01-03T18:00:00.000Z",
     homeTeam: { id: "fla", name: "Panthers" },
     awayTeam: { id: "tbl", name: "Lightning" },
-  } as EspnGame;
+  } as unknown as EspnGame;
   const week2 = {
     id: "w2",
     date: "2026-01-10T18:00:00.000Z",
     homeTeam: { id: "fla", name: "Panthers" },
     awayTeam: { id: "bos", name: "Bruins" },
-  } as EspnGame;
+  } as unknown as EspnGame;
 
   applyGamesToTeamKickoffMap(1, [week1], map);
   applyGamesToTeamKickoffMap(2, [week2], map);
