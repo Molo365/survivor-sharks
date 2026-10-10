@@ -40,6 +40,7 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   nfl_confidence: "Confidence — Season",
   nfl_confidence_weekly: "Confidence — Weekly",
   nfl_division_predictor: "Division Predictor",
+  nhl_division_predictor: "Division Predictor",
   group_stage_predictor: "Group Stage",
   wc_bracket: "Bracket",
   mlb_bracket: "MLB Postseason Bracket",
@@ -370,6 +371,60 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
+              ) : pt === "nhl_division_predictor" ? (
+                pickEmStat.myStanding.status === "closed" ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                    <span aria-hidden>🔒</span>
+                    <span>Picks locked for the season</span>
+                  </div>
+                ) : pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
+                  !pool.isActive ? (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🏆" : pickEmStat.myStanding.rank === 2 ? "🥈" : pickEmStat.myStanding.rank === 3 ? "🥉" : "🏁"}</span>
+                      <span className="font-medium">
+                        {rankLabel(pickEmStat.myStanding.rank, myIsTied, true)}
+                      </span>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-yellow-400 font-semibold">${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank === 1 ? "text-amber-400 font-semibold" : "text-muted-foreground")}>
+                      <span aria-hidden>{pickEmStat.myStanding.rank === 1 ? "🥇" : "📊"}</span>
+                      <span>
+                        You&apos;re{" "}
+                        <span className={pickEmStat.myStanding.rank === 1 ? "font-bold" : "text-foreground/70 font-medium"}>
+                          {rankLabel(pickEmStat.myStanding.rank, myIsTied, false)}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>{pickEmStat.myStanding.score ?? 0}/{pickEmStat.myStanding.maxScore ?? 96} pts</span>
+                      {(pickEmStat.myStanding as any).prizeWon != null && (pickEmStat.myStanding as any).prizeWon > 0 && (
+                        <span className="text-yellow-400 font-semibold">
+                          · ${((pickEmStat.myStanding as any).prizeWon as number).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )
+                ) : pickEmStat.myStanding.hasPicks ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🔒</span>
+                    <span>Picks locked for the season</span>
+                  </div>
+                ) : !pool.isActive ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span aria-hidden>🏁</span>
+                    <span>Pool ended</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                    <span aria-hidden>⚠️</span>
+                    <span>Picks needed</span>
+                  </div>
+                )
               ) : pt === "wc_bracket" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   !pool.isActive ? (
@@ -424,7 +479,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                   <span aria-hidden>⚠️</span>
                   <span>Picks needed</span>
                 </div>
-              ) : (pt === "nhl_division_predictor" || pt === "mlb_bracket" || pt === "group_stage_predictor") && pickEmStat.myStanding.status === "closed" ? (
+              ) : (pt === "mlb_bracket" || pt === "group_stage_predictor") && pickEmStat.myStanding.status === "closed" ? (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
                   <span aria-hidden>🔒</span>
                   <span>Picks closed</span>

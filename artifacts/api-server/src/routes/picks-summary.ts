@@ -454,7 +454,7 @@ router.get("/summary", requireAuth, async (req, res) => {
           summary: complete
             ? "All divisions predicted"
             : lockState.locked
-              ? "Predictions closed - season started"
+              ? "Picks locked for the season"
               : "Divisions not yet predicted",
         };
       }
