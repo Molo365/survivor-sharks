@@ -598,22 +598,24 @@ router.get("/summary", requireAuth, async (req, res) => {
         const pickedGameIds = pickRows.map((row) => row.gameId);
         const slateGames = await fetchPoolSlateGames(ctx);
         const openGames = openSlateGames(slateGames);
+        const isWeekendCrazyEights = isWeekly && (pool.sport === "nhl" || pool.sport === "nba");
+        // Hit the Ice / Fast Break: submit a full card (up to 8 games), not every game on the slate.
+        const cardTarget = isWeekendCrazyEights ? Math.min(8, slateGames.length) : openGames.length;
         const pickStatus: PickStatus = pickedGameIds.length === 0
           ? (openGames.length === 0 ? "not_required" : "pending")
-          : openGames.some((game) => !pickedGameIds.includes(game.id))
-            ? "incomplete"
-            : "submitted";
-        const requiredPicks = isWeekly && (pool.sport === "nhl" || pool.sport === "nba")
-          ? Math.min(8, openGames.length)
-          : openGames.length;
+          : isWeekendCrazyEights && picked >= cardTarget
+            ? "submitted"
+            : openGames.some((game) => !pickedGameIds.includes(game.id))
+              ? "incomplete"
+              : "submitted";
 
         let summary: string | null = null;
         if (pickStatus === "not_required") {
           summary = openGames.length === 0
             ? `Week ${pool.currentWeek} · slate not open yet`
             : null;
-        } else if (isWeekly && (pool.sport === "nhl" || pool.sport === "nba") && requiredPicks > 0) {
-          summary = `${picked}/${requiredPicks} picked`;
+        } else if (isWeekendCrazyEights && cardTarget > 0) {
+          summary = `${picked}/${cardTarget} picked`;
         } else if (picked > 0) {
           summary = `${picked} ${isWeekly ? "picks this week" : "picks today"}`;
         }

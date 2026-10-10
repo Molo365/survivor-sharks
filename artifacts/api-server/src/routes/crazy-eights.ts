@@ -1053,7 +1053,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
       await tx
         .update(entriesTable)
-        .set({ tiebreakerShotsOnGoal: tiebreakerShotsOnGoal ?? null, tiebreakerPenaltyMinutes: tiebreakerPenaltyMinutes ?? null } as any)
+        .set({
+          tiebreakerShotsOnGoal: tiebreakerShotsOnGoal ?? null,
+          tiebreakerPenaltyMinutes: typeof tiebreakerPenaltyMinutes === "number" ? tiebreakerPenaltyMinutes : null,
+        } as any)
         .where(eq(entriesTable.id, entry.id));
 
       return { alreadySubmitted: false as const, saved };
@@ -1375,8 +1378,14 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     .update(entriesTable)
     .set(
       pool.sport === "nhl"
-        ? ({ tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes } as any)
-        : ({ tiebreakerPoints, tiebreakerThrees } as any),
+        ? ({
+            tiebreakerShotsOnGoal,
+            tiebreakerPenaltyMinutes: typeof tiebreakerPenaltyMinutes === "number" ? tiebreakerPenaltyMinutes : null,
+          } as any)
+        : ({
+            tiebreakerPoints,
+            tiebreakerThrees: typeof tiebreakerThrees === "number" ? tiebreakerThrees : null,
+          } as any),
     )
     .where(eq(entriesTable.id, entry.id));
 
