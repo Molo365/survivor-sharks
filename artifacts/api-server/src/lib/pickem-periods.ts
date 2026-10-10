@@ -127,6 +127,7 @@ type CalendarSoccerSport = "mls" | "superleague";
 
 type CalendarWeeklyPool = {
   sport: string;
+  poolType: string;
   pickFrequency: string;
   initialPeriodStart: string | null;
 };
@@ -215,8 +216,6 @@ export function resolveCalendarSoccerPeriodBounds(
 }
 
 export type PickEmPeriodPool = CalendarWeeklyPool & {
-  sport: string;
-  poolType?: string;
   createdAt?: Date;
   currentWeek?: number;
 };

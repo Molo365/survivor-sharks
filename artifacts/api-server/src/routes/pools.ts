@@ -893,11 +893,19 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
   const nextWeeklyBonusAmount = patchWeeklyBonusAmount !== undefined ? Number(patchWeeklyBonusAmount) : null;
   const nextWeeklyBonusMinPlayers = patchWeeklyBonusMinPlayers !== undefined ? Number(patchWeeklyBonusMinPlayers) : null;
   if (patchWeeklyBonusEnabled === true) {
-    if (!Number.isFinite(nextWeeklyBonusAmount) || nextWeeklyBonusAmount <= 0) {
+    if (
+      nextWeeklyBonusAmount == null
+      || !Number.isFinite(nextWeeklyBonusAmount)
+      || nextWeeklyBonusAmount <= 0
+    ) {
       res.status(400).json({ error: "Weekly prize amount must be greater than $0" });
       return;
     }
-    if (!Number.isInteger(nextWeeklyBonusMinPlayers) || nextWeeklyBonusMinPlayers < 1) {
+    if (
+      nextWeeklyBonusMinPlayers == null
+      || !Number.isInteger(nextWeeklyBonusMinPlayers)
+      || nextWeeklyBonusMinPlayers < 1
+    ) {
       res.status(400).json({ error: "Minimum players required must be a whole number of at least 1" });
       return;
     }
