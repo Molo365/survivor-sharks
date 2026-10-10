@@ -30,6 +30,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
 import { NFL_DIVISIONS } from "../lib/nfl-divisions";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
@@ -277,22 +278,32 @@ router.get("/summary", requireAuth, async (req, res) => {
         const isMlsOrSlWeekly =
           (pool.sport === "mls" || pool.sport === "superleague") &&
           pool.pickFrequency === "weekly";
+        const isChampionsLeagueWeekly =
+          pool.sport === "championsleague" && pool.pickFrequency === "weekly";
+        const championsLeaguePeriods = isChampionsLeagueWeekly
+          ? await resolveChampionsLeaguePeriodContext(pool.id)
+          : null;
         // For ended daily pools (pool.isActive === false): omit the date filter
         // so any historical picks count — the game date has already passed.
         // For active daily pools: restrict to today's date.
         // For MLS/Super League weekly: restrict to their sport-specific current window.
+        // For Champions League weekly: current UEFA matchday dates (mirrors dashboard).
         // For all other weekly/season pools: restrict to the current week number.
         const weeklyBounds = pool.sport === "superleague"
           ? getSuperLeagueConfiguredPeriod(pool)
           : { weekStart, weekEnd };
         const dateFilter = isDaily
           ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)
-          : isMlsOrSlWeekly
-            ? and(
-                gte(pickemPicksTable.gameDate, weeklyBounds.weekStart),
-                lte(pickemPicksTable.gameDate, weeklyBounds.weekEnd),
-              )
-            : eq(pickemPicksTable.week, pool.currentWeek);
+          : isChampionsLeagueWeekly && championsLeaguePeriods?.current
+            ? inArray(pickemPicksTable.gameDate, championsLeaguePeriods.current.dates)
+            : isChampionsLeagueWeekly
+              ? eq(pickemPicksTable.gameDate, "__no_active_cl_period__")
+              : isMlsOrSlWeekly
+                ? and(
+                    gte(pickemPicksTable.gameDate, weeklyBounds.weekStart),
+                    lte(pickemPicksTable.gameDate, weeklyBounds.weekEnd),
+                  )
+                : eq(pickemPicksTable.week, pool.currentWeek);
         const [countRow] = await db
           .select({ cnt: count() })
           .from(pickemPicksTable)
