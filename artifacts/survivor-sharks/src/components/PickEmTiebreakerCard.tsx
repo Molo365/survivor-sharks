@@ -26,7 +26,7 @@ export function PickEmTiebreakerCard({
   actualPenaltyMinutes,
   tiedPlayers,
 }: PickEmTiebreakerCardProps) {
-  const hasTie = tiedPlayers.length >= 2;
+  const showGuesses = tiedPlayers.length > 0;
   const isNhl = sport === "nhl";
 
   return (
@@ -34,20 +34,17 @@ export function PickEmTiebreakerCard({
       <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-1">Tiebreaker</p>
       <p className="text-[10px] text-muted-foreground/50 mb-2">
         {isNhl
-          ? "Closest combined shots on goal wins; equally close splits the prize."
+          ? "Closest combined shots on goal on the last game of the weekend wins; equally close splits the prize."
           : "Closest combined runs wins; equally close splits the prize."}
       </p>
 
       {isNhl ? (
-        <div className="flex gap-6">
-          <div>
-            <p className="text-[10px] text-muted-foreground/60">Shots on goal (tiebreaker game)</p>
-            <p className="font-bebas text-xl text-yellow-300">{actualShotsOnGoal ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground/60">Penalty minutes (tiebreaker game)</p>
-            <p className="font-bebas text-xl text-yellow-300">{actualPenaltyMinutes ?? "—"}</p>
-          </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground/60">Combined shots on goal (tiebreaker game)</p>
+          <p className="font-bebas text-xl text-yellow-300">{actualShotsOnGoal ?? "—"}</p>
+          {actualShotsOnGoal == null && (
+            <p className="text-[10px] text-muted-foreground/45 mt-1">Updates once the tiebreaker game is underway.</p>
+          )}
         </div>
       ) : (
         <div className="flex gap-6">
@@ -62,10 +59,10 @@ export function PickEmTiebreakerCard({
         </div>
       )}
 
-      {hasTie && (
+      {showGuesses && (
         <div className="pt-2 border-t border-yellow-500/20 space-y-1.5 mt-2">
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest font-semibold pb-0.5">
-            Tiebreaker guesses
+            {tiedPlayers.length >= 2 ? "Tiebreaker guesses" : "Your tiebreaker guess"}
           </p>
           {tiedPlayers.map((p) => (
             <div key={p.userId} className="flex items-center gap-3 text-xs">

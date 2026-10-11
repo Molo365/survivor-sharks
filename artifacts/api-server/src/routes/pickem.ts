@@ -2039,7 +2039,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const tiebreakerActualsKnown = isMlb
     ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
     : isNhl
-      ? tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null
+      ? tiebreakerActualShotsOnGoal != null
       : false;
   const entries = aggregates.map((row, i) => {
     if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
@@ -2538,7 +2538,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       }
       // Sandbox: gate on sandbox scores, not historical ESPN completion.
       const tbCompleted = pool.sandboxMode ? lbSandboxScoreMap.has(tiebreakerGame.id) : tiebreakerGame.isCompleted;
-      if (tbCompleted) {
+      if (tiebreakerGameStarted || tbCompleted) {
         const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
         tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
         tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
@@ -2594,7 +2594,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const tiebreakerActualsKnown = isMlb
     ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
     : isNhl
-      ? tiebreakerActualShotsOnGoal != null && tiebreakerActualPenaltyMinutes != null
+      ? tiebreakerActualShotsOnGoal != null
       : false;
   const entries = leaderboardAggregates.map((row, i) => {
     if (i > 0 && Number(row.correct) === Number(leaderboardAggregates[i - 1].correct)) {
@@ -2737,6 +2737,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
+    tiebreakerGameStarted: isNhl && isWeekly ? tiebreakerGameStarted : undefined,
   });
 });
 
