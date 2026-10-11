@@ -90,6 +90,7 @@ import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
+import { PickEmSeasonLiveBoard } from "@/components/PickEmSeasonLiveBoard";
 import { LeaderChips } from "@/components/LeaderChips";
 import { getLeaders, resolveLeaderChipLeftDisplay } from "@/lib/leaderChips";
 import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
@@ -1929,6 +1930,15 @@ export function PickEmSeasonView({
                 <span className="hidden sm:inline">Leaderboard</span>
               </TabsTrigger>
               <TabsTrigger
+                value="live"
+                className={cn(
+                  POOL_TAB_TRIGGER_BASE,
+                  "border border-green-500/25 bg-green-500/10 text-green-400/80 hover:border-green-500/45 hover:bg-green-500/15 hover:text-green-300 data-[state=active]:bg-green-500/15 data-[state=active]:text-green-300 data-[state=active]:border-green-500/50",
+                )}
+              >
+                Live
+              </TabsTrigger>
+              <TabsTrigger
                 value="grid"
                 className={cn(
                   POOL_TAB_TRIGGER_BASE,
@@ -2306,6 +2316,25 @@ export function PickEmSeasonView({
                 />
               )}
             </div>
+          </TabsContent>
+
+          {/* ── Live (week spreadsheet + scores) ── */}
+          <TabsContent value="live" className="m-0 focus-visible:outline-none">
+            {lbLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <PickEmSeasonLiveBoard
+                poolId={poolId}
+                entries={entries}
+                currentWeek={currentWeek}
+                currentUserId={user?.id ?? null}
+                isAtsMode={isAtsMode}
+              />
+            )}
           </TabsContent>
 
           {/* ── Weekly Grid ── */}
