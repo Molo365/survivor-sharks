@@ -66,6 +66,15 @@ function selectableGames(games: EspnGame[]): EspnGame[] {
   return games.filter((game) => selectableGameIds([game]).has(game.id));
 }
 
+/** Games still pickable in the current period (mirrors picks-summary / dashboard open slate). */
+function openSelectableGameIds(games: EspnGame[]): Set<string> {
+  return new Set(
+    selectableGames(games)
+      .filter((game) => !game.isPostponed && !isPartialPeriodGameLocked(game))
+      .map((game) => game.id),
+  );
+}
+
 function datesFromRange(start: string, end: string): string[] {
   const [startYear, startMonth, startDay] = start.split("-").map(Number);
   const [endYear, endMonth, endDay] = end.split("-").map(Number);
@@ -429,10 +438,16 @@ router.get("/", requireAuth, async (req, res) => {
     .from(pickemPicksTable)
     .where(and(eq(pickemPicksTable.poolId, poolId), pickCondition));
 
+  const openGameIds = openSelectableGameIds(period.games);
+  const requiredGameIds = openGameIds.size > 0 ? openGameIds : new Set<string>();
   res.json(buildStatuses(
     members,
-    period.gameIds.size,
-    countSubmittedPickemGames(pickRows, period.gameIds, period.confidenceRequired),
+    requiredGameIds.size,
+    countSubmittedPickemGames(
+      pickRows,
+      requiredGameIds.size > 0 ? requiredGameIds : period.gameIds,
+      period.confidenceRequired,
+    ),
   ));
 });
 

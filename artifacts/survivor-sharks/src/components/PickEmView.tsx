@@ -4379,7 +4379,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     }))}
                 />
               )}
-              {isNhl && leaderboard.entries.some((e) => e.tiebreakerShotsOnGoalGuess != null) && (
+              {isNhl && isWeekly && (
+                (leaderboard as { tiebreakerGameStarted?: boolean }).tiebreakerGameStarted
+                || leaderboard.tiebreakerActualShotsOnGoal != null
+                || leaderboard.entries.some((e) => e.tiebreakerShotsOnGoalGuess != null)
+              ) && (
                 <PickEmTiebreakerCard
                   sport="nhl"
                   actualShotsOnGoal={leaderboard.tiebreakerActualShotsOnGoal ?? null}

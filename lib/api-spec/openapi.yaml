@@ -4566,10 +4566,13 @@ components:
           description: "Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)"
         tiebreakerActualShotsOnGoal:
           type: ["integer", "null"]
-          description: "Combined shots on goal in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)"
+          description: "Combined shots on goal in the tiebreaker game once underway or final (NHL weekly pools only; null if not applicable or stats unavailable)"
         tiebreakerActualPenaltyMinutes:
           type: ["integer", "null"]
-          description: "Combined penalty minutes in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)"
+          description: "Combined penalty minutes in the tiebreaker game (legacy secondary stat; NHL weekly resolution uses shots on goal only)"
+        tiebreakerGameStarted:
+          type: ["boolean", "null"]
+          description: "True when the NHL weekly tiebreaker game (last kickoff of the weekend) has started (NHL weekly pools only)"
 
     PickEmDailyResultsGame:
       type: object
