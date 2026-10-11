@@ -29,15 +29,20 @@ export function getVisiblePickEmPick<
 ): T | undefined {
   if (!pick) return undefined;
   const isOwnPick = opts.currentUserId != null && opts.entryUserId === opts.currentUserId;
-  if (!isOpponentPickVisible({
-    isOwnPick,
-    result: pick.result,
-    gameStartTime: opts.gameStartTime,
-    sandboxMode: opts.sandboxMode,
-  })) {
-    return undefined;
+  // API redacts opponent picks by nulling pickedTeamId; non-null means the server already applied reveal rules.
+  if (!isOwnPick && pick.pickedTeamId == null) return undefined;
+  if (isOwnPick && pick.pickedTeamId == null) return undefined;
+  // When kickoff time is on the game column, keep client-side guard for stale cached responses.
+  if (!isOwnPick && opts.gameStartTime) {
+    if (!isOpponentPickVisible({
+      isOwnPick: false,
+      result: pick.result,
+      gameStartTime: opts.gameStartTime,
+      sandboxMode: opts.sandboxMode,
+    })) {
+      return undefined;
+    }
   }
-  if (pick.pickedTeamId == null) return undefined;
   return pick;
 }
 

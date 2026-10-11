@@ -39,6 +39,14 @@ describe("getVisiblePickEmPick", () => {
       gameStartTime: future,
     })).toBeUndefined();
   });
+
+  it("shows opponent pick after kickoff when API revealed team id but game startTime is missing on grid", () => {
+    expect(getVisiblePickEmPick(pick, {
+      entryUserId: 2,
+      currentUserId: 1,
+      gameStartTime: undefined,
+    })).toEqual(pick);
+  });
 });
 
 describe("formatPickEmPickExport", () => {
