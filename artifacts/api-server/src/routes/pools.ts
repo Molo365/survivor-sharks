@@ -28,6 +28,7 @@ import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } from "../lib/nhl-pool-period";
 import { sportPoolStatusTable } from "@workspace/db";
 import { loadSandboxLivePoolIds, poolSlateHasLiveGames } from "../lib/pool-slate-live";
+import { resolveStoredDoubleElimination } from "../lib/pool-double-elimination";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -491,7 +492,7 @@ router.post("/", requireAuth, async (req, res) => {
     prizeMode,
     commissionerCut,
     showCommissionerCut,
-    doubleElimination: doubleElimination === true,
+    doubleElimination: resolveStoredDoubleElimination(sport, resolvedPoolType, doubleElimination),
     pickFrequency: resolvedPickFrequency,
     // isRecurring only meaningful for MLB daily; default true (matching DB default)
     // when the client does not send the field so new pools auto-advance by default.
@@ -923,7 +924,13 @@ router.patch("/:poolId", requireAuth, async (req, res) => {
     ...(isActive !== undefined && { isActive }),
     ...(poolType !== undefined && { poolType: poolType as "season" | "weekly" | "mid_season" | "pickem" | "group_stage_predictor" | "wc_bracket" | "mlb_bracket" }),
     ...(startWeek !== undefined && { startWeek }),
-    ...(doubleElimination !== undefined && { doubleElimination: doubleElimination === true }),
+    ...(doubleElimination !== undefined && {
+      doubleElimination: resolveStoredDoubleElimination(
+        pool.sport as string,
+        (poolType ?? pool.poolType) as string,
+        doubleElimination,
+      ),
+    }),
     ...(pickFrequency !== undefined && { pickFrequency: pickFrequency as "weekly" | "daily" }),
     ...(typeof isRecurring === "boolean" && { isRecurring }),
     ...(typeof sandboxMode === "boolean" && { sandboxMode }),
