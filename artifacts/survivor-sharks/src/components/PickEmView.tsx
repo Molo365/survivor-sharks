@@ -54,6 +54,7 @@ import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles
 import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+import { formatPickEmPickExport, getVisiblePickEmPick } from "@/lib/pickReveal";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
@@ -663,10 +664,11 @@ function PicksGrid({ games, entries, currentUserId, week, isWc, phase, showHomeA
                       const pick = pickMap.get(game.id);
                       // The API redacts unopened opponent picks. Keep the presentation
                       // equally strict if a stale response is still in the query cache.
-                      const pickIsVisible = isMe
-                        || (pick?.result != null && pick.result !== "pending")
-                        || (game.startTime != null && new Date(game.startTime).getTime() <= Date.now());
-                      const visiblePick = pickIsVisible ? pick : undefined;
+                      const visiblePick = getVisiblePickEmPick(pick, {
+                        entryUserId: entry.userId,
+                        currentUserId,
+                        gameStartTime: game.startTime,
+                      });
 
                       if (isWc) {
                         const pickedOpt = (visiblePick?.pickedTeamId ?? null) as WcPickOption | null;
@@ -1031,10 +1033,24 @@ interface SnapshotViewProps {
   poolName: string;
   sport?: string;
   showHomeAwayLabels?: boolean;
+  sandboxMode?: boolean;
 }
 
-function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport = "mlb", showHomeAwayLabels = false }: SnapshotViewProps) {
+function SnapshotView({
+  slate,
+  entries,
+  lbGames,
+  currentUserId,
+  poolName,
+  sport = "mlb",
+  showHomeAwayLabels = false,
+  sandboxMode = false,
+}: SnapshotViewProps) {
   const slateGameIds = new Set(slate.games.map((g) => g.id));
+  const gameStartById = useMemo(
+    () => new Map(lbGames.map((g) => [g.id, g.startTime])),
+    [lbGames],
+  );
 
   // Merge slate game order + team IDs with leaderboard logo URLs
   const snapshotGames = useMemo(() => {
@@ -1072,26 +1088,20 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
       const pickMap = new Map(
         entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
       );
-      const todayCorrect = snapshotGames.filter((g) => pickMap.get(g.id)?.result === "correct").length;
-      const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
+      const visiblePicksForGame = (gameId: string) =>
+        getVisiblePickEmPick(pickMap.get(gameId), {
+          entryUserId: entry.userId,
+          currentUserId,
+          gameStartTime: gameStartById.get(gameId),
+          sandboxMode,
+        });
+      const todayCorrect = snapshotGames.filter((g) => visiblePicksForGame(g.id)?.result === "correct").length;
+      const todayPicked = snapshotGames.filter((g) => visiblePicksForGame(g.id)).length;
       const pct = todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
-        const pickCells = snapshotGames.map((g) => {
-        const pick = pickMap.get(g.id);
+      const pickCells = snapshotGames.map((g) => {
+        const pick = visiblePicksForGame(g.id);
         if (!pick) return "—";
-        const isAway = pick.pickedTeamId === g.awayTeam.id;
-         const isDraw = pick.pickedTeamId === "draw";
-         const abbrev = isDraw
-           ? "DRAW"
-           : pick.pickedTeamId === "away_win" || isAway
-             ? g.awayTeam.abbreviation
-             : g.homeTeam.abbreviation;
-        const suffix =
-          pick.result === "correct" ? " W"
-          : pick.result === "incorrect" ? " L"
-          : pick.result === "push" ? " TIE"
-          : pick.result === "postponed" ? " PPD"
-          : "";
-        return `${abbrev}${suffix}`;
+        return formatPickEmPickExport(pick, g, { includeResultSuffix: true });
       });
       const total = pct !== null ? `${todayCorrect}/${todayPicked} (${pct}%)` : "0/0";
       return { cells: [name, ...pickCells, total], isCurrentUser: entry.userId === currentUserId };
@@ -1188,10 +1198,17 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
                       .filter((p) => slateGameIds.has(p.gameId))
                       .map((p) => [p.gameId, p]),
                   );
+                  const visibleFor = (gameId: string) =>
+                    getVisiblePickEmPick(pickMap.get(gameId), {
+                      entryUserId: entry.userId,
+                      currentUserId,
+                      gameStartTime: gameStartById.get(gameId),
+                      sandboxMode,
+                    });
                   const todayCorrect = snapshotGames.filter(
-                    (g) => pickMap.get(g.id)?.result === "correct",
+                    (g) => visibleFor(g.id)?.result === "correct",
                   ).length;
-                  const todayPicked = snapshotGames.filter((g) => pickMap.has(g.id)).length;
+                  const todayPicked = snapshotGames.filter((g) => visibleFor(g.id)).length;
                   const pct =
                     todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
 
@@ -1247,16 +1264,13 @@ function SnapshotView({ slate, entries, lbGames, currentUserId, poolName, sport 
 
                       {/* Per-game pick cells — matches PicksGrid non-WC, adds PPD amber */}
                       {snapshotGames.map((game) => {
-                        const pick = pickMap.get(game.id);
+                        const pick = getVisiblePickEmPick(pickMap.get(game.id), {
+                          entryUserId: entry.userId,
+                          currentUserId,
+                          gameStartTime: gameStartById.get(game.id),
+                          sandboxMode,
+                        });
                         if (!pick) {
-                          return (
-                            <td key={game.id} className="px-1 py-2 text-center">
-                              <span className="text-muted-foreground/20 text-xs">—</span>
-                            </td>
-                          );
-                        }
-
-                        if (!pick.pickedTeamId) {
                           return (
                             <td key={game.id} className="px-1 py-2 text-center">
                               <span className="text-muted-foreground/20 text-xs">—</span>
@@ -4541,6 +4555,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               poolName={poolName}
               sport={sport}
               showHomeAwayLabels={showSoccerHomeAwayLabels}
+              sandboxMode={poolDetail?.sandboxMode ?? false}
             />
           </TabsContent>
         )}

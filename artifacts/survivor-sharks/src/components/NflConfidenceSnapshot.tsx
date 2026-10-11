@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { Download, Check, X, Camera } from "lucide-react";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -134,8 +135,12 @@ export function NflConfidenceSnapshot({
     const pdfRows = enrichedPlayers.map((p, idx) => {
       const name = `${idx + 1}. ${p.displayName ?? p.username}`;
       const pickCells = sortedGames.map((g) => {
-        const pick = p.picks[g.id];
-        if (!pick || !pick.pickedTeamId) return "—";
+        const pick = getVisiblePickEmPick(p.picks[g.id], {
+          entryUserId: p.userId,
+          currentUserId: user?.id ?? null,
+          gameStartTime: g.startTime,
+        });
+        if (!pick) return "—";
         const isAway = pick.pickedTeamId === g.awayTeam.id;
         const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
         const pts = pick.confidencePoints != null ? `${pick.confidencePoints}pts` : "";
@@ -333,8 +338,12 @@ export function NflConfidenceSnapshot({
 
                         {/* Per-game cells */}
                         {sortedGames.map((g) => {
-                          const pick = p.picks[g.id];
-                          if (!pick || !pick.pickedTeamId) {
+                          const pick = getVisiblePickEmPick(p.picks[g.id], {
+                            entryUserId: p.userId,
+                            currentUserId: user?.id ?? null,
+                            gameStartTime: g.startTime,
+                          });
+                          if (!pick) {
                             return (
                               <td key={g.id} className="px-1 py-2 text-center">
                                 <span className="text-muted-foreground/20 text-xs">—</span>
