@@ -27,6 +27,7 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
       const weekCells = grid.weeks.map(w => {
         const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
         if (!pick) return "—";
+        if (!pick.teamName && !pick.teamLogoUrl) return "—";
         const suffix = pick.result === "win" ? " W" : pick.result === "loss" ? " L" : "";
         // Derive abbreviation from ESPN logo URL (e.g. .../phi.png → PHI),
         // falling back to the first 3 characters of the stored team name.

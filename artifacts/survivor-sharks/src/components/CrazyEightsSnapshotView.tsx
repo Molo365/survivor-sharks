@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
+import { getVisiblePickEmPick } from "@/lib/pickReveal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -135,7 +136,11 @@ export function CrazyEightsSnapshotView({
     const pdfRows = sortedPlayers.map((p, idx) => {
       const name = `${idx + 1}. ${p.displayName ?? p.username}`;
       const pickCells = games.map((g) => {
-        const pick = p.picks[g.id];
+        const pick = getVisiblePickEmPick(p.picks[g.id], {
+          entryUserId: p.userId,
+          currentUserId,
+          gameStartTime: g.startTime,
+        });
         if (!pick) return "—";
         const isAway = pick.pickedTeamId === g.awayTeam.id;
         const abbrev = isAway ? g.awayTeam.abbreviation : g.homeTeam.abbreviation;
@@ -314,7 +319,11 @@ export function CrazyEightsSnapshotView({
 
                       {/* Per-game pick cells */}
                       {games.map((game) => {
-                        const pick = player.picks[game.id];
+                        const pick = getVisiblePickEmPick(player.picks[game.id], {
+                          entryUserId: player.userId,
+                          currentUserId,
+                          gameStartTime: game.startTime,
+                        });
                         if (!pick) {
                           return (
                             <td key={game.id} className="px-1 py-2 text-center">
