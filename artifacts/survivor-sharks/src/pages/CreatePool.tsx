@@ -24,6 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat, Globe, Brackets } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { poolSupportsDoubleElimination } from "@/lib/poolSurvivor";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -499,6 +500,9 @@ export default function CreatePool() {
 
   const selectedSport = form.watch("sport");
   const selectedType = form.watch("poolType");
+  const showDoubleEliminationOption = Boolean(
+    selectedSport && selectedType && poolSupportsDoubleElimination(selectedSport, selectedType),
+  );
   const watchedName = form.watch("name");
   const watchedEntryFee = form.watch("entryFee");
   const watchedWeeklyBonusEnabled = form.watch("weeklyBonusEnabled");
@@ -705,6 +709,12 @@ export default function CreatePool() {
     }
   }, [selectedSport]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!showDoubleEliminationOption && form.getValues("doubleElimination")) {
+      form.setValue("doubleElimination", false);
+    }
+  }, [showDoubleEliminationOption, form]);
+
   // Ensure prize slots match the pool type's fixed structure
   useEffect(() => {
     if (selectedType === "pickem_season") {
@@ -835,7 +845,7 @@ export default function CreatePool() {
 
   const optionsSummary =
     [
-      form.getValues("doubleElimination") && "Double Elimination",
+      showDoubleEliminationOption && form.getValues("doubleElimination") && "Double Elimination",
       showsRecurringToggle
         ? (form.getValues("isRecurring") === true ? "Recurring" : form.getValues("isRecurring") === false ? "One-time" : false)
         : false,
@@ -948,6 +958,8 @@ export default function CreatePool() {
       {
         data: {
           ...values,
+          doubleElimination:
+            poolSupportsDoubleElimination(values.sport, values.poolType) && values.doubleElimination === true,
           prizeMode: "pct",
           commissionerCut,
           showCommissionerCut,
@@ -1452,10 +1464,8 @@ export default function CreatePool() {
                   />
                   {isStepActive(3) ? (
                     <div className="space-y-4">
-                      {/* ── Double Elimination — MLB/NFL survivor only ── */}
-                      {/* Note: inside the `hasOptions` block TS narrows out selectedType === "weekly", so that check is omitted here (it can never be weekly at runtime either). */}
-                      {(selectedSport === PoolInputSport.mlb || selectedSport === PoolInputSport.nfl) &&
-                        selectedType !== "pickem" && (
+                      {/* ── Double Elimination — NFL/MLB survivor pool types only ── */}
+                      {showDoubleEliminationOption && (
                         <FormField
                           control={form.control}
                           name="doubleElimination"

@@ -3064,7 +3064,7 @@ components:
         doubleElimination:
           type: boolean
           default: false
-          description: "MLB only: first loss gives a mulligan strike; second loss eliminates permanently"
+          description: "NFL/MLB survivor pools only (season, weekly, mid_season, dirty_dozen): first loss is a warning strike; second loss eliminates. Ignored for pick'em and other pool types."
         pickFrequency:
           type: string
           enum: [weekly, daily]
