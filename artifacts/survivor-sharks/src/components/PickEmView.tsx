@@ -3136,7 +3136,26 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     };
   }, [isMlsWeekly, mlsWeekData, mlsWeeklyAllGames, mlsWeeklyDays, todayEt, sport, slateLocked]);
 
-  const snapshotSlate = isMlsWeekly ? weeklySnapshotSlate : slate;
+  const nhlWeeklySnapshotSlate = useMemo((): PickEmSlate | null => {
+    if (!isNhlWeekly || nhlWeeklyAllGames.length === 0) return null;
+    const weekStart = scheduleData?.days?.[0]?.date ?? satDate ?? todayEt;
+    const weekEnd = scheduleData?.days?.at(-1)?.date ?? sunDate ?? weekStart;
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+    });
+    const rangeLabel = `${fmt.format(new Date(`${weekStart}T12:00:00Z`))} – ${fmt.format(new Date(`${weekEnd}T12:00:00Z`))}`;
+    return {
+      date: weekStart,
+      label: rangeLabel,
+      deadlinePassed: slateLocked,
+      sport,
+      games: nhlWeeklyAllGames,
+    };
+  }, [isNhlWeekly, nhlWeeklyAllGames, scheduleData?.days, satDate, sunDate, todayEt, sport, slateLocked]);
+
+  const snapshotSlate = isMlsWeekly ? weeklySnapshotSlate : isNhlWeekly ? nhlWeeklySnapshotSlate : slate;
 
   return (
     <>
