@@ -2242,6 +2242,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [tbShots, setTbShots] = useState("");
   const [tbPim, setTbPim] = useState("");
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
+  const nhlWeekendPollGamesRef = useRef<PickEmGame[]>([]);
   const pendingDateRef = React.useRef<string | null>(null);
   const [lineupGame, setLineupGame] = useState<{
     gameId: string;
@@ -2271,7 +2272,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     query: {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
       enabled: !isWeeklyPeriodHistory,
-      refetchInterval: () => pickRefetchInterval(slate),
+      refetchInterval: () =>
+        pickRefetchInterval(
+          isNhlWeekly
+            ? ({ games: nhlWeekendPollGamesRef.current } as PickEmSlate)
+            : slate,
+        ),
     },
   });
   const {
@@ -2285,7 +2291,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       `/api/pools/${poolId}/pickem/leaderboard${activePeriodStart ? `?periodStart=${encodeURIComponent(activePeriodStart)}` : ""}`,
     ),
     enabled: isWeeklyPeriodHistory && pickEmPeriods !== undefined,
-    refetchInterval: () => pickRefetchInterval(slate),
+    refetchInterval: () =>
+      pickRefetchInterval(
+        isNhlWeekly
+          ? ({ games: nhlWeekendPollGamesRef.current } as PickEmSlate)
+          : slate,
+      ),
   });
   const leaderboard = isWeeklyPeriodHistory ? leaderboardPeriod : leaderboardDefault;
   const lbLoading = isWeeklyPeriodHistory ? lbLoadingPeriod : lbLoadingDefault;
@@ -2391,6 +2402,27 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       }))
     : [];
   const nhlWeeklyAllGames = nhlWeeklyDays.flatMap((d) => d.games);
+  if (isNhlWeekly) {
+    nhlWeekendPollGamesRef.current = nhlWeeklyAllGames;
+  }
+
+  const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
+    if (!isNhlWeekly || !leaderboard?.games?.length) return [];
+    const detailById = new Map(nhlWeeklyAllGames.map((g) => [g.id, g]));
+    return leaderboard.games.map((lg) => {
+      const d = detailById.get(lg.id);
+      return {
+        id: lg.id,
+        startTime: lg.startTime,
+        status: d?.status ?? lg.status,
+        liveDetail: d?.liveDetail ?? null,
+        awayScore: d?.awayScore ?? null,
+        homeScore: d?.homeScore ?? null,
+        awayTeam: { id: lg.awayTeam.id, abbreviation: lg.awayTeam.abbreviation },
+        homeTeam: { id: lg.homeTeam.id, abbreviation: lg.homeTeam.abbreviation },
+      };
+    });
+  }, [isNhlWeekly, leaderboard?.games, nhlWeeklyAllGames]);
 
   const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
     if (!isNhlWeekly || !leaderboard?.games?.length) return [];
