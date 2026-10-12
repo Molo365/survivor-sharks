@@ -44,6 +44,12 @@ export function TiebreakerActualsCard({
         )}
       </div>
 
+      {!hasPlayers && actualPassingYards != null && (
+        <p className="text-[10px] text-muted-foreground/50 pt-1">
+          No top-of-board tie this period; actuals stay on record for the week.
+        </p>
+      )}
+
       {hasPlayers && (
         <div className="pt-2 border-t border-yellow-500/20 space-y-1.5 mt-2">
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest font-semibold pb-0.5">

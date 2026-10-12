@@ -67,6 +67,7 @@ import { isMlbWeeklyPreStart } from "./mlb-weekly-period";
 import { isMlsWeeklyPreStart } from "./mls-weekly-period";
 import { isSuperLeaguePreStart } from "./superleague-period";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
+import { recordNflConfidenceWeekTiebreakerActualsIfReady } from "./nfl-confidence-week-actuals";
 import {
   fetchTodayWcGames,
   fetchWcGamesForDate,
@@ -3231,6 +3232,17 @@ export async function processPickEmResults(): Promise<{
               "Auto-graded NFL confidence pick",
             );
           }
+        }
+
+        try {
+          await recordNflConfidenceWeekTiebreakerActualsIfReady(
+            pool.id,
+            pool.currentWeek,
+            games,
+            logger,
+          );
+        } catch (err) {
+          logger.error({ poolId: pool.id, week: pool.currentWeek, err }, "NFL Confidence: failed to record week tiebreaker actuals");
         }
 
         // Week closure applies only to nfl_confidence_weekly pools.

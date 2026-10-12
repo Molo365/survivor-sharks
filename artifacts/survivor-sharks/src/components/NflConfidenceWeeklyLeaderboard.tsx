@@ -244,7 +244,7 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
       )}
 
       {/* Tiebreaker actuals (if graded) */}
-      {isGraded && data?.actualPassingYards != null && (
+      {isFullyGraded && data?.actualPassingYards != null && (
         <TiebreakerActualsCard
           actualPassingYards={data.actualPassingYards}
           actualRushingYards={data.actualRushingYards ?? null}
