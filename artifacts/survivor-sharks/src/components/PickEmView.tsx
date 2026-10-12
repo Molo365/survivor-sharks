@@ -2406,6 +2406,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     nhlWeekendPollGamesRef.current = nhlWeeklyAllGames;
   }
 
+  const nhlTiebreakerGame = useMemo(() => {
+    if (!isNhlWeekly) return null;
+    const fromSunday = (sunSlate?.games ?? []).find((g) => g.isTiebreakerGame);
+    if (fromSunday) return fromSunday;
+    const sorted = [...nhlWeeklyAllGames].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    );
+    return sorted.at(-1) ?? null;
+  }, [isNhlWeekly, sunSlate?.games, nhlWeeklyAllGames]);
+
   const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
     if (!isNhlWeekly || !leaderboard?.games?.length) return [];
     const detailById = new Map(nhlWeeklyAllGames.map((g) => [g.id, g]));
@@ -2925,14 +2935,65 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             <Shuffle className="w-5 h-5 text-yellow-400" />
             Tiebreaker Guess
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground leading-snug">
-            {isLiveNhlWeekly
-              ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
-              : "It&apos;s the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
-            <br />
-            Guess <strong className="text-foreground">combined shots on goal</strong> (both teams) for the tiebreaker game. Closest guess wins; same distance splits the prize.
+          <DialogDescription className="space-y-2 text-sm text-muted-foreground leading-snug">
+            {(() => {
+              const tbGame = nhlTiebreakerGame;
+              const gameTime = tbGame?.startTime
+                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "America/New_York",
+                    hour12: true,
+                  }) + " ET"
+                : null;
+              return (
+                <>
+                  {tbGame && (
+                    <span className="block text-sm font-semibold text-foreground">
+                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
+                      {gameTime && (
+                        <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>
+                      )}
+                    </span>
+                  )}
+                  <span className="block">
+                    {isLiveNhlWeekly
+                      ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
+                      : "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
+                  </span>
+                  <span className="block">
+                    Guess <strong className="text-foreground">combined shots on goal</strong> (both teams) for this game. Closest guess wins; same distance splits the prize.
+                  </span>
+                </>
+              );
+            })()}
           </DialogDescription>
         </DialogHeader>
+        {nhlTiebreakerGame && (
+          <div className="flex items-center justify-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 -mt-1">
+            <div className="flex items-center gap-2 min-w-0">
+              {nhlTiebreakerGame.awayTeam.logoUrl && (
+                <img
+                  src={nhlTiebreakerGame.awayTeam.logoUrl}
+                  alt=""
+                  className="w-8 h-8 object-contain flex-shrink-0"
+                />
+              )}
+              <span className="font-semibold text-sm leading-tight">{nhlTiebreakerGame.awayTeam.name}</span>
+            </div>
+            <span className="text-xs font-bold text-muted-foreground flex-shrink-0">@</span>
+            <div className="flex items-center gap-2 min-w-0">
+              {nhlTiebreakerGame.homeTeam.logoUrl && (
+                <img
+                  src={nhlTiebreakerGame.homeTeam.logoUrl}
+                  alt=""
+                  className="w-8 h-8 object-contain flex-shrink-0"
+                />
+              )}
+              <span className="font-semibold text-sm leading-tight">{nhlTiebreakerGame.homeTeam.name}</span>
+            </div>
+          </div>
+        )}
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
