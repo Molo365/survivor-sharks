@@ -380,11 +380,12 @@ export function PickEmSeasonLeaderboard({
   const firstSplitRank = entries.find((e) => e.potSplit)?.rank ?? null;
   const tbCandidates =
     firstSplitRank !== null ? entries.filter((e) => e.rank === firstSplitRank) : [];
-  const footer = tbCandidates.length > 0 ? (
+  const showSeasonTbActuals = actualPassingYards != null;
+  const footer = showSeasonTbActuals ? (
     <TiebreakerActualsCard
       actualPassingYards={actualPassingYards}
       actualRushingYards={actualRushingYards}
-      tiedPlayers={tbCandidates.map((e) => ({
+      tiedPlayers={tbCandidates.length > 0 ? tbCandidates.map((e) => ({
         userId: e.userId,
         username: e.username,
         displayName: e.displayName ?? null,
@@ -392,7 +393,7 @@ export function PickEmSeasonLeaderboard({
         tiebreakerRushingYardsGuess: e.tiebreakerRushingYards ?? null,
         tiebreakerDiff1: e.tiebreakerDiff1 ?? null,
         tiebreakerDiff2: e.tiebreakerDiff2 ?? null,
-      }))}
+      })) : []}
     />
   ) : undefined;
 

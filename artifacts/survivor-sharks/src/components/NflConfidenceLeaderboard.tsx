@@ -265,14 +265,15 @@ export function NflConfidenceLeaderboard({
   });
 
   const currentWeek = data?.currentWeek ?? 1;
+  const actualsWeek = selectedCell?.week ?? currentWeek;
 
   const { data: weekData } = useQuery<WeekLeaderboardResponse>({
-    queryKey: ["nfl-confidence-week-leaderboard", poolId, currentWeek],
+    queryKey: ["nfl-confidence-week-leaderboard", poolId, actualsWeek],
     queryFn: () =>
       authedFetch<WeekLeaderboardResponse>(
-        `/api/pools/${poolId}/nfl-confidence/leaderboard?week=${currentWeek}`,
+        `/api/pools/${poolId}/nfl-confidence/leaderboard?week=${actualsWeek}`,
       ),
-    enabled: !!user && currentWeek >= 1,
+    enabled: !!user && actualsWeek >= 1,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -375,13 +376,21 @@ export function NflConfidenceLeaderboard({
     );
   }
 
-  const footer = isWeekGraded && weekData?.actualPassingYards != null ? (
-    <TiebreakerActualsCard
-      actualPassingYards={weekData.actualPassingYards}
-      actualRushingYards={weekData.actualRushingYards ?? null}
-      tiedPlayers={hasTie ? tiedTopPlayers : []}
-    />
-  ) : undefined;
+  const footer =
+    weekData?.actualPassingYards != null ? (
+      <div className="space-y-2">
+        {actualsWeek !== currentWeek && (
+          <p className="text-[10px] text-muted-foreground/60 text-center">
+            Tiebreaker actuals · Week {actualsWeek}
+          </p>
+        )}
+        <TiebreakerActualsCard
+          actualPassingYards={weekData.actualPassingYards}
+          actualRushingYards={weekData.actualRushingYards ?? null}
+          tiedPlayers={hasTie ? tiedTopPlayers : []}
+        />
+      </div>
+    ) : undefined;
 
   return (
     <PoolLeaderboardGrid
