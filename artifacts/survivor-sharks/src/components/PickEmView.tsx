@@ -58,6 +58,13 @@ import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
 import type { PickEmLiveGame } from "@/lib/pickEmLivePickCell";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
+import {
+  TiebreakerFieldLabel,
+  TiebreakerGuessDescription,
+  TiebreakerGuessDialogTitle,
+  TiebreakerMatchupLogoStrip,
+  type TiebreakerMatchupGame,
+} from "@/components/TiebreakerGuessDialogUi";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
@@ -2858,42 +2865,41 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     <Dialog open={showTiebreaker} onOpenChange={(open) => { if (!open) setShowTiebreaker(false); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-            <Shuffle className="w-5 h-5 text-yellow-400" />
-            Tiebreaker Guess
-          </DialogTitle>
-          <DialogDescription className="space-y-1">
-            {(() => {
-              const tbGame = slate?.games.find(g => g.isTiebreakerGame) ?? null;
-              const gameTime = tbGame?.startTime
-                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: "America/New_York",
-                    hour12: true,
-                  }) + " ET"
-                : null;
-              return (
-                <>
-                  {tbGame && (
-                    <span className="block text-sm font-semibold text-foreground">
-                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
-                      {gameTime && <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>}
-                    </span>
-                  )}
-                  <span className="block">
-                    In case of a tie, the player closest to the actual runs scored and total strikeouts for this game wins.
-                  </span>
-                </>
-              );
-            })()}
-          </DialogDescription>
+          <TiebreakerGuessDialogTitle />
+          <TiebreakerGuessDescription
+            game={
+              (() => {
+                const g = slate?.games.find((x) => x.isTiebreakerGame);
+                if (!g) return null;
+                return {
+                  awayTeam: { name: g.awayTeam.name, logoUrl: g.awayTeam.logoUrl },
+                  homeTeam: { name: g.homeTeam.name, logoUrl: g.homeTeam.logoUrl },
+                  startTime: g.startTime,
+                } satisfies TiebreakerMatchupGame;
+              })()
+            }
+          >
+            <span className="block">
+              In case of a tie, the player closest to the actual runs scored and total strikeouts for this game wins.
+            </span>
+          </TiebreakerGuessDescription>
         </DialogHeader>
+        <TiebreakerMatchupLogoStrip
+          game={
+            (() => {
+              const g = slate?.games.find((x) => x.isTiebreakerGame);
+              if (!g) return null;
+              return {
+                awayTeam: { name: g.awayTeam.name, logoUrl: g.awayTeam.logoUrl },
+                homeTeam: { name: g.homeTeam.name, logoUrl: g.homeTeam.logoUrl },
+                startTime: g.startTime,
+              };
+            })()
+          }
+        />
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Runs Scored — Tiebreaker Game
-            </label>
+            <TiebreakerFieldLabel>Runs Scored — Tiebreaker Game</TiebreakerFieldLabel>
             <Input
               type="number"
               min={0}
@@ -2931,74 +2937,54 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     <Dialog open={showNhlTiebreaker} onOpenChange={(open) => { if (!open) setShowNhlTiebreaker(false); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-            <Shuffle className="w-5 h-5 text-yellow-400" />
-            Tiebreaker Guess
-          </DialogTitle>
-          <DialogDescription className="space-y-2 text-sm text-muted-foreground leading-snug">
-            {(() => {
-              const tbGame = nhlTiebreakerGame;
-              const gameTime = tbGame?.startTime
-                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: "America/New_York",
-                    hour12: true,
-                  }) + " ET"
-                : null;
-              return (
-                <>
-                  {tbGame && (
-                    <span className="block text-sm font-semibold text-foreground">
-                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
-                      {gameTime && (
-                        <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>
-                      )}
-                    </span>
-                  )}
-                  <span className="block">
-                    {isLiveNhlWeekly
-                      ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
-                      : "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
-                  </span>
-                  <span className="block">
-                    Guess <strong className="text-foreground">combined shots on goal</strong> (both teams) for this game. Closest guess wins; same distance splits the prize.
-                  </span>
-                </>
-              );
-            })()}
-          </DialogDescription>
+          <TiebreakerGuessDialogTitle />
+          <TiebreakerGuessDescription
+            game={
+              nhlTiebreakerGame
+                ? {
+                    awayTeam: {
+                      name: nhlTiebreakerGame.awayTeam.name,
+                      logoUrl: nhlTiebreakerGame.awayTeam.logoUrl,
+                    },
+                    homeTeam: {
+                      name: nhlTiebreakerGame.homeTeam.name,
+                      logoUrl: nhlTiebreakerGame.homeTeam.logoUrl,
+                    },
+                    startTime: nhlTiebreakerGame.startTime,
+                  }
+                : null
+            }
+          >
+            <span className="block">
+              {isLiveNhlWeekly
+                ? "Picks that include Sunday's games need a tiebreaker guess on the last game of Sunday's slate."
+                : "It's the last day of the week! In case of a tie, your tiebreaker guess decides the winner."}
+            </span>
+            <span className="block">
+              Guess <strong className="text-foreground">combined shots on goal</strong> (both teams) for this game. Closest guess wins; same distance splits the prize.
+            </span>
+          </TiebreakerGuessDescription>
         </DialogHeader>
-        {nhlTiebreakerGame && (
-          <div className="flex items-center justify-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 -mt-1">
-            <div className="flex items-center gap-2 min-w-0">
-              {nhlTiebreakerGame.awayTeam.logoUrl && (
-                <img
-                  src={nhlTiebreakerGame.awayTeam.logoUrl}
-                  alt=""
-                  className="w-8 h-8 object-contain flex-shrink-0"
-                />
-              )}
-              <span className="font-semibold text-sm leading-tight">{nhlTiebreakerGame.awayTeam.name}</span>
-            </div>
-            <span className="text-xs font-bold text-muted-foreground flex-shrink-0">@</span>
-            <div className="flex items-center gap-2 min-w-0">
-              {nhlTiebreakerGame.homeTeam.logoUrl && (
-                <img
-                  src={nhlTiebreakerGame.homeTeam.logoUrl}
-                  alt=""
-                  className="w-8 h-8 object-contain flex-shrink-0"
-                />
-              )}
-              <span className="font-semibold text-sm leading-tight">{nhlTiebreakerGame.homeTeam.name}</span>
-            </div>
-          </div>
-        )}
+        <TiebreakerMatchupLogoStrip
+          game={
+            nhlTiebreakerGame
+              ? {
+                  awayTeam: {
+                    name: nhlTiebreakerGame.awayTeam.name,
+                    logoUrl: nhlTiebreakerGame.awayTeam.logoUrl,
+                  },
+                  homeTeam: {
+                    name: nhlTiebreakerGame.homeTeam.name,
+                    logoUrl: nhlTiebreakerGame.homeTeam.logoUrl,
+                  },
+                  startTime: nhlTiebreakerGame.startTime,
+                }
+              : null
+          }
+        />
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Shots on Goal — Tiebreaker Game
-            </label>
+            <TiebreakerFieldLabel>Shots on Goal — Tiebreaker Game</TiebreakerFieldLabel>
             <Input
               type="number"
               min={0}

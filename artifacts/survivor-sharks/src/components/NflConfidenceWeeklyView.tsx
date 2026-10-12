@@ -11,7 +11,14 @@ import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  TiebreakerFieldLabel,
+  TiebreakerGuessDescription,
+  TiebreakerGuessDialogTitle,
+  TiebreakerMatchupLogoStrip,
+  type TiebreakerMatchupGame,
+} from "@/components/TiebreakerGuessDialogUi";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -1031,6 +1038,24 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
 
   const tiebreakerGameId = games.at(-1)?.id ?? null;
 
+  const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
+    const meta = myPicksData?.tiebreakerGame;
+    const last = games.at(-1);
+    if (!meta && !last) return null;
+    const logoGame = last;
+    return {
+      awayTeam: {
+        name: meta?.awayTeam.name ?? last!.awayTeam.name,
+        logoUrl: logoGame ? teamLogoSrc(logoGame.awayTeam) : null,
+      },
+      homeTeam: {
+        name: meta?.homeTeam.name ?? last!.homeTeam.name,
+        logoUrl: logoGame ? teamLogoSrc(logoGame.homeTeam) : null,
+      },
+      startTime: meta?.startTime ?? last?.startTime ?? null,
+    };
+  }, [myPicksData?.tiebreakerGame, games]);
+
   function handleTeamClick(gameId: string, teamId: string) {
     if (isLocked || !openGameIds.has(gameId)) return;
     if (pickedTeams[gameId] === teamId) {
@@ -1246,58 +1271,43 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
       </Button>
 
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-bebas text-2xl tracking-wide">Tiebreaker</DialogTitle>
-            {(() => {
-              const tbGame: TiebreakerGame | null =
-                myPicksData?.tiebreakerGame ??
-                (games.length > 0
-                  ? {
-                      awayTeam: { abbreviation: games.at(-1)!.awayTeam.abbreviation, name: games.at(-1)!.awayTeam.name },
-                      homeTeam: { abbreviation: games.at(-1)!.homeTeam.abbreviation, name: games.at(-1)!.homeTeam.name },
-                      startTime: games.at(-1)!.startTime,
-                    }
-                  : null);
-              const gameTime = tbGame?.startTime
-                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: "America/New_York",
-                    hour12: true,
-                  }) + " ET"
-                : null;
-              return (
-                <DialogDescription className="space-y-1">
-                  {tbGame && (
-                    <span className="block text-sm font-semibold text-foreground">
-                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
-                      {gameTime && <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>}
-                    </span>
-                  )}
-                  <span className="block">
-                    If tied at week&apos;s end, the closest combined passing yards guess wins. Your answer is locked with your picks.
-                  </span>
-                </DialogDescription>
-              );
-            })()}
+            <TiebreakerGuessDialogTitle />
+            <TiebreakerGuessDescription game={tiebreakerMatchup}>
+              <span className="block">
+                If tied at week&apos;s end, the closest combined passing yards guess wins. Your answer is locked with your picks.
+              </span>
+            </TiebreakerGuessDescription>
           </DialogHeader>
+          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} />
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="tb-passing-w">Combined passing yards — both QBs</Label>
-              <Input id="tb-passing-w" type="number" min="0" placeholder="e.g. 540" value={tbPassingYards} onChange={(e) => setTbPassingYards(e.target.value)} />
+              <TiebreakerFieldLabel>Combined Passing Yards — Tiebreaker Game</TiebreakerFieldLabel>
+              <Input
+                id="tb-passing-w"
+                type="number"
+                min="0"
+                placeholder="e.g. 540"
+                value={tbPassingYards}
+                onChange={(e) => setTbPassingYards(e.target.value)}
+                className="text-lg font-mono h-12"
+                autoFocus
+              />
             </div>
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" onClick={() => setShowTiebreaker(false)} disabled={submitting}>Back</Button>
+          <DialogFooter className="flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowTiebreaker(false)} disabled={submitting}>
+              Cancel
+            </Button>
             <Button
               onClick={handleFinalSubmit}
               disabled={submitting || !tbPassingYards}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              className="flex-1 font-bebas text-xl tracking-widest bg-cyan-600 hover:bg-cyan-500 text-white"
             >
-              {submitting ? "Submitting…" : "Lock In Picks"}
+              {submitting ? "Submitting…" : "Submit Picks"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

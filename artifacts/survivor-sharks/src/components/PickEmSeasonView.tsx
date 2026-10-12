@@ -23,6 +23,12 @@ import type {
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
+import {
+  TiebreakerFieldLabel,
+  TiebreakerGuessDescription,
+  TiebreakerGuessDialogTitle,
+  TiebreakerMatchupLogoStrip,
+} from "@/components/TiebreakerGuessDialogUi";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tabs,
@@ -1815,37 +1821,50 @@ export function PickEmSeasonView({
       <Dialog open={showTbModal} onOpenChange={(open) => { if (!open) setShowTbModal(false); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-              <Shuffle className="w-5 h-5 text-yellow-400" />
-              Tiebreaker Guess
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground leading-snug">
-              It&apos;s Week 18 — the final week of the season! In case of a tie, your tiebreaker guess decides the winner.{" "}
-              Guess <strong className="text-foreground">combined passing yards</strong> (both teams) for the last scheduled game of the week. Closest guess wins.
-            </DialogDescription>
+            <TiebreakerGuessDialogTitle />
+            <TiebreakerGuessDescription
+              game={
+                tiebreakerGame
+                  ? {
+                      awayTeam: {
+                        name: tiebreakerGame.awayTeam.name,
+                        logoUrl: tiebreakerGame.awayTeam.logoUrl,
+                      },
+                      homeTeam: {
+                        name: tiebreakerGame.homeTeam.name,
+                        logoUrl: tiebreakerGame.homeTeam.logoUrl,
+                      },
+                      startTime: tiebreakerGame.startTime,
+                    }
+                  : null
+              }
+            >
+              <span className="block">
+                It&apos;s Week 18 — the final week of the season! In case of a tie, your tiebreaker guess decides the winner.{" "}
+                Guess <strong className="text-foreground">combined passing yards</strong> (both teams) for the last scheduled game of the week. Closest guess wins.
+              </span>
+            </TiebreakerGuessDescription>
           </DialogHeader>
-          {tiebreakerGame && (
-            <div className="flex items-center justify-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 -mt-1">
-              <div className="flex items-center gap-2 min-w-0">
-                {tiebreakerGame.awayTeam.logoUrl && (
-                  <img src={tiebreakerGame.awayTeam.logoUrl} alt="" className="w-8 h-8 object-contain flex-shrink-0" />
-                )}
-                <span className="font-semibold text-sm leading-tight">{tiebreakerGame.awayTeam.name}</span>
-              </div>
-              <span className="text-xs font-bold text-muted-foreground flex-shrink-0">@</span>
-              <div className="flex items-center gap-2 min-w-0">
-                {tiebreakerGame.homeTeam.logoUrl && (
-                  <img src={tiebreakerGame.homeTeam.logoUrl} alt="" className="w-8 h-8 object-contain flex-shrink-0" />
-                )}
-                <span className="font-semibold text-sm leading-tight">{tiebreakerGame.homeTeam.name}</span>
-              </div>
-            </div>
-          )}
+          <TiebreakerMatchupLogoStrip
+            game={
+              tiebreakerGame
+                ? {
+                    awayTeam: {
+                      name: tiebreakerGame.awayTeam.name,
+                      logoUrl: tiebreakerGame.awayTeam.logoUrl,
+                    },
+                    homeTeam: {
+                      name: tiebreakerGame.homeTeam.name,
+                      logoUrl: tiebreakerGame.homeTeam.logoUrl,
+                    },
+                    startTime: tiebreakerGame.startTime,
+                  }
+                : null
+            }
+          />
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Combined Passing Yards — Tiebreaker Game
-              </label>
+              <TiebreakerFieldLabel>Combined Passing Yards — Tiebreaker Game</TiebreakerFieldLabel>
               <Input
                 type="number"
                 min={0}

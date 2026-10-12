@@ -4,7 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -15,6 +22,13 @@ import {
   useCrazyEightsPeriodResults,
 } from "@/components/CrazyEightsPeriodResults";
 import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
+import {
+  TiebreakerFieldLabel,
+  TiebreakerGuessDescription,
+  TiebreakerGuessDialogTitle,
+  TiebreakerMatchupLogoStrip,
+  type TiebreakerMatchupGame,
+} from "@/components/TiebreakerGuessDialogUi";
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -1131,16 +1145,26 @@ export function CrazyEightsView({
     selectedIds.length === MAX_PICKS &&
     !selectedIds.every((id) => confidence[id] !== undefined);
 
-  const tbGame: TiebreakerGame | null =
-    myPicksData?.tiebreakerGame ??
-    slateData?.tiebreakerGame ??
-    (games.length > 0
-      ? {
-          awayTeam: { abbreviation: games.at(-1)!.awayTeam.abbreviation, name: games.at(-1)!.awayTeam.name },
-          homeTeam: { abbreviation: games.at(-1)!.homeTeam.abbreviation, name: games.at(-1)!.homeTeam.name },
-          startTime: games.at(-1)!.startTime,
-        }
-      : null);
+  const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
+    const meta =
+      myPicksData?.tiebreakerGame ??
+      slateData?.tiebreakerGame ??
+      null;
+    const last = games.at(-1);
+    if (!meta && !last) return null;
+    const logoSource = last;
+    return {
+      awayTeam: {
+        name: meta?.awayTeam.name ?? last!.awayTeam.name,
+        logoUrl: logoSource?.awayTeam.logoUrl ?? null,
+      },
+      homeTeam: {
+        name: meta?.homeTeam.name ?? last!.homeTeam.name,
+        logoUrl: logoSource?.homeTeam.logoUrl ?? null,
+      },
+      startTime: meta?.startTime ?? last?.startTime ?? null,
+    };
+  }, [myPicksData?.tiebreakerGame, slateData?.tiebreakerGame, games]);
 
   return (
     <div className="space-y-6">
@@ -1292,48 +1316,37 @@ export function CrazyEightsView({
 
       {/* Tiebreaker dialog */}
       <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-bebas text-2xl tracking-wide">Tiebreaker</DialogTitle>
-            {(() => {
-              const gameTime = tbGame?.startTime
-                ? new Date(tbGame.startTime).toLocaleTimeString("en-US", {
-                    hour: "numeric", minute: "2-digit", timeZone: "America/New_York", hour12: true,
-                  }) + " ET"
-                : null;
-              return (
-                <DialogDescription className="space-y-1">
-                  {tbGame && (
-                    <span className="block text-sm font-semibold text-foreground">
-                      {tbGame.awayTeam.name} @ {tbGame.homeTeam.name}
-                      {gameTime && <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>}
-                    </span>
-                  )}
-                  <span className="block">
-                    In case of a tie, your answers below will be used to determine the winner. The player closest to the actual number wins. Both answers are locked with your picks.
-                  </span>
-                </DialogDescription>
-              );
-            })()}
+            <TiebreakerGuessDialogTitle />
+            <TiebreakerGuessDescription game={tiebreakerMatchup}>
+              <span className="block">
+                In case of a tie, your guess below decides the winner — closest to the actual number wins.
+                {isNhl || isNba
+                  ? " It locks in with your picks."
+                  : " Both answers lock in with your picks."}
+              </span>
+            </TiebreakerGuessDescription>
           </DialogHeader>
+          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} />
           <div className="space-y-4 py-2">
             {isNba ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tb-points">Total combined points</Label>
-                  <Input
-                    id="tb-points"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 224"
-                    value={tbPoints}
-                    onChange={(e) => setTbPoints(e.target.value)}
-                  />
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <TiebreakerFieldLabel>Combined Points — Tiebreaker Game</TiebreakerFieldLabel>
+                <Input
+                  id="tb-points"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 224"
+                  value={tbPoints}
+                  onChange={(e) => setTbPoints(e.target.value)}
+                  className="text-lg font-mono h-12"
+                  autoFocus
+                />
+              </div>
             ) : isNhl ? (
               <div className="space-y-1.5">
-                <Label htmlFor="tb-shots">Total combined shots on goal</Label>
+                <TiebreakerFieldLabel>Shots on Goal — Tiebreaker Game</TiebreakerFieldLabel>
                 <Input
                   id="tb-shots"
                   type="number"
@@ -1341,11 +1354,13 @@ export function CrazyEightsView({
                   placeholder="e.g. 58"
                   value={tbShots}
                   onChange={(e) => setTbShots(e.target.value)}
+                  className="text-lg font-mono h-12"
+                  autoFocus
                 />
               </div>
             ) : (
               <div className="space-y-1.5">
-                <Label htmlFor="tb-runs">Total combined runs scored</Label>
+                <TiebreakerFieldLabel>Runs Scored — Tiebreaker Game</TiebreakerFieldLabel>
                 <Input
                   id="tb-runs"
                   type="number"
@@ -1353,22 +1368,24 @@ export function CrazyEightsView({
                   placeholder="e.g. 9"
                   value={tbRuns}
                   onChange={(e) => setTbRuns(e.target.value)}
+                  className="text-lg font-mono h-12"
+                  autoFocus
                 />
               </div>
             )}
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" onClick={() => setShowTiebreaker(false)} disabled={submitting}>
-              Back
+          <DialogFooter className="flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowTiebreaker(false)} disabled={submitting}>
+              Cancel
             </Button>
             <Button
               onClick={handleFinalSubmit}
               disabled={submitting || (isNhl ? !tbShots : isNba ? !tbPoints : !tbRuns)}
-              className="bg-purple-600 hover:bg-purple-500 text-white"
+              className="flex-1 font-bebas text-xl tracking-widest bg-purple-600 hover:bg-purple-500 text-white"
             >
-              {submitting ? "Submitting…" : "Lock In Picks"}
+              {submitting ? "Submitting…" : "Submit Picks"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
