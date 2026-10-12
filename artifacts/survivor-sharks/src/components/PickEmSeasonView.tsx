@@ -22,7 +22,6 @@ import type {
 } from "@workspace/api-client-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { NflConfidenceSnapshot } from "@/components/NflConfidenceSnapshot";
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -76,7 +75,7 @@ import {
   ChevronRight,
   Clapperboard,
   Play,
-  Camera,
+  Radio,
 } from "lucide-react";
 import {
   Select,
@@ -1415,6 +1414,12 @@ export function PickEmSeasonView({
     setDisplayWeek(currentWeek);
   }, [currentWeek]);
 
+  useEffect(() => {
+    if (activeTab === "snapshot") {
+      handleActiveTabChange("live");
+    }
+  }, [activeTab, handleActiveTabChange]);
+
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
   const [tbPassingYards, setTbPassingYards] = useState<string>("");
   const [tbRushingYards, setTbRushingYards] = useState<string>("");
@@ -1939,14 +1944,13 @@ export function PickEmSeasonView({
                 <span className="hidden sm:inline">Weekly Grid</span>
               </TabsTrigger>
               <TabsTrigger
-                value="snapshot"
+                value="live"
                 className={cn(
                   POOL_TAB_TRIGGER_BASE,
-                  "border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400",
+                  "border border-green-500/25 bg-green-500/10 text-green-400/80 hover:border-green-500/45 hover:bg-green-500/15 hover:text-green-300 data-[state=active]:bg-green-500/15 data-[state=active]:text-green-300 data-[state=active]:border-green-500/50",
                 )}
               >
-                <span className="sm:hidden">Snap</span>
-                <span className="hidden sm:inline">Snapshot</span>
+                Live
               </TabsTrigger>
               {isCommissioner && (
                 <TabsTrigger
@@ -2329,8 +2333,22 @@ export function PickEmSeasonView({
             </div>
           </TabsContent>
 
-          <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
-            <NflConfidenceSnapshot poolId={poolId} currentWeek={currentWeek} variant="pickem_season" poolName={poolName} />
+          <TabsContent value="live" className="m-0 focus-visible:outline-none">
+            <div className="rounded-xl border border-green-500/20 bg-green-500/[0.04] px-6 py-14 text-center max-w-lg mx-auto">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500/15 border border-green-500/30 mb-4">
+                <Radio className="w-6 h-6 text-green-400" aria-hidden />
+              </div>
+              <h3 className="font-bebas text-2xl tracking-wide text-foreground">
+                Live scoreboard
+              </h3>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                A dedicated Sunday watch view — live scores, week points, and season movement in one place — is on the way.
+                Use <span className="text-foreground/90 font-medium">Weekly Grid</span> for this week&apos;s pick sheet until then.
+              </p>
+              <p className="text-xs text-muted-foreground/50 mt-4">
+                PDF export will return here once the layout is redesigned.
+              </p>
+            </div>
           </TabsContent>
 
           {/* ── Commissioner ── */}
