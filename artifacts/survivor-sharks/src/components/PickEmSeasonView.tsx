@@ -85,7 +85,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
-import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
+import { NflPickEmSeasonLiveBoardMock } from "@/components/NflPickEmSeasonLiveBoardMock";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
@@ -2331,9 +2331,9 @@ export function PickEmSeasonView({
           </TabsContent>
 
           <TabsContent value="live" className="m-0 focus-visible:outline-none">
-            <PoolLivePlaceholder
-              gridTabLabel="Weekly Grid"
-              lead="A dedicated Sunday watch view — live scores, week points, and season movement in one place — is on the way."
+            <NflPickEmSeasonLiveBoardMock
+              week={currentWeek}
+              currentUserId={user?.id ?? null}
             />
           </TabsContent>
 
