@@ -55,6 +55,8 @@ import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
+import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
+import type { PickEmLiveGame } from "@/lib/pickEmLivePickCell";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
@@ -2260,14 +2262,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   });
 
   const periodLeaderboardParams = activePeriodStart ? { periodStart: activePeriodStart } : undefined;
-  const { data: leaderboardDefault, isLoading: lbLoadingDefault } = useGetPickEmLeaderboard(poolId, undefined, {
+  const {
+    data: leaderboardDefault,
+    isLoading: lbLoadingDefault,
+    dataUpdatedAt: lbUpdatedDefault,
+    isFetching: lbFetchingDefault,
+  } = useGetPickEmLeaderboard(poolId, undefined, {
     query: {
       queryKey: getGetPickEmLeaderboardQueryKey(poolId),
       enabled: !isWeeklyPeriodHistory,
       refetchInterval: () => pickRefetchInterval(slate),
     },
   });
-  const { data: leaderboardPeriod, isLoading: lbLoadingPeriod } = useQuery({
+  const {
+    data: leaderboardPeriod,
+    isLoading: lbLoadingPeriod,
+    dataUpdatedAt: lbUpdatedPeriod,
+    isFetching: lbFetchingPeriod,
+  } = useQuery({
     queryKey: getGetPickEmLeaderboardQueryKey(poolId, periodLeaderboardParams),
     queryFn: () => authedFetch<PickEmLeaderboard>(
       `/api/pools/${poolId}/pickem/leaderboard${activePeriodStart ? `?periodStart=${encodeURIComponent(activePeriodStart)}` : ""}`,
@@ -2277,6 +2289,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   });
   const leaderboard = isWeeklyPeriodHistory ? leaderboardPeriod : leaderboardDefault;
   const lbLoading = isWeeklyPeriodHistory ? lbLoadingPeriod : lbLoadingDefault;
+  const lbDataUpdatedAt = isWeeklyPeriodHistory ? lbUpdatedPeriod : lbUpdatedDefault;
+  const lbFetching = isWeeklyPeriodHistory ? lbFetchingPeriod : lbFetchingDefault;
 
   const submitPicks = useSubmitPickEmPicks();
 
@@ -2377,6 +2391,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       }))
     : [];
   const nhlWeeklyAllGames = nhlWeeklyDays.flatMap((d) => d.games);
+
+  const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
+    if (!isNhlWeekly || !leaderboard?.games?.length) return [];
+    const detailById = new Map(nhlWeeklyAllGames.map((g) => [g.id, g]));
+    return leaderboard.games.map((lg) => {
+      const d = detailById.get(lg.id);
+      return {
+        id: lg.id,
+        startTime: lg.startTime,
+        status: d?.status ?? lg.status,
+        liveDetail: d?.liveDetail ?? null,
+        awayScore: d?.awayScore ?? null,
+        homeScore: d?.homeScore ?? null,
+        awayTeam: { id: lg.awayTeam.id, abbreviation: lg.awayTeam.abbreviation },
+        homeTeam: { id: lg.homeTeam.id, abbreviation: lg.homeTeam.abbreviation },
+      };
+    });
+  }, [isNhlWeekly, leaderboard?.games, nhlWeeklyAllGames]);
 
   // MLS weekly combined view — derive typed day/game arrays from the week-games response.
   const mlsWeeklyDays: MlsWeekGames["days"] = isMlsWeekly ? (mlsWeekData?.days ?? []) : [];
@@ -4174,7 +4206,20 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
         {!isWc && (
           <TabsContent value="live" className="m-0 focus-visible:outline-none">
-            <PoolLivePlaceholder gridTabLabel={pickEmGridTabLabel} />
+            {isNhlWeekly ? (
+              <PickEmLiveBoard
+                periodLabel={isNhlWeeklyRecurring ? "Weekend" : `Week ${leaderboard?.week ?? ""}`}
+                games={nhlLiveBoardGames}
+                entries={leaderboard?.entries ?? []}
+                currentUserId={user?.id ?? null}
+                accent="nhl"
+                isLoading={lbLoading}
+                dataUpdatedAt={lbDataUpdatedAt}
+                isFetching={lbFetching}
+              />
+            ) : (
+              <PoolLivePlaceholder gridTabLabel={pickEmGridTabLabel} />
+            )}
           </TabsContent>
         )}
 
