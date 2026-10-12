@@ -22,7 +22,15 @@ const GAME_COL_MIN = 52;
 const STICKY_PLAYER_W = 108;
 const STICKY_BG = "bg-[#0c1210]";
 
-function PickCell({ state, abbr }: { state: LivePickCellState; abbr: string | null }) {
+function PickCell({
+  state,
+  abbr,
+  spreadLabel,
+}: {
+  state: LivePickCellState;
+  abbr: string | null;
+  spreadLabel: string | null;
+}) {
   if (state === "hidden" || !abbr) {
     return <span className="text-white/15 text-xs font-mono">—</span>;
   }
@@ -41,38 +49,31 @@ function PickCell({ state, abbr }: { state: LivePickCellState; abbr: string | nu
   return (
     <span
       className={cn(
-        "inline-flex min-w-[40px] items-center justify-center rounded px-1 py-0.5 font-mono text-[10px] font-bold tracking-tight border",
+        "inline-flex flex-col items-center justify-center gap-0 rounded px-1 py-0.5 font-mono font-bold tracking-tight border leading-none",
+        spreadLabel ? "min-w-[44px] text-[9px]" : "min-w-[40px] text-[10px]",
         styles[state],
       )}
     >
-      {abbr}
+      <span>{abbr}</span>
+      {spreadLabel && (
+        <span className="text-[8px] tabular-nums opacity-95 mt-0.5">{spreadLabel}</span>
+      )}
     </span>
   );
 }
 
-function GameHeader({
-  game,
-  showSpread,
-}: {
-  game: NflPickEmSeasonGame;
-  showSpread: boolean;
-}) {
+function GameHeader({ game }: { game: NflPickEmSeasonGame }) {
   const live = game.status === "in_progress";
   const final = game.status === "final";
   const score =
     game.awayScore != null && game.homeScore != null
       ? `${game.awayScore}–${game.homeScore}`
       : "—";
-  const awaySpread =
-    showSpread ? nflAtsSpreadLabelForTeam(game.awayTeam.id, game) : null;
-  const homeSpread =
-    showSpread ? nflAtsSpreadLabelForTeam(game.homeTeam.id, game) : null;
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-0.5 py-1.5 px-0.5",
-        showSpread ? "min-w-[58px]" : "min-w-[52px]",
+        "flex flex-col items-center gap-0.5 py-1.5 px-0.5 min-w-[52px]",
         live && "relative",
       )}
     >
@@ -80,23 +81,9 @@ function GameHeader({
         <span className="absolute inset-x-1 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
       )}
       <div className="text-[9px] font-semibold text-white/45 whitespace-nowrap leading-tight text-center">
-        <span className="inline-flex items-baseline gap-px">
-          <span>{game.awayTeam.abbreviation}</span>
-          {awaySpread && (
-            <span className="font-mono text-[7px] font-bold text-amber-400/95 tabular-nums">
-              {awaySpread}
-            </span>
-          )}
-        </span>
+        <span>{game.awayTeam.abbreviation}</span>
         <span className="text-white/25 mx-0.5">@</span>
-        <span className="inline-flex items-baseline gap-px">
-          <span>{game.homeTeam.abbreviation}</span>
-          {homeSpread && (
-            <span className="font-mono text-[7px] font-bold text-amber-400/95 tabular-nums">
-              {homeSpread}
-            </span>
-          )}
-        </span>
+        <span>{game.homeTeam.abbreviation}</span>
       </div>
       <span
         className={cn(
@@ -306,12 +293,7 @@ export function NflPickEmSeasonLiveBoard({
       >
         <table
           className="w-full border-collapse text-sm"
-          style={{
-            minWidth:
-              STICKY_PLAYER_W +
-              games.length * (scoringMode === "ats" ? 58 : GAME_COL_MIN) +
-              56,
-          }}
+          style={{ minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 }}
         >
           <thead className={cn("z-20", STICKY_BG)}>
             <tr className="border-b border-white/[0.08]">
@@ -325,7 +307,7 @@ export function NflPickEmSeasonLiveBoard({
               </th>
               {games.map((game) => (
                 <th key={game.id} className="align-bottom font-normal">
-                  <GameHeader game={game} showSpread={scoringMode === "ats"} />
+                  <GameHeader game={game} />
                 </th>
               ))}
               <th
@@ -401,9 +383,15 @@ export function NflPickEmSeasonLiveBoard({
                       game,
                       scoringMode,
                     );
+                    const spreadLabel =
+                      scoringMode === "ats" &&
+                      pick?.pickedTeamId &&
+                      state !== "hidden"
+                        ? nflAtsSpreadLabelForTeam(pick.pickedTeamId, game)
+                        : null;
                     return (
                       <td key={game.id} className="py-1.5 px-0.5 text-center align-middle">
-                        <PickCell state={state} abbr={abbr} />
+                        <PickCell state={state} abbr={abbr} spreadLabel={spreadLabel} />
                       </td>
                     );
                   })}
