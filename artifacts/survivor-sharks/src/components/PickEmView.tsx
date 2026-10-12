@@ -2424,24 +2424,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     });
   }, [isNhlWeekly, leaderboard?.games, nhlWeeklyAllGames]);
 
-  const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
-    if (!isNhlWeekly || !leaderboard?.games?.length) return [];
-    const detailById = new Map(nhlWeeklyAllGames.map((g) => [g.id, g]));
-    return leaderboard.games.map((lg) => {
-      const d = detailById.get(lg.id);
-      return {
-        id: lg.id,
-        startTime: lg.startTime,
-        status: d?.status ?? lg.status,
-        liveDetail: d?.liveDetail ?? null,
-        awayScore: d?.awayScore ?? null,
-        homeScore: d?.homeScore ?? null,
-        awayTeam: { id: lg.awayTeam.id, abbreviation: lg.awayTeam.abbreviation },
-        homeTeam: { id: lg.homeTeam.id, abbreviation: lg.homeTeam.abbreviation },
-      };
-    });
-  }, [isNhlWeekly, leaderboard?.games, nhlWeeklyAllGames]);
-
   // MLS weekly combined view — derive typed day/game arrays from the week-games response.
   const mlsWeeklyDays: MlsWeekGames["days"] = isMlsWeekly ? (mlsWeekData?.days ?? []) : [];
   const mlsWeeklyAllGames = mlsWeeklyDays.flatMap((d) => d.games);

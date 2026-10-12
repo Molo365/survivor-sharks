@@ -354,7 +354,7 @@ export function NflConfidenceSnapshot({
                           const team = isAway ? g.awayTeam : g.homeTeam;
                           const logoUrl = pick.pickedTeamLogoUrl ?? team.logoUrl;
                           const spreadLabel =
-                            variant === "pickem_season"
+                            variant === "pickem_season" && pick.pickedTeamId
                               ? nflAtsSpreadLabelForTeam(pick.pickedTeamId, g)
                               : null;
 
