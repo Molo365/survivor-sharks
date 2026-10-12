@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
-import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
+import { CrazyEightsLiveBoard } from "@/components/CrazyEightsLiveBoard";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
@@ -177,8 +177,13 @@ export function CrazyEightsPoolTabs({
             />
           </TabsContent>
           <TabsContent value="live" className="m-0 focus-visible:outline-none">
-            <PoolLivePlaceholder
-              gridTabLabel={pool.sport === "nhl" ? "Weekend Grid" : "Daily Grid"}
+            <CrazyEightsLiveBoard
+              poolId={pool.id}
+              sport={pool.sport}
+              sandboxMode={sandboxMode}
+              periodStart={isPeriodHistory ? activePeriodStart : undefined}
+              usePeriodSelector={isPeriodHistory}
+              currentUserId={userId ?? null}
             />
           </TabsContent>
           {isCommissioner && (
