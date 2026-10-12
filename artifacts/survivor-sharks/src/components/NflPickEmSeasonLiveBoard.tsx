@@ -16,6 +16,7 @@ import {
   resolveNflPickEmLivePickCellState,
   type LivePickCellState,
 } from "@/lib/nflPickEmLivePickCell";
+import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 const GAME_COL_MIN = 52;
 const STICKY_PLAYER_W = 108;
@@ -49,28 +50,53 @@ function PickCell({ state, abbr }: { state: LivePickCellState; abbr: string | nu
   );
 }
 
-function GameHeader({ game }: { game: NflPickEmSeasonGame }) {
+function GameHeader({
+  game,
+  showSpread,
+}: {
+  game: NflPickEmSeasonGame;
+  showSpread: boolean;
+}) {
   const live = game.status === "in_progress";
   const final = game.status === "final";
   const score =
     game.awayScore != null && game.homeScore != null
       ? `${game.awayScore}–${game.homeScore}`
       : "—";
+  const awaySpread =
+    showSpread ? nflAtsSpreadLabelForTeam(game.awayTeam.id, game) : null;
+  const homeSpread =
+    showSpread ? nflAtsSpreadLabelForTeam(game.homeTeam.id, game) : null;
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-0.5 py-1.5 px-0.5 min-w-[52px]",
+        "flex flex-col items-center gap-0.5 py-1.5 px-0.5",
+        showSpread ? "min-w-[58px]" : "min-w-[52px]",
         live && "relative",
       )}
     >
       {live && (
         <span className="absolute inset-x-1 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
       )}
-      <div className="text-[9px] font-semibold text-white/45 whitespace-nowrap leading-tight">
-        <span>{game.awayTeam.abbreviation}</span>
+      <div className="text-[9px] font-semibold text-white/45 whitespace-nowrap leading-tight text-center">
+        <span className="inline-flex items-baseline gap-px">
+          <span>{game.awayTeam.abbreviation}</span>
+          {awaySpread && (
+            <span className="font-mono text-[7px] font-bold text-amber-400/95 tabular-nums">
+              {awaySpread}
+            </span>
+          )}
+        </span>
         <span className="text-white/25 mx-0.5">@</span>
-        <span>{game.homeTeam.abbreviation}</span>
+        <span className="inline-flex items-baseline gap-px">
+          <span>{game.homeTeam.abbreviation}</span>
+          {homeSpread && (
+            <span className="font-mono text-[7px] font-bold text-amber-400/95 tabular-nums">
+              {homeSpread}
+            </span>
+          )}
+        </span>
       </div>
       <span
         className={cn(
@@ -280,7 +306,12 @@ export function NflPickEmSeasonLiveBoard({
       >
         <table
           className="w-full border-collapse text-sm"
-          style={{ minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 }}
+          style={{
+            minWidth:
+              STICKY_PLAYER_W +
+              games.length * (scoringMode === "ats" ? 58 : GAME_COL_MIN) +
+              56,
+          }}
         >
           <thead className={cn("z-20", STICKY_BG)}>
             <tr className="border-b border-white/[0.08]">
@@ -294,7 +325,7 @@ export function NflPickEmSeasonLiveBoard({
               </th>
               {games.map((game) => (
                 <th key={game.id} className="align-bottom font-normal">
-                  <GameHeader game={game} />
+                  <GameHeader game={game} showSpread={scoringMode === "ats"} />
                 </th>
               ))}
               <th
