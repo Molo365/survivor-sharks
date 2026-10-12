@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
+import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { CrazyEightsView } from "@/components/CrazyEightsView";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import { CrazyEightsLeaderboard } from "@/components/CrazyEightsLeaderboard";
-import { CrazyEightsSnapshotView } from "@/components/CrazyEightsSnapshotView";
 import { CommissionerPanel } from "@/components/CommissionerPanel";
 import { PickPeriodBar, type PickPeriodListResponse } from "@/components/PickPeriodBar";
 
@@ -114,14 +114,10 @@ export function CrazyEightsPoolTabs({
               </span>
             </TabsTrigger>
             <TabsTrigger
-              value="snapshot"
-              className={cn(
-                POOL_TAB_TRIGGER_BASE,
-                "border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400",
-              )}
+              value="live"
+              className={cn(POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE)}
             >
-              <span className="sm:hidden">Snap</span>
-              <span className="hidden sm:inline">Snapshot</span>
+              Live
             </TabsTrigger>
             {isCommissioner && (
               <TabsTrigger
@@ -180,14 +176,9 @@ export function CrazyEightsPoolTabs({
               usePeriodSelector={isPeriodHistory}
             />
           </TabsContent>
-          <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
-            <CrazyEightsSnapshotView
-              poolId={pool.id}
-              currentUserId={userId ?? null}
-              poolName={pool.name}
-              sport={pool.sport}
-              sandboxMode={sandboxMode}
-              periodStart={isPeriodHistory ? activePeriodStart : undefined}
+          <TabsContent value="live" className="m-0 focus-visible:outline-none">
+            <PoolLivePlaceholder
+              gridTabLabel={pool.sport === "nhl" ? "Weekend Grid" : "Daily Grid"}
             />
           </TabsContent>
           {isCommissioner && (

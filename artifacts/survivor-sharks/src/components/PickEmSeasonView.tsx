@@ -75,7 +75,6 @@ import {
   ChevronRight,
   Clapperboard,
   Play,
-  Radio,
 } from "lucide-react";
 import {
   Select,
@@ -85,7 +84,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
+import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
@@ -1945,10 +1945,7 @@ export function PickEmSeasonView({
               </TabsTrigger>
               <TabsTrigger
                 value="live"
-                className={cn(
-                  POOL_TAB_TRIGGER_BASE,
-                  "border border-green-500/25 bg-green-500/10 text-green-400/80 hover:border-green-500/45 hover:bg-green-500/15 hover:text-green-300 data-[state=active]:bg-green-500/15 data-[state=active]:text-green-300 data-[state=active]:border-green-500/50",
-                )}
+                className={cn(POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE)}
               >
                 Live
               </TabsTrigger>
@@ -2334,21 +2331,10 @@ export function PickEmSeasonView({
           </TabsContent>
 
           <TabsContent value="live" className="m-0 focus-visible:outline-none">
-            <div className="rounded-xl border border-green-500/20 bg-green-500/[0.04] px-6 py-14 text-center max-w-lg mx-auto">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500/15 border border-green-500/30 mb-4">
-                <Radio className="w-6 h-6 text-green-400" aria-hidden />
-              </div>
-              <h3 className="font-bebas text-2xl tracking-wide text-foreground">
-                Live scoreboard
-              </h3>
-              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                A dedicated Sunday watch view — live scores, week points, and season movement in one place — is on the way.
-                Use <span className="text-foreground/90 font-medium">Weekly Grid</span> for this week&apos;s pick sheet until then.
-              </p>
-              <p className="text-xs text-muted-foreground/50 mt-4">
-                PDF export will return here once the layout is redesigned.
-              </p>
-            </div>
+            <PoolLivePlaceholder
+              gridTabLabel="Weekly Grid"
+              lead="A dedicated Sunday watch view — live scores, week points, and season movement in one place — is on the way."
+            />
           </TabsContent>
 
           {/* ── Commissioner ── */}
