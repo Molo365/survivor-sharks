@@ -47,14 +47,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CrazyEightsPeriodResults, useNbaAtsPeriodResults } from "@/components/CrazyEightsPeriodResults";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Download, Camera, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
+import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
 import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
-import { downloadGridPdf } from "@/lib/downloadGridPdf";
-import { formatPickEmPickExport, getVisiblePickEmPick } from "@/lib/pickReveal";
+import { getVisiblePickEmPick } from "@/lib/pickReveal";
+import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import { AtsGameCard } from "@/components/AtsGameCard";
 import { AtsCommissionerSpreads } from "@/components/AtsCommissionerSpreads";
@@ -1023,349 +1023,6 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-// ── Snapshot (post-lock pick accountability table) ───────────────────────────
-
-interface SnapshotViewProps {
-  slate: PickEmSlate;
-  entries: PickEmLeaderboardEntry[];
-  lbGames: PickEmLeaderboardGame[];
-  currentUserId: number | null;
-  poolName: string;
-  sport?: string;
-  showHomeAwayLabels?: boolean;
-  sandboxMode?: boolean;
-}
-
-function SnapshotView({
-  slate,
-  entries,
-  lbGames,
-  currentUserId,
-  poolName,
-  sport = "mlb",
-  showHomeAwayLabels = false,
-  sandboxMode = false,
-}: SnapshotViewProps) {
-  const slateGameIds = new Set(slate.games.map((g) => g.id));
-  const gameStartById = useMemo(
-    () => new Map(lbGames.map((g) => [g.id, g.startTime])),
-    [lbGames],
-  );
-
-  // Merge slate game order + team IDs with leaderboard logo URLs
-  const snapshotGames = useMemo(() => {
-    const lbGameById = new Map(lbGames.map((g) => [g.id, g]));
-    return slate.games.map((sg) => ({
-      id: sg.id,
-      awayTeam: {
-        id: sg.awayTeam.id,
-        abbreviation: sg.awayTeam.abbreviation,
-        logoUrl: lbGameById.get(sg.id)?.awayTeam.logoUrl ?? sg.awayTeam.logoUrl ?? null,
-      },
-      homeTeam: {
-        id: sg.homeTeam.id,
-        abbreviation: sg.homeTeam.abbreviation,
-        logoUrl: lbGameById.get(sg.id)?.homeTeam.logoUrl ?? sg.homeTeam.logoUrl ?? null,
-      },
-    }));
-  }, [slate.games, lbGames]);
-
-  const sortedEntries = useMemo(
-    () => [...entries].sort((a, b) => a.rank - b.rank),
-    [entries],
-  );
-
-  function handleDownloadPdf() {
-    const year = slate.date.substring(0, 4);
-    const sportLabel = sport.toUpperCase().replace("WORLDCUP", "WORLD CUP").replace("INTL", "INTL SOCCER");
-    const gameColHeaders = snapshotGames.map((g) =>
-      showHomeAwayLabels
-        ? `AWAY ${g.awayTeam.abbreviation} @ HOME ${g.homeTeam.abbreviation}`
-        : `${g.awayTeam.abbreviation}@${g.homeTeam.abbreviation}`,
-    );
-    const pdfRows = sortedEntries.map((entry) => {
-      const name = `${entry.rank}. ${entry.displayName || entry.username}`;
-      const pickMap = new Map(
-        entry.picks.filter((p) => slateGameIds.has(p.gameId)).map((p) => [p.gameId, p]),
-      );
-      const visiblePicksForGame = (gameId: string) =>
-        getVisiblePickEmPick(pickMap.get(gameId), {
-          entryUserId: entry.userId,
-          currentUserId,
-          gameStartTime: gameStartById.get(gameId),
-          sandboxMode,
-        });
-      const todayCorrect = snapshotGames.filter((g) => visiblePicksForGame(g.id)?.result === "correct").length;
-      const todayPicked = snapshotGames.filter((g) => visiblePicksForGame(g.id)).length;
-      const pct = todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
-      const pickCells = snapshotGames.map((g) => {
-        const pick = visiblePicksForGame(g.id);
-        if (!pick) return "—";
-        return formatPickEmPickExport(pick, g, { includeResultSuffix: true });
-      });
-      const total = pct !== null ? `${todayCorrect}/${todayPicked} (${pct}%)` : "0/0";
-      return { cells: [name, ...pickCells, total], isCurrentUser: entry.userId === currentUserId };
-    });
-    downloadGridPdf({
-      filename: `${poolName.replace(/\s+/g, "_")}_snapshot_${slate.date}.pdf`,
-      poolName,
-      sport: `${sportLabel} · Season ${year}`,
-      subtitle: `${entries.length} player${entries.length !== 1 ? "s" : ""} · ${snapshotGames.length} game${snapshotGames.length !== 1 ? "s" : ""} · ${slate.label}`,
-      columns: ["Player", ...gameColHeaders, "Total"],
-      rows: pdfRows,
-      footer: `Snapshot · ${slate.date}`,
-    });
-  }
-
-  const minWidth = Math.max(400, 220 + snapshotGames.length * 72);
-
-  return (
-    <div className="space-y-3">
-      {/* Header row with PDF button */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h3 className="font-bebas text-2xl tracking-wide text-foreground">Pick Snapshot</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {slate.label} · {entries.length} player{entries.length !== 1 ? "s" : ""} · {snapshotGames.length} game{snapshotGames.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadPdf}
-            className="font-bebas text-base tracking-wider gap-1.5"
-          >
-            <Download className="w-4 h-4" /> Download PDF
-          </Button>
-        </div>
-      </div>
-
-      {/* Grid — identical structure to PicksGrid, filtered to today's slate */}
-      <div className="rounded-xl border border-border/40 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table
-            className="w-full text-sm border-separate border-spacing-0"
-            style={{ minWidth: `${minWidth}px` }}
-          >
-            {/* Game column headers — away @ home abbreviation */}
-            <thead>
-              <tr className="bg-muted/[0.05]">
-                <th className="sticky left-0 z-10 bg-muted/[0.05] px-3 py-2 border-b border-border/30 border-r border-border/20" />
-                {snapshotGames.map((game) => (
-                  <th
-                    key={game.id}
-                    className="px-1 py-2 text-center border-b border-border/30 font-mono text-[10px] font-medium text-muted-foreground/60 whitespace-nowrap"
-                    style={{ width: 72 }}
-                  >
-                    {showHomeAwayLabels ? (
-                      <span className="flex flex-col items-center gap-0.5">
-                        <span className="flex items-center gap-1">
-                          <HomeAwayBadge side="AWAY" />
-                          {game.awayTeam.abbreviation}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <HomeAwayBadge side="HOME" />
-                          {game.homeTeam.abbreviation}
-                        </span>
-                      </span>
-                    ) : (
-                      `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
-                    )}
-                  </th>
-                ))}
-                <th className="px-3 py-2 text-right border-b border-border/30 font-bebas text-xs text-muted-foreground/40 whitespace-nowrap">
-                  Total
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {sortedEntries.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={snapshotGames.length + 2}
-                    className="text-center py-10 text-sm text-muted-foreground"
-                  >
-                    No picks recorded yet.
-                  </td>
-                </tr>
-              ) : (
-                sortedEntries.map((entry, idx) => {
-                  const isMe = entry.userId === currentUserId;
-                  const pickMap = new Map(
-                    entry.picks
-                      .filter((p) => slateGameIds.has(p.gameId))
-                      .map((p) => [p.gameId, p]),
-                  );
-                  const visibleFor = (gameId: string) =>
-                    getVisiblePickEmPick(pickMap.get(gameId), {
-                      entryUserId: entry.userId,
-                      currentUserId,
-                      gameStartTime: gameStartById.get(gameId),
-                      sandboxMode,
-                    });
-                  const todayCorrect = snapshotGames.filter(
-                    (g) => visibleFor(g.id)?.result === "correct",
-                  ).length;
-                  const todayPicked = snapshotGames.filter((g) => visibleFor(g.id)).length;
-                  const pct =
-                    todayPicked > 0 ? Math.round((todayCorrect / todayPicked) * 100) : null;
-
-                  return (
-                    <tr
-                      key={entry.userId}
-                      className={cn(
-                        idx < entries.length - 1 && "[&>td]:border-b-2 [&>td]:border-white/20",
-                        isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
-                      )}
-                    >
-                      {/* Sticky player info — identical to PicksGrid */}
-                      <td
-                        className={cn(
-                          "sticky left-0 z-10 px-3 py-2.5 border-r border-border/30 bg-card",
-                          isMe && "ring-inset ring-1 ring-primary/20",
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              "font-bebas text-base w-5 shrink-0",
-                              entry.rank === 1 ? "text-yellow-400"
-                              : entry.rank === 2 ? "text-zinc-300"
-                              : entry.rank === 3 ? "text-amber-600"
-                              : "text-muted-foreground/40",
-                            )}
-                          >
-                            {entry.rank}
-                          </span>
-                          <span
-                            className={cn(
-                              "font-medium text-sm truncate max-w-[110px]",
-                              isMe ? "text-primary" : "text-foreground",
-                            )}
-                          >
-                            <MemberNameButton
-                              userId={entry.userId}
-                              sheetExtras={{ rank: entry.rank, subtitle: `${entry.correct}/${entry.picked} correct` }}
-                              className={cn("inline truncate max-w-full", isMe ? "text-primary" : "text-foreground")}
-                              asChildWrapper
-                            >
-                              {entry.displayName || entry.username}
-                            </MemberNameButton>
-                            {isMe && (
-                              <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
-                                you
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Per-game pick cells — matches PicksGrid non-WC, adds PPD amber */}
-                      {snapshotGames.map((game) => {
-                        const pick = getVisiblePickEmPick(pickMap.get(game.id), {
-                          entryUserId: entry.userId,
-                          currentUserId,
-                          gameStartTime: gameStartById.get(game.id),
-                          sandboxMode,
-                        });
-                        if (!pick) {
-                          return (
-                            <td key={game.id} className="px-1 py-2 text-center">
-                              <span className="text-muted-foreground/20 text-xs">—</span>
-                            </td>
-                          );
-                        }
-                        const isAway = pick.pickedTeamId === game.awayTeam.id;
-                        const isDraw = pick.pickedTeamId === "draw";
-                        const team = pick.pickedTeamId === "away_win" || isAway
-                          ? game.awayTeam
-                          : game.homeTeam;
-
-                        return (
-                          <td key={game.id} className="px-1 py-2 text-center">
-                            <div
-                              className={cn(
-                                "inline-flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 border text-center min-w-[52px]",
-                                pick.result === "correct"
-                                  ? "border-green-500/40 bg-green-500/10"
-                                  : pick.result === "incorrect"
-                                  ? "border-red-500/40 bg-red-500/10"
-                                  : pick.result === "push"
-                                  ? "border-muted-foreground/25 bg-muted/10"
-                                  : pick.result === "postponed"
-                                  ? "border-yellow-500/40 bg-yellow-500/10"
-                                  : "border-border/30 bg-muted/10",
-                              )}
-                            >
-                              {!isDraw && team.logoUrl && (
-                                  <div className="rounded-full bg-white/90 p-0.5 shrink-0">
-                                    <img
-                                      src={team.logoUrl}
-                                      alt={team.abbreviation}
-                                      className="w-4 h-4 object-contain"
-                                    />
-                                  </div>
-                                )}
-                              <span
-                                className={cn(
-                                  "font-bebas text-[11px] tracking-wide leading-none",
-                                  pick.result === "correct" ? "text-green-400"
-                                  : pick.result === "incorrect" ? "text-red-400"
-                                  : pick.result === "push" ? "text-muted-foreground/60"
-                                  : pick.result === "postponed" ? "text-yellow-400"
-                                  : "text-muted-foreground/70",
-                                )}
-                              >
-                                {isDraw ? "DRAW" : team.abbreviation}
-                              </span>
-                              {pick.result === "correct" && (
-                                <Check className="w-2.5 h-2.5 text-green-400" />
-                              )}
-                              {pick.result === "incorrect" && (
-                                <X className="w-2.5 h-2.5 text-red-400" />
-                              )}
-                              {pick.result === "push" && (
-                                <span className="text-[8px] font-bold tracking-widest text-muted-foreground/50 leading-none">
-                                  TIE
-                                </span>
-                              )}
-                              {pick.result === "postponed" && (
-                                <span className="text-[8px] font-bold tracking-widest text-yellow-400 leading-none">
-                                  PPD
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-
-                      {/* Total — matches PicksGrid score summary column */}
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                        <span className="font-bebas text-lg text-green-400">{todayCorrect}</span>
-                        <span className="font-bebas text-lg text-muted-foreground/40">
-                          /{todayPicked}
-                        </span>
-                        {pct !== null && (
-                          <span className="ml-1.5 font-mono text-[10px] text-primary/50">{pct}%</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <p className="text-[10px] text-muted-foreground/40 text-center">
-        Frozen at lock time · Scroll right to see all games · Results update automatically
-      </p>
-    </div>
-  );
-}
 
 // ── Weekly Leaderboard ────────────────────────────────────────────────────────
 
@@ -3111,51 +2768,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const mlsWeeklyEmpty = isMlsWeekly && !mlsWeeklyLoading && mlsWeeklyAllGames.length === 0;
   const mlsWeeklyPoolClosed = isMlsWeekly && ((mlsWeekData as any)?.poolClosed ?? false);
 
-  // Weekly soccer (MLS / Super League / Champions League) uses week-games, not GET /games?date=today.
-  const weeklySnapshotSlate = useMemo((): PickEmSlate | null => {
-    if (!isMlsWeekly || mlsWeeklyAllGames.length === 0) return null;
-    const weekStart = mlsWeekData?.weekStart ?? mlsWeeklyDays[0]?.date ?? todayEt;
-    const weekEnd = mlsWeekData?.weekEnd ?? mlsWeeklyDays.at(-1)?.date ?? weekStart;
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      month: "short",
-      day: "numeric",
-    });
-    const rangeLabel = `${fmt.format(new Date(`${weekStart}T12:00:00Z`))} – ${fmt.format(new Date(`${weekEnd}T12:00:00Z`))}`;
-    const phaseLabel = (mlsWeekData as { phase?: { label?: string; legLabel?: string | null } })?.phase?.label;
-    const legLabel = (mlsWeekData as { phase?: { legLabel?: string | null } })?.phase?.legLabel;
-    const clTitle = phaseLabel
-      ? `${phaseLabel}${legLabel ? ` · ${legLabel}` : ""} (${rangeLabel})`
-      : rangeLabel;
-    return {
-      date: weekStart,
-      label: sport === "championsleague" ? clTitle : rangeLabel,
-      deadlinePassed: slateLocked,
-      sport,
-      games: mlsWeeklyAllGames,
-    };
-  }, [isMlsWeekly, mlsWeekData, mlsWeeklyAllGames, mlsWeeklyDays, todayEt, sport, slateLocked]);
-
-  const nhlWeeklySnapshotSlate = useMemo((): PickEmSlate | null => {
-    if (!isNhlWeekly || nhlWeeklyAllGames.length === 0) return null;
-    const weekStart = scheduleData?.days?.[0]?.date ?? satDate ?? todayEt;
-    const weekEnd = scheduleData?.days?.at(-1)?.date ?? sunDate ?? weekStart;
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      month: "short",
-      day: "numeric",
-    });
-    const rangeLabel = `${fmt.format(new Date(`${weekStart}T12:00:00Z`))} – ${fmt.format(new Date(`${weekEnd}T12:00:00Z`))}`;
-    return {
-      date: weekStart,
-      label: rangeLabel,
-      deadlinePassed: slateLocked,
-      sport,
-      games: nhlWeeklyAllGames,
-    };
-  }, [isNhlWeekly, nhlWeeklyAllGames, scheduleData?.days, satDate, sunDate, todayEt, sport, slateLocked]);
-
-  const snapshotSlate = isMlsWeekly ? weeklySnapshotSlate : isNhlWeekly ? nhlWeeklySnapshotSlate : slate;
+  const pickEmGridTabLabel = is3way ? "Pick Grid" : isNhlWeekly ? "Weekend Grid" : "Daily Grid";
 
   return (
     <>
@@ -3353,18 +2966,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             )}
           >
             <span className="sm:hidden">Grid</span>
-            <span className="hidden sm:inline">{is3way ? "Pick Grid" : "Daily Grid"}</span>
+            <span className="hidden sm:inline">{pickEmGridTabLabel}</span>
           </TabsTrigger>
-          {!isWc && (myPickCount > 0 || slateLocked) && (leaderboard?.entries.length ?? 0) > 0 && (
+          {!isWc && (
             <TabsTrigger
-              value="snapshot"
-              className={cn(
-                POOL_TAB_TRIGGER_BASE,
-                "border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/70 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 data-[state=active]:bg-yellow-500/10 data-[state=active]:text-yellow-400",
-              )}
+              value="live"
+              className={cn(POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE)}
             >
-              <span className="sm:hidden">Snap</span>
-              <span className="hidden sm:inline">Snapshot</span>
+              Live
             </TabsTrigger>
           )}
           {isCommissioner && (
@@ -4563,19 +4172,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           )}
         </TabsContent>
 
-        {/* ── Snapshot ── */}
-        {!isWc && (myPickCount > 0 || slateLocked) && snapshotSlate && leaderboard && (
-          <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
-            <SnapshotView
-              slate={snapshotSlate}
-              entries={leaderboard.entries}
-              lbGames={leaderboard.games}
-              currentUserId={user?.id ?? null}
-              poolName={poolName}
-              sport={sport}
-              showHomeAwayLabels={showSoccerHomeAwayLabels}
-              sandboxMode={poolDetail?.sandboxMode ?? false}
-            />
+        {!isWc && (
+          <TabsContent value="live" className="m-0 focus-visible:outline-none">
+            <PoolLivePlaceholder gridTabLabel={pickEmGridTabLabel} />
           </TabsContent>
         )}
 

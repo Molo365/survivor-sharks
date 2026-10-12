@@ -5,3 +5,7 @@ export const POOL_TABS_LIST_CLASS =
 /** Text-only triggers: large labels on mobile (no icons), desktop unchanged. */
 export const POOL_TAB_TRIGGER_BASE =
   "inline-flex min-h-12 min-w-0 flex-1 basis-0 items-center justify-center rounded-full truncate font-bebas tracking-wide px-0.5 py-2 text-base leading-none sm:min-h-[3.25rem] sm:text-lg md:max-w-none md:min-h-0 md:shrink md:grow md:basis-auto md:min-w-0 md:flex-1 md:px-5 md:py-2.5 md:text-xl md:tracking-wider";
+
+/** Green “Live” placeholder tab (replaces legacy Snapshot). */
+export const POOL_TAB_TRIGGER_LIVE =
+  "border border-green-500/25 bg-green-500/10 text-green-400/80 hover:border-green-500/45 hover:bg-green-500/15 hover:text-green-300 data-[state=active]:bg-green-500/15 data-[state=active]:text-green-300 data-[state=active]:border-green-500/50";

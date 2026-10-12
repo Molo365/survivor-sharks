@@ -31,7 +31,7 @@ import { NflConfidenceStats } from "@/components/NflConfidenceStats";
 import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel, NflConfidenceWeeklyWinnerBanner } from "@/components/NflConfidenceWeeklyView";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
-import { NflConfidenceSnapshot } from "@/components/NflConfidenceSnapshot";
+import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
 import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
@@ -56,7 +56,13 @@ export default function PoolHome() {
   const { user } = useAuth();
   const [location] = useLocation();
   const requestedTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
-  const [activeTab, setActiveTab] = useState(requestedTab === "leaderboard" ? "leaderboard" : "picks");
+  const normalizePoolTab = (tab: string) => (tab === "snapshot" ? "live" : tab);
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = requestedTab ?? "picks";
+    if (tab === "leaderboard") return "leaderboard";
+    return normalizePoolTab(tab);
+  });
+  const handlePoolTabChange = (tab: string) => setActiveTab(normalizePoolTab(tab));
   const [pickemSeasonDetailedView, setPickemSeasonDetailedView] = useState(false);
 
   useEffect(() => {
@@ -483,7 +489,7 @@ export default function PoolHome() {
                 isActive={pool.isActive}
                 weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
                 activeTab={activeTab}
-                onActiveTabChange={setActiveTab}
+                onActiveTabChange={handlePoolTabChange}
                 detailedView={pickemSeasonDetailedView}
                 onDetailedViewChange={setPickemSeasonDetailedView}
               />
@@ -510,12 +516,12 @@ export default function PoolHome() {
                 isCommissioner={isCommissioner}
                 isSuperAdmin={user?.role === "admin"}
                 activeTab={activeTab}
-                onActiveTabChange={setActiveTab}
+                onActiveTabChange={handlePoolTabChange}
               />
             ) : isNflConfidenceWeekly ? (
               <div className="space-y-4">
               <NflConfidenceWeeklyWinnerBanner poolId={pool.id} currentWeek={pool.currentWeek} />
-               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+               <Tabs value={activeTab} onValueChange={handlePoolTabChange} className="w-full">
                 <div className="relative">
                   <div>
                     <NflConfidencePoolTabBar isCommissioner={isCommissioner} variant="weekly" />
@@ -531,8 +537,8 @@ export default function PoolHome() {
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <NflConfidenceWeeklyGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
-                  <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="weekly" poolName={pool.name} />
+                  <TabsContent value="live" className="m-0 focus-visible:outline-none">
+                    <PoolLivePlaceholder gridTabLabel="Weekly Grid" />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -553,7 +559,7 @@ export default function PoolHome() {
               </Tabs>
               </div>
             ) : isNflConfidence ? (
-               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+               <Tabs value={activeTab} onValueChange={handlePoolTabChange} className="w-full">
                 <div className="relative">
                   <div>
                     <NflConfidencePoolTabBar isCommissioner={isCommissioner} variant="season" />
@@ -573,8 +579,8 @@ export default function PoolHome() {
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                     <NflConfidenceGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
-                  <TabsContent value="snapshot" className="m-0 focus-visible:outline-none">
-                    <NflConfidenceSnapshot poolId={pool.id} currentWeek={pool.currentWeek} variant="season" poolName={pool.name} />
+                  <TabsContent value="live" className="m-0 focus-visible:outline-none">
+                    <PoolLivePlaceholder gridTabLabel="Weekly Grid" />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -601,7 +607,7 @@ export default function PoolHome() {
                 poolDescription={pool.description ?? undefined}
               />
             ) : (
-             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+             <Tabs value={activeTab} onValueChange={handlePoolTabChange} className="w-full">
               <div className="relative">
               <div>
               <TabsList className={POOL_TABS_LIST_CLASS}>
