@@ -1310,7 +1310,10 @@ export function CrazyEightsView({
                     </span>
                   )}
                   <span className="block">
-                    In case of a tie, your answers below will be used to determine the winner. The player closest to the actual number wins. Both answers are locked with your picks.
+                    In case of a tie, your guess below decides the winner — closest to the actual number wins.
+                    {isNhl || isNba
+                      ? " It locks in with your picks."
+                      : " Both answers lock in with your picks."}
                   </span>
                 </DialogDescription>
               );
