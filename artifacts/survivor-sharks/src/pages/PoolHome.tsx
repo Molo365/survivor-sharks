@@ -32,6 +32,7 @@ import { NflConfidenceWeeklyView, NflConfidenceWeeklyCommissionerPanel, NflConfi
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
 import { NflConfidenceWeeklyLeaderboard } from "@/components/NflConfidenceWeeklyLeaderboard";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
+import { NflConfidenceLiveBoard } from "@/components/NflConfidenceLiveBoard";
 import { NflConfidenceStandings } from "@/components/NflConfidenceStandings";
 import { SurvivorStandings } from "@/components/SurvivorStandings";
 import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats";
@@ -538,7 +539,12 @@ export default function PoolHome() {
                     <NflConfidenceWeeklyGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="live" className="m-0 focus-visible:outline-none">
-                    <PoolLivePlaceholder gridTabLabel="Weekly Grid" />
+                    <NflConfidenceLiveBoard
+                      poolId={pool.id}
+                      week={pool.currentWeek}
+                      variant="weekly"
+                      currentUserId={user?.id ?? null}
+                    />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
@@ -580,7 +586,12 @@ export default function PoolHome() {
                     <NflConfidenceGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="live" className="m-0 focus-visible:outline-none">
-                    <PoolLivePlaceholder gridTabLabel="Weekly Grid" />
+                    <NflConfidenceLiveBoard
+                      poolId={pool.id}
+                      week={pool.currentWeek}
+                      variant="season"
+                      currentUserId={user?.id ?? null}
+                    />
                   </TabsContent>
                   {isCommissioner && (
                     <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
