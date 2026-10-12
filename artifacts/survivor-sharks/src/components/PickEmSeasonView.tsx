@@ -85,7 +85,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
-import { NflPickEmSeasonLiveBoardMock } from "@/components/NflPickEmSeasonLiveBoardMock";
+import { NflPickEmSeasonLiveBoard } from "@/components/NflPickEmSeasonLiveBoard";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import { PickEmSeasonLeaderboard } from "@/components/PickEmSeasonLeaderboard";
@@ -2331,9 +2331,13 @@ export function PickEmSeasonView({
           </TabsContent>
 
           <TabsContent value="live" className="m-0 focus-visible:outline-none">
-            <NflPickEmSeasonLiveBoardMock
+            <NflPickEmSeasonLiveBoard
+              poolId={poolId}
               week={currentWeek}
+              entries={entries}
               currentUserId={user?.id ?? null}
+              liveGamesInProgress={leaderboard?.liveGamesInProgress ?? 0}
+              scoringMode={isAtsMode ? "ats" : "straight"}
             />
           </TabsContent>
 
