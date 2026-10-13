@@ -80,6 +80,18 @@ for (const poolType of ["pickem_season", "nfl_confidence"]) {
     assert.equal(resolveWeeklyBonusThreshold({ ...input, persistedThreshold: false }), false);
     assert.equal(resolveWeeklyBonusThreshold({ ...input, persistedThreshold: true }), true);
   });
+
+  test(`${poolType} resolved week with unset season lock uses current enrollment`, () => {
+    const input = {
+      poolType,
+      weeklyBonusEnabled: true,
+      weeklyBonusMinPlayers: 5,
+      isResolved: true,
+      persistedThreshold: null,
+    };
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 4 }), false);
+    assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 5 }), true);
+  });
 }
 
 test("weekly bonus remains off when disabled, unconfigured, or used by an unsupported pool", () => {

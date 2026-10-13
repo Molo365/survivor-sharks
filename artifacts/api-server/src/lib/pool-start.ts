@@ -98,7 +98,13 @@ export function resolveWeeklyBonusThreshold(input: WeeklyBonusThresholdInput): b
   }
   const recurringWeekly =
     poolContext.poolType === "pickem" && poolContext.sport === "nhl" && poolContext.isRecurring === true;
-  if (input.isResolved && !recurringWeekly) return input.persistedThreshold === true;
+  if (input.isResolved && !recurringWeekly) {
+    if (input.persistedThreshold !== null) {
+      return input.persistedThreshold === true;
+    }
+    // Season-lock flag was never persisted (legacy pools): use enrollment like live weeks.
+    return input.playerCount >= input.weeklyBonusMinPlayers;
+  }
   return input.playerCount >= input.weeklyBonusMinPlayers;
 }
 
