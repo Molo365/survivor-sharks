@@ -22,6 +22,7 @@ import { validateMlbPoolCreation } from "../lib/mlb-pool-creation-validation";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { isWeeklyBonusPoolType, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "../lib/pool-start";
+import { effectivePoolIsRecurring, resolveIsRecurringOnCreate } from "../lib/pool-recurring";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
@@ -149,7 +150,7 @@ function formatPool(pool: PoolRow, memberCount: number, activeCount: number, com
     prizeMode: pool.prizeMode ?? "fixed",
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
-    isRecurring: pool.isRecurring,
+    isRecurring: effectivePoolIsRecurring(pool),
     minEntries: pool.minEntries ?? null,
     closureReason: pool.closureReason ?? null,
     createdAt: pool.createdAt.toISOString(),
@@ -494,10 +495,7 @@ router.post("/", requireAuth, async (req, res) => {
     showCommissionerCut,
     doubleElimination: resolveStoredDoubleElimination(sport, resolvedPoolType, doubleElimination),
     pickFrequency: resolvedPickFrequency,
-    // isRecurring only meaningful for MLB daily; default true (matching DB default)
-    // when the client does not send the field so new pools auto-advance by default.
-    // Crazy 8's pools are always recurring — the daily/weekly competition never ends.
-    isRecurring: resolvedPoolType === "crazy_8s" ? true : (typeof isRecurring === 'boolean' ? isRecurring : true),
+    isRecurring: resolveIsRecurringOnCreate(resolvedPoolType, isRecurring),
     sandboxMode: sandboxMode === true,
     // isPreseason is meaningful for the supported NFL pool types and all
     // currently available NHL pool types (Survivor, Weekend Pick-Ems, and
@@ -824,7 +822,7 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     showCommissionerCut: pool.showCommissionerCut ?? false,
     doubleElimination: pool.doubleElimination,
     pickFrequency: pool.pickFrequency,
-    isRecurring: pool.isRecurring,
+    isRecurring: effectivePoolIsRecurring(pool),
     sandboxMode: (pool as any).sandboxMode ?? false,
     sandboxWeek: (pool as any).sandboxWeek ?? 1,
     isPreseason: pool.isPreseason ?? false,
@@ -979,7 +977,7 @@ router.patch("/:poolId/cancel", requireAuth, async (req, res) => {
     return;
   }
 
-  if (pool.isRecurring) {
+  if (effectivePoolIsRecurring(pool)) {
     res.status(409).json({ error: "Recurring pools cannot be cancelled. Use 'End After This Cycle' from the commissioner panel instead." });
     return;
   }
