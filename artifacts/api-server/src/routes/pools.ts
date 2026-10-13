@@ -806,6 +806,18 @@ router.get("/:poolId", requireAuth, async (req, res) => {
         })
       : pool.weeklyBonusLockedActive;
 
+  if (
+    pool.weeklyBonusEnabled &&
+    isWeeklyBonusPoolType(pool) &&
+    weeklyBonusLockedActive === true &&
+    pool.weeklyBonusLockedActive !== true
+  ) {
+    await db
+      .update(poolsTable)
+      .set({ weeklyBonusLockedActive: true })
+      .where(eq(poolsTable.id, poolId));
+  }
+
   res.json({
     id: pool.id,
     name: pool.name,

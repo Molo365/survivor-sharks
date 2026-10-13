@@ -1574,7 +1574,9 @@ router.get("/week-results", requireAuth, async (req, res) => {
       amount: weeklyBonusAmount,
       perWinnerAmount: weeklyBonusPerWinner,
       minPlayers: weeklyBonusMinPlayers,
-      confirmedPlayerCount: null,
+      confirmedPlayerCount: shouldCountWeeklyBonusEnrollment
+        ? Number(enrolledPlayerCount)
+        : null,
     },
   });
 });
