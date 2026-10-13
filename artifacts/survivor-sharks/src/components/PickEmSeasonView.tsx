@@ -2044,7 +2044,10 @@ export function PickEmSeasonView({
                         <>
                           <span className="text-yellow-500/50 text-xs">·</span>
                           <span className="text-xs text-yellow-500/70">
-                            Pool hasn&apos;t reached its weekly prize threshold yet
+                            {prevWeekBonus.minPlayers != null &&
+                            prevWeekBonus.confirmedPlayerCount != null
+                              ? `Weekly bonus unlocks at ${prevWeekBonus.minPlayers} players (${prevWeekBonus.confirmedPlayerCount}/${prevWeekBonus.minPlayers} enrolled)`
+                              : "Pool hasn\u2019t reached its weekly prize threshold yet"}
                           </span>
                         </>
                       )
