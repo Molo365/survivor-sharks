@@ -463,6 +463,16 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
+  if (sport === "nfl" && resolvedPoolType === "nfl_division_predictor") {
+    const lockState = await getNdpLockState(resolvedSeason, sandboxMode === true);
+    if (lockState.locked) {
+      res.status(423).json({
+        error: `NFL Division Predictor pools for the ${resolvedSeason} season cannot be created because the regular season has started.`,
+      });
+      return;
+    }
+  }
+
   const inviteCode = generateInviteCode();
   const [pool] = await db.insert(poolsTable).values({
     name,
