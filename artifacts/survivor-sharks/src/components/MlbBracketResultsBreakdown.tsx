@@ -172,14 +172,46 @@ export function MlbBracketResultsBreakdown({ rows }: { rows: MlbBracketResultBre
                         </div>
                       </div>
                     )}
-                    <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:grid-cols-2">
+                    {/* Mobile: stacked rows (unchanged) */}
+                    <div className="mt-3 grid gap-2 border-t border-border/30 pt-3 sm:hidden">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actual winner</p>
-                        <div className="mt-1 flex items-center justify-between gap-2"><span className="text-sm">{row.actualWinner ?? "TBD"}</span><ResultIndicator value={row.winnerCorrect} pendingLabel="Pending" /></div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-sm">{row.actualWinner ?? "TBD"}</span>
+                          <ResultIndicator value={row.winnerCorrect} pendingLabel="Pending" />
+                        </div>
                       </div>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actual length</p>
-                        <div className="mt-1 flex items-center justify-between gap-2"><span className="text-sm">{row.actualLength === null ? "TBD" : `${row.actualLength} games`}</span><ResultIndicator value={row.lengthCorrect} pendingLabel="Pending" /></div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-sm">
+                            {row.actualLength === null ? "TBD" : `${row.actualLength} games`}
+                          </span>
+                          <ResultIndicator value={row.lengthCorrect} pendingLabel="Pending" />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Desktop: compact paired chips — value sits next to its grade */}
+                    <div className="mt-3 hidden border-t border-border/30 pt-3 sm:flex sm:flex-wrap sm:gap-2">
+                      <div className="min-w-[min(100%,220px)] flex-1 rounded-lg border border-border/35 bg-muted/15 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Actual winner
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-medium">{row.actualWinner ?? "TBD"}</span>
+                          <ResultIndicator value={row.winnerCorrect} pendingLabel="Pending" />
+                        </div>
+                      </div>
+                      <div className="min-w-[min(100%,200px)] flex-1 rounded-lg border border-border/35 bg-muted/15 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Actual length
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-medium">
+                            {row.actualLength === null ? "TBD" : `${row.actualLength} games`}
+                          </span>
+                          <ResultIndicator value={row.lengthCorrect} pendingLabel="Pending" />
+                        </div>
                       </div>
                     </div>
                   </div>
