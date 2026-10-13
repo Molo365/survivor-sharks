@@ -1,6 +1,7 @@
 import { Link, Redirect } from "wouter";
 import { Shield, Trophy, Users, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { LegalSiteFooter } from "@/components/LegalSiteFooter";
 import { useEffect, useState } from "react";
 
 function useCountdown(target: Date) {
@@ -211,10 +212,7 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── 8. Footer ─────────────────────────────────────────── */}
-        <div className="py-3 border-t border-white/5 text-center text-[10px] tracking-wider text-muted-foreground/25 uppercase">
-          © 2026 Survivor Sharks — Free to play. Always.
-        </div>
+        <LegalSiteFooter className="border-t border-white/5" />
 
       </main>
     </div>

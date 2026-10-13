@@ -32,6 +32,8 @@ import PastPools from "@/pages/PastPools";
 import Feedback from "@/pages/Feedback";
 import AuthInviteContinuation from "@/pages/AuthInviteContinuation";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
+import { BetaBanner } from "@/components/BetaBanner";
+import LegalDocument from "@/pages/LegalDocument";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -110,6 +112,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/super-admin" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/terms">{() => <LegalDocument docId="terms" />}</Route>
+      <Route path="/privacy">{() => <LegalDocument docId="privacy" />}</Route>
       <Route path="/auth/continue" component={AuthInviteContinuation} />
 
       <Route path="/dashboard">
@@ -182,8 +186,12 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AuthProvider>
               <MaintenanceGate>
+                <BetaBanner />
                 <DesktopSidebar />
-                <div className="pb-16 md:pb-0 md:pl-20">
+                <div
+                  className="pb-16 md:pb-0 md:pl-20"
+                  style={{ paddingTop: "var(--beta-banner-offset, 0px)" }}
+                >
                   <Router />
                 </div>
                 <BottomNav />
