@@ -38,4 +38,5 @@
 - [Recurring Hit the Ice settlement](recurring-hit-the-ice-settlement.md) — recurring NHL/NBA periods persist separately and advance atomically; End Recurring must close safely across rollover races.
 - [Weekly bonus threshold lifecycle](weekly-bonus-threshold.md) — current evaluations use live enrollment; settled history uses the legacy pool flag because no week-keyed snapshot exists.
 - [Railway database inspection](railway-database-inspection.md) — MCP OAuth exposes variable names, not SQL access; development queries cannot establish production data safety.
+- [Domain beta launch](domain-beta-launch.md) — custom-domain beta checklist (Railway env, legal/UI gaps, smoke tests); `APP_URL` must match canonical domain.
 - [Per-sport creation policy](sport-pool-creation-policy.md) — availability controls new non-admin pool creation only; existing pools and the global creation flag remain independent.
