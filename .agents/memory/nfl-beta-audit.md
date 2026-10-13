@@ -16,7 +16,7 @@ Legacy (not in wizard): `weekly`, `mid_season` survivor — existing pools only.
 
 ## Engineering notes
 
-- **NDP create guard:** `POST /api/pools` rejects live `nfl_division_predictor` when `getNdpLockState` is locked (parity with NHL). Sandbox pools bypass. Create Pool hides the type when locked (`GET /api/nfl/ndp-lock`); admins with Sandbox Mode on can still create.
+- **NDP create guard:** `POST /api/pools` rejects live `nfl_division_predictor` when `getNdpLockState` is locked (parity with NHL). Sandbox pools bypass. Create Pool shows the type grayed out with “See you next season!” when locked (`GET /api/nfl/ndp-lock`); admins with Sandbox Mode on can still create live.
 - **Weekly bonus tiebreaker:** Only `pickem_season` + `nfl_confidence` when `weeklyBonusEnabled`; separate from Wk 18 season tiebreaker (`nfl-weekly-tiebreaker-collection` memory).
 - **Pick visibility:** Opponent picks at kickoff / after grade (`pick-visibility-timing` memory).
 - **NFL week advance:** Preseason + regular require ESPN slate validation (`nfl-preseason-advancement` memory).

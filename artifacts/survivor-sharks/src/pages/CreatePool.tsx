@@ -597,7 +597,7 @@ export default function CreatePool() {
       if (!res.ok) return { locked: false } as { locked: boolean };
       return res.json() as Promise<{ locked: boolean }>;
     },
-    enabled: selectedSport === PoolInputSport.nfl && !(isAdminUser && watchedSandboxMode),
+    enabled: selectedSport === PoolInputSport.nfl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -613,9 +613,20 @@ export default function CreatePool() {
       if (!res.ok) return { locked: false } as { locked: boolean };
       return res.json() as Promise<{ locked: boolean }>;
     },
-    enabled: selectedSport === PoolInputSport.nhl && !(isAdminUser && watchedSandboxMode),
+    enabled: selectedSport === PoolInputSport.nhl,
     staleTime: 5 * 60 * 1000,
   });
+
+  const isDivisionPredictorLockedForCreate = (typeId: string) => {
+    if (isAdminUser && watchedSandboxMode) return false;
+    if (selectedSport === PoolInputSport.nfl && typeId === "nfl_division_predictor") {
+      return nflNdpLockState?.locked === true;
+    }
+    if (selectedSport === PoolInputSport.nhl && typeId === "nhl_division_predictor") {
+      return nhlNdpLockState?.locked === true;
+    }
+    return false;
+  };
 
   const creatablePoolTypes = useMemo(() => {
     let types = [...availableTypes];
@@ -1385,14 +1396,18 @@ export default function CreatePool() {
                         render={({ field }) => (
                           <FormItem>
                             <div className="grid grid-cols-1 gap-3 mt-2">
-                              {POOL_TYPES.filter((t) => creatablePoolTypes.includes(t.id)).map((type) => {
+                              {POOL_TYPES.filter((t) => availableTypes.includes(t.id)).map((type) => {
                                 const Icon = type.icon;
                                 const isSelected = field.value === type.id;
+                                const isTypeLocked = isDivisionPredictorLockedForCreate(type.id);
                                 return (
                                   <button
                                     key={type.id}
                                     type="button"
+                                    disabled={isTypeLocked}
+                                    aria-disabled={isTypeLocked}
                                     onClick={() => {
+                                      if (isTypeLocked) return;
                                       field.onChange(type.id);
                                       // Compute hasOptions against the incoming type.id, not the
                                       // stale selectedType — field.onChange hasn't re-rendered yet.
@@ -1409,11 +1424,12 @@ export default function CreatePool() {
                                     data-testid={`pool-type-${type.id}`}
                                     className={cn(
                                       "relative text-left rounded-lg border-2 p-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                      isSelected
+                                      isTypeLocked && "cursor-not-allowed border-slate-600/80 bg-slate-800/40 opacity-80",
+                                      !isTypeLocked && isSelected
                                         ? `${type.cardClass} ring-2 ring-offset-1 ring-offset-background`
-                                        : type.id === "season"
+                                        : !isTypeLocked && type.id === "season"
                                           ? "border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.02]"
-                                          : "border-border/40 hover:border-border bg-card/50",
+                                          : !isTypeLocked && "border-border/40 hover:border-border bg-card/50",
                                     )}
                                   >
                                     <div className="flex items-start gap-4">
@@ -1469,6 +1485,11 @@ export default function CreatePool() {
                                               Spread only
                                             </span>
                                           )}
+                                          {isTypeLocked && (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest border rounded-full px-2 py-0.5 bg-purple-600/90 text-white border-purple-500/40">
+                                              See you next season!
+                                            </span>
+                                          )}
                                         </div>
                                         <p className={cn(
                                           "text-xs font-semibold uppercase tracking-wider mb-1",
@@ -1478,6 +1499,11 @@ export default function CreatePool() {
                                         )}>{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Most Correct Picks Wins the Week"
                                           : type.id === "crazy_8s" && (selectedSport === PoolInputSport.nhl || selectedSport === PoolInputSport.nba) ? "8 Games. 8 Confidence Points."
                                           : type.tagline}</p>
+                                         {isTypeLocked && (
+                                          <p className="text-xs text-slate-300/90 mt-1 leading-snug">
+                                            Opens before the regular season — create your pool in the preseason window next year.
+                                          </p>
+                                         )}
                                          <p className="text-sm text-muted-foreground leading-snug whitespace-pre-line">{type.id === "pickem" && selectedSport === PoolInputSport.nhl ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                                           : type.id === "pickem" && (selectedSport as string) === "superleague" ? "Pick the winner of every Super League match — Home Win, Draw, or Away Win. Friday through Monday games only. Most correct picks across the period wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                                           : type.id === "crazy_8s" && selectedSport === PoolInputSport.nhl ? "Pick any 8 games from the weekend (Sat+Sun) NHL slate. Assign confidence points 1–8. Highest total wins."
