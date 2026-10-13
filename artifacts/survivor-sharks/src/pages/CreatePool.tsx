@@ -582,6 +582,66 @@ export default function CreatePool() {
   }, [form, selectedSport, watchedPreseason]);
 
   const availableTypes = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
+  const watchedSandboxMode = form.watch("sandboxMode");
+  const isAdminUser = user?.role === "admin";
+
+  const { data: nflNdpLockState } = useQuery({
+    queryKey: ["nfl-ndp-lock", watchedSeason ?? new Date().getFullYear()],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const season = watchedSeason ?? new Date().getFullYear();
+      const res = await fetch(`/api/nfl/ndp-lock?season=${season}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { locked: false } as { locked: boolean };
+      return res.json() as Promise<{ locked: boolean }>;
+    },
+    enabled: selectedSport === PoolInputSport.nfl && !(isAdminUser && watchedSandboxMode),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: nhlNdpLockState } = useQuery({
+    queryKey: ["nhl-ndp-lock", watchedSeason ?? new Date().getFullYear()],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const season = watchedSeason ?? new Date().getFullYear();
+      const res = await fetch(`/api/nhl/ndp-lock?season=${season}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { locked: false } as { locked: boolean };
+      return res.json() as Promise<{ locked: boolean }>;
+    },
+    enabled: selectedSport === PoolInputSport.nhl && !(isAdminUser && watchedSandboxMode),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const creatablePoolTypes = useMemo(() => {
+    let types = [...availableTypes];
+    if (
+      selectedSport === PoolInputSport.nfl &&
+      nflNdpLockState?.locked &&
+      !(isAdminUser && watchedSandboxMode)
+    ) {
+      types = types.filter((t) => t !== "nfl_division_predictor");
+    }
+    if (
+      selectedSport === PoolInputSport.nhl &&
+      nhlNdpLockState?.locked &&
+      !(isAdminUser && watchedSandboxMode)
+    ) {
+      types = types.filter((t) => t !== "nhl_division_predictor");
+    }
+    return types;
+  }, [
+    availableTypes,
+    selectedSport,
+    nflNdpLockState?.locked,
+    nhlNdpLockState?.locked,
+    isAdminUser,
+    watchedSandboxMode,
+  ]);
 
   // ── Progressive-unlock wizard state ──────────────────────────────────────────
   const [step3Confirmed, setStep3Confirmed] = useState(false);
@@ -700,14 +760,25 @@ export default function CreatePool() {
   // When sport changes: enforce valid pool type and set sensible defaults
   useEffect(() => {
     if (!selectedSport) return;
-    const types = SPORT_POOL_TYPES[selectedSport] ?? ["season", "weekly", "pickem"];
-    if (!types.includes(selectedType as any)) {
-      form.setValue("poolType", types[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket" | "mlb_bracket", { shouldValidate: true });
+    if (creatablePoolTypes.length === 0) return;
+    if (!creatablePoolTypes.includes(selectedType as any)) {
+      form.setValue("poolType", creatablePoolTypes[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket" | "mlb_bracket", { shouldValidate: true });
     }
     if (selectedSport === PoolInputSport.worldcup) {
       form.setValue("pickFrequency", "daily");
     }
-  }, [selectedSport]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedSport, creatablePoolTypes, selectedType, form]);
+
+  // Division predictors lock at regular-season kickoff — drop stale selection when lock loads.
+  useEffect(() => {
+    if (creatablePoolTypes.length === 0) return;
+    if (!selectedType || creatablePoolTypes.includes(selectedType)) return;
+    form.setValue(
+      "poolType",
+      creatablePoolTypes[0] as "season" | "pickem" | "weekly" | "group_stage_predictor" | "nfl_division_predictor" | "dirty_dozen" | "crazy_8s" | "nfl_confidence" | "nfl_confidence_weekly" | "pickem_season" | "wc_bracket" | "mlb_bracket",
+      { shouldValidate: true },
+    );
+  }, [creatablePoolTypes, selectedType, form]);
 
   useEffect(() => {
     if (!showDoubleEliminationOption && form.getValues("doubleElimination")) {
@@ -788,7 +859,7 @@ export default function CreatePool() {
   // must total 100% before the pool can be created.
   const currentStep = (() => {
     if (!selectedSport) return 1;
-    if (!selectedType || availableTypes.length === 0) return 2;
+    if (!selectedType || creatablePoolTypes.length === 0) return 2;
     if (hasOptions && !step3Confirmed) return 3;
     if (!step4Confirmed) return 4;
     if (prizeStep < 3) return 5;
@@ -1314,7 +1385,7 @@ export default function CreatePool() {
                         render={({ field }) => (
                           <FormItem>
                             <div className="grid grid-cols-1 gap-3 mt-2">
-                              {POOL_TYPES.filter((t) => availableTypes.includes(t.id)).map((type) => {
+                              {POOL_TYPES.filter((t) => creatablePoolTypes.includes(t.id)).map((type) => {
                                 const Icon = type.icon;
                                 const isSelected = field.value === type.id;
                                 return (

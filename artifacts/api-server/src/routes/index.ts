@@ -35,6 +35,8 @@ import { getMaintenanceState } from "../lib/maintenance";
 import feedbackRouter from "./feedback";
 import broadcastRouter from "./broadcast";
 import sportPoolStatusRouter from "./sport-pool-status";
+import { getNdpLockState } from "../lib/ndp-lock";
+import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 
 const router: IRouter = Router();
 
@@ -51,6 +53,48 @@ router.get("/maintenance-status", async (req, res) => {
 // GET /api/config — public feature flags (no auth required)
 router.get("/config", (_req, res) => {
   res.json({ poolCreationOpen: process.env.POOL_CREATION_OPEN === "true" });
+});
+
+// GET /api/nfl/ndp-lock?season=2026 — division predictor create eligibility (live pools)
+router.get("/nfl/ndp-lock", requireAuth, async (req, res) => {
+  const seasonRaw = req.query.season;
+  const season = seasonRaw === undefined ? new Date().getFullYear() : Number(seasonRaw);
+  if (!Number.isInteger(season)) {
+    res.status(400).json({ error: "season must be an integer" });
+    return;
+  }
+  try {
+    const state = await getNdpLockState(season, false);
+    res.json({
+      season,
+      locked: state.locked,
+      lockAt: state.lockAt?.toISOString() ?? null,
+      source: state.source,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid season" });
+  }
+});
+
+// GET /api/nhl/ndp-lock?season=2026 — NHL division predictor create eligibility (live pools)
+router.get("/nhl/ndp-lock", requireAuth, async (req, res) => {
+  const seasonRaw = req.query.season;
+  const season = seasonRaw === undefined ? new Date().getFullYear() : Number(seasonRaw);
+  if (!Number.isInteger(season)) {
+    res.status(400).json({ error: "season must be an integer" });
+    return;
+  }
+  try {
+    const state = await getNhlNdpLockState(season, false);
+    res.json({
+      season,
+      locked: state.locked,
+      lockAt: state.lockAt?.toISOString() ?? null,
+      source: state.source,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid season" });
+  }
 });
 
 // GET /api/nfl/current-week — returns the current real NFL week from ESPN
