@@ -29,6 +29,7 @@ import {
   isNflPickemSeasonAts,
   type PickemScoringMode,
 } from "../lib/nfl-pickem-ats-grade";
+import { buildPickemSeasonCommissionerBalanceSheet } from "../lib/pickem-season-commissioner-balances";
 
 const router = Router({ mergeParams: true });
 
@@ -2005,6 +2006,31 @@ router.post("/ats-spreads", requireAuth, requireAdmin, async (req, res) => {
   }
 
   res.json({ saved, skipped });
+});
+
+// GET /api/pools/:poolId/pickem-season/commissioner-balances
+router.get("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" }); return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const sheet = await buildPickemSeasonCommissionerBalanceSheet(pool, poolId);
+  res.json(sheet);
 });
 
 export default router;
