@@ -151,20 +151,27 @@ export function NflPickEmSeasonLiveBoard({
     return m;
   }, [weekData?.players]);
 
-  const rows = useMemo(
-    () =>
-      entries.map((entry) => {
-        const wp = weekPlayerMap.get(entry.userId);
-        return {
-          entry,
-          weekCorrect: wp?.correct ?? 0,
-          picks: wp?.picks ?? [],
-        };
-      }),
-    [entries, weekPlayerMap],
-  );
+  const rows = useMemo(() => {
+    const mapped = entries.map((entry) => {
+      const wp = weekPlayerMap.get(entry.userId);
+      const settledCorrect = wp?.correct ?? 0;
+      const liveCorrect = entry.liveCorrect ?? 0;
+      return {
+        entry,
+        settledCorrect,
+        weekCorrect: settledCorrect + liveCorrect,
+        picks: wp?.picks ?? [],
+      };
+    });
+    mapped.sort((a, b) => b.weekCorrect - a.weekCorrect);
+    return mapped.map((row, index) => ({ ...row, weekRank: index + 1 }));
+  }, [entries, weekPlayerMap]);
 
   const me = entries.find((e) => e.userId === currentUserId);
+  const meWeekSettled = currentUserId != null
+    ? weekPlayerMap.get(currentUserId)?.correct ?? 0
+    : 0;
+  const meWeekLiveTotal = meWeekSettled + (me?.liveCorrect ?? 0);
 
   const jumpToMe = useCallback(() => {
     if (currentUserId == null) return;
@@ -259,12 +266,16 @@ export function NflPickEmSeasonLiveBoard({
         </div>
         {me && (
           <p className="w-full text-[10px] text-white/40 leading-snug">
-            Season · #{me.rank} · {me.seasonCorrect}/{me.seasonTotal} correct
-            {(me.liveCorrect ?? 0) > 0 && (
-              <span className="text-emerald-400/90">
-                {" "}
-                · +{me.liveCorrect} live this week
-              </span>
+            Season · #{me.rank} · {me.seasonCorrect}/{me.seasonTotal} correct · Week {week}{" "}
+            <span
+              className={cn(
+                meWeekLiveTotal > meWeekSettled ? "text-emerald-400/90" : "text-white/40",
+              )}
+            >
+              {meWeekLiveTotal} correct
+            </span>
+            {meWeekLiveTotal > meWeekSettled && (
+              <span className="text-white/30"> (incl. live)</span>
             )}
           </p>
         )}
@@ -323,8 +334,9 @@ export function NflPickEmSeasonLiveBoard({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ entry, weekCorrect, picks }, idx) => {
+            {rows.map(({ entry, weekCorrect, settledCorrect, weekRank, picks }, idx) => {
               const isMe = entry.userId === currentUserId;
+              const liveProvisional = weekCorrect > settledCorrect;
               const pickByGame = new Map(picks.map((p) => [p.gameId, p]));
 
               return (
@@ -351,14 +363,14 @@ export function NflPickEmSeasonLiveBoard({
                         <span
                           className={cn(
                             "font-mono text-[10px] font-bold tabular-nums shrink-0 w-4",
-                            entry.rank === 1
+                            weekRank === 1
                               ? "text-amber-300"
-                              : entry.rank <= 3
+                              : weekRank <= 3
                                 ? "text-white/50"
                                 : "text-white/30",
                           )}
                         >
-                          {entry.rank}
+                          {weekRank}
                         </span>
                         <span
                           className={cn(
@@ -369,11 +381,6 @@ export function NflPickEmSeasonLiveBoard({
                           {entry.displayName || entry.username}
                         </span>
                       </div>
-                      {(entry.liveCorrect ?? 0) > 0 && (
-                        <span className="text-[9px] font-mono text-emerald-400/80 pl-5">
-                          +{entry.liveCorrect} live
-                        </span>
-                      )}
                     </div>
                   </td>
                   {games.map((game) => {
@@ -402,7 +409,12 @@ export function NflPickEmSeasonLiveBoard({
                       isMe && "bg-[#0e1613]",
                     )}
                   >
-                    <span className="font-mono text-sm font-bold tabular-nums text-white/90">
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-bold tabular-nums",
+                        liveProvisional ? "text-emerald-300" : "text-white/90",
+                      )}
+                    >
                       {weekCorrect}
                     </span>
                   </td>
