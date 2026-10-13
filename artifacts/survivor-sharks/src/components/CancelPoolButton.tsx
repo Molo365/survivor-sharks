@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OctagonX } from "lucide-react";
+import { effectivePoolIsRecurring } from "@/lib/poolRecurring";
 
 interface CancelPoolButtonProps {
   poolId: number;
@@ -42,7 +43,7 @@ export function CancelPoolButton({ poolId }: CancelPoolButtonProps) {
   if (!pool || !user) return null;
   if (pool.commissionerId !== user.id && user.role !== "admin") return null;
   if (!pool.isActive) return null;
-  if (pool.isRecurring) return null;
+  if (effectivePoolIsRecurring(pool)) return null;
   if (SEASON_LONG_POOL_TYPES.has(pool.poolType as string)) return null;
 
   const nameMatches = confirmName.trim() === pool.name.trim();

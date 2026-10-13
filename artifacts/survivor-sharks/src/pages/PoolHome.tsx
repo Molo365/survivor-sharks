@@ -39,6 +39,7 @@ import { NflConfidenceWeeklyStats } from "@/components/NflConfidenceWeeklyStats"
 import { PickEmSeasonView } from "@/components/PickEmSeasonView";
 import { WcBracketView } from "@/components/WcBracketView";
 import { MlbPostseasonBracketView } from "@/components/MlbPostseasonBracketView";
+import { effectivePoolIsRecurring, isRecurringBadgeApplicable } from "@/lib/poolRecurring";
 import { PrizeDisplay } from "@/components/PrizeDisplay";
 import { PoolEndedResult } from "@/components/PoolEndedResult";
 import { SportLogo } from "@/components/SportLogo";
@@ -395,10 +396,16 @@ export default function PoolHome() {
                   <span className="hidden md:inline-flex w-fit max-w-full items-center gap-1 text-muted-foreground">
                     Season {pool.season}
                   </span>
-                  <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
-                    {pool.isRecurring ? <RefreshCw className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                    {pool.isRecurring ? "Recurring" : "One-time"}
-                  </span>
+                  {isRecurringBadgeApplicable(pool) && (
+                    <span className="inline-flex w-fit max-w-full items-center gap-1 bg-muted/50 text-muted-foreground border border-border/50 px-2 py-1 rounded">
+                      {effectivePoolIsRecurring(pool) ? (
+                        <RefreshCw className="w-3 h-3" />
+                      ) : (
+                        <Circle className="w-3 h-3" />
+                      )}
+                      {effectivePoolIsRecurring(pool) ? "Recurring" : "One-time"}
+                    </span>
+                  )}
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
                   )}
