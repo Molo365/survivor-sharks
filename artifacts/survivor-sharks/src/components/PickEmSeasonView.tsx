@@ -101,6 +101,7 @@ import { PickVisibilityNotice } from "@/components/PickVisibilityNotice";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog } from "@/components/BroadcastEmailDialog";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
+import { CommissionerPoolBalances } from "@/components/CommissionerPoolBalances";
 import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 const NFL_TOTAL_WEEKS = 18;
@@ -2369,8 +2370,10 @@ export function PickEmSeasonView({
               value="commissioner"
               className="m-0 focus-visible:outline-none"
             >
-              <div className="max-w-lg space-y-6">
+              <div className="max-w-4xl space-y-6">
                 <PoolSetupSummary poolId={poolId} />
+
+                <CommissionerPoolBalances poolId={poolId} />
 
                 <div>
                   <h3 className="font-bebas text-2xl tracking-wide mb-1">
