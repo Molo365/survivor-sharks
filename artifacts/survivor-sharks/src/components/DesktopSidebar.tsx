@@ -12,7 +12,7 @@ const TABS = [
   { label: "Contact",   icon: MessageSquare, href: "/feedback" },
 ] as const;
 
-const HIDDEN_PREFIXES = ["/", "/login", "/register", "/reset-password", "/join/", "/admin"];
+const HIDDEN_PREFIXES = ["/", "/login", "/register", "/reset-password", "/join/", "/admin", "/terms", "/privacy"];
 
 function isHiddenRoute(path: string): boolean {
   if (path === "/") return true;
@@ -26,7 +26,13 @@ export function DesktopSidebar() {
   if (!user || isHiddenRoute(location)) return null;
 
   return (
-    <nav className="hidden md:flex fixed left-0 top-16 h-[calc(100vh-64px)] w-20 z-40 flex-col border-r border-border/40 bg-background/95 backdrop-blur">
+    <nav
+      className="hidden md:flex fixed left-0 w-20 z-40 flex-col border-r border-border/40 bg-background/95 backdrop-blur"
+      style={{
+        top: "calc(4rem + var(--beta-banner-offset, 0px))",
+        height: "calc(100vh - 4rem - var(--beta-banner-offset, 0px))",
+      }}
+    >
       {TABS.map(({ label, icon: Icon, href }) => {
         const active = location === href || location.startsWith(href + "/");
         return (

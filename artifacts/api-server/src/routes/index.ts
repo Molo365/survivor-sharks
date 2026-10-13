@@ -52,7 +52,12 @@ router.get("/maintenance-status", async (req, res) => {
 
 // GET /api/config — public feature flags (no auth required)
 router.get("/config", (_req, res) => {
-  res.json({ poolCreationOpen: process.env.POOL_CREATION_OPEN === "true" });
+  const betaMessage = process.env.BETA_BANNER_MESSAGE?.trim();
+  res.json({
+    poolCreationOpen: process.env.POOL_CREATION_OPEN === "true",
+    betaBannerEnabled: process.env.BETA_BANNER_ENABLED === "true",
+    betaBannerMessage: betaMessage && betaMessage.length > 0 ? betaMessage : null,
+  });
 });
 
 // GET /api/nfl/ndp-lock?season=2026 — division predictor create eligibility (live pools)

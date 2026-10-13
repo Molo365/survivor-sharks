@@ -15,6 +15,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LegalSiteFooter } from "@/components/LegalSiteFooter";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +32,9 @@ const formSchema = z.object({
   displayName: z.string().trim().max(80, "Display name must be 80 characters or fewer").optional(),
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  acceptedLegal: z.literal(true, {
+    errorMap: () => ({ message: "You must agree to the Terms and Privacy Policy" }),
+  }),
 });
 
 export default function Register() {
@@ -41,7 +46,7 @@ export default function Register() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { realName: "", displayName: "", email: "", password: "" },
+    defaultValues: { realName: "", displayName: "", email: "", password: "", acceptedLegal: undefined },
   });
 
   const [location] = useLocation();
@@ -90,7 +95,7 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,rgba(30,144,255,0.1),rgba(10,14,26,1))] py-12">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,rgba(30,144,255,0.1),rgba(10,14,26,1))] py-12">
       <Card className="w-full max-w-md shark-card border-border/50">
         <CardHeader className="space-y-1 text-center pb-6">
           <div className="flex justify-center mb-3">
@@ -162,6 +167,35 @@ export default function Register() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="acceptedLegal"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-3 space-y-0 rounded-md border border-border/40 bg-background/30 p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value === true}
+                        onCheckedChange={(checked) => field.onChange(checked === true ? true : undefined)}
+                        data-testid="checkbox-accept-legal"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-snug">
+                      <FormLabel className="text-xs font-normal text-muted-foreground cursor-pointer">
+                        I am 18 or older and agree to the{" "}
+                        <Link href="/terms" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                          Terms of Service
+                        </Link>{" "}
+                        and{" "}
+                        <Link href="/privacy" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                          Privacy Policy
+                        </Link>
+                        .
+                      </FormLabel>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
               <Button type="submit" className="w-full h-12 font-bebas text-xl tracking-widest mt-6" disabled={registerUser.isPending} data-testid="button-submit-register">
                 {registerUser.isPending ? "Creating Account..." : "Register"}
               </Button>
@@ -177,6 +211,7 @@ export default function Register() {
           </p>
         </CardFooter>
       </Card>
+      <LegalSiteFooter className="mt-6 max-w-md w-full" />
     </div>
   );
 }
