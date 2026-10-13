@@ -1086,13 +1086,14 @@ router.get("/weekly-winner", requireAuth, async (req, res) => {
   const weekIsResolved =
     !pool.isActive ||
     (week > 0 && completedWeeks.some((row) => row.week === week));
-  const [{ playerCount: enrolledPlayerCount }] =
-    !weekIsResolved && pool.weeklyBonusEnabled && weeklyBonusMinPlayers != null
-      ? await db
-          .select({ playerCount: count() })
-          .from(entriesTable)
-          .where(eq(entriesTable.poolId, poolId))
-      : [{ playerCount: 0 }];
+  const shouldCountWeeklyBonusEnrollment =
+    pool.weeklyBonusEnabled && weeklyBonusMinPlayers != null;
+  const [{ playerCount: enrolledPlayerCount }] = shouldCountWeeklyBonusEnrollment
+    ? await db
+        .select({ playerCount: count() })
+        .from(entriesTable)
+        .where(eq(entriesTable.poolId, poolId))
+    : [{ playerCount: 0 }];
 
   const weeklyBonusBase = {
     enabled: pool.weeklyBonusEnabled,

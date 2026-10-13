@@ -1518,13 +1518,14 @@ router.get("/week-results", requireAuth, async (req, res) => {
     !pool.isActive ||
     week < pool.currentWeek ||
     (games.length > 0 && games.every((game) => game.status === "final"));
-  const [{ playerCount: enrolledPlayerCount }] =
-    !weekIsResolved && pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null
-      ? await db
-          .select({ playerCount: count() })
-          .from(entriesTable)
-          .where(eq(entriesTable.poolId, poolId))
-      : [{ playerCount: 0 }];
+  const shouldCountWeeklyBonusEnrollment =
+    pool.weeklyBonusEnabled && pool.weeklyBonusMinPlayers != null;
+  const [{ playerCount: enrolledPlayerCount }] = shouldCountWeeklyBonusEnrollment
+    ? await db
+        .select({ playerCount: count() })
+        .from(entriesTable)
+        .where(eq(entriesTable.poolId, poolId))
+    : [{ playerCount: 0 }];
   const weeklyBonusThresholdMet = resolveWeeklyBonusThreshold({
     poolType: pool.poolType,
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
