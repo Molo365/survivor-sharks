@@ -25,6 +25,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Trophy, RefreshCw, Target, ShieldCheck, Calendar, Clock, X, ListOrdered, Dice5, Zap, Repeat, Globe, Brackets } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { poolSupportsDoubleElimination } from "@/lib/poolSurvivor";
+import {
+  WEEKLY_BONUS_RESERVE_WEEKS,
+  deriveWeeklyBonusMinPlayers,
+  weeklyPayoutFromPercent,
+} from "@/lib/weeklyBonusWizard";
+import { NflWeeklyBonusPercentPreview } from "@/components/NflWeeklyBonusPercentPreview";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -315,6 +321,7 @@ const formSchema = z.object({
   maxEntries: z.coerce.number().min(1).optional().or(z.literal("").transform(() => undefined)),
   entryFee: z.coerce.number().min(0).optional().or(z.literal("").transform(() => undefined)),
   weeklyBonusEnabled: z.boolean().default(false),
+  weeklyBonusPercent: z.coerce.number().min(0).max(100).optional().or(z.literal("").transform(() => undefined)),
   weeklyBonusAmount: z.coerce.number().positive().optional().or(z.literal("").transform(() => undefined)),
   weeklyBonusMinPlayers: z.coerce.number().int().min(1).optional().or(z.literal("").transform(() => undefined)),
   season: z.coerce.number().min(2000).max(2100).default(new Date().getFullYear()),
@@ -329,14 +336,6 @@ function formNumber(value: unknown): number | null {
 }
 
 type CreatePoolFormValues = z.infer<typeof formSchema>;
-
-/** Matches NFL Create Pool reserve guidance (18 regular-season weeks). */
-const WEEKLY_BONUS_RESERVE_WEEKS = 18;
-
-function deriveWeeklyBonusMinPlayers(entryFee: number, weeklyAmount: number, weeks = WEEKLY_BONUS_RESERVE_WEEKS): number {
-  if (entryFee <= 0 || weeklyAmount <= 0) return 1;
-  return Math.max(1, Math.ceil((weeklyAmount * weeks) / entryFee));
-}
 
 function NhlWeeklyBonusPreview({ control }: { control: Control<CreatePoolFormValues> }) {
   const entryFeeRaw = useWatch({ control, name: "entryFee" });
@@ -506,6 +505,7 @@ export default function CreatePool() {
   const watchedName = form.watch("name");
   const watchedEntryFee = form.watch("entryFee");
   const watchedWeeklyBonusEnabled = form.watch("weeklyBonusEnabled");
+  const watchedWeeklyBonusPercent = useWatch({ control: form.control, name: "weeklyBonusPercent" });
   const watchedWeeklyBonusAmount = useWatch({ control: form.control, name: "weeklyBonusAmount" });
   const watchedWeeklyBonusMinPlayers = useWatch({ control: form.control, name: "weeklyBonusMinPlayers" });
   const watchedMaxEntries = form.watch("maxEntries");
@@ -572,6 +572,28 @@ export default function CreatePool() {
     watchedWeeklyBonusEnabled,
     watchedEntryFee,
     watchedWeeklyBonusAmount,
+    weeklyBonusWeeks,
+  ]);
+
+  useEffect(() => {
+    if (!isNflSeasonWeeklyBonus || watchedWeeklyBonusEnabled !== true) return;
+    const fee = formNumber(watchedEntryFee) ?? 0;
+    const pct = formNumber(watchedWeeklyBonusPercent) ?? 0;
+    if (fee <= 0 || pct <= 0) return;
+    const weekly = weeklyPayoutFromPercent(fee, pct);
+    const derived = deriveWeeklyBonusMinPlayers(fee, weekly, weeklyBonusWeeks);
+    if (formNumber(form.getValues("weeklyBonusAmount")) !== weekly) {
+      form.setValue("weeklyBonusAmount", weekly, { shouldValidate: true });
+    }
+    if (formNumber(form.getValues("weeklyBonusMinPlayers")) !== derived) {
+      form.setValue("weeklyBonusMinPlayers", derived, { shouldValidate: true });
+    }
+  }, [
+    form,
+    isNflSeasonWeeklyBonus,
+    watchedWeeklyBonusEnabled,
+    watchedEntryFee,
+    watchedWeeklyBonusPercent,
     weeklyBonusWeeks,
   ]);
 
@@ -1019,7 +1041,24 @@ export default function CreatePool() {
     const weeklyBonusIsEnabled = isWeeklyBonusEligible && values.weeklyBonusEnabled === true;
     const cleanWeeklyBonusAmount = Number(values.weeklyBonusAmount ?? NaN);
     const cleanWeeklyBonusMinPlayers = Number(values.weeklyBonusMinPlayers ?? NaN);
-    if (weeklyBonusIsEnabled && (!Number.isFinite(cleanWeeklyBonusAmount) || cleanWeeklyBonusAmount <= 0)) {
+    const cleanWeeklyBonusPercent = Number(values.weeklyBonusPercent ?? NaN);
+    if (
+      weeklyBonusIsEnabled &&
+      isNflSeasonWeeklyBonus &&
+      (!Number.isFinite(cleanWeeklyBonusPercent) || cleanWeeklyBonusPercent <= 0)
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Weekly payout percent required",
+        description: "Choose what percent of each entry goes to the weekly winner (e.g. 100% = entry back).",
+      });
+      return;
+    }
+    if (
+      weeklyBonusIsEnabled &&
+      !isNflSeasonWeeklyBonus &&
+      (!Number.isFinite(cleanWeeklyBonusAmount) || cleanWeeklyBonusAmount <= 0)
+    ) {
       toast({
         variant: "destructive",
         title: "Weekly prize amount required",
@@ -2054,69 +2093,95 @@ export default function CreatePool() {
                                   <p className="text-xs leading-relaxed text-muted-foreground">
                                     {isNhlRecurringWeeklyPickemBonus
                                       ? "Optional fixed weekly payout when enough players are in the pool. Below the threshold, there is no weekly payout that week."
-                                      : "Adds a smaller weekly prize on top of your season-end prize, so players stay engaged even after a tough week."}
+                                      : "Weekly winner gets a percent of each entry (office-pool style). Below the player threshold, weekly stays off and entries fund season prizes only."}
                                   </p>
                                 </div>
                                 <Switch
                                   checked={watchedWeeklyBonusEnabled === true}
-                                  onCheckedChange={(checked) => form.setValue("weeklyBonusEnabled", checked)}
+                                  onCheckedChange={(checked) => {
+                                    form.setValue("weeklyBonusEnabled", checked);
+                                    if (checked && isNflSeasonWeeklyBonus && !formNumber(form.getValues("weeklyBonusPercent"))) {
+                                      form.setValue("weeklyBonusPercent", 10);
+                                    }
+                                  }}
                                   data-testid="toggle-weekly-bonus"
                                 />
                               </div>
 
                               {watchedWeeklyBonusEnabled === true && (
                                 <div className="space-y-4 border-t border-primary/20 pt-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <FormField
-                                      control={form.control}
-                                      name="weeklyBonusAmount"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="font-bebas text-base tracking-wide">Weekly prize amount</FormLabel>
-                                          <FormControl>
-                                            <div className="relative">
-                                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                                              <Input
-                                                type="number"
-                                                min="0.01"
-                                                step="0.01"
-                                                placeholder="25.00"
-                                                name={field.name}
-                                                ref={field.ref}
-                                                onBlur={field.onBlur}
-                                                autoComplete="off"
-                                                onChange={(e) => {
-                                                  const raw = e.target.value;
-                                                  if (raw === "") {
-                                                    field.onChange(undefined);
-                                                    return;
+                                  {isNflSeasonWeeklyBonus ? (
+                                    <>
+                                      <FormField
+                                        control={form.control}
+                                        name="weeklyBonusPercent"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="font-bebas text-base tracking-wide">
+                                              Weekly payout (% of entry)
+                                            </FormLabel>
+                                            <FormControl>
+                                              <div className="relative">
+                                                <Input
+                                                  type="number"
+                                                  min="1"
+                                                  max="100"
+                                                  step="1"
+                                                  placeholder="10"
+                                                  name={field.name}
+                                                  ref={field.ref}
+                                                  onBlur={field.onBlur}
+                                                  autoComplete="off"
+                                                  onChange={(e) => {
+                                                    const raw = e.target.value;
+                                                    if (raw === "") {
+                                                      field.onChange(undefined);
+                                                      return;
+                                                    }
+                                                    const n = e.target.valueAsNumber;
+                                                    field.onChange(Number.isFinite(n) ? n : raw);
+                                                  }}
+                                                  value={field.value ?? ""}
+                                                  className="bg-background/50 border-primary/20 pr-8 placeholder:text-muted-foreground/50"
+                                                  data-testid="input-weekly-bonus-percent"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                                              </div>
+                                            </FormControl>
+                                            <FormDescription className="text-xs">
+                                              {formNumber(watchedEntryFee) && formNumber(watchedWeeklyBonusPercent)
+                                                ? `≈ $${weeklyPayoutFromPercent(formNumber(watchedEntryFee)!, formNumber(watchedWeeklyBonusPercent)!).toFixed(0)} per week winner (nearest $5)`
+                                                : "100% = full entry back, like a $50 office pool on a $50 buy-in"}
+                                            </FormDescription>
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                              {[5, 10, 25, 50, 100].map((pct) => (
+                                                <Button
+                                                  key={pct}
+                                                  type="button"
+                                                  size="sm"
+                                                  variant={
+                                                    formNumber(field.value) === pct ? "default" : "outline"
                                                   }
-                                                  const n = e.target.valueAsNumber;
-                                                  field.onChange(Number.isFinite(n) ? n : raw);
-                                                }}
-                                                value={field.value ?? ""}
-                                                className="bg-background/50 border-primary/20 pl-7 placeholder:text-muted-foreground/50"
-                                                data-testid="input-weekly-bonus-amount"
-                                              />
+                                                  className="h-7 text-xs"
+                                                  onClick={() => field.onChange(pct)}
+                                                >
+                                                  {pct}%{pct === 100 ? " · entry back" : ""}
+                                                </Button>
+                                              ))}
                                             </div>
-                                          </FormControl>
-                                          <FormDescription className="text-xs">
-                                            {isNhlRecurringWeeklyPickemBonus
-                                              ? "Fixed weekly payout when the player threshold is met"
-                                              : "Flat amount reserved for each regular-season week"}
-                                          </FormDescription>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="weeklyBonusMinPlayers"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="font-bebas text-base tracking-wide">Minimum players required</FormLabel>
-                                          <FormControl>
-                                            {isNhlRecurringWeeklyPickemBonus ? (
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <FormField
+                                        control={form.control}
+                                        name="weeklyBonusMinPlayers"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="font-bebas text-base tracking-wide">
+                                              Minimum players (auto)
+                                            </FormLabel>
+                                            <FormControl>
                                               <Input
                                                 type="number"
                                                 readOnly
@@ -2125,67 +2190,87 @@ export default function CreatePool() {
                                                 className="bg-muted/30 border-primary/20 opacity-100"
                                                 data-testid="input-weekly-bonus-min-players"
                                               />
-                                            ) : (
-                                              <Input
-                                                type="number"
-                                                min="1"
-                                                step="1"
-                                                placeholder="5"
-                                                name={field.name}
-                                                ref={field.ref}
-                                                onBlur={field.onBlur}
-                                                autoComplete="off"
-                                                onChange={(e) => {
-                                                  const raw = e.target.value;
-                                                  if (raw === "") {
-                                                    field.onChange(undefined);
-                                                    return;
-                                                  }
-                                                  const n = e.target.valueAsNumber;
-                                                  field.onChange(Number.isFinite(n) ? Math.trunc(n) : raw);
-                                                }}
-                                                value={field.value ?? ""}
-                                                className="bg-background/50 border-primary/20 placeholder:text-muted-foreground/50"
-                                                data-testid="input-weekly-bonus-min-players"
-                                              />
-                                            )}
-                                          </FormControl>
-                                          <FormDescription className="text-xs">
-                                            {isNhlRecurringWeeklyPickemBonus
-                                              ? "Auto-calculated from entry fee and weekly prize (same reserve model as NFL season pools)"
-                                              : "Below this threshold, the winner gets bragging rights only"}
-                                          </FormDescription>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-
-                                  {isNhlRecurringWeeklyPickemBonus ? (
-                                    <NhlWeeklyBonusPreview control={form.control} />
+                                            </FormControl>
+                                            <FormDescription className="text-xs">
+                                              Calculated so {weeklyBonusWeeks} weeks of weekly prizes can be covered from entry fees.
+                                            </FormDescription>
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <NflWeeklyBonusPercentPreview
+                                        entryFee={formNumber(watchedEntryFee) ?? 0}
+                                        weeklyPercent={formNumber(watchedWeeklyBonusPercent) ?? 0}
+                                      />
+                                    </>
                                   ) : (
-                                    <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
-                                      <div className="space-y-1.5 text-sm">
-                                        <div className="flex items-center justify-between gap-4">
-                                          <span className="text-muted-foreground">Reserved for {weeklyBonusWeeks} regular-season weeks</span>
-                                          <span className="font-semibold text-foreground">${weeklyBonusReserved.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between gap-4">
-                                          <span className="text-muted-foreground">Season-end pot at {weeklyBonusMinPlayers || "chosen"} players</span>
-                                          <span className="font-semibold text-foreground">${weeklyBonusThresholdPot.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
-                                          <span className="text-muted-foreground">Left for season-end prizes</span>
-                                          <span className={cn("font-semibold", weeklyBonusSeasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
-                                            ${weeklyBonusSeasonEndRemaining.toFixed(2)}
-                                          </span>
-                                        </div>
+                                    <>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <FormField
+                                          control={form.control}
+                                          name="weeklyBonusAmount"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel className="font-bebas text-base tracking-wide">Weekly prize amount</FormLabel>
+                                              <FormControl>
+                                                <div className="relative">
+                                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                                                  <Input
+                                                    type="number"
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    placeholder="25.00"
+                                                    name={field.name}
+                                                    ref={field.ref}
+                                                    onBlur={field.onBlur}
+                                                    autoComplete="off"
+                                                    onChange={(e) => {
+                                                      const raw = e.target.value;
+                                                      if (raw === "") {
+                                                        field.onChange(undefined);
+                                                        return;
+                                                      }
+                                                      const n = e.target.valueAsNumber;
+                                                      field.onChange(Number.isFinite(n) ? n : raw);
+                                                    }}
+                                                    value={field.value ?? ""}
+                                                    className="bg-background/50 border-primary/20 pl-7 placeholder:text-muted-foreground/50"
+                                                    data-testid="input-weekly-bonus-amount"
+                                                  />
+                                                </div>
+                                              </FormControl>
+                                              <FormDescription className="text-xs">
+                                                Fixed weekly payout when the player threshold is met
+                                              </FormDescription>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={form.control}
+                                          name="weeklyBonusMinPlayers"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel className="font-bebas text-base tracking-wide">Minimum players required</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  readOnly
+                                                  disabled
+                                                  value={field.value ?? ""}
+                                                  className="bg-muted/30 border-primary/20 opacity-100"
+                                                  data-testid="input-weekly-bonus-min-players"
+                                                />
+                                              </FormControl>
+                                              <FormDescription className="text-xs">
+                                                Auto-calculated from entry fee and weekly prize
+                                              </FormDescription>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
                                       </div>
-                                      <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                                        Informational guidance only — you can continue even if the reserved amount exceeds the threshold pot.
-                                      </p>
-                                    </div>
+                                      <NhlWeeklyBonusPreview control={form.control} />
+                                    </>
                                   )}
                                 </div>
                               )}
@@ -2702,6 +2787,12 @@ export default function CreatePool() {
                     {watchedWeeklyBonusEnabled === true && isWeeklyBonusEligible && weeklyBonusAmount > 0 && weeklyBonusMinPlayers > 0 && (
                       <div className="border-t border-border/30 pt-3 space-y-1">
                         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Weekly bonus</p>
+                        {isNflSeasonWeeklyBonus && formNumber(watchedWeeklyBonusPercent) != null && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Weekly payout percent</span>
+                            <span className="text-foreground font-semibold">{formNumber(watchedWeeklyBonusPercent)}% of entry</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Weekly payout (when threshold met)</span>
                           <span className="text-foreground font-semibold">${weeklyBonusAmount.toFixed(2)}</span>
