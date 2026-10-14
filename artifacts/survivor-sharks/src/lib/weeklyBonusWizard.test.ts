@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildWeeklyBonusScenarios,
   deriveWeeklyBonusMinPlayers,
+  resolveSeasonPrizePot,
   weeklyPayoutFromPercent,
 } from "./weeklyBonusWizard.ts";
 
@@ -17,6 +18,28 @@ describe("weeklyBonusWizard", () => {
     const weekly = weeklyPayoutFromPercent(50, 100);
     assert.equal(weekly, 50);
     assert.equal(deriveWeeklyBonusMinPlayers(50, weekly), 18);
+  });
+
+  it("reduces season pot when weekly threshold is met", () => {
+    const met = resolveSeasonPrizePot({
+      entryFee: 100,
+      memberCount: 5,
+      weeklyBonusEnabled: true,
+      weeklyBonusAmount: 10,
+      weeklyThresholdMet: true,
+    });
+    assert.equal(met.collected, 500);
+    assert.equal(met.weeklyReserveMax, 180);
+    assert.equal(met.seasonPot, 320);
+
+    const below = resolveSeasonPrizePot({
+      entryFee: 100,
+      memberCount: 4,
+      weeklyBonusEnabled: true,
+      weeklyBonusAmount: 10,
+      weeklyThresholdMet: false,
+    });
+    assert.equal(below.seasonPot, 400);
   });
 
   it("builds below-threshold vs met scenarios", () => {

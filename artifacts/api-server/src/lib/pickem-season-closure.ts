@@ -17,6 +17,8 @@ import {
 import { eq, and, sql, inArray, type SQL } from "drizzle-orm";
 import { calcPrize } from "./prizeCalc";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
+import { resolveSeasonPrizePot } from "./weekly-bonus-season-pot";
+import { resolveWeeklyBonusThreshold } from "./pool-start";
 
 export const NFL_TOTAL_WEEKS = 18;
 
@@ -155,6 +157,14 @@ async function applySeasonClosureCore(
       entryFee: poolsTable.entryFee,
       prizePot: poolsTable.prizePot,
       maxEntries: poolsTable.maxEntries,
+      poolType: poolsTable.poolType,
+      sport: poolsTable.sport,
+      pickFrequency: poolsTable.pickFrequency,
+      isRecurring: poolsTable.isRecurring,
+      weeklyBonusEnabled: poolsTable.weeklyBonusEnabled,
+      weeklyBonusAmount: poolsTable.weeklyBonusAmount,
+      weeklyBonusMinPlayers: poolsTable.weeklyBonusMinPlayers,
+      weeklyBonusLockedActive: poolsTable.weeklyBonusLockedActive,
     })
     .from(poolsTable)
     .where(eq(poolsTable.id, poolId))
@@ -163,11 +173,35 @@ async function applySeasonClosureCore(
   const ps = poolPrize?.prizeStructure ?? null;
   const totalEntries = seasonTotals.length;
 
+  const entryFeeNum = poolPrize?.entryFee != null ? Number(poolPrize.entryFee) : 0;
+  const weeklyThresholdMet =
+    poolPrize?.weeklyBonusEnabled === true &&
+    resolveWeeklyBonusThreshold({
+      poolType: poolPrize.poolType as string,
+      sport: poolPrize.sport as string,
+      pickFrequency: poolPrize.pickFrequency,
+      isRecurring: poolPrize.isRecurring,
+      weeklyBonusEnabled: true,
+      weeklyBonusMinPlayers: poolPrize.weeklyBonusMinPlayers,
+      playerCount: totalEntries,
+      isResolved: true,
+      persistedThreshold: poolPrize.weeklyBonusLockedActive,
+    });
+  const { seasonPot: seasonPotDollars } = resolveSeasonPrizePot({
+    entryFee: entryFeeNum,
+    memberCount: totalEntries,
+    weeklyBonusEnabled: poolPrize?.weeklyBonusEnabled === true,
+    weeklyBonusAmount:
+      poolPrize?.weeklyBonusAmount != null ? Number(poolPrize.weeklyBonusAmount) : null,
+    weeklyThresholdMet,
+  });
+
   const firstPrize = calcPrize({
     placeIndex: 0, coWinners: winnerUserIds.length,
     prizeStructure: ps, prizeMode: poolPrize?.prizeMode,
     entryFee: poolPrize?.entryFee, prizePot: poolPrize?.prizePot,
     totalEntries, maxEntries: poolPrize?.maxEntries ?? null,
+    seasonPotDollars: poolPrize?.prizeMode === "pct" ? seasonPotDollars : undefined,
   });
 
   await db
@@ -201,6 +235,7 @@ async function applySeasonClosureCore(
       prizePot: poolPrize?.prizePot,
       totalEntries,
       maxEntries: poolPrize?.maxEntries ?? null,
+      seasonPotDollars: poolPrize?.prizeMode === "pct" ? seasonPotDollars : undefined,
     });
 
     await db.update(entriesTable)

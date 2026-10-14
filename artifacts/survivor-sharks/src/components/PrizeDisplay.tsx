@@ -1,5 +1,6 @@
 import { Trophy } from "lucide-react";
 import { calculatePayouts, scaledPrizePot, ORDINALS } from "@/lib/calculatePayouts";
+import { resolveSeasonPrizePot } from "@/lib/weeklyBonusWizard";
 
 interface PrizeDisplayProps {
   prizeStructure?: Array<{ place: number; amount: number }> | null;
@@ -8,10 +9,16 @@ interface PrizeDisplayProps {
   actualEntries?: number | null;
   prizeMode?: "fixed" | "pct";
   entryFee?: number | null;
+  weeklyBonusEnabled?: boolean;
+  weeklyBonusAmount?: number | null;
+  /** When false, season prizes use full entry pot (weekly off). */
+  weeklyThresholdMet?: boolean;
   variant: "pool-home" | "pool-home-compact" | "join-invite" | "pool-card" | "leaderboard";
 }
 
 const SCALE_DISCLAIMER = "Payouts shown are based on reaching the maximum entries. With fewer players, amounts scale proportionally.";
+const WEEKLY_SEASON_NOTE =
+  "Season prizes use the pot after reserving weekly bonuses (when the player threshold is met).";
 
 export function PrizeDisplay({
   prizeStructure,
@@ -20,9 +27,37 @@ export function PrizeDisplay({
   actualEntries,
   prizeMode = "fixed",
   entryFee,
+  weeklyBonusEnabled = false,
+  weeklyBonusAmount = null,
+  weeklyThresholdMet = false,
   variant,
 }: PrizeDisplayProps) {
-  const scaled = calculatePayouts(prizeStructure, maxEntries, actualEntries, prizeMode, entryFee);
+  const entry = entryFee != null ? Number(entryFee) : 0;
+  const members = actualEntries ?? 0;
+  const seasonPotDollars =
+    prizeMode === "pct" &&
+    entry > 0 &&
+    members > 0 &&
+    weeklyBonusEnabled
+      ? resolveSeasonPrizePot({
+          entryFee: entry,
+          memberCount: members,
+          weeklyBonusEnabled: true,
+          weeklyBonusAmount,
+          weeklyThresholdMet,
+        }).seasonPot
+      : null;
+
+  const scaled = calculatePayouts(
+    prizeStructure,
+    maxEntries,
+    actualEntries,
+    prizeMode,
+    entryFee,
+    seasonPotDollars,
+  );
+  const usesWeeklySeasonPot =
+    weeklyBonusEnabled && weeklyThresholdMet && seasonPotDollars != null && prizeMode === "pct";
   // Limit displayed prize places to the current player count.
   // Falls back to the full list when playerCount is 0 or unavailable.
   const displayScaled =
@@ -54,9 +89,9 @@ export function PrizeDisplay({
               ))}
             </div>
           </div>
-          {isScaled && (
+          {(isScaled || usesWeeklySeasonPot) && (
             <p className="text-[11px] text-amber-400/70 leading-snug px-0.5">
-              {SCALE_DISCLAIMER}
+              {usesWeeklySeasonPot ? WEEKLY_SEASON_NOTE : SCALE_DISCLAIMER}
             </p>
           )}
         </div>
@@ -101,6 +136,11 @@ export function PrizeDisplay({
               </div>
             ))}
           </div>
+          {usesWeeklySeasonPot && (
+            <p className="text-[8px] text-muted-foreground/80 leading-tight mt-1 text-center">
+              After weekly reserve
+            </p>
+          )}
         </div>
       );
     }
