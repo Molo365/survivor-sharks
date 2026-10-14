@@ -9,16 +9,25 @@ export function calculatePayouts(
   actualEntries: number | null | undefined,
   prizeMode?: "fixed" | "pct",
   entryFee?: number | null,
+  /** When set (e.g. after weekly reserve), pct prizes use this pot instead of entry × entries. */
+  seasonPotDollars?: number | null,
 ): Array<{ place: number; amount: number }> | null {
   if (!prizeStructure || prizeStructure.length === 0) return null;
 
   if (prizeMode === "pct") {
     // Pct mode: amounts are percentages (0–100). Compute dollar payout from
-    // entryFee × actualEntries × (pct / 100), rounded DOWN to nearest $5.
-    if (!entryFee || entryFee <= 0 || !actualEntries || actualEntries <= 0) return null;
+    // season pot dollars × (pct / 100), rounded to nearest $5.
+    if (!actualEntries || actualEntries <= 0) return null;
+    const pot =
+      seasonPotDollars != null && seasonPotDollars >= 0
+        ? seasonPotDollars
+        : entryFee && entryFee > 0
+          ? entryFee * actualEntries
+          : 0;
+    if (pot <= 0) return null;
     return prizeStructure.map((p) => ({
       place: p.place,
-      amount: Math.round((p.amount / 100) * entryFee * actualEntries / 5) * 5,
+      amount: Math.round((p.amount / 100) * pot / 5) * 5,
     }));
   }
 

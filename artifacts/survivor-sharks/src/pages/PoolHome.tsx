@@ -115,6 +115,12 @@ export default function PoolHome() {
   const showsSeasonWeeklyBonus = Boolean(
     pool?.weeklyBonusEnabled && (isPickEmSeason || isNflConfidence || isNhlRecurringWeeklyPickEm),
   );
+  const weeklyThresholdMet = Boolean(
+    pool?.weeklyBonusEnabled &&
+      (pool.weeklyBonusLockedActive === true ||
+        (pool.weeklyBonusMinPlayers != null &&
+          (pool.totalMembers ?? 0) >= pool.weeklyBonusMinPlayers)),
+  );
   const isWcBracket = (pool?.poolType as string) === "wc_bracket";
   const isMlbBracket = (pool?.poolType as string) === "mlb_bracket";
   const isNbaAts = (pool?.poolType as string) === "nba_ats";
@@ -284,6 +290,9 @@ export default function PoolHome() {
                       entryFee={pool.entryFee}
                       maxEntries={pool.maxEntries}
                       actualEntries={pool.totalMembers}
+                      weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
+                      weeklyBonusAmount={pool.weeklyBonusAmount ?? null}
+                      weeklyThresholdMet={weeklyThresholdMet}
                     />
                   </div>
                 </div>
@@ -453,6 +462,9 @@ export default function PoolHome() {
                   entryFee={pool.entryFee}
                   maxEntries={pool.maxEntries}
                   actualEntries={pool.totalMembers}
+                  weeklyBonusEnabled={pool.weeklyBonusEnabled === true}
+                  weeklyBonusAmount={pool.weeklyBonusAmount ?? null}
+                  weeklyThresholdMet={weeklyThresholdMet}
                 />
               </div>
             </div>

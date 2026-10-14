@@ -3,7 +3,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Info } from "lucide-react";
 
-const WEEKLY_BONUS_RESERVE_WEEKS = 18;
+import {
+  WEEKLY_BONUS_RESERVE_WEEKS,
+  resolveSeasonPrizePot,
+  weeklyPercentFromAmount,
+} from "@/lib/weeklyBonusWizard";
 
 function getOrdinal(n: number) {
   const s = ["th", "st", "nd", "rd"];
@@ -84,13 +88,28 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
   const entryFeeNum = pool.entryFee != null ? Number(pool.entryFee) : 0;
   const weeklyReserved =
     weeklyBonusAmount != null ? weeklyBonusAmount * WEEKLY_BONUS_RESERVE_WEEKS : null;
-  const thresholdPot =
-    weeklyBonusMinPlayers != null && entryFeeNum > 0
-      ? entryFeeNum * weeklyBonusMinPlayers
-      : null;
-  const seasonEndGuidance =
-    thresholdPot != null && weeklyReserved != null ? thresholdPot - weeklyReserved : null;
   const enrolled = pool.totalMembers ?? 0;
+  const weeklyPct =
+    weeklyBonusAmount != null && entryFeeNum > 0
+      ? weeklyPercentFromAmount(entryFeeNum, weeklyBonusAmount)
+      : null;
+  const weeklyThresholdMet =
+    pool.weeklyBonusLockedActive === true ||
+    (weeklyBonusMinPlayers != null && enrolled >= weeklyBonusMinPlayers);
+  const seasonPotNow = resolveSeasonPrizePot({
+    entryFee: entryFeeNum,
+    memberCount: enrolled,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled === true,
+    weeklyBonusAmount,
+    weeklyThresholdMet,
+  });
+  const seasonPotIfBelowThreshold = resolveSeasonPrizePot({
+    entryFee: entryFeeNum,
+    memberCount: enrolled,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled === true,
+    weeklyBonusAmount,
+    weeklyThresholdMet: false,
+  });
 
   return (
     <Card className="border-border/50 bg-card/40">
@@ -181,29 +200,59 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Each closed week pays up to{" "}
                   <span className="font-semibold text-foreground">${weeklyBonusAmount?.toFixed(2) ?? "0"}</span>
+                  {weeklyPct != null && (
+                    <>
+                      {" "}
+                      (<span className="font-semibold text-foreground">{weeklyPct}%</span> of entry)
+                    </>
+                  )}
                   {" "}split among winners when at least{" "}
                   <span className="font-semibold text-foreground">{weeklyBonusMinPlayers ?? "—"}</span>
-                  {" "}players have joined.
+                  {" "}players have joined. Weekly amount stays fixed as more players join.
                 </p>
                 {weeklyBonusAmount != null && weeklyBonusMinPlayers != null && entryFeeNum > 0 && (
                   <div className="space-y-1.5 text-xs border-t border-border/30 pt-2">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted-foreground">Reserved ({WEEKLY_BONUS_RESERVE_WEEKS} weeks × weekly prize)</span>
-                      <span className="font-medium text-foreground">${weeklyReserved!.toFixed(2)}</span>
+                      <span className="text-muted-foreground">Money in ({enrolled} × ${entryFeeNum})</span>
+                      <span className="font-medium text-foreground">${seasonPotNow.collected.toFixed(2)}</span>
                     </div>
+                    {weeklyThresholdMet && weeklyReserved != null && (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">
+                          Max weekly reserve ({WEEKLY_BONUS_RESERVE_WEEKS} × ${weeklyBonusAmount.toFixed(2)})
+                        </span>
+                        <span className="font-medium text-foreground">${weeklyReserved.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-muted-foreground">
-                        Pot at threshold ({weeklyBonusMinPlayers} × ${entryFeeNum})
+                        Season prize pot {weeklyThresholdMet ? "(now)" : "(weekly off — full entries)"}
                       </span>
-                      <span className="font-medium text-foreground">${thresholdPot!.toFixed(2)}</span>
+                      <span
+                        className={`font-medium ${
+                          (weeklyThresholdMet ? seasonPotNow.seasonPot : seasonPotIfBelowThreshold.seasonPot) < 0
+                            ? "text-destructive"
+                            : "text-green-400"
+                        }`}
+                      >
+                        $
+                        {(weeklyThresholdMet ? seasonPotNow.seasonPot : seasonPotIfBelowThreshold.seasonPot).toFixed(
+                          2,
+                        )}
+                      </span>
                     </div>
-                    {seasonEndGuidance != null && (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Left for season-end (guidance)</span>
-                        <span className={`font-medium ${seasonEndGuidance < 0 ? "text-destructive" : "text-green-400"}`}>
-                          ${seasonEndGuidance.toFixed(2)}
-                        </span>
-                      </div>
+                    {!weeklyThresholdMet && weeklyReserved != null && enrolled > 0 && (
+                      <p className="text-[11px] text-muted-foreground/90 pt-1">
+                        If threshold is met with {weeklyBonusMinPlayers}+ players, season guidance becomes $
+                        {resolveSeasonPrizePot({
+                          entryFee: entryFeeNum,
+                          memberCount: enrolled,
+                          weeklyBonusEnabled: true,
+                          weeklyBonusAmount,
+                          weeklyThresholdMet: true,
+                        }).seasonPot.toFixed(2)}{" "}
+                        at current enrollment.
+                      </p>
                     )}
                   </div>
                 )}

@@ -36,6 +36,8 @@ export function calcPrize(opts: {
   maxEntries: number | null | undefined;
   placeIndex: number;
   coWinners: number;
+  /** When set, pct-mode pot uses this instead of entryFee × totalEntries. */
+  seasonPotDollars?: number | null;
 }): number | null {
   const {
     prizeStructure, prizeMode, entryFee, prizePot,
@@ -50,11 +52,13 @@ export function calcPrize(opts: {
 
   if (prizeMode === "pct") {
     const pot =
-      prizePot != null && prizePot > 0
-        ? prizePot
-        : entryFee != null && entryFee > 0
-          ? entryFee * totalEntries
-          : 0;
+      opts.seasonPotDollars != null && opts.seasonPotDollars >= 0
+        ? opts.seasonPotDollars
+        : prizePot != null && prizePot > 0
+          ? prizePot
+          : entryFee != null && entryFee > 0
+            ? entryFee * totalEntries
+            : 0;
     if (pot <= 0) return null;
 
     if (sorted.length === 0) {
