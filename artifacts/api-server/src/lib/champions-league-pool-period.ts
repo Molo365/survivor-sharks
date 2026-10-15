@@ -5,8 +5,14 @@ import {
   fetchCurrentChampionsLeagueSlate,
   fetchGamesForDate,
   formatDateEtDash,
+  isChampionsLeaguePeriodWithinPickemVisibilityWindow,
   type EspnGame,
 } from "./espn";
+import {
+  isChampionsLeaguePoolPicksOpen,
+  resolveChampionsLeagueDefaultPeriodKey,
+} from "./champions-league-default-period";
+import { openSlateGames } from "./pool-slate-live";
 
 /** Matches UEFA matchday clustering in espn.ts (gap > 3 days starts a new period). */
 export const CHAMPIONS_LEAGUE_POOL_PERIOD_MAX_GAP_DAYS = 3;
@@ -188,4 +194,55 @@ export async function resolveChampionsLeaguePeriodContext(
   const previous = previousIdx !== null ? await enrichPhaseLabel(periods[previousIdx]!) : null;
 
   return { current, previous };
+}
+
+export type ChampionsLeagueOpenPickState = {
+  openPeriod: ChampionsLeaguePoolPeriod | null;
+  /** Period shown on My Picks summary when picks are not open. */
+  displayPeriod: ChampionsLeaguePoolPeriod | null;
+  pickDates: string[];
+  openGames: EspnGame[];
+};
+
+export async function resolveChampionsLeagueOpenPickState(
+  poolId: number,
+  now = new Date(),
+): Promise<ChampionsLeagueOpenPickState> {
+  const ctx = await resolveChampionsLeaguePeriodContext(poolId, now);
+  const liveSlate = await fetchCurrentChampionsLeagueSlate(now);
+  const hasVisibleLiveSlate =
+    liveSlate != null
+    && isChampionsLeaguePeriodWithinPickemVisibilityWindow(liveSlate.games, now);
+
+  const defaultKey = resolveChampionsLeagueDefaultPeriodKey(ctx, hasVisibleLiveSlate, now);
+  let displayPeriod: ChampionsLeaguePoolPeriod | null = null;
+  if (defaultKey) {
+    if (ctx.current?.weekStart === defaultKey) displayPeriod = ctx.current;
+    else if (ctx.previous?.weekStart === defaultKey) displayPeriod = ctx.previous;
+    else {
+      const periods = await listChampionsLeaguePickPeriods(poolId);
+      displayPeriod = periods.find((p) => p.weekStart === defaultKey) ?? null;
+    }
+  }
+
+  if (!isChampionsLeaguePoolPicksOpen(ctx, hasVisibleLiveSlate, now) || !ctx.current) {
+    return {
+      openPeriod: null,
+      displayPeriod,
+      pickDates: [],
+      openGames: [],
+    };
+  }
+
+  const games = await fetchChampionsLeagueGamesForPeriodDates(ctx.current.dates);
+  const openGames = openSlateGames(
+    games.filter((game) => game.status !== "suspended" && game.status !== "postponed" && !game.isPostponed),
+  );
+
+  return {
+    openPeriod: ctx.current,
+    displayPeriod: ctx.current,
+    pickDates: ctx.current.dates,
+    openGames,
+  };
 }
