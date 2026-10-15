@@ -1046,9 +1046,9 @@ function generateWeekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
 }
 
-/** NBA ATS: full Mon–Sun pool week for leaderboard columns */
-function generateAtsDays(weekStart: string): string[] {
-  return generateWeekDays(weekStart);
+/** NBA ATS leaderboard columns — weekStart from the API is the Friday of that weekend */
+function generateAtsDays(weekendFriday: string): string[] {
+  return [weekendFriday, offsetDate(weekendFriday, 1), offsetDate(weekendFriday, 2)];
 }
 
 function formatNbaAtsDayHeading(dateStr: string): string {
@@ -1063,7 +1063,7 @@ function formatNbaAtsDayHeading(dateStr: string): string {
 }
 
 function formatNbaAtsRangeLabel(dates: string[]): string {
-  if (dates.length === 0) return "This week";
+  if (dates.length === 0) return "This weekend";
   if (dates.length === 1) return formatNbaAtsDayHeading(dates[0]);
   const short = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -3173,7 +3173,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                   : pickFrequency === "weekly"
                   ? (isNbaAts
-                      ? "Pick every NBA game this pool week against the spread (Mon–Sun). Games are grouped by date so you can see when each tips off. You can pick a game once ESPN posts the line — spreads often arrive late. Most correct covers for the week wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                      ? "Pick every NBA game on the Friday–Sunday slate against the spread. Games are grouped by date (Fri, Sat, Sun). You can pick once ESPN posts the line — spreads often arrive late. Most correct covers for the weekend wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
                       : isNhl
                       ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                       : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
@@ -3775,8 +3775,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ) : !slate?.games.length ? (
                 <div className="text-center py-16 text-muted-foreground">
                   <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p className="font-bebas text-2xl tracking-wide">No games this week</p>
-                  <p className="text-sm mt-1">Check back when the NBA schedule is posted for this pool week.</p>
+                  <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
+                  <p className="text-sm mt-1">Check back when the Fri–Sun NBA schedule is posted.</p>
                 </div>
               ) : (
                 <>

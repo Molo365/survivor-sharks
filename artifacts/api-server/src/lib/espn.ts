@@ -794,16 +794,27 @@ export function getNbaWeekBounds(poolCreatedAt: Date, weekNumber: number): NbaWe
  */
 export function getNbaWeekendBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
   const full = getNbaWeekBounds(poolCreatedAt, weekNumber);
+  const days = full.days.slice(4, 7);
+  const espnDates = full.espnDates.slice(4, 7);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+  });
+  const weekendLabel = days.length >= 2
+    ? `${fmt.format(new Date(`${days[0]}T12:00:00Z`))} – ${fmt.format(new Date(`${days.at(-1)!}T12:00:00Z`))}`
+    : full.weekLabel;
   return {
     ...full,
-    days: full.days.slice(4, 7),
-    espnDates: full.espnDates.slice(4, 7),
+    days,
+    espnDates,
+    weekLabel: weekendLabel,
   };
 }
 
-/** Mon–Sun pick-em slate for `nba_ats` (includes Tue openers; Crazy 8s still uses Fri–Sun). */
+/** Fri–Sun pick-em slate for `nba_ats` (same window as weekend Crazy 8s NBA). */
 export function getNbaAtsSlateBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
-  return getNbaWeekBounds(poolCreatedAt, weekNumber);
+  return getNbaWeekendBounds(poolCreatedAt, weekNumber);
 }
 
 /**

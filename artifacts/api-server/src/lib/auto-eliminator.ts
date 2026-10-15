@@ -5057,8 +5057,8 @@ export async function processPickEmResults(): Promise<{
         nbaGameIdsByDate.get(espnDate)!.add(gameId);
       }
 
-      // Calendar guard: don't close until the Sunday of this pool week has passed.
-      // IMPORTANT: derive weekEnd from the pool's own schedule (getNbaAtsSlateBounds anchored
+      // Calendar guard: don't close until the Sunday of this Fri–Sun weekend has passed.
+      // IMPORTANT: derive weekEnd from the pool's own schedule (getNbaAtsSlateBounds → Fri–Sun
       // to pool.createdAt / currentWeek) rather than from stored pick gameDates.
       // Sandbox NBA ATS picks are stored with anchor-period dates (e.g. Jan/Feb 2026) set
       // via pick.gameDate from the client — the pick-date approach computes weekEnd from

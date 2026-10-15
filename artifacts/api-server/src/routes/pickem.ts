@@ -1025,7 +1025,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
   } else if (isAts) {
-    // NBA ATS: validate against the full Mon–Sun pool-week slate
+    // NBA ATS: validate against the Fri–Sun weekend slate
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
     const { espnDates } = getNbaAtsSlateBounds(anchor, pool.currentWeek);
     const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
@@ -3123,7 +3123,7 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
 
   // ── NBA ATS sandbox simulate-grading ────────────────────────────────────────
   if (isNbaAts) {
-    // 1. Fetch the full Mon–Sun pool-week slate for this anchor week
+    // 1. Fetch the Fri–Sun weekend slate for this anchor week
     const { espnDates } = getNbaAtsSlateBounds(NBA_SANDBOX_ANCHOR, week);
     const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
     type AtsSandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
