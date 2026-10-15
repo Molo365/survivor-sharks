@@ -6,7 +6,7 @@ import {
   fetchNflGamesByWeek,
   fetchNhlGamesByWeek,
   fetchSuperLeagueGamesForDate,
-  getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   getNhlWeekBounds,
   getTodayEtDate,
   type EspnGame,
@@ -49,7 +49,7 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
   }
 
   if (pt === "nba_ats") {
-    const dates = getNbaWeekendBounds(pool.createdAt, pool.currentWeek).espnDates;
+    const dates = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek).espnDates;
     const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
     const seen = new Set<string>();
     return results.flat().filter((game) => {
@@ -75,7 +75,7 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
       });
     }
     if (sport === "nba") {
-      const { espnDates } = getNbaWeekendBounds(pool.createdAt, pool.currentWeek);
+      const { espnDates } = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
       const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
       const seen = new Set<string>();
       return results.flat().filter((g) => {

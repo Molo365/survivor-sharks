@@ -45,6 +45,7 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   getNbaWeekBounds,
   NBA_SANDBOX_ANCHOR,
   type EspnGame,
@@ -5056,15 +5057,15 @@ export async function processPickEmResults(): Promise<{
         nbaGameIdsByDate.get(espnDate)!.add(gameId);
       }
 
-      // Calendar guard: don't close until the Sunday of this Fri–Sun weekend has passed.
-      // IMPORTANT: derive weekEnd from the pool's own schedule (getNbaWeekendBounds anchored
+      // Calendar guard: don't close until the Sunday of this pool week has passed.
+      // IMPORTANT: derive weekEnd from the pool's own schedule (getNbaAtsSlateBounds anchored
       // to pool.createdAt / currentWeek) rather than from stored pick gameDates.
       // Sandbox NBA ATS picks are stored with anchor-period dates (e.g. Jan/Feb 2026) set
       // via pick.gameDate from the client — the pick-date approach computes weekEnd from
       // that stale anchor date, sees today (Aug 2026) is not before it, and skips the guard,
       // allowing premature closure within one auto-eliminator cycle.
       {
-        const { weekEnd: nbaWeekEndDate } = getNbaWeekendBounds(pool.createdAt, pool.currentWeek);
+        const { weekEnd: nbaWeekEndDate } = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
         const nbaWeekEnd = formatDateEtDash(nbaWeekEndDate);
         if (todayEt < nbaWeekEnd) {
           logger.info(

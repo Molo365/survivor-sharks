@@ -1046,9 +1046,46 @@ function generateWeekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
 }
 
-/** NBA ATS: only Fri/Sat/Sun from the Mon-start week */
+/** NBA ATS: full Mon–Sun pool week for leaderboard columns */
 function generateAtsDays(weekStart: string): string[] {
-  return [offsetDate(weekStart, 4), offsetDate(weekStart, 5), offsetDate(weekStart, 6)];
+  return generateWeekDays(weekStart);
+}
+
+function formatNbaAtsDayHeading(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(Date.UTC(y!, m! - 1, d!, 17, 0, 0)));
+}
+
+function formatNbaAtsRangeLabel(dates: string[]): string {
+  if (dates.length === 0) return "This week";
+  if (dates.length === 1) return formatNbaAtsDayHeading(dates[0]);
+  const short = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+  });
+  const fmt = (ds: string) => {
+    const [y, m, d] = ds.split("-").map(Number);
+    return short.format(new Date(Date.UTC(y!, m! - 1, d!, 17, 0, 0)));
+  };
+  return `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}`;
+}
+
+function etDateFromPickEmGame(game: PickEmGame): string {
+  const et = (game as { etDate?: string | null }).etDate;
+  if (et) return et;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(game.startTime));
 }
 
 // ── Daily pick detail panel ───────────────────────────────────────────────────
@@ -1718,13 +1755,7 @@ function PrevWeekResultsModal({
   const tiebreakerActualPenaltyMinutes = isDefaultWeek ? (defaultTbPIM   ?? null) : ((altWeekData as any)?.tiebreakerActualPenaltyMinutes ?? null);
   const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
 
-  // For nba_ats the modal receives weekStart = Friday (from getNbaWeekendBounds),
-  // so generate the three weekend days as +0/+1/+2 from that Friday.
-  // generateAtsDays adds +4/+5/+6 and is only correct when weekStart is a Monday
-  // (as in the live WeeklyLeaderboard), so it must NOT be used here.
-  const days = isNbaAts
-    ? [weekStart, offsetDate(weekStart, 1), offsetDate(weekStart, 2)]
-    : generateWeekDays(weekStart);
+  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
 
   function toggleCell(userId: number, date: string) {
@@ -2795,6 +2826,31 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     : openGames
   ).filter((g) => !localPicks.has(g.id)).length;
 
+  const nbaAtsDaysGrouped = useMemo(() => {
+    if (!isNbaAts || !slate?.games.length) return [];
+    const map = new Map<string, PickEmGame[]>();
+    for (const game of slate.games) {
+      const date = etDateFromPickEmGame(game);
+      const list = map.get(date) ?? [];
+      list.push(game);
+      map.set(date, list);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, games]) => ({
+        date,
+        label: formatNbaAtsDayHeading(date),
+        games,
+      }));
+  }, [isNbaAts, slate?.games]);
+
+  const nbaAtsRangeLabel = useMemo(() => {
+    if (!isNbaAts) return "";
+    const fromApi = (slate as { weekLabel?: string } | undefined)?.weekLabel;
+    if (fromApi) return fromApi;
+    return formatNbaAtsRangeLabel(nbaAtsDaysGrouped.map((d) => d.date));
+  }, [isNbaAts, slate, nbaAtsDaysGrouped]);
+
   const slateLocked = isNhlWeekly
     ? (viewingPastPeriod || (scheduleData?.deadlinePassed ?? false))
     : isMlsWeekly
@@ -3117,7 +3173,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                   : pickFrequency === "weekly"
                   ? (isNbaAts
-                      ? "Pick every game on the Friday–Sunday NBA slate against the spread. Games show as soon as they are scheduled. You can pick a game once the line is out — NBA lines often arrive late. Most correct covers by Sunday wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                      ? "Pick every NBA game this pool week against the spread (Mon–Sun). Games are grouped by date so you can see when each tips off. You can pick a game once ESPN posts the line — spreads often arrive late. Most correct covers for the week wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
                       : isNhl
                       ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
                       : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
@@ -3551,7 +3607,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               {/* Weekend header */}
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">This Weekend</h3>
+                  <h3 className="font-bebas text-2xl text-foreground tracking-wide leading-none">
+                    {nbaAtsRangeLabel || "This week"}
+                  </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {gamesLoading ? "Loading…" : `${slate?.games.length ?? 0} game${(slate?.games.length ?? 0) !== 1 ? "s" : ""}`}
                     {" · "}{localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
@@ -3683,16 +3741,29 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     );
                   })()}
                   {/* Graded game cards — each shows final margin vs spread */}
-                  {(slate?.games ?? []).length > 0 && (
-                    <div className="space-y-3">
+                  {nbaAtsDaysGrouped.length > 0 && (
+                    <div className="space-y-6">
                       <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80">Game Results</h4>
-                      {(slate?.games ?? []).map((game) => (
-                        <AtsGameCard
-                          key={game.id}
-                          game={game}
-                          pickedTeamId={game.userPickTeamId ?? null}
-                          onPick={() => {}}
-                        />
+                      {nbaAtsDaysGrouped.map((day) => (
+                        <div key={day.date} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-bebas text-lg tracking-wide text-muted-foreground/80 leading-none">
+                              {day.label}
+                            </h5>
+                            <div className="flex-1 h-px bg-border/30" />
+                            <span className="text-xs text-muted-foreground/50">
+                              {day.games.length} game{day.games.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          {day.games.map((game) => (
+                            <AtsGameCard
+                              key={game.id}
+                              game={game}
+                              pickedTeamId={game.userPickTeamId ?? null}
+                              onPick={() => {}}
+                            />
+                          ))}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -3704,8 +3775,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ) : !slate?.games.length ? (
                 <div className="text-center py-16 text-muted-foreground">
                   <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
-                  <p className="text-sm mt-1">Check back when the NBA weekend schedule is posted.</p>
+                  <p className="font-bebas text-2xl tracking-wide">No games this week</p>
+                  <p className="text-sm mt-1">Check back when the NBA schedule is posted for this pool week.</p>
                 </div>
               ) : (
                 <>
@@ -3718,14 +3789,27 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       </p>
                     </div>
                   )}
-                  <div className="space-y-3">
-                    {(slate?.games ?? []).map((game) => (
-                      <AtsGameCard
-                        key={game.id}
-                        game={game}
-                        pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
-                        onPick={(teamId) => togglePick(game.id, teamId)}
-                      />
+                  <div className="space-y-6">
+                    {nbaAtsDaysGrouped.map((day) => (
+                      <div key={day.date} className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80 leading-none">
+                            {day.label}
+                          </h4>
+                          <div className="flex-1 h-px bg-border/30" />
+                          <span className="text-xs text-muted-foreground/50">
+                            {day.games.length} game{day.games.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        {day.games.map((game) => (
+                          <AtsGameCard
+                            key={game.id}
+                            game={game}
+                            pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                            onPick={(teamId) => togglePick(game.id, teamId)}
+                          />
+                        ))}
+                      </div>
                     ))}
                   </div>
                   {openGames.length > 0 && (

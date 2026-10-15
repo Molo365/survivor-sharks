@@ -15,7 +15,7 @@ import {
   fetchNhlGamesByWeek,
   fetchNflGamesByWeek,
   fetchSuperLeagueGamesForDate,
-  getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   getSuperLeagueWeekBoundsEt,
   getTodayEtDate,
   getWeekBoundsEt,
@@ -120,18 +120,13 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   }
 
   if (pool.poolType === "nba_ats") {
-    let dates: string[];
-    if (pool.sandboxMode) {
-      const bounds = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
-      dates = bounds.espnDates.map((date) => `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`);
-    } else {
-      const full = getWeekBoundsEt(todayEt);
-      const [year, month, day] = full.weekStart.split("-").map(Number);
-      const friday = new Date(Date.UTC(year!, month! - 1, day! + 4));
-      const sunday = new Date(Date.UTC(year!, month! - 1, day! + 6));
-      dates = datesFromRange(friday.toISOString().slice(0, 10), sunday.toISOString().slice(0, 10));
-    }
-    const games = await fetchGamesForDates("nba", dates);
+    const anchor = pool.sandboxMode
+      ? NBA_SANDBOX_ANCHOR
+      : pool.createdAt instanceof Date
+        ? pool.createdAt
+        : new Date(pool.createdAt);
+    const bounds = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+    const games = await fetchGamesForDates("nba", bounds.days);
     return {
       kind: "week",
       games: selectableGames(games),

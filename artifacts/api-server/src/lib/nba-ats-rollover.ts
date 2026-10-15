@@ -1,7 +1,7 @@
 import {
   fetchGamesForDateChecked,
   formatCalendarDateEt,
-  getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   type EspnGame,
 } from "./espn";
 import {
@@ -91,7 +91,7 @@ export async function advanceRecurringNbaAtsPools({
     }
 
     try {
-      const bounds = getNbaWeekendBounds(pool.createdAt, pool.currentWeek);
+      const bounds = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
       const sundayEt = bounds.days[bounds.days.length - 1]!;
       if (todayEt <= sundayEt) {
         log(
