@@ -15,7 +15,6 @@ import {
   fetchNhlGamesByWeek,
   fetchNflGamesByWeek,
   fetchSuperLeagueGamesForDate,
-  fetchCurrentChampionsLeagueSlate,
   getNbaWeekendBounds,
   getSuperLeagueWeekBoundsEt,
   getTodayEtDate,
@@ -24,6 +23,7 @@ import {
   NHL_SANDBOX_ANCHOR,
   type EspnGame,
 } from "../lib/espn";
+import { resolveChampionsLeagueOpenPickState } from "../lib/champions-league-pool-period";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import {
@@ -193,16 +193,18 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   }
 
   if (sport === "championsleague") {
-    const slate = await fetchCurrentChampionsLeagueSlate();
-    if (!slate || slate.dates.length === 0) {
+    const clOpen = await resolveChampionsLeagueOpenPickState(pool.id);
+    if (!clOpen.openPeriod || clOpen.openGames.length === 0) {
       return { kind: "range", start: todayEt, end: todayEt, games: [], gameIds: new Set(), confidenceRequired: false };
     }
+    const openIds = new Set(clOpen.openGames.map((game) => game.id));
+    const periodGames = selectableGames(clOpen.openGames);
     return {
       kind: "range",
-      start: slate.dates[0]!,
-      end: slate.dates[slate.dates.length - 1]!,
-      games: selectableGames(slate.games),
-      gameIds: selectableGameIds(slate.games),
+      start: clOpen.openPeriod.weekStart,
+      end: clOpen.openPeriod.weekEnd,
+      games: periodGames,
+      gameIds: openIds,
       confidenceRequired: false,
     };
   }

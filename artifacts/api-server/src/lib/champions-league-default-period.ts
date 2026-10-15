@@ -30,3 +30,18 @@ export function resolveChampionsLeagueDefaultPeriodKey(
   if (ctx.current) return ctx.current.weekStart;
   return null;
 }
+
+/**
+ * Whether pool members should be nudged to submit picks (My Picks, leaderboard dots).
+ * Mirrors the default picks UI: no open slate, or still lingering on the previous matchday.
+ */
+export function isChampionsLeaguePoolPicksOpen(
+  ctx: ChampionsLeaguePeriodContext,
+  hasVisibleLiveSlate: boolean,
+  now: Date,
+): boolean {
+  if (!hasVisibleLiveSlate || !ctx.current) return false;
+  const defaultKey = resolveChampionsLeagueDefaultPeriodKey(ctx, hasVisibleLiveSlate, now);
+  if (ctx.previous && defaultKey === ctx.previous.weekStart) return false;
+  return true;
+}

@@ -30,7 +30,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
-import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
+import { resolveChampionsLeagueOpenPickState } from "../lib/champions-league-pool-period";
 import { NFL_DIVISIONS } from "../lib/nfl-divisions";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
@@ -280,8 +280,8 @@ router.get("/summary", requireAuth, async (req, res) => {
           pool.pickFrequency === "weekly";
         const isChampionsLeagueWeekly =
           pool.sport === "championsleague" && pool.pickFrequency === "weekly";
-        const championsLeaguePeriods = isChampionsLeagueWeekly
-          ? await resolveChampionsLeaguePeriodContext(pool.id)
+        const championsLeagueOpen = isChampionsLeagueWeekly
+          ? await resolveChampionsLeagueOpenPickState(pool.id)
           : null;
         // For ended daily pools (pool.isActive === false): omit the date filter
         // so any historical picks count — the game date has already passed.
@@ -294,10 +294,12 @@ router.get("/summary", requireAuth, async (req, res) => {
           : { weekStart, weekEnd };
         const dateFilter = isDaily
           ? (pool.isActive ? eq(pickemPicksTable.gameDate, todayEt) : undefined)
-          : isChampionsLeagueWeekly && championsLeaguePeriods?.current
-            ? inArray(pickemPicksTable.gameDate, championsLeaguePeriods.current.dates)
-            : isChampionsLeagueWeekly
-              ? eq(pickemPicksTable.gameDate, "__no_active_cl_period__")
+          : isChampionsLeagueWeekly && championsLeagueOpen?.pickDates.length
+            ? inArray(pickemPicksTable.gameDate, championsLeagueOpen.pickDates)
+            : isChampionsLeagueWeekly && championsLeagueOpen?.displayPeriod
+              ? inArray(pickemPicksTable.gameDate, championsLeagueOpen.displayPeriod.dates)
+              : isChampionsLeagueWeekly
+                ? eq(pickemPicksTable.gameDate, "__no_active_cl_period__")
               : isMlsOrSlWeekly
                 ? and(
                     gte(pickemPicksTable.gameDate, weeklyBounds.weekStart),
@@ -374,7 +376,27 @@ router.get("/summary", requireAuth, async (req, res) => {
         }
 
         let pickStatus: PickStatus = picked > 0 ? "submitted" : "pending";
-        if (allowsPartialPeriodStatus(pool)) {
+        if (isChampionsLeagueWeekly && championsLeagueOpen) {
+          const openGameIds = championsLeagueOpen.openGames.map((game) => game.id);
+          if (openGameIds.length === 0) {
+            pickStatus = "not_required";
+          } else if (picked === 0) {
+            pickStatus = "pending";
+          } else {
+            const pickRows = await db
+              .select({ gameId: pickemPicksTable.gameId })
+              .from(pickemPicksTable)
+              .where(
+                and(
+                  eq(pickemPicksTable.poolId, pool.id),
+                  eq(pickemPicksTable.userId, userId),
+                  inArray(pickemPicksTable.gameDate, championsLeagueOpen.pickDates),
+                ),
+              );
+            const pickedSet = new Set(pickRows.map((row) => row.gameId));
+            pickStatus = openGameIds.some((id) => !pickedSet.has(id)) ? "incomplete" : "submitted";
+          }
+        } else if (allowsPartialPeriodStatus(pool)) {
           const games = await getPartialPeriodGames(pool);
           const openGames = openSlateGames(games);
           if (picked === 0) {
