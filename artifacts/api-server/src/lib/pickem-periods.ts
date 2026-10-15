@@ -8,9 +8,16 @@ import {
   resolveChampionsLeaguePeriodContext,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
+import { resolveChampionsLeagueDefaultPeriodKey } from "./champions-league-default-period";
 import { getMlsConfiguredPeriod } from "./mls-weekly-period";
 import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
-import { fetchCurrentChampionsLeagueSlate, getNhlWeekBounds, getSuperLeagueWeekBoundsEt, getWeekBoundsEt } from "./espn";
+import {
+  fetchCurrentChampionsLeagueSlate,
+  getNhlWeekBounds,
+  getSuperLeagueWeekBoundsEt,
+  getWeekBoundsEt,
+  isChampionsLeaguePeriodWithinPickemVisibilityWindow,
+} from "./espn";
 
 export type PickEmPeriodStatus = "current" | "completed";
 
@@ -55,25 +62,27 @@ export async function listChampionsLeaguePickEmPeriods(
   if (ctx.current) byStart.set(ctx.current.weekStart, ctx.current);
 
   const sorted = [...byStart.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-  const currentKey = liveSlate && ctx.current ? ctx.current.weekStart : null;
+  const hasVisibleLiveSlate =
+    liveSlate != null
+    && isChampionsLeaguePeriodWithinPickemVisibilityWindow(liveSlate.games, now);
+  const defaultKey = resolveChampionsLeagueDefaultPeriodKey(ctx, hasVisibleLiveSlate, now);
+  const openPickKey =
+    hasVisibleLiveSlate && ctx.current ? ctx.current.weekStart : null;
 
   const periods: PickEmPeriodListItem[] = await Promise.all(
     sorted.map(async (period) => {
-      const isCurrent = currentKey === period.weekStart;
+      const isOpenForPicks = openPickKey === period.weekStart;
       return {
         key: period.weekStart,
         label: await labelChampionsLeaguePeriod(period),
         weekStart: period.weekStart,
         weekEnd: period.weekEnd,
         dates: period.dates,
-        status: isCurrent ? "current" : "completed",
-        canPick: isCurrent,
+        status: isOpenForPicks ? "current" : "completed",
+        canPick: isOpenForPicks,
       };
     }),
   );
-
-  /** Default to the live matchday only; history is chosen explicitly in the dropdown. */
-  const defaultKey = currentKey;
 
   return { periods, defaultKey };
 }
@@ -104,6 +113,9 @@ export async function loadChampionsLeaguePeriodSlate(
 } | null> {
   const ctx = await resolveChampionsLeaguePeriodContext(poolId, now);
   const liveSlate = await fetchCurrentChampionsLeagueSlate(now);
+  const hasVisibleLiveSlate =
+    liveSlate != null
+    && isChampionsLeaguePeriodWithinPickemVisibilityWindow(liveSlate.games, now);
 
   let period: ChampionsLeaguePoolPeriod | null = null;
   let viewingPastPeriod = false;
@@ -111,12 +123,13 @@ export async function loadChampionsLeaguePeriodSlate(
   if (periodStart) {
     period = await resolveChampionsLeaguePeriodByKey(poolId, periodStart, now);
     if (!period) return null;
-    viewingPastPeriod = !(liveSlate && ctx.current?.weekStart === period.weekStart);
-  } else if (ctx.current) {
-    period = ctx.current;
-    viewingPastPeriod = !(liveSlate && ctx.current.weekStart === period.weekStart);
+    viewingPastPeriod = !(hasVisibleLiveSlate && ctx.current?.weekStart === period.weekStart);
   } else {
-    return null;
+    const defaultKey = resolveChampionsLeagueDefaultPeriodKey(ctx, hasVisibleLiveSlate, now);
+    if (!defaultKey) return null;
+    period = await resolveChampionsLeaguePeriodByKey(poolId, defaultKey, now);
+    if (!period) return null;
+    viewingPastPeriod = !(hasVisibleLiveSlate && ctx.current?.weekStart === period.weekStart);
   }
 
   const games = await fetchChampionsLeagueGamesForPeriodDates(period.dates);

@@ -39,6 +39,24 @@ test("treats a lone graded matchday as previous when ESPN still maps it as curre
   assert.deepEqual(selection, { current: null, previous: 0 });
 });
 
+test("defaults to previous matchday for several days after it ends", () => {
+  const previous = period(["2026-10-13", "2026-10-14"]);
+  const current = period(["2026-10-20", "2026-10-21"]);
+  const ctx = { current, previous };
+  const dayAfter = new Date("2026-10-15T20:00:00Z");
+  assert.equal(
+    resolveChampionsLeagueDefaultPeriodKey(ctx, true, dayAfter),
+    previous.weekStart,
+  );
+  const afterGrace = new Date(
+    dayAfter.getTime() + CHAMPIONS_LEAGUE_POST_MATCHDAY_GRACE_MS + 86_400_000,
+  );
+  assert.equal(
+    resolveChampionsLeagueDefaultPeriodKey(ctx, true, afterGrace),
+    current.weekStart,
+  );
+});
+
 test("picks the latest graded period between slates", () => {
   const periods = [
     period(["2026-09-16", "2026-09-17"]),
