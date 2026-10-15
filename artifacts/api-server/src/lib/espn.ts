@@ -801,6 +801,11 @@ export function getNbaWeekendBounds(poolCreatedAt: Date, weekNumber: number): Nb
   };
 }
 
+/** Mon–Sun pick-em slate for `nba_ats` (includes Tue openers; Crazy 8s still uses Fri–Sun). */
+export function getNbaAtsSlateBounds(poolCreatedAt: Date, weekNumber: number): NbaWeekBounds {
+  return getNbaWeekBounds(poolCreatedAt, weekNumber);
+}
+
 /**
  * Fetch all NBA games for a full week (7 days, Mon–Sun ET).
  * Calls ESPN once per day in parallel and deduplicates by game ID.

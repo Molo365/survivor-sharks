@@ -19,7 +19,7 @@ import {
   fetchGamesForDate,
   fetchNflGamesByWeek,
   fetchNhlGamesByWeek,
-  getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   fetchSuperLeagueGamesForDate,
   getWeekBoundsEt,
   getSuperLeagueWeekBoundsEt,
@@ -112,7 +112,7 @@ async function getPartialPeriodGames(pool: {
   }
 
   if (pool.poolType === "nba_ats") {
-    const dates = getNbaWeekendBounds(pool.createdAt, pool.currentWeek).espnDates;
+    const dates = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek).espnDates;
     const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
     const seen = new Set<string>();
     return results.flat().filter((game) => {

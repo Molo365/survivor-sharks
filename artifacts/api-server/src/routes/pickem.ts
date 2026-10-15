@@ -17,6 +17,7 @@ import {
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
   getNbaWeekendBounds,
+  getNbaAtsSlateBounds,
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   formatDateEt,
@@ -224,9 +225,12 @@ router.get("/games", requireAuth, async (req, res) => {
 
   // ATS: replace allGames with the full Fri/Sat/Sun weekend slate (ignore date param)
   const atsGameDates = new Map<string, string>(); // gameId → ET calendar date, e.g. "2026-01-03"
+  let atsWeekLabel: string | undefined;
   if (isAts) {
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-    const { espnDates, days } = getNbaWeekendBounds(anchor, pool.currentWeek);
+    const atsBounds = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+    atsWeekLabel = atsBounds.weekLabel;
+    const { espnDates, days } = atsBounds;
     const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
     const seen = new Set<string>();
     allGames = [];
@@ -404,6 +408,7 @@ router.get("/games", requireAuth, async (req, res) => {
     sport,
     phase,
     games: formattedGames,
+    ...(isAts ? { weekLabel: atsWeekLabel } : {}),
   });
 });
 
@@ -1020,9 +1025,9 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
   } else if (isAts) {
-    // NBA ATS: validate against the full Fri/Sat/Sun weekend slate for this week
+    // NBA ATS: validate against the full Mon–Sun pool-week slate
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-    const { espnDates } = getNbaWeekendBounds(anchor, pool.currentWeek);
+    const { espnDates } = getNbaAtsSlateBounds(anchor, pool.currentWeek);
     const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
     for (const dayGames of results) {
       for (const g of dayGames) {
@@ -1698,7 +1703,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   } else if (isNbaAts) {
     const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
     const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
-    const { days } = getNbaWeekendBounds(anchor, weekNum);
+    const { days } = getNbaAtsSlateBounds(anchor, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (isNhlPickemWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
@@ -2218,33 +2223,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
     } else if (isAts) {
-      // nba_ats picks only happen Fri/Sat/Sun — always use Fri–Sun bounds so the
-      // picks WHERE clause and game list are both constrained to the 3-day window.
-      if (pool.sandboxMode) {
-        // Sandbox: anchor week's Fri/Sat/Sun dates
-        const b = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
-        weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
-      } else {
-        // Live: find the reference date (last pick for ended pools, today for active)
-        let refDate = todayEt;
-        if (!pool.isActive) {
-          const [latestWeekRow] = await db
-            .select({ gameDate: pickemPicksTable.gameDate })
-            .from(pickemPicksTable)
-            .where(eq(pickemPicksTable.poolId, poolId))
-            .orderBy(sql`${pickemPicksTable.gameDate} DESC`)
-            .limit(1);
-          if (latestWeekRow) refDate = latestWeekRow.gameDate;
-        }
-        // getWeekBoundsEt always returns Monday as weekStart; Fri = +4 days, Sun = +6 days
-        const full = getWeekBoundsEt(refDate);
-        const [wy, wm, wd] = full.weekStart.split("-").map(Number);
-        const monday = new Date(Date.UTC(wy!, wm! - 1, wd!));
-        weekBounds = {
-          weekStart: new Date(monday.getTime() + 4 * 86_400_000).toISOString().slice(0, 10),
-          weekEnd:   new Date(monday.getTime() + 6 * 86_400_000).toISOString().slice(0, 10),
-        };
-      }
+      const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+      const b = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+      weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
     } else if (!pool.isActive) {
       // Ended non-ATS weekly pool — look up the last graded pick's date and use that
       // week's bounds so the leaderboard returns historical data, not an empty
@@ -3142,8 +3123,8 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
 
   // ── NBA ATS sandbox simulate-grading ────────────────────────────────────────
   if (isNbaAts) {
-    // 1. Fetch the full Fri/Sat/Sun weekend slate for this anchor week
-    const { espnDates } = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, week);
+    // 1. Fetch the full Mon–Sun pool-week slate for this anchor week
+    const { espnDates } = getNbaAtsSlateBounds(NBA_SANDBOX_ANCHOR, week);
     const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
     type AtsSandboxGame = { id: string; homeTeamId: string; awayTeamId: string };
     const gameList: AtsSandboxGame[] = weekendGames.map((g) => ({
@@ -3285,7 +3266,7 @@ router.get("/ats-spreads", requireAuth, async (req, res) => {
   }
 
   const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-  const { espnDates } = getNbaWeekendBounds(anchor, pool.currentWeek);
+  const { espnDates } = getNbaAtsSlateBounds(anchor, pool.currentWeek);
   const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
   const games = results.flat().map((g) => ({
     id: g.id,
