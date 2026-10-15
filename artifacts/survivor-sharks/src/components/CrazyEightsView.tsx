@@ -874,6 +874,27 @@ export function CrazyEightsView({
 
   const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
 
+  const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
+    const meta =
+      myPicksData?.tiebreakerGame ??
+      slateData?.tiebreakerGame ??
+      null;
+    const last = games.at(-1);
+    if (!meta && !last) return null;
+    const logoSource = last;
+    return {
+      awayTeam: {
+        name: meta?.awayTeam.name ?? last!.awayTeam.name,
+        logoUrl: logoSource?.awayTeam.logoUrl ?? null,
+      },
+      homeTeam: {
+        name: meta?.homeTeam.name ?? last!.homeTeam.name,
+        logoUrl: logoSource?.homeTeam.logoUrl ?? null,
+      },
+      startTime: meta?.startTime ?? last?.startTime ?? null,
+    };
+  }, [myPicksData?.tiebreakerGame, slateData?.tiebreakerGame, games]);
+
   const allReady =
     selectedIds.length === MAX_PICKS &&
     selectedIds.every((id) => confidence[id] !== undefined) &&
@@ -1144,27 +1165,6 @@ export function CrazyEightsView({
   const missingPoints =
     selectedIds.length === MAX_PICKS &&
     !selectedIds.every((id) => confidence[id] !== undefined);
-
-  const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
-    const meta =
-      myPicksData?.tiebreakerGame ??
-      slateData?.tiebreakerGame ??
-      null;
-    const last = games.at(-1);
-    if (!meta && !last) return null;
-    const logoSource = last;
-    return {
-      awayTeam: {
-        name: meta?.awayTeam.name ?? last!.awayTeam.name,
-        logoUrl: logoSource?.awayTeam.logoUrl ?? null,
-      },
-      homeTeam: {
-        name: meta?.homeTeam.name ?? last!.homeTeam.name,
-        logoUrl: logoSource?.homeTeam.logoUrl ?? null,
-      },
-      startTime: meta?.startTime ?? last?.startTime ?? null,
-    };
-  }, [myPicksData?.tiebreakerGame, slateData?.tiebreakerGame, games]);
 
   return (
     <div className="space-y-6">
