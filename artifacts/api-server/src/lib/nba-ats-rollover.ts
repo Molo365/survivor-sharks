@@ -1,9 +1,9 @@
 import {
   fetchGamesForDateChecked,
   formatCalendarDateEt,
-  getNbaAtsSlateBounds,
   type EspnGame,
 } from "./espn";
+import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "./nba-ats-period";
 import {
   computeNbaAtsWeeklyLeaderGroups,
   nbaAtsWeeklyPeriodReason,
@@ -19,6 +19,7 @@ export interface NbaAtsRolloverPool {
   isActive: boolean;
   sandboxMode: boolean;
   pickFrequency?: string | null;
+  initialPeriodStart: string | null;
 }
 
 export interface NbaAtsRolloverStore {
@@ -89,9 +90,10 @@ export async function advanceRecurringNbaAtsPools({
       );
       continue;
     }
+    if (isNbaAtsPreStart(pool)) continue;
 
     try {
-      const bounds = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
+      const bounds = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
       const sundayEt = bounds.days[bounds.days.length - 1]!;
       if (todayEt <= sundayEt) {
         log(

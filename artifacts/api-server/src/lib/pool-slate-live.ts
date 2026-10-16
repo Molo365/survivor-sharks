@@ -13,6 +13,7 @@ import {
 } from "./espn";
 import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
 import { getMlsConfiguredPeriod } from "./mls-weekly-period";
+import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "./nba-ats-period";
 
 export type PoolSlateContext = {
   id: number;
@@ -49,7 +50,8 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
   }
 
   if (pt === "nba_ats") {
-    const dates = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek).espnDates;
+    if (isNbaAtsPreStart(pool)) return [];
+    const dates = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek).espnDates;
     const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
     const seen = new Set<string>();
     return results.flat().filter((game) => {

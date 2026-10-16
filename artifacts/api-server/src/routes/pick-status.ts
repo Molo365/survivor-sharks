@@ -15,7 +15,6 @@ import {
   fetchNhlGamesByWeek,
   fetchNflGamesByWeek,
   fetchSuperLeagueGamesForDate,
-  getNbaAtsSlateBounds,
   getSuperLeagueWeekBoundsEt,
   getTodayEtDate,
   getWeekBoundsEt,
@@ -26,6 +25,7 @@ import {
 import { resolveChampionsLeagueOpenPickState } from "../lib/champions-league-pool-period";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "../lib/nba-ats-period";
 import {
   getSandboxGamesForWeek,
   replayRowToPickEmShape,
@@ -107,6 +107,7 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   const todayEt = getTodayEtDate();
   if (isMlsWeeklyPreStart(pool)) return null;
   if (isSuperLeaguePreStart(pool)) return null;
+  if (isNbaAtsPreStart(pool)) return null;
 
   if (pool.pickFrequency === "daily") {
     const games = await fetchGamesForDate("mlb", todayEt.replace(/-/g, ""));
@@ -120,12 +121,7 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   }
 
   if (pool.poolType === "nba_ats") {
-    const anchor = pool.sandboxMode
-      ? NBA_SANDBOX_ANCHOR
-      : pool.createdAt instanceof Date
-        ? pool.createdAt
-        : new Date(pool.createdAt);
-    const bounds = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+    const bounds = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
     const games = await fetchGamesForDates("nba", bounds.days);
     return {
       kind: "week",
@@ -352,7 +348,7 @@ router.get("/", requireAuth, async (req, res) => {
     })));
     return;
   }
-  if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool)) {
+  if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool) || isNbaAtsPreStart(pool)) {
     res.json(members.map((member) => ({
       userId: member.userId,
       pickStatus: "not_required" as const,

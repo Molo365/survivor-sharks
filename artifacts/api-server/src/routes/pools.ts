@@ -25,6 +25,7 @@ import { isWeeklyBonusPoolType, resolvePoolStart, resolveWeeklyBonusThreshold, t
 import { effectivePoolIsRecurring, resolveIsRecurringOnCreate } from "../lib/pool-recurring";
 import { resolveMlbWeeklyStartDate } from "../lib/mlb-weekly-period";
 import { resolveMlsWeeklyStartDate } from "../lib/mls-weekly-period";
+import { resolveNbaAtsStartDate } from "../lib/nba-ats-period";
 import { resolveSuperLeagueStartDate } from "../lib/superleague-period";
 import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } from "../lib/nhl-pool-period";
 import { sportPoolStatusTable } from "@workspace/db";
@@ -390,6 +391,8 @@ router.post("/", requireAuth, async (req, res) => {
         ? resolveMlsWeeklyStartDate(initialPeriodStart)
       : sport === "superleague" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
         ? resolveSuperLeagueStartDate(initialPeriodStart)
+      : sport === "nba" && resolvedPoolType === "nba_ats"
+        ? resolveNbaAtsStartDate(initialPeriodStart)
       : null;
 
   if (shouldResolveNhlPoolInitialPeriod({
