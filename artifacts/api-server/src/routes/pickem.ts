@@ -37,7 +37,7 @@ import {
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { getMlsConfiguredPeriod, getMlsWeeklyInitialPeriodStart, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import {
-  getNbaAtsInitialPeriodStart,
+  getNbaAtsPicksOpenDate,
   getNbaAtsSlateBoundsForPool,
   isNbaAtsPreStart,
 } from "../lib/nba-ats-period";
@@ -185,7 +185,7 @@ router.get("/games", requireAuth, async (req, res) => {
     return;
   }
   if (isNbaAtsPreStart(pool)) {
-    const startsAt = getNbaAtsInitialPeriodStart(pool);
+    const startsAt = getNbaAtsPicksOpenDate(pool);
     res.json({
       date: startsAt,
       label: startsAt,
@@ -883,7 +883,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
   if (isNbaAtsPreStart(pool)) {
     res.status(409).json({
-      error: `This pool starts on ${getNbaAtsInitialPeriodStart(pool)}. Picks are not open yet.`,
+      error: `Picks open on ${getNbaAtsPicksOpenDate(pool)} (Monday ET). Spread lines are not posted for this weekend yet.`,
     });
     return;
   }
@@ -1303,7 +1303,7 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
     return;
   }
   if (isNbaAtsPreStart(pool)) {
-    res.json({ poolNotStarted: true, startsAt: getNbaAtsInitialPeriodStart(pool), picks: [] });
+    res.json({ poolNotStarted: true, startsAt: getNbaAtsPicksOpenDate(pool), picks: [] });
     return;
   }
 
@@ -1689,7 +1689,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   if (isNbaAtsPreStart(pool)) {
     res.json({
       poolNotStarted: true,
-      startsAt: getNbaAtsInitialPeriodStart(pool),
+      startsAt: getNbaAtsPicksOpenDate(pool),
       weekStart: null,
       weekEnd: null,
       players: [],

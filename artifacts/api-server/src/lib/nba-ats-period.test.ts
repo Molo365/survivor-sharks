@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  getNbaAtsPicksOpenDate,
   getNbaAtsSlateBoundsForPool,
   isNbaAtsPreStart,
   resolveNbaAtsStartDate,
@@ -16,9 +17,10 @@ const basePool = {
 };
 
 describe("NBA ATS initial weekend", () => {
-  it("withholds picks before the selected first Friday", () => {
-    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-23T23:59:59-04:00")), true);
-    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-24T00:00:00-04:00")), false);
+  it("withholds picks until Monday ET before the first weekend", () => {
+    assert.equal(getNbaAtsPicksOpenDate(basePool), "2026-10-19");
+    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-18T23:59:59-04:00")), true);
+    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-19T00:00:00-04:00")), false);
   });
 
   it("does not pre-start when initialPeriodStart is unset (legacy pools)", () => {
