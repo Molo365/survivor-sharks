@@ -419,6 +419,10 @@ function getMlbWeekOption(offsetWeeks: number) {
   };
 }
 
+function getNbaAtsWeekendOption(offsetWeekends: number) {
+  return getSuperLeaguePeriodOption(offsetWeekends);
+}
+
 function getSuperLeaguePeriodOption(offsetPeriods: number) {
   const todayEt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -538,9 +542,20 @@ export default function CreatePool() {
   const isMlbWeeklyStartable = isMlbWeeklyPickem || isMlbWeeklyHighHeat;
   const isMlsWeeklyPickem = selectedSport === PoolInputSport.mls && selectedType === "pickem" && watchedFreq === "weekly";
   const isSuperLeagueWeeklyPickem = selectedSport === PoolInputSport.superleague && selectedType === "pickem" && watchedFreq === "weekly";
-  const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem;
-  const thisPeriod = isSuperLeagueWeeklyPickem ? superLeagueThisPeriod : mlbThisWeek;
-  const nextPeriod = isSuperLeagueWeeklyPickem ? superLeagueNextPeriod : mlbNextWeek;
+  const isNbaAtsPool = selectedSport === PoolInputSport.nba && selectedType === "nba_ats";
+  const nbaAtsThisWeekend = useMemo(() => getNbaAtsWeekendOption(0), []);
+  const nbaAtsNextWeekend = useMemo(() => getNbaAtsWeekendOption(1), []);
+  const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem || isNbaAtsPool;
+  const thisPeriod = isNbaAtsPool
+    ? nbaAtsThisWeekend
+    : isSuperLeagueWeeklyPickem
+      ? superLeagueThisPeriod
+      : mlbThisWeek;
+  const nextPeriod = isNbaAtsPool
+    ? nbaAtsNextWeekend
+    : isSuperLeagueWeeklyPickem
+      ? superLeagueNextPeriod
+      : mlbNextWeek;
 
   useEffect(() => {
     if (isStartPeriodPool && !form.getValues("initialPeriodStart")) {
@@ -1686,15 +1701,33 @@ export default function CreatePool() {
                                 <div className="flex-1">
                                   <FormLabel className="font-bebas text-lg tracking-wide">Starting Period</FormLabel>
                                   <FormDescription className="text-xs mt-0.5">
-                                    {isSuperLeagueWeeklyPickem
-                                      ? "Choose the first Friday–Monday period players can pick."
-                                      : "Choose the first Monday–Sunday scoring period players can pick."}
+                                    {isNbaAtsPool
+                                      ? "Choose the first Fri–Sun weekend when picks open. Lines usually appear closer to game day."
+                                      : isSuperLeagueWeeklyPickem
+                                        ? "Choose the first Friday–Monday period players can pick."
+                                        : "Choose the first Monday–Sunday scoring period players can pick."}
                                   </FormDescription>
                                   <FormControl>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                                       {[
-                                         { value: thisPeriod.start, title: isSuperLeagueWeeklyPickem ? "Start this period" : "Start this week", range: thisPeriod.label },
-                                         { value: nextPeriod.start, title: isSuperLeagueWeeklyPickem ? "Start next period" : "Start next week", range: nextPeriod.label },
+                                         {
+                                           value: thisPeriod.start,
+                                           title: isNbaAtsPool
+                                             ? "Start this weekend"
+                                             : isSuperLeagueWeeklyPickem
+                                               ? "Start this period"
+                                               : "Start this week",
+                                           range: thisPeriod.label,
+                                         },
+                                         {
+                                           value: nextPeriod.start,
+                                           title: isNbaAtsPool
+                                             ? "Start next weekend"
+                                             : isSuperLeagueWeeklyPickem
+                                               ? "Start next period"
+                                               : "Start next week",
+                                           range: nextPeriod.label,
+                                         },
                                       ].map((option) => (
                                         <button
                                           key={option.value}
@@ -1713,6 +1746,23 @@ export default function CreatePool() {
                                       ))}
                                     </div>
                                   </FormControl>
+                                  {isNbaAtsPool && field.value && field.value > new Intl.DateTimeFormat("en-CA", {
+                                    timeZone: "America/New_York",
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  }).format(new Date()) && (
+                                    <p className="text-xs text-amber-300/90 mt-3 leading-relaxed">
+                                      Picks won&apos;t open until{" "}
+                                      {new Intl.DateTimeFormat("en-US", {
+                                        timeZone: "UTC",
+                                        weekday: "long",
+                                        month: "short",
+                                        day: "numeric",
+                                      }).format(new Date(`${field.value}T12:00:00Z`))}
+                                      . Members can join now; the pick sheet will appear when that weekend starts.
+                                    </p>
+                                  )}
                                   <FormMessage />
                                 </div>
                               </div>

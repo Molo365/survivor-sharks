@@ -36,6 +36,11 @@ import {
 } from "../lib/wc";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { getMlsConfiguredPeriod, getMlsWeeklyInitialPeriodStart, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import {
+  getNbaAtsInitialPeriodStart,
+  getNbaAtsSlateBoundsForPool,
+  isNbaAtsPreStart,
+} from "../lib/nba-ats-period";
 import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
 import {
   championsLeagueRegulationOutcome,
@@ -179,6 +184,20 @@ router.get("/games", requireAuth, async (req, res) => {
     });
     return;
   }
+  if (isNbaAtsPreStart(pool)) {
+    const startsAt = getNbaAtsInitialPeriodStart(pool);
+    res.json({
+      date: startsAt,
+      label: startsAt,
+      deadlinePassed: true,
+      poolNotStarted: true,
+      startsAt,
+      sport,
+      phase: null,
+      games: [],
+    });
+    return;
+  }
 
   let allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
@@ -227,8 +246,7 @@ router.get("/games", requireAuth, async (req, res) => {
   const atsGameDates = new Map<string, string>(); // gameId → ET calendar date, e.g. "2026-01-03"
   let atsWeekLabel: string | undefined;
   if (isAts) {
-    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-    const atsBounds = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+    const atsBounds = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
     atsWeekLabel = atsBounds.weekLabel;
     const { espnDates, days } = atsBounds;
     const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
@@ -863,6 +881,12 @@ router.post("/picks", requireAuth, async (req, res) => {
     });
     return;
   }
+  if (isNbaAtsPreStart(pool)) {
+    res.status(409).json({
+      error: `This pool starts on ${getNbaAtsInitialPeriodStart(pool)}. Picks are not open yet.`,
+    });
+    return;
+  }
 
   const sport = pool.sport as string;
   const isWc = sport === "worldcup";
@@ -1026,8 +1050,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   } else if (isAts) {
     // NBA ATS: validate against the Fri–Sun weekend slate
-    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-    const { espnDates } = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+    const { espnDates } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
     const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
     for (const dayGames of results) {
       for (const g of dayGames) {
@@ -1277,6 +1300,10 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
   }
   if (isSuperLeaguePreStart(pool)) {
     res.json({ poolNotStarted: true, startsAt: getSuperLeagueInitialPeriodStart(pool), picks: [] });
+    return;
+  }
+  if (isNbaAtsPreStart(pool)) {
+    res.json({ poolNotStarted: true, startsAt: getNbaAtsInitialPeriodStart(pool), picks: [] });
     return;
   }
 
@@ -1659,6 +1686,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     });
     return;
   }
+  if (isNbaAtsPreStart(pool)) {
+    res.json({
+      poolNotStarted: true,
+      startsAt: getNbaAtsInitialPeriodStart(pool),
+      weekStart: null,
+      weekEnd: null,
+      players: [],
+    });
+    return;
+  }
 
   // Optional ?week=N param: 1-indexed completed week number. Defaults to the
   // immediately prior calendar/weekend week when omitted (backward-compatible).
@@ -1701,9 +1738,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       weekEnd: championsLeaguePrevious.weekEnd,
     };
   } else if (isNbaAts) {
-    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
     const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
-    const { days } = getNbaAtsSlateBounds(anchor, weekNum);
+    const { days } = getNbaAtsSlateBoundsForPool(pool, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (isNhlPickemWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
@@ -2223,8 +2259,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       const b = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
     } else if (isAts) {
-      const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-      const b = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+      const b = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
       weekBounds = { weekStart: b.days[0]!, weekEnd: b.days[b.days.length - 1]! };
     } else if (!pool.isActive) {
       // Ended non-ATS weekly pool — look up the last graded pick's date and use that
@@ -3265,8 +3300,7 @@ router.get("/ats-spreads", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Commissioner only" }); return;
   }
 
-  const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-  const { espnDates } = getNbaAtsSlateBounds(anchor, pool.currentWeek);
+  const { espnDates } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
   const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
   const games = results.flat().map((g) => ({
     id: g.id,

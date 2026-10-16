@@ -2299,6 +2299,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       refetchInterval: (query) => isToday ? pickRefetchInterval(query.state.data) : false,
     },
   });
+  const poolStartsAt = weeklyStartsAt
+    ?? (isNbaAts
+      ? ((slate as { startsAt?: string } | undefined)?.startsAt ?? poolDetail?.initialPeriodStart ?? null)
+      : null);
 
   const periodLeaderboardParams = activePeriodStart ? { periodStart: activePeriodStart } : undefined;
   const {
@@ -3592,6 +3596,22 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
             </div>
           ) : isNbaAts ? (
+            (slate as { poolNotStarted?: boolean })?.poolNotStarted && poolStartsAt ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Clock className="w-12 h-12 mx-auto mb-4 opacity-40" />
+                <p className="font-bebas text-2xl tracking-wide text-foreground">
+                  Picks open {new Intl.DateTimeFormat("en-US", {
+                    timeZone: "UTC",
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  }).format(new Date(`${poolStartsAt}T12:00:00Z`))}
+                </p>
+                <p className="text-sm mt-1 max-w-md mx-auto">
+                  You&apos;re a little early — the first playable weekend hasn&apos;t started yet. Invite your group now; the ATS slate will show up when picks open.
+                </p>
+              </div>
+            ) : (
             /* NBA Weekend ATS — shows full Fri/Sat/Sun slate with spread lines */
             <div className="space-y-6">
               {/* Last Week's Winner banner */}
@@ -3841,24 +3861,29 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 </>
               )}
             </div>
+            )
           ) : gamesLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
             </div>
-          ) : (slate as any)?.poolNotStarted && weeklyStartsAt ? (
+          ) : (slate as { poolNotStarted?: boolean })?.poolNotStarted && poolStartsAt ? (
             <div className="text-center py-16 text-muted-foreground">
               <Clock className="w-12 h-12 mx-auto mb-4 opacity-40" />
               <p className="font-bebas text-2xl tracking-wide text-foreground">
-                Starts {new Intl.DateTimeFormat("en-US", {
+                Picks open {new Intl.DateTimeFormat("en-US", {
                   timeZone: "UTC",
                   weekday: "long",
                   month: "short",
                   day: "numeric",
-                }).format(new Date(`${weeklyStartsAt}T12:00:00Z`))}
+                }).format(new Date(`${poolStartsAt}T12:00:00Z`))}
               </p>
-              <p className="text-sm mt-1">This pool is open for invites. Picks will open automatically when the week begins.</p>
+              <p className="text-sm mt-1 max-w-md mx-auto">
+                {isNbaAts
+                  ? "This pool is ready for members. The weekend pick sheet and spread lines will appear when picks open — usually closer to game day."
+                  : "This pool is open for invites. Picks will open automatically when the week begins."}
+              </p>
             </div>
           ) : !slate || slate.games.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">

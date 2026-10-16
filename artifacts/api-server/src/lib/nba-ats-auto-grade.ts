@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { fetchGamesForDate, formatCalendarDateEt, getNbaAtsSlateBounds } from "./espn";
+import { fetchGamesForDate, formatCalendarDateEt } from "./espn";
+import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "./nba-ats-period";
 import { gradeNflPickemAtsPick } from "./nfl-pickem-ats-cover";
 import { loadNbaAtsSpreads } from "./nba-ats-spreads";
 import { logger } from "./logger";
@@ -22,8 +23,9 @@ export async function gradeLiveNbaAtsPickEmPools(): Promise<number> {
     );
 
   for (const pool of pools) {
+    if (isNbaAtsPreStart(pool)) continue;
     try {
-      const { days, espnDates } = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
+      const { days, espnDates } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
       const weekendDates = new Set(days);
       const gameArrays = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
       const weekendGames = gameArrays.flat().filter(

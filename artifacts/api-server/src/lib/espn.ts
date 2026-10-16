@@ -599,7 +599,7 @@ function nhlCalendarMidnightUtc(calendarDay: Date): Date {
   return new Date(instantMs);
 }
 
-const etCalendarMidnightUtc = nhlCalendarMidnightUtc;
+export const etCalendarMidnightUtc = nhlCalendarMidnightUtc;
 
 /** Return an ET calendar date as a UTC date-only value for DST-safe arithmetic. */
 function etCalendarDay(instant: Date): Date {

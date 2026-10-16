@@ -19,7 +19,6 @@ import {
   fetchGamesForDate,
   fetchNflGamesByWeek,
   fetchNhlGamesByWeek,
-  getNbaAtsSlateBounds,
   fetchSuperLeagueGamesForDate,
   getWeekBoundsEt,
   getSuperLeagueWeekBoundsEt,
@@ -30,6 +29,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
+import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "../lib/nba-ats-period";
 import { resolveChampionsLeagueOpenPickState } from "../lib/champions-league-pool-period";
 import { NFL_DIVISIONS } from "../lib/nfl-divisions";
 import { getNdpLockState } from "../lib/ndp-lock";
@@ -112,7 +112,7 @@ async function getPartialPeriodGames(pool: {
   }
 
   if (pool.poolType === "nba_ats") {
-    const dates = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek).espnDates;
+    const dates = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek).espnDates;
     const results = await Promise.all(dates.map((date) => fetchGamesForDate("nba", date)));
     const seen = new Set<string>();
     return results.flat().filter((game) => {
@@ -269,6 +269,9 @@ router.get("/summary", requireAuth, async (req, res) => {
       if (PICKEM_TYPES.has(poolType)) {
         if (isMlsWeeklyPreStart(pool) || isSuperLeaguePreStart(pool)) {
           return { ...base, pickStatus: "pending" as PickStatus, summary: null };
+        }
+        if (isNbaAtsPreStart(pool)) {
+          return { ...base, pickStatus: "not_required" as PickStatus, summary: null };
         }
         const isDaily = pool.pickFrequency === "daily";
         // MLS weekly pools use Mon–Sun; Super League uses its dedicated Fri–Mon

@@ -45,7 +45,6 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekendBounds,
-  getNbaAtsSlateBounds,
   getNbaWeekBounds,
   NBA_SANDBOX_ANCHOR,
   type EspnGame,
@@ -66,6 +65,7 @@ import {
 } from "./espn";
 import { isMlbWeeklyPreStart } from "./mlb-weekly-period";
 import { isMlsWeeklyPreStart } from "./mls-weekly-period";
+import { getNbaAtsSlateBoundsForPool } from "./nba-ats-period";
 import { isSuperLeaguePreStart } from "./superleague-period";
 import { applyPickEmSeasonClosure, applyNflConfidenceSeasonClosure, NFL_TOTAL_WEEKS } from "./pickem-season-closure";
 import { recordNflConfidenceWeekTiebreakerActualsIfReady } from "./nfl-confidence-week-actuals";
@@ -5065,7 +5065,7 @@ export async function processPickEmResults(): Promise<{
       // that stale anchor date, sees today (Aug 2026) is not before it, and skips the guard,
       // allowing premature closure within one auto-eliminator cycle.
       {
-        const { weekEnd: nbaWeekEndDate } = getNbaAtsSlateBounds(pool.createdAt, pool.currentWeek);
+        const { weekEnd: nbaWeekEndDate } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
         const nbaWeekEnd = formatDateEtDash(nbaWeekEndDate);
         if (todayEt < nbaWeekEnd) {
           logger.info(
