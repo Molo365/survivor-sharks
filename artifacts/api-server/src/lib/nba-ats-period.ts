@@ -2,6 +2,7 @@ import {
   etCalendarMidnightUtc,
   getNbaAtsSlateBounds,
   getSuperLeagueWeekBoundsEt,
+  getWeekBoundsEt,
   NBA_SANDBOX_ANCHOR,
   type NbaWeekBounds,
 } from "./espn";
@@ -41,14 +42,24 @@ export function resolveNbaAtsStartDate(requestedStart: string | undefined, now =
   return requestedStart === currentStart || requestedStart === nextStart ? requestedStart : currentStart;
 }
 
+/** First Fri of the scoring weekend (stored on the pool as initialPeriodStart). */
 export function getNbaAtsInitialPeriodStart(pool: Pick<NbaAtsPool, "initialPeriodStart">, now = new Date()): string {
   return pool.initialPeriodStart ?? resolveNbaAtsStartDate(undefined, now);
+}
+
+/**
+ * When the pick sheet opens: Monday ET of the week that contains the first weekend.
+ * Spread lines typically post Mon–Tue; games are still Fri–Sun.
+ */
+export function getNbaAtsPicksOpenDate(pool: Pick<NbaAtsPool, "initialPeriodStart">, now = new Date()): string {
+  const weekendFriday = getNbaAtsInitialPeriodStart(pool, now);
+  return getWeekBoundsEt(weekendFriday).weekStart;
 }
 
 export function isNbaAtsPreStart(pool: Pick<NbaAtsPool, "poolType" | "initialPeriodStart">, now = new Date()): boolean {
   return pool.poolType === "nba_ats"
     && pool.initialPeriodStart !== null
-    && etDateString(now) < pool.initialPeriodStart;
+    && etDateString(now) < getNbaAtsPicksOpenDate(pool, now);
 }
 
 function weekendBoundsFromFriday(friday: string): NbaWeekBounds {

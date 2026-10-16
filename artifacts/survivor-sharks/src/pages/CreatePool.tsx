@@ -420,7 +420,32 @@ function getMlbWeekOption(offsetWeeks: number) {
 }
 
 function getNbaAtsWeekendOption(offsetWeekends: number) {
-  return getSuperLeaguePeriodOption(offsetWeekends);
+  const todayEt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const today = new Date(`${todayEt}T12:00:00Z`);
+  const daysSinceFriday = (today.getUTCDay() + 2) % 7;
+  const daysToFriday = daysSinceFriday <= 3 ? -daysSinceFriday : 7 - daysSinceFriday;
+  const start = new Date(today);
+  start.setUTCDate(start.getUTCDate() + daysToFriday + offsetWeekends * 7);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 2);
+  const label = (date: Date) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", weekday: "short", month: "short", day: "numeric",
+  }).format(date);
+  return { start: start.toISOString().slice(0, 10), label: `${label(start)}–${label(end)}` };
+}
+
+function nbaAtsPicksOpenMonday(fridayYmd: string): string {
+  const friday = new Date(`${fridayYmd}T12:00:00Z`);
+  const dow = friday.getUTCDay();
+  const daysToMonday = dow === 1 ? 0 : dow === 0 ? 6 : dow - 1;
+  const monday = new Date(friday);
+  monday.setUTCDate(monday.getUTCDate() - daysToMonday);
+  return monday.toISOString().slice(0, 10);
 }
 
 function getSuperLeaguePeriodOption(offsetPeriods: number) {
@@ -1702,7 +1727,7 @@ export default function CreatePool() {
                                   <FormLabel className="font-bebas text-lg tracking-wide">Starting Period</FormLabel>
                                   <FormDescription className="text-xs mt-0.5">
                                     {isNbaAtsPool
-                                      ? "Choose the first Fri–Sun weekend when picks open. Lines usually appear closer to game day."
+                                      ? "Choose the first Fri–Sun scoring weekend. The pick sheet opens that Monday (when spread lines typically post) and stays locked through the weekend."
                                       : isSuperLeagueWeeklyPickem
                                         ? "Choose the first Friday–Monday period players can pick."
                                         : "Choose the first Monday–Sunday scoring period players can pick."}
@@ -1746,7 +1771,7 @@ export default function CreatePool() {
                                       ))}
                                     </div>
                                   </FormControl>
-                                  {isNbaAtsPool && field.value && field.value > new Intl.DateTimeFormat("en-CA", {
+                                  {isNbaAtsPool && field.value && nbaAtsPicksOpenMonday(field.value) > new Intl.DateTimeFormat("en-CA", {
                                     timeZone: "America/New_York",
                                     year: "numeric",
                                     month: "2-digit",
@@ -1759,8 +1784,8 @@ export default function CreatePool() {
                                         weekday: "long",
                                         month: "short",
                                         day: "numeric",
-                                      }).format(new Date(`${field.value}T12:00:00Z`))}
-                                      . Members can join now; the pick sheet will appear when that weekend starts.
+                                      }).format(new Date(`${nbaAtsPicksOpenMonday(field.value)}T12:00:00Z`))}
+                                      . Members can join now; spread lines and the pick sheet usually arrive Mon–Tue for that weekend.
                                     </p>
                                   )}
                                   <FormMessage />
