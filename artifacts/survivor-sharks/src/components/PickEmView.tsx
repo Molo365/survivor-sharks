@@ -3608,7 +3608,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   }).format(new Date(`${poolStartsAt}T12:00:00Z`))}
                 </p>
                 <p className="text-sm mt-1 max-w-md mx-auto">
-                  You&apos;re a little early — the first playable weekend hasn&apos;t started yet. Invite your group now; the ATS slate will show up when picks open.
+                  You&apos;re early — spread lines for that weekend aren&apos;t up yet. Invite your group now; picking opens Monday when lines typically post.
                 </p>
               </div>
             ) : (
@@ -3881,7 +3881,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               </p>
               <p className="text-sm mt-1 max-w-md mx-auto">
                 {isNbaAts
-                  ? "This pool is ready for members. The weekend pick sheet and spread lines will appear when picks open — usually closer to game day."
+                  ? "This pool is ready for members. The ATS pick sheet opens on Monday when spread lines post for that Fri–Sun weekend (lines stay locked once set)."
                   : "This pool is open for invites. Picks will open automatically when the week begins."}
               </p>
             </div>
