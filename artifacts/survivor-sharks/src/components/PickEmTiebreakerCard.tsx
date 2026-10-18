@@ -1,111 +1,81 @@
+import { tiebreakerStatLabel, type TiebreakerSport } from "@/lib/tiebreakerLabels";
+import {
+  TiebreakerMatchupLogoStrip,
+  type TiebreakerMatchupGame,
+} from "@/components/TiebreakerGuessDialogUi";
+
 interface TiedPickEmPlayer {
   userId: number;
   username: string;
   displayName: string | null;
   tiebreakerRunsGuess?: number | null;
-  tiebreakerStrikeoutsGuess?: number | null;
   tiebreakerRunsDiff?: number | null;
   tiebreakerShotsOnGoalGuess?: number | null;
-  tiebreakerPenaltyMinutesGuess?: number | null;
+  tiebreakerNhlDiff?: number | null;
 }
 
 interface PickEmTiebreakerCardProps {
   sport?: "mlb" | "nhl";
   actualRuns?: number | null;
-  actualStrikeouts?: number | null;
   actualShotsOnGoal?: number | null;
-  actualPenaltyMinutes?: number | null;
+  matchup?: TiebreakerMatchupGame | null;
   tiedPlayers: TiedPickEmPlayer[];
 }
 
 export function PickEmTiebreakerCard({
   sport = "mlb",
   actualRuns,
-  actualStrikeouts,
   actualShotsOnGoal,
-  actualPenaltyMinutes,
+  matchup,
   tiedPlayers,
 }: PickEmTiebreakerCardProps) {
   const showGuesses = tiedPlayers.length > 0;
-  const isNhl = sport === "nhl";
+  const tbSport: TiebreakerSport = sport === "nhl" ? "nhl" : "mlb";
+  const statLabel = tiebreakerStatLabel(tbSport);
+  const actual = sport === "nhl" ? actualShotsOnGoal : actualRuns;
 
   return (
-    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-1">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-1">Tiebreaker</p>
-      <p className="text-[10px] text-muted-foreground/50 mb-2">
-        {isNhl
-          ? "Closest combined shots on goal on the last game of the weekend wins; equally close splits the prize."
-          : "Closest combined runs wins; equally close splits the prize."}
-      </p>
+    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 space-y-3">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-1">Tiebreaker</p>
+        <p className="text-[10px] text-muted-foreground/50">
+          One guess on the last game of the week — closest to actual {statLabel.toLowerCase()} wins.
+          Equally close splits the prize.
+        </p>
+      </div>
 
-      {isNhl ? (
-        <div>
-          <p className="text-[10px] text-muted-foreground/60">Combined shots on goal (tiebreaker game)</p>
-          <p className="font-bebas text-xl text-yellow-300">{actualShotsOnGoal ?? "—"}</p>
-          {actualShotsOnGoal == null && (
-            <p className="text-[10px] text-muted-foreground/45 mt-1">Updates once the tiebreaker game is underway.</p>
-          )}
-        </div>
-      ) : (
-        <div className="flex gap-6">
-          <div>
-            <p className="text-[10px] text-muted-foreground/60">Runs scored (tiebreaker game)</p>
-            <p className="font-bebas text-xl text-yellow-300">{actualRuns ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground/60">Strikeouts (tiebreaker game)</p>
-            <p className="font-bebas text-xl text-yellow-300">{actualStrikeouts ?? "—"}</p>
-          </div>
-        </div>
-      )}
+      {matchup && <TiebreakerMatchupLogoStrip game={matchup} tone="yellow" />}
+
+      <div>
+        <p className="text-[10px] text-muted-foreground/60">{statLabel} (actual)</p>
+        <p className="font-bebas text-xl text-yellow-300">{actual ?? "—"}</p>
+        {actual == null && (
+          <p className="text-[10px] text-muted-foreground/45 mt-1">Updates once the tiebreaker game is final.</p>
+        )}
+      </div>
 
       {showGuesses && (
-        <div className="pt-2 border-t border-yellow-500/20 space-y-1.5 mt-2">
+        <div className="pt-2 border-t border-yellow-500/20 space-y-1.5">
           <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest font-semibold pb-0.5">
             {tiedPlayers.length >= 2 ? "Tiebreaker guesses" : "Your tiebreaker guess"}
           </p>
-          {tiedPlayers.map((p) => (
-            <div key={p.userId} className="flex items-center gap-3 text-xs">
-              <span className="flex-1 truncate font-medium text-foreground/80">
-                {p.displayName ?? p.username}
-              </span>
-              {isNhl ? (
-                <>
-                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                    <span className="text-muted-foreground/40">SOG </span>
-                    <span className="text-foreground/80">{p.tiebreakerShotsOnGoalGuess ?? "—"}</span>
-                    {actualShotsOnGoal != null && p.tiebreakerShotsOnGoalGuess != null && (
-                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerShotsOnGoalGuess - actualShotsOnGoal)})</span>
-                    )}
-                  </span>
-                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                    <span className="text-muted-foreground/40">PIM </span>
-                    <span className="text-foreground/80">{p.tiebreakerPenaltyMinutesGuess ?? "—"}</span>
-                    {actualPenaltyMinutes != null && p.tiebreakerPenaltyMinutesGuess != null && (
-                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerPenaltyMinutesGuess - actualPenaltyMinutes)})</span>
-                    )}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                    <span className="text-muted-foreground/40">Runs </span>
-                    <span className="text-foreground/80">{p.tiebreakerRunsGuess ?? "—"}</span>
-                    {p.tiebreakerRunsDiff != null && (
-                      <span className="text-yellow-400/70"> (off by {p.tiebreakerRunsDiff})</span>
-                    )}
-                  </span>
-                  <span className="tabular-nums text-muted-foreground/60 shrink-0">
-                    <span className="text-muted-foreground/40">K </span>
-                    <span className="text-foreground/80">{p.tiebreakerStrikeoutsGuess ?? "—"}</span>
-                    {actualStrikeouts != null && p.tiebreakerStrikeoutsGuess != null && (
-                      <span className="text-yellow-400/70"> (off by {Math.abs(p.tiebreakerStrikeoutsGuess - actualStrikeouts)})</span>
-                    )}
-                  </span>
-                </>
-              )}
-            </div>
-          ))}
+          {tiedPlayers.map((p) => {
+            const guess = sport === "nhl" ? p.tiebreakerShotsOnGoalGuess : p.tiebreakerRunsGuess;
+            const diff = sport === "nhl" ? p.tiebreakerNhlDiff : p.tiebreakerRunsDiff;
+            return (
+              <div key={p.userId} className="flex items-center gap-3 text-xs">
+                <span className="flex-1 truncate font-medium text-foreground/80">
+                  {p.displayName ?? p.username}
+                </span>
+                <span className="tabular-nums text-yellow-400/90 shrink-0 font-bebas text-base">
+                  {guess ?? "—"}
+                  {diff != null && (
+                    <span className="text-[10px] font-sans text-yellow-400/60 ml-1">(off by {diff})</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

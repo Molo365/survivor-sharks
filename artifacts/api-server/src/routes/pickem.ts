@@ -63,6 +63,7 @@ import {
   formatNhlSogTiebreakerColumnHeader,
   revealTiebreakerGuessForStandings,
 } from "../lib/nhl-tiebreaker-standings";
+import { toTiebreakerMatchupPayload, type TiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -1911,10 +1912,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
   let tiebreakerColumnHeader: string | undefined;
+  let tiebreakerMatchup: TiebreakerMatchupPayload | undefined;
   if (isNhl && !pool.sandboxMode && prevSundayGames && prevSundayGames.length > 0) {
     const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = sorted[sorted.length - 1]!;
     tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+    tiebreakerMatchup = toTiebreakerMatchupPayload(tiebreakerGame);
     if (tiebreakerGame.isCompleted) {
       const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
       tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
@@ -2156,6 +2159,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
     tiebreakerColumnHeader,
+    tiebreakerMatchup,
     ...(weeklyBonusPayload ? { weeklyBonus: weeklyBonusPayload } : {}),
   });
 });
@@ -2549,6 +2553,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
   let leaderboardTiebreakerColumnHeader: string | undefined;
+  let leaderboardTiebreakerMatchup: TiebreakerMatchupPayload | undefined;
   if (isNhl && isWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
     const { days, espnDates } = getNhlWeekBounds(
@@ -2565,6 +2570,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = weekendGames[weekendGames.length - 1];
     if (tiebreakerGame) {
+      leaderboardTiebreakerMatchup = toTiebreakerMatchupPayload(tiebreakerGame);
       if (!pool.sandboxMode) {
         tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
       }
@@ -2780,6 +2786,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
     tiebreakerGameStarted: isNhl && isWeekly ? tiebreakerGameStarted : undefined,
     tiebreakerColumnHeader: leaderboardTiebreakerColumnHeader,
+    tiebreakerMatchup: leaderboardTiebreakerMatchup,
   });
 });
 

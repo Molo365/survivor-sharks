@@ -1847,6 +1847,7 @@ export function PickEmSeasonView({
             </TiebreakerGuessDescription>
           </DialogHeader>
           <TiebreakerMatchupLogoStrip
+            tone="yellow"
             game={
               tiebreakerGame
                 ? {

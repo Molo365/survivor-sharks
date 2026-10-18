@@ -1280,7 +1280,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
               </span>
             </TiebreakerGuessDescription>
           </DialogHeader>
-          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} />
+          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} tone="yellow" />
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <TiebreakerFieldLabel>Combined Passing Yards — Tiebreaker Game</TiebreakerFieldLabel>

@@ -5,7 +5,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Trophy, Users, CheckCircle2, XCircle } from "lucide-react";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
-import { NhlSogTiebreakerGuess, NhlSogTiebreakerHeader } from "@/components/NhlSogTiebreakerStandingsUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
+import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +37,7 @@ interface GridResponse {
   players: PlayerRow[];
   tiebreakerColumnHeader?: string;
   tiebreakerActualShotsOnGoal?: number | null;
+  tiebreakerMatchup?: TiebreakerMatchupGame | null;
 }
 
 interface WeekDayBreakdown {
@@ -453,7 +458,7 @@ export function CrazyEightsLeaderboard({
             {(() => {
               const showTb = !!nhlData?.tiebreakerColumnHeader;
               const rowGrid = showTb
-                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(4.75rem,5.25rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(5.5rem,6.25rem)]"
+                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(5.5rem,6.5rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(6rem,7rem)]"
                 : "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_4.5rem]";
               return (
                 <>
@@ -470,9 +475,11 @@ export function CrazyEightsLeaderboard({
                     </span>
                     <span className="text-right pr-1">Points</span>
                     {showTb && nhlData.tiebreakerColumnHeader && (
-                      <NhlSogTiebreakerHeader
-                        header={nhlData.tiebreakerColumnHeader}
-                        actualShotsOnGoal={nhlData.tiebreakerActualShotsOnGoal}
+                      <TiebreakerStandingsColumnHeader
+                        sport="nhl"
+                        matchup={nhlData.tiebreakerMatchup ?? null}
+                        headerFallback={nhlData.tiebreakerColumnHeader}
+                        actual={nhlData.tiebreakerActualShotsOnGoal}
                       />
                     )}
                   </div>
@@ -531,7 +538,7 @@ export function CrazyEightsLeaderboard({
                             <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5 hidden sm:block">{pointsLine}</p>
                           </div>
                           {showTb && (
-                            <NhlSogTiebreakerGuess guess={player.tiebreakerShotsOnGoalGuess} />
+                            <TiebreakerStandingsColumnGuess guess={player.tiebreakerShotsOnGoalGuess} />
                           )}
                         </div>
                       );
