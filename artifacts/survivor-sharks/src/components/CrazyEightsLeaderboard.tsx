@@ -21,6 +21,8 @@ interface PlayerRow {
   username: string;
   displayName: string | null;
   picks: Record<string, PlayerPick>;
+  tiebreakerShotsOnGoalGuess?: number | null;
+  tiebreakerPenaltyMinutesGuess?: number | null;
 }
 
 interface GridResponse {
@@ -28,6 +30,8 @@ interface GridResponse {
   dateLabel: string;
   games: unknown[];
   players: PlayerRow[];
+  tiebreakerColumnHeader?: string;
+  tiebreakerActualShotsOnGoal?: number | null;
 }
 
 interface WeekDayBreakdown {
@@ -419,6 +423,12 @@ export function CrazyEightsLeaderboard({
           )}
         </div>
 
+        {nhlData?.tiebreakerColumnHeader && (
+          <p className="text-[10px] text-center text-muted-foreground/70 uppercase tracking-wider">
+            Tiebreaker · {nhlData.tiebreakerColumnHeader}
+          </p>
+        )}
+
         {ranked.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -461,17 +471,27 @@ export function CrazyEightsLeaderboard({
                       <span className="text-[11px] text-muted-foreground/40">of {player.total} picks</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-bebas text-xl sm:text-2xl leading-none">
-                      <span className={cn(player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/40")}>
-                        {player.pointsEarned}
-                      </span>
-                      {!allDone && (
-                        <span className="text-sm text-muted-foreground/40">/{player.pointsPossible}</span>
-                      )}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
-                      {allDone ? "pts" : "pts earned"}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {nhlData?.tiebreakerColumnHeader && (
+                      <div className="text-right min-w-[2.75rem]">
+                        <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">TB SOG</div>
+                        <div className="font-bebas text-xl sm:text-2xl leading-none text-foreground tabular-nums">
+                          {player.tiebreakerShotsOnGoalGuess ?? "—"}
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <div className="font-bebas text-xl sm:text-2xl leading-none">
+                        <span className={cn(player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/40")}>
+                          {player.pointsEarned}
+                        </span>
+                        {!allDone && (
+                          <span className="text-sm text-muted-foreground/40">/{player.pointsPossible}</span>
+                        )}
+                      </div>
+                      <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
+                        {allDone ? "pts" : "pts earned"}
+                      </div>
                     </div>
                   </div>
                 </div>

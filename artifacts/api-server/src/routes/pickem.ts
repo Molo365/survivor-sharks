@@ -59,6 +59,10 @@ import {
   resolveNhlPickEmPeriod,
 } from "../lib/pickem-periods";
 import { mergeWeeklySoccerLeaderboardAggregates } from "../lib/pickem-leaderboard-members";
+import {
+  formatNhlSogTiebreakerColumnHeader,
+  revealTiebreakerGuessForStandings,
+} from "../lib/nhl-tiebreaker-standings";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import {
   buildThreeWayPickConfirmationItems,
@@ -1906,6 +1910,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
+  let tiebreakerColumnHeader: string | undefined;
   if (isNhl && !pool.sandboxMode && prevSundayGames && prevSundayGames.length > 0) {
     const sorted = [...prevSundayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const tiebreakerGame = sorted[sorted.length - 1]!;
@@ -1915,6 +1920,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
       tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
     }
+    tiebreakerColumnHeader = formatNhlSogTiebreakerColumnHeader(
+      tiebreakerGame.awayTeam.abbreviation,
+      tiebreakerGame.homeTeam.abbreviation,
+      tiebreakerActualShotsOnGoal,
+    );
   }
 
   // Resolve tied top scorers via tiebreaker proximity, mirroring auto-eliminator weekly closure.
@@ -2102,13 +2112,17 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     // Display the primary difference, never a shots + penalty-minutes sum.
     const nhlDiff = isNhl && tiebreakerActualShotsOnGoal != null && shotsGuess != null
       ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal) : null;
-    const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
+    const kickoffReveal = shouldRevealTiebreakerGuess({
       requesterUserId: userId,
       rowUserId: row.userId,
       poolIsActive: pool.isActive,
       actualsKnown: tiebreakerActualsKnown,
       gameStarted: tiebreakerGameStarted,
     });
+    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal);
+    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
+    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
+    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
     return {
       rank: weekRank,
       userId: row.userId,
@@ -2119,11 +2133,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       picks: [] as { gameId: string; pickedTeamId: string; pickedTeamName: string; result: string | null; pickOption: string | undefined }[],
       dailyBreakdown: dailyByUser.get(row.userId) ?? [],
       prizeWon: prizeWonByUser.get(row.userId) ?? null,
-      tiebreakerRunsGuess: isMlb ? (revealTiebreakerGuess ? runsGuess : null) : undefined,
-      tiebreakerStrikeoutsGuess: isMlb ? (revealTiebreakerGuess ? strikesGuess : null) : undefined,
+      tiebreakerRunsGuess: isMlb ? (showRuns ? runsGuess : null) : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? (showStrikes ? strikesGuess : null) : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
-      tiebreakerShotsOnGoalGuess: isNhl ? (revealTiebreakerGuess ? shotsGuess : null) : undefined,
-      tiebreakerPenaltyMinutesGuess: isNhl ? (revealTiebreakerGuess ? pimGuess : null) : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? (showShots ? shotsGuess : null) : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? (showPim ? pimGuess : null) : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
     };
   });
@@ -2141,6 +2155,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
+    tiebreakerColumnHeader,
     ...(weeklyBonusPayload ? { weeklyBonus: weeklyBonusPayload } : {}),
   });
 });
@@ -2533,6 +2548,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   // NHL actuals use the latest kickoff in the complete pool-period weekend.
   let tiebreakerActualShotsOnGoal: number | null = null;
   let tiebreakerActualPenaltyMinutes: number | null = null;
+  let leaderboardTiebreakerColumnHeader: string | undefined;
   if (isNhl && isWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
     const { days, espnDates } = getNhlWeekBounds(
@@ -2554,11 +2570,16 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       }
       // Sandbox: gate on sandbox scores, not historical ESPN completion.
       const tbCompleted = pool.sandboxMode ? lbSandboxScoreMap.has(tiebreakerGame.id) : tiebreakerGame.isCompleted;
-      if (tiebreakerGameStarted || tbCompleted) {
+      if (tbCompleted) {
         const stats = await fetchNhlTiebreakerStats(tiebreakerGame.id);
         tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
         tiebreakerActualPenaltyMinutes = stats.penaltyMinutes;
       }
+      leaderboardTiebreakerColumnHeader = formatNhlSogTiebreakerColumnHeader(
+        tiebreakerGame.awayTeam.abbreviation,
+        tiebreakerGame.homeTeam.abbreviation,
+        tiebreakerActualShotsOnGoal,
+      );
     }
   }
 
@@ -2635,13 +2656,17 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       shotsGuess != null
         ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal)
         : null;
-    const revealTiebreakerGuess = shouldRevealTiebreakerGuess({
+    const kickoffReveal = shouldRevealTiebreakerGuess({
       requesterUserId: userId,
       rowUserId: row.userId,
       poolIsActive: pool.isActive,
       actualsKnown: tiebreakerActualsKnown,
       gameStarted: tiebreakerGameStarted,
     });
+    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal);
+    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
+    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
+    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
     return {
       rank: lbRank,
       userId: row.userId,
@@ -2675,11 +2700,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         };
       }),
       dailyBreakdown: (isWeekly || weeklySoccerLeaderboard) ? (dailyByUser.get(row.userId) ?? []) : undefined,
-      tiebreakerRunsGuess: isMlb ? (revealTiebreakerGuess ? runsGuess : null) : undefined,
-      tiebreakerStrikeoutsGuess: isMlb ? (revealTiebreakerGuess ? strikesGuess : null) : undefined,
+      tiebreakerRunsGuess: isMlb ? (showRuns ? runsGuess : null) : undefined,
+      tiebreakerStrikeoutsGuess: isMlb ? (showStrikes ? strikesGuess : null) : undefined,
       tiebreakerRunsDiff: isMlb ? runsDiff : undefined,
-      tiebreakerShotsOnGoalGuess: isNhl ? (revealTiebreakerGuess ? shotsGuess : null) : undefined,
-      tiebreakerPenaltyMinutesGuess: isNhl ? (revealTiebreakerGuess ? pimGuess : null) : undefined,
+      tiebreakerShotsOnGoalGuess: isNhl ? (showShots ? shotsGuess : null) : undefined,
+      tiebreakerPenaltyMinutesGuess: isNhl ? (showPim ? pimGuess : null) : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
       atsTiebreakerMargin: isAts && !pool.isActive ? (atsTiebreakerMarginByUser.get(row.userId) ?? 0) : undefined,
     };
@@ -2754,6 +2779,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
     tiebreakerGameStarted: isNhl && isWeekly ? tiebreakerGameStarted : undefined,
+    tiebreakerColumnHeader: leaderboardTiebreakerColumnHeader,
   });
 });
 

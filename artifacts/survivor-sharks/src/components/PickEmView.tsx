@@ -1213,6 +1213,13 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
 
 // ── Weekly leaderboard ────────────────────────────────────────────────────────
 
+function TiebreakerGuessCell({ guess }: { guess: number | null | undefined }) {
+  if (guess == null) {
+    return <span className="text-muted-foreground/30 font-bebas text-lg leading-none">—</span>;
+  }
+  return <span className="font-bebas text-lg text-foreground tabular-nums leading-none">{guess}</span>;
+}
+
 interface WeeklyLeaderboardProps {
   poolId: number;
   entries: PickEmLeaderboardEntry[];
@@ -1220,9 +1227,20 @@ interface WeeklyLeaderboardProps {
   weekStart: string;
   weekEnd: string;
   isNbaAts?: boolean;
+  showNhlTiebreakerColumn?: boolean;
+  tiebreakerColumnHeader?: string | null;
 }
 
-function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd, isNbaAts }: WeeklyLeaderboardProps) {
+function WeeklyLeaderboard({
+  poolId,
+  entries,
+  currentUserId,
+  weekStart,
+  weekEnd,
+  isNbaAts,
+  showNhlTiebreakerColumn,
+  tiebreakerColumnHeader,
+}: WeeklyLeaderboardProps) {
   const todayEt = getTodayEt();
   const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
@@ -1244,7 +1262,8 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-  const minWidth = Math.max(380, 150 + days.length * 40 + 80);
+  const tbCol = showNhlTiebreakerColumn && tiebreakerColumnHeader;
+  const minWidth = Math.max(380, 150 + days.length * 40 + 80 + (tbCol ? 76 : 0));
 
   function renderDayControl(
     entry: PickEmLeaderboardEntry,
@@ -1324,7 +1343,12 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
     <div className="space-y-3">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-bebas text-2xl tracking-wide text-foreground">This Week's Standings</h3>
-        <span className="text-xs text-muted-foreground shrink-0">{fmtDate(weekStart)} – {fmtDate(weekEnd)}</span>
+        <div className="text-right">
+          <span className="text-xs text-muted-foreground shrink-0 block">{fmtDate(weekStart)} – {fmtDate(weekEnd)}</span>
+          {tbCol && (
+            <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">TB · {tiebreakerColumnHeader}</span>
+          )}
+        </div>
       </div>
 
       {/* Mobile: wrap day cells under each player — no sideways scroll */}
@@ -1364,10 +1388,18 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                   </MemberNameButton>
                   {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                 </span>
-                <div className="shrink-0 text-right">
-                  <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
-                  <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
-                  {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                <div className="flex items-center gap-3 shrink-0">
+                  {tbCol && (
+                    <div className="text-right min-w-[2.5rem]">
+                      <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">TB</div>
+                      <TiebreakerGuessCell guess={entry.tiebreakerShotsOnGoalGuess} />
+                    </div>
+                  )}
+                  <div className="text-right">
+                    <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
+                    <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+                    {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                  </div>
                 </div>
               </div>
               <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-2">
@@ -1402,6 +1434,16 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                     {dayAbbrev(date)}
                   </th>
                 ))}
+                {tbCol && (
+                  <th
+                    className="px-2 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap max-w-[88px]"
+                    style={{ width: 76 }}
+                    title={tiebreakerColumnHeader}
+                  >
+                    <span className="block leading-tight">TB</span>
+                    <span className="block font-normal normal-case text-[8px] text-muted-foreground/50 truncate">{tiebreakerColumnHeader}</span>
+                  </th>
+                )}
                 <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
                   Total
                 </th>
@@ -1410,7 +1452,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
             <tbody>
               {entries.length === 0 ? (
                 <tr>
-                  <td colSpan={days.length + 2} className="py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={days.length + 2 + (tbCol ? 1 : 0)} className="py-10 text-center text-sm text-muted-foreground">
                     No picks yet this week.
                   </td>
                 </tr>
@@ -1454,6 +1496,12 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                       {/* Per-day cells */}
                       {days.map((date) => renderDayControl(entry, date, breakdownMap, isPanelOpen, "table", rowBg))}
 
+                      {tbCol && (
+                        <td className={cn("px-2 py-2.5 text-right", rowBg)}>
+                          <TiebreakerGuessCell guess={entry.tiebreakerShotsOnGoalGuess} />
+                        </td>
+                      )}
+
                       {/* Weekly total */}
                       <td className={cn("px-3 py-2.5 text-right", rowBg)}>
                         <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
@@ -1465,7 +1513,7 @@ function WeeklyLeaderboard({ poolId, entries, currentUserId, weekStart, weekEnd,
                     {/* Expandable detail panel */}
                     {isPanelOpen && openCell && (
                       <tr className="border-b border-border/10">
-                        <td colSpan={days.length + 2} className="p-0">
+                        <td colSpan={days.length + 2 + (tbCol ? 1 : 0)} className="p-0">
                           <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} isNbaAts={isNbaAts} />
                         </td>
                       </tr>
@@ -1704,6 +1752,8 @@ function PrevWeekResultsModal({
   tiebreakerActualShotsOnGoal: defaultTbShots,
   tiebreakerActualPenaltyMinutes: defaultTbPIM,
   isNbaAts,
+  tiebreakerColumnHeader: defaultTbHeader,
+  showNhlTiebreakerColumn,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1719,6 +1769,8 @@ function PrevWeekResultsModal({
   tiebreakerActualShotsOnGoal?: number | null;
   tiebreakerActualPenaltyMinutes?: number | null;
   isNbaAts?: boolean;
+  tiebreakerColumnHeader?: string | null;
+  showNhlTiebreakerColumn?: boolean;
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
@@ -1753,6 +1805,10 @@ function PrevWeekResultsModal({
   const tiebreakerActualStrikeouts    = isDefaultWeek ? (defaultTbSO     ?? null) : ((altWeekData as any)?.tiebreakerActualStrikeouts    ?? null);
   const tiebreakerActualShotsOnGoal   = isDefaultWeek ? (defaultTbShots  ?? null) : ((altWeekData as any)?.tiebreakerActualShotsOnGoal   ?? null);
   const tiebreakerActualPenaltyMinutes = isDefaultWeek ? (defaultTbPIM   ?? null) : ((altWeekData as any)?.tiebreakerActualPenaltyMinutes ?? null);
+  const tiebreakerColumnHeader = isDefaultWeek
+    ? (defaultTbHeader ?? null)
+    : ((altWeekData as { tiebreakerColumnHeader?: string })?.tiebreakerColumnHeader ?? defaultTbHeader ?? null);
+  const tbCol = showNhlTiebreakerColumn && tiebreakerColumnHeader;
   const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
 
   const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
@@ -1767,7 +1823,7 @@ function PrevWeekResultsModal({
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-  const minWidth = Math.max(420, 150 + days.length * 44 + 80);
+  const minWidth = Math.max(420, 150 + days.length * 44 + 80 + (tbCol ? 76 : 0));
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -1847,6 +1903,16 @@ function PrevWeekResultsModal({
                           <div className="text-[8px] font-normal normal-case text-muted-foreground/30">{fmtDate(date)}</div>
                         </th>
                       ))}
+                      {tbCol && (
+                        <th
+                          className="px-2 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap max-w-[88px]"
+                          style={{ width: 76 }}
+                          title={tiebreakerColumnHeader}
+                        >
+                          <span className="block leading-tight">TB</span>
+                          <span className="block font-normal normal-case text-[8px] text-muted-foreground/50 truncate">{tiebreakerColumnHeader}</span>
+                        </th>
+                      )}
                       <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
                         Total
                       </th>
@@ -1937,6 +2003,12 @@ function PrevWeekResultsModal({
                               );
                             })}
 
+                            {tbCol && (
+                              <td className={cn("px-2 py-2.5 text-right", rowBg)}>
+                                <TiebreakerGuessCell guess={entry.tiebreakerShotsOnGoalGuess} />
+                              </td>
+                            )}
+
                             <td className={cn("px-3 py-2.5 text-right", rowBg)}>
                               <span className={cn("font-bebas text-xl", isWinner ? "text-yellow-300" : "text-foreground")}>{entry.correct}</span>
                               <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
@@ -1953,7 +2025,7 @@ function PrevWeekResultsModal({
 
                           {isPanelOpen && openCell && (
                             <tr className="border-b border-border/10">
-                              <td colSpan={days.length + 3} className="p-0">
+                              <td colSpan={days.length + 3 + (tbCol ? 1 : 0)} className="p-0">
                                 <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} isNbaAts={isNbaAts} />
                               </td>
                             </tr>
@@ -2919,6 +2991,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         tiebreakerActualStrikeouts={(prevWeekResults as any).tiebreakerActualStrikeouts ?? null}
         tiebreakerActualShotsOnGoal={(prevWeekResults as any).tiebreakerActualShotsOnGoal ?? null}
         tiebreakerActualPenaltyMinutes={(prevWeekResults as any).tiebreakerActualPenaltyMinutes ?? null}
+        tiebreakerColumnHeader={(prevWeekResults as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? null}
+        showNhlTiebreakerColumn={isNhl && isWeekly}
       />
     )}
     {/* MLB Tiebreaker Dialog */}
@@ -4205,6 +4279,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 weekStart={leaderboard.weekStart}
                 weekEnd={leaderboard.weekEnd}
                 isNbaAts={isNbaAts}
+                showNhlTiebreakerColumn={isNhl && isWeekly}
+                tiebreakerColumnHeader={(leaderboard as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? null}
               />
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard
@@ -4224,7 +4300,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 />
               )}
               {isNhl && isWeekly && (
-                (leaderboard as { tiebreakerGameStarted?: boolean }).tiebreakerGameStarted
+                (leaderboard as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader
                 || leaderboard.tiebreakerActualShotsOnGoal != null
                 || leaderboard.entries.some((e) => e.tiebreakerShotsOnGoalGuess != null)
               ) && (

@@ -503,10 +503,32 @@ router.get("/grid", requireAuth, async (req, res) => {
     const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     const dateLabel = `${fmt.format(satDt)} – ${fmt.format(sunDt)}`;
 
+    const memberTiebreakers = await db
+      .select({
+        userId: entriesTable.userId,
+        tiebreakerShotsOnGoal: entriesTable.tiebreakerShotsOnGoal,
+        tiebreakerPenaltyMinutes: entriesTable.tiebreakerPenaltyMinutes,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    const tbByUser = new Map(memberTiebreakers.map((row) => [row.userId, row]));
+    const lastGame = games.at(-1) ?? null;
+    let tiebreakerActualShotsOnGoal: number | null = null;
+    let tiebreakerColumnHeader: string | undefined;
+    if (lastGame) {
+      if (lastGame.isCompleted) {
+        const stats = await fetchNhlTiebreakerStats(lastGame.id);
+        tiebreakerActualShotsOnGoal = stats.shotsOnGoal;
+      }
+      tiebreakerColumnHeader = `${lastGame.awayTeam.abbreviation}/${lastGame.homeTeam.abbreviation} SOG (${tiebreakerActualShotsOnGoal ?? "TBD"})`;
+    }
+
     res.json({
       date,
       dateLabel,
       viewingPastPeriod,
+      tiebreakerColumnHeader,
+      tiebreakerActualShotsOnGoal,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
@@ -521,6 +543,8 @@ router.get("/grid", requireAuth, async (req, res) => {
         username: u.username,
         displayName: u.displayName,
         picks: Object.fromEntries(u.picks.entries()),
+        tiebreakerShotsOnGoalGuess: tbByUser.get(u.userId)?.tiebreakerShotsOnGoal ?? null,
+        tiebreakerPenaltyMinutesGuess: tbByUser.get(u.userId)?.tiebreakerPenaltyMinutes ?? null,
       })),
     });
     return;
