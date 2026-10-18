@@ -1916,7 +1916,7 @@ function PrevWeekResultsModal({
                       {tbCol && tiebreakerColumnHeader && (
                         <th
                           className="px-2 py-2 border-b border-border/30 whitespace-nowrap align-bottom"
-                          style={{ width: 118 }}
+                          style={{ width: 92 }}
                         >
                           <TiebreakerStandingsColumnHeader
                             sport="nhl"
