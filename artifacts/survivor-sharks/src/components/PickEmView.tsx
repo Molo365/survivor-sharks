@@ -2704,7 +2704,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     // Live NHL weekly picks that include Sunday's games always collect the
     // tiebreaker, even when submitted before Sunday. Sandbox keeps its existing
     // Sunday-only behavior through needsTiebreaker.
-    if ((isLiveNhlWeekly || needsTiebreaker) && sunPicks.length > 0) {
+    const myLbEntry = leaderboard?.entries.find((e) => e.userId === user?.id);
+    const missingNhlTiebreaker = isLiveNhlWeekly && (myLbEntry?.tiebreakerShotsOnGoalGuess == null);
+    const hasSundayPicksSaved = (sunSlate?.games ?? []).some((g) => g.userPickTeamId);
+
+    if ((isLiveNhlWeekly || needsTiebreaker) && (sunPicks.length > 0 || (missingNhlTiebreaker && hasSundayPicksSaved))) {
       // Submit Saturday picks immediately (no tiebreaker needed for Saturday).
       if (satPicks.length > 0 && satDate) {
         submitPicks.mutate({ poolId, data: { picks: satPicks, date: satDate } }, {
@@ -2816,6 +2820,23 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       void invalidatePoolQueries(queryClient, poolId);
     } catch {
       toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+    }
+  }
+
+  async function saveNhlTiebreakerOnly(shots: number): Promise<void> {
+    const token = localStorage.getItem("auth_token");
+    const res = await fetch(`/api/pools/${poolId}/pickem/tiebreaker`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ tiebreakerShotsOnGoal: shots }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error || "Failed to save tiebreaker");
     }
   }
 
@@ -3120,10 +3141,22 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 return;
               }
               setShowNhlTiebreaker(false);
-              doFinalSubmit(pendingPicksRef.current, undefined, undefined, shots);
+              const pending = pendingPicksRef.current;
+              if (pending.length === 0) {
+                void saveNhlTiebreakerOnly(shots)
+                  .then(() => {
+                    toast({ title: "Tiebreaker saved!", description: "Your shots-on-goal guess is on the leaderboard." });
+                    void invalidatePoolQueries(queryClient, poolId);
+                  })
+                  .catch((e: Error) => {
+                    toast({ variant: "destructive", title: "Failed to save tiebreaker", description: e.message });
+                  });
+              } else {
+                doFinalSubmit(pending, undefined, shots);
+              }
             }}
           >
-            Submit Picks
+            {pendingPicksRef.current.length === 0 ? "Save Tiebreaker" : "Submit Picks"}
           </Button>
         </DialogFooter>
       </DialogContent>
