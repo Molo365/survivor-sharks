@@ -2549,6 +2549,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const currentNhlTiebreakerGuess = isLiveNhlWeekly
     ? leaderboard?.entries.find((entry) => entry.userId === user?.id)
     : undefined;
+  const hasSundayPicksSaved = (sunSlate?.games ?? []).some((g) => g.userPickTeamId);
+  const missingNhlTiebreakerGuess =
+    isLiveNhlWeekly && (currentNhlTiebreakerGuess?.tiebreakerShotsOnGoalGuess == null);
+  const showNhlTiebreakerPrompt =
+    missingNhlTiebreakerGuess && hasSundayPicksSaved && !viewingPastPeriod;
+
+  function openNhlTiebreakerDialog(
+    pendingSunPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
+  ) {
+    pendingPicksRef.current = pendingSunPicks;
+    pendingDateRef.current = sunDate ?? null;
+    setTbShots(
+      currentNhlTiebreakerGuess?.tiebreakerShotsOnGoalGuess != null
+        ? String(currentNhlTiebreakerGuess.tiebreakerShotsOnGoalGuess)
+        : "",
+    );
+    setShowNhlTiebreaker(true);
+  }
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -2696,19 +2714,21 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     const satPicks = buildDayPicks(satGameIds);
     const sunPicks = buildDayPicks(sunGameIds);
 
+    // Live NHL weekly picks that include Sunday's games always collect the
+    // tiebreaker, even when submitted before Sunday. Sandbox keeps its existing
+    // Sunday-only behavior through needsTiebreaker.
+    const canSaveNhlTiebreakerOnly = showNhlTiebreakerPrompt;
+
     if (satPicks.length === 0 && sunPicks.length === 0) {
+      if (canSaveNhlTiebreakerOnly) {
+        openNhlTiebreakerDialog([]);
+        return;
+      }
       toast({ title: "No open picks to submit", description: "All games may have already started." });
       return;
     }
 
-    // Live NHL weekly picks that include Sunday's games always collect the
-    // tiebreaker, even when submitted before Sunday. Sandbox keeps its existing
-    // Sunday-only behavior through needsTiebreaker.
-    const myLbEntry = leaderboard?.entries.find((e) => e.userId === user?.id);
-    const missingNhlTiebreaker = isLiveNhlWeekly && (myLbEntry?.tiebreakerShotsOnGoalGuess == null);
-    const hasSundayPicksSaved = (sunSlate?.games ?? []).some((g) => g.userPickTeamId);
-
-    if ((isLiveNhlWeekly || needsTiebreaker) && (sunPicks.length > 0 || (missingNhlTiebreaker && hasSundayPicksSaved))) {
+    if ((isLiveNhlWeekly || needsTiebreaker) && (sunPicks.length > 0 || canSaveNhlTiebreakerOnly)) {
       // Submit Saturday picks immediately (no tiebreaker needed for Saturday).
       if (satPicks.length > 0 && satDate) {
         submitPicks.mutate({ poolId, data: { picks: satPicks, date: satDate } }, {
@@ -2716,12 +2736,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           onError: () => toast({ variant: "destructive", title: "Failed to save Saturday picks", description: "Please try again." }),
         });
       }
-      pendingPicksRef.current = sunPicks;
-      pendingDateRef.current = sunDate;
-      setTbShots(currentNhlTiebreakerGuess?.tiebreakerShotsOnGoalGuess != null
-        ? String(currentNhlTiebreakerGuess.tiebreakerShotsOnGoalGuess)
-        : "");
-      setShowNhlTiebreaker(true);
+      openNhlTiebreakerDialog(sunPicks);
       return;
     }
 
@@ -3286,7 +3301,28 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ) : isNhlWeekly ? (
             <div className="space-y-6">
               {/* Live NHL tiebreaker banner — shown while Sunday games remain open */}
-              {isLiveNhlWeekly && (sunSlate?.games ?? []).some((game) => !game.deadlinePassed) && !slateLocked && (
+              {showNhlTiebreakerPrompt && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
+                  <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5 sm:mt-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-yellow-200 leading-snug">
+                      Tiebreaker guess missing from standings
+                    </p>
+                    <p className="text-xs text-yellow-400/70 mt-0.5 leading-snug">
+                      You have Sunday picks saved but no shots-on-goal guess yet. Add it now — it shows in the yellow column for everyone.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 border-yellow-500/40 text-yellow-100 hover:bg-yellow-500/15 font-bebas tracking-wider"
+                    onClick={() => openNhlTiebreakerDialog([])}
+                  >
+                    Add tiebreaker
+                  </Button>
+                </div>
+              )}
+              {isLiveNhlWeekly && !showNhlTiebreakerPrompt && (sunSlate?.games ?? []).some((game) => !game.deadlinePassed) && !slateLocked && (
                 <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
                   <Shuffle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
@@ -3444,10 +3480,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   ))}
 
                   {/* Submit bar */}
-                  {(isToday || isSandbox) && openGames.length > 0 && (
+                  {(isToday || isSandbox) && (openGames.length > 0 || showNhlTiebreakerPrompt) && (
                     <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                       <p className="text-sm text-muted-foreground">
-                        {pendingPickCount > 0 ? (
+                        {showNhlTiebreakerPrompt && openGames.length === 0 ? (
+                          <span className="text-yellow-400/80">Add your tiebreaker guess for this week</span>
+                        ) : pendingPickCount > 0 ? (
                           <span className="text-yellow-400/80">
                             {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
                           </span>
@@ -3459,11 +3497,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       </p>
                       <Button
                         onClick={handleSubmit}
-                        disabled={submitPicks.isPending || localPicks.size === 0}
+                        disabled={submitPicks.isPending || (localPicks.size === 0 && !showNhlTiebreakerPrompt)}
                         className="font-bebas text-xl tracking-widest px-8 h-12"
                       >
                         {submitPicks.isPending ? (
                           <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                        ) : showNhlTiebreakerPrompt && openGames.length === 0 ? (
+                          "Save Tiebreaker"
                         ) : (
                           "Submit Picks"
                         )}
@@ -4282,6 +4322,22 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : (isWeekly || isMlsWeekly) && leaderboard.weekStart && leaderboard.weekEnd ? (
             <div className="space-y-4">
+              {showNhlTiebreakerPrompt && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8 px-4 py-3">
+                  <Shuffle className="w-4 h-4 text-yellow-400 shrink-0" />
+                  <p className="text-sm text-yellow-200/90 flex-1">
+                    Your tiebreaker column shows <span className="font-mono">—</span> until you save a shots-on-goal guess.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 border-yellow-500/40 text-yellow-100 hover:bg-yellow-500/15 font-bebas tracking-wider"
+                    onClick={() => openNhlTiebreakerDialog([])}
+                  >
+                    Add tiebreaker
+                  </Button>
+                </div>
+              )}
               <WeeklyLeaderboard
                 poolId={poolId}
                 entries={leaderboard.entries}
