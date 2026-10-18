@@ -164,6 +164,62 @@ function formatWeekendPointsLabel(pointsEarned: number, pointsPossible: number, 
   return `${pointsEarned} of ${pointsPossible} pts`;
 }
 
+function parseNhlSogTiebreakerHeader(header: string): { away: string; home: string; actualLabel: string } | null {
+  const m = header.match(/^([A-Za-z]{2,4})\/([A-Za-z]{2,4})\s+SOG\s+\(([^)]+)\)\s*$/i);
+  if (!m) return null;
+  return { away: m[1].toUpperCase(), home: m[2].toUpperCase(), actualLabel: m[3] };
+}
+
+function NhlWeekendTiebreakerHeader({
+  header,
+  actualShotsOnGoal,
+}: {
+  header: string;
+  actualShotsOnGoal?: number | null;
+}) {
+  const parsed = parseNhlSogTiebreakerHeader(header);
+  const actual =
+    actualShotsOnGoal != null
+      ? String(actualShotsOnGoal)
+      : parsed?.actualLabel && parsed.actualLabel !== "TBD"
+        ? parsed.actualLabel
+        : null;
+
+  return (
+    <div className="text-right leading-tight text-yellow-400/90 pl-2 sm:pl-3 border-l border-yellow-500/20">
+      <span className="block text-[8px] sm:text-[9px] font-bold uppercase tracking-wider">Tiebreaker</span>
+      <span className="block text-[8px] sm:text-[9px] font-medium normal-case text-yellow-400/80">Shots on goal</span>
+      {parsed ? (
+        <p className="mt-1 text-[9px] sm:text-[10px] font-semibold tracking-wide">
+          <span className="underline decoration-yellow-400/50 underline-offset-2">{parsed.away}</span>
+          <span className="text-yellow-400/45 mx-0.5">/</span>
+          <span className="underline decoration-yellow-400/50 underline-offset-2">{parsed.home}</span>
+          {actual != null ? (
+            <span className="block text-[8px] sm:text-[9px] font-normal text-yellow-300/75 mt-0.5 tabular-nums">
+              Actual {actual}
+            </span>
+          ) : (
+            <span className="block text-[8px] text-yellow-400/45 mt-0.5">Actual TBD</span>
+          )}
+        </p>
+      ) : (
+        <p className="mt-0.5 text-[8px] sm:text-[9px] normal-case truncate" title={header}>{header}</p>
+      )}
+    </div>
+  );
+}
+
+function NhlWeekendTiebreakerGuess({ guess }: { guess: number | null | undefined }) {
+  return (
+    <div className="text-right tabular-nums pl-2 sm:pl-3 border-l border-yellow-500/20">
+      <span className="font-bebas text-lg sm:text-xl leading-none text-yellow-400">
+        {guess ?? "—"}
+      </span>
+      <p className="text-[8px] uppercase tracking-wider text-yellow-400/45 mt-0.5 hidden sm:block">Your guess</p>
+    </div>
+  );
+}
+
 // ── Sport-specific tiebreaker label config ────────────────────────────────────
 
 function tbLabels(sport: string): { tb1Label: string; tb2Label: string; abbrLabel1: string; abbrLabel2: string } {
@@ -452,7 +508,7 @@ export function CrazyEightsLeaderboard({
             {(() => {
               const showTb = !!nhlData?.tiebreakerColumnHeader;
               const rowGrid = showTb
-                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_4.25rem_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_5rem_4.5rem]"
+                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(4.75rem,5.25rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(5.5rem,6.25rem)]"
                 : "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_4.5rem]";
               return (
                 <>
@@ -467,15 +523,13 @@ export function CrazyEightsLeaderboard({
                     <span className="text-right leading-snug normal-case font-medium text-muted-foreground/65">
                       Wins & losses
                     </span>
-                    {showTb && (
-                      <span className="text-center leading-tight">
-                        <span className="block">Tiebreaker</span>
-                        <span className="block font-normal normal-case text-[8px] sm:text-[9px] text-muted-foreground/45 mt-0.5 truncate" title={nhlData.tiebreakerColumnHeader}>
-                          {nhlData.tiebreakerColumnHeader}
-                        </span>
-                      </span>
+                    <span className="text-right pr-1">Points</span>
+                    {showTb && nhlData.tiebreakerColumnHeader && (
+                      <NhlWeekendTiebreakerHeader
+                        header={nhlData.tiebreakerColumnHeader}
+                        actualShotsOnGoal={nhlData.tiebreakerActualShotsOnGoal}
+                      />
                     )}
-                    <span className="text-right">Points</span>
                   </div>
                   <div className="divide-y divide-border/20">
                     {ranked.map((player, idx) => {
@@ -507,7 +561,7 @@ export function CrazyEightsLeaderboard({
                               )}
                             </div>
                           </div>
-                          <p className="text-[11px] sm:text-xs text-right text-muted-foreground leading-snug">
+                          <p className="text-[11px] sm:text-xs text-right text-muted-foreground leading-snug" aria-label={recordLine}>
                             <span className="text-green-400/90">{player.won} win{player.won === 1 ? "" : "s"}</span>
                             {", "}
                             <span className="text-red-400/90">{player.lost} loss{player.lost === 1 ? "" : "es"}</span>
@@ -519,14 +573,7 @@ export function CrazyEightsLeaderboard({
                             )}
                             <span className="text-muted-foreground/45"> · {player.total} picks</span>
                           </p>
-                          {showTb && (
-                            <div className="text-center tabular-nums">
-                              <span className="font-bebas text-xl sm:text-2xl leading-none text-foreground">
-                                {player.tiebreakerShotsOnGoalGuess ?? "—"}
-                              </span>
-                            </div>
-                          )}
-                          <div className="text-right">
+                          <div className="text-right pr-1">
                             <span className={cn(
                               "font-bebas text-xl sm:text-2xl leading-none tabular-nums",
                               player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/45",
@@ -538,6 +585,9 @@ export function CrazyEightsLeaderboard({
                             )}
                             <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5 hidden sm:block">{pointsLine}</p>
                           </div>
+                          {showTb && (
+                            <NhlWeekendTiebreakerGuess guess={player.tiebreakerShotsOnGoalGuess} />
+                          )}
                         </div>
                       );
                     })}
