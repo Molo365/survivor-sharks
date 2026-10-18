@@ -1,0 +1,27 @@
+export function isNhlWeeklyPickemPool(pool: {
+  sport: string;
+  poolType: string;
+  pickFrequency: string;
+}): boolean {
+  return pool.sport === "nhl" && pool.poolType === "pickem" && pool.pickFrequency === "weekly";
+}
+
+/** Standings: NHL weekly shows every submitted guess (office-pool style). */
+export function revealTiebreakerGuessForStandings(
+  pool: { sport: string; poolType: string; pickFrequency: string },
+  guess: number | null,
+  kickoffReveal: boolean,
+): boolean {
+  if (guess == null) return false;
+  if (isNhlWeeklyPickemPool(pool)) return true;
+  return kickoffReveal;
+}
+
+export function formatNhlSogTiebreakerColumnHeader(
+  awayAbbreviation: string,
+  homeAbbreviation: string,
+  actualShotsOnGoal: number | null,
+): string {
+  const actual = actualShotsOnGoal != null ? String(actualShotsOnGoal) : "TBD";
+  return `${awayAbbreviation}/${homeAbbreviation} SOG (${actual})`;
+}
