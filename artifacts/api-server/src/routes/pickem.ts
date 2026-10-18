@@ -1255,6 +1255,45 @@ router.post("/picks", requireAuth, async (req, res) => {
   res.status(201).json({ saved, skipped: 0 });
 });
 
+// PATCH /api/pools/:poolId/pickem/tiebreaker — NHL weekly SOG guess without resubmitting picks
+router.patch("/tiebreaker", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+  const { tiebreakerShotsOnGoal } = req.body as { tiebreakerShotsOnGoal?: unknown };
+
+  if (typeof tiebreakerShotsOnGoal !== "number" || tiebreakerShotsOnGoal < 0) {
+    res.status(400).json({ error: "tiebreakerShotsOnGoal must be a number ≥ 0" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool || pool.poolType !== "pickem" || pool.sport !== "nhl" || pool.pickFrequency !== "weekly") {
+    res.status(400).json({ error: "Tiebreaker updates are only for NHL weekly Pick'em pools" });
+    return;
+  }
+  if (!pool.isActive) {
+    res.status(400).json({ error: "This pool has ended — tiebreaker guesses can no longer be changed." });
+    return;
+  }
+
+  const [entry] = await db
+    .select({ id: entriesTable.id })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!entry) {
+    res.status(403).json({ error: "Not a member of this pool" });
+    return;
+  }
+
+  await db
+    .update(entriesTable)
+    .set({ tiebreakerShotsOnGoal })
+    .where(eq(entriesTable.id, entry.id));
+
+  res.json({ ok: true, tiebreakerShotsOnGoal });
+});
+
 /**
  * Shared reveal gate used by the leaderboard entry loop and the daily-pick drill-down.
  * Own picks are always shown; other players' picks are hidden until the game is graded
