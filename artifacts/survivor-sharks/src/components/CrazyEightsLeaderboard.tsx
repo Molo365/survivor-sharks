@@ -146,6 +146,24 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="font-bebas text-sm sm:text-lg text-muted-foreground/60 w-6 text-center">{rank}</span>;
 }
 
+function formatWeekendPickRecord(won: number, lost: number, pending: number, total: number): string {
+  const parts = [
+    `${won} win${won === 1 ? "" : "s"}`,
+    `${lost} loss${lost === 1 ? "" : "es"}`,
+  ];
+  if (pending > 0) {
+    parts.push(`${pending} still pending`);
+  }
+  return `${parts.join(", ")} · ${total} pick${total === 1 ? "" : "s"}`;
+}
+
+function formatWeekendPointsLabel(pointsEarned: number, pointsPossible: number, allDone: boolean): string {
+  if (allDone) {
+    return `${pointsEarned} point${pointsEarned === 1 ? "" : "s"}`;
+  }
+  return `${pointsEarned} of ${pointsPossible} pts`;
+}
+
 // ── Sport-specific tiebreaker label config ────────────────────────────────────
 
 function tbLabels(sport: string): { tb1Label: string; tb2Label: string; abbrLabel1: string; abbrLabel2: string } {
@@ -423,12 +441,6 @@ export function CrazyEightsLeaderboard({
           )}
         </div>
 
-        {nhlData?.tiebreakerColumnHeader && (
-          <p className="text-[10px] text-center text-muted-foreground/70 uppercase tracking-wider">
-            Tiebreaker · {nhlData.tiebreakerColumnHeader}
-          </p>
-        )}
-
         {ranked.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -436,67 +448,103 @@ export function CrazyEightsLeaderboard({
             <p className="text-sm">Nobody has submitted picks for this weekend.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {ranked.map((player, idx) => {
-              const rank = idx + 1;
-              const isMe = player.userId === user?.id;
-              const allDone = player.pending === 0;
+          <div className="rounded-xl border border-border/40 overflow-hidden">
+            {(() => {
+              const showTb = !!nhlData?.tiebreakerColumnHeader;
+              const rowGrid = showTb
+                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_4.25rem_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_5rem_4.5rem]"
+                : "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_4.5rem]";
               return (
-                <div
-                  key={player.userId}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-lg border transition-all",
-                    isMe ? "border-purple-500/40 bg-purple-500/5 shadow-[0_0_12px_rgba(168,85,247,0.08)]" : "border-border/30 bg-card/40",
-                    rank === 1 ? "border-yellow-500/30 bg-yellow-500/5" : "",
-                  )}
-                >
-                  <div className="w-8 flex items-center justify-center shrink-0">
-                    <RankBadge rank={rank} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn("font-semibold truncate", isMe ? "text-purple-300" : "text-foreground")}>
-                        {player.displayName ?? player.username}
-                      </span>
-                      {isMe && (
-                        <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0">You</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-green-400">{player.won}W</span>
-                      <span className="text-[11px] text-red-400">{player.lost}L</span>
-                      {player.pending > 0 && (
-                        <span className="text-[11px] text-muted-foreground/50">{player.pending} pending</span>
-                      )}
-                      <span className="text-[11px] text-muted-foreground/40">of {player.total} picks</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {nhlData?.tiebreakerColumnHeader && (
-                      <div className="text-right min-w-[2.75rem]">
-                        <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">TB SOG</div>
-                        <div className="font-bebas text-xl sm:text-2xl leading-none text-foreground tabular-nums">
-                          {player.tiebreakerShotsOnGoalGuess ?? "—"}
-                        </div>
-                      </div>
+                <>
+                  <div
+                    className={cn(
+                      "grid gap-x-3 sm:gap-x-4 items-end px-3 sm:px-4 py-2.5 bg-muted/[0.06] border-b border-border/30 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-muted-foreground/55",
+                      rowGrid,
                     )}
-                    <div className="text-right">
-                      <div className="font-bebas text-xl sm:text-2xl leading-none">
-                        <span className={cn(player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/40")}>
-                          {player.pointsEarned}
+                  >
+                    <span aria-hidden />
+                    <span className="text-left">Player</span>
+                    <span className="text-right leading-snug normal-case font-medium text-muted-foreground/65">
+                      Wins & losses
+                    </span>
+                    {showTb && (
+                      <span className="text-center leading-tight">
+                        <span className="block">Tiebreaker</span>
+                        <span className="block font-normal normal-case text-[8px] sm:text-[9px] text-muted-foreground/45 mt-0.5 truncate" title={nhlData.tiebreakerColumnHeader}>
+                          {nhlData.tiebreakerColumnHeader}
                         </span>
-                        {!allDone && (
-                          <span className="text-sm text-muted-foreground/40">/{player.pointsPossible}</span>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
-                        {allDone ? "pts" : "pts earned"}
-                      </div>
-                    </div>
+                      </span>
+                    )}
+                    <span className="text-right">Points</span>
                   </div>
-                </div>
+                  <div className="divide-y divide-border/20">
+                    {ranked.map((player, idx) => {
+                      const rank = idx + 1;
+                      const isMe = player.userId === user?.id;
+                      const allDone = player.pending === 0;
+                      const recordLine = formatWeekendPickRecord(player.won, player.lost, player.pending, player.total);
+                      const pointsLine = formatWeekendPointsLabel(player.pointsEarned, player.pointsPossible, allDone);
+                      return (
+                        <div
+                          key={player.userId}
+                          className={cn(
+                            "grid gap-x-3 sm:gap-x-4 gap-y-1 items-center px-3 sm:px-4 py-3 sm:py-3.5",
+                            rowGrid,
+                            isMe ? "bg-purple-500/[0.06]" : idx % 2 === 1 ? "bg-muted/[0.02]" : "bg-transparent",
+                            rank === 1 && "bg-yellow-500/[0.04]",
+                          )}
+                        >
+                          <div className="flex items-center justify-center">
+                            <RankBadge rank={rank} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className={cn("font-semibold text-sm sm:text-base truncate", isMe ? "text-purple-300" : "text-foreground")}>
+                                {player.displayName ?? player.username}
+                              </span>
+                              {isMe && (
+                                <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0">You</span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-right text-muted-foreground leading-snug">
+                            <span className="text-green-400/90">{player.won} win{player.won === 1 ? "" : "s"}</span>
+                            {", "}
+                            <span className="text-red-400/90">{player.lost} loss{player.lost === 1 ? "" : "es"}</span>
+                            {player.pending > 0 && (
+                              <>
+                                {", "}
+                                <span className="text-muted-foreground/80">{player.pending} pending</span>
+                              </>
+                            )}
+                            <span className="text-muted-foreground/45"> · {player.total} picks</span>
+                          </p>
+                          {showTb && (
+                            <div className="text-center tabular-nums">
+                              <span className="font-bebas text-xl sm:text-2xl leading-none text-foreground">
+                                {player.tiebreakerShotsOnGoalGuess ?? "—"}
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-right">
+                            <span className={cn(
+                              "font-bebas text-xl sm:text-2xl leading-none tabular-nums",
+                              player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/45",
+                            )}>
+                              {player.pointsEarned}
+                            </span>
+                            {!allDone && (
+                              <span className="font-bebas text-sm text-muted-foreground/40">/{player.pointsPossible}</span>
+                            )}
+                            <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5 hidden sm:block">{pointsLine}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               );
-            })}
+            })()}
           </div>
         )}
 
