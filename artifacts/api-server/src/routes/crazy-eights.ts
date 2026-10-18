@@ -1408,7 +1408,7 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
           } as any)
         : ({
             tiebreakerPoints,
-            tiebreakerThrees: typeof tiebreakerThrees === "number" ? tiebreakerThrees : null,
+            tiebreakerThrees: null,
           } as any),
     )
     .where(eq(entriesTable.id, entry.id));

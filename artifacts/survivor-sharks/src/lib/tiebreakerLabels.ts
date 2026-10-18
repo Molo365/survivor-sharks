@@ -31,11 +31,12 @@ export function tiebreakerStatPhrase(sport: TiebreakerSport): string {
 
 export function tiebreakerHelpLine(sport: TiebreakerSport, context: "weekly" | "slate" | "season"): string {
   const stat = tiebreakerStatPhrase(sport);
+  const splitNote = "Equally close guesses split the prize.";
   if (context === "weekly") {
-    return `Enter the ${stat} for the last scheduled game this week. Closest guess wins if players tie on picks.`;
+    return `Enter the ${stat} for the last scheduled game this week. Closest guess wins if players tie on picks; ${splitNote}`;
   }
   if (context === "season") {
-    return `If the season ends in a tie, the closest ${stat} guess on the last game of Week 18 wins.`;
+    return `If the season ends in a tie, the closest ${stat} guess on the last game of Week 18 wins; ${splitNote}`;
   }
-  return `Enter the ${stat} for the last game on this slate. Closest guess wins if players tie.`;
+  return `Enter the ${stat} for the last game on this slate. Closest guess wins if players tie; ${splitNote}`;
 }
