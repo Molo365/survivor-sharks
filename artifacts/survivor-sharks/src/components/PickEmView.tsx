@@ -2848,11 +2848,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         data: {
           picks,
           date: submitDate,
-          ...(tiebreakerRuns !== undefined && tiebreakerStrikeouts !== undefined
+          ...(typeof tiebreakerRuns === "number" && typeof tiebreakerStrikeouts === "number"
             ? { tiebreakerRuns, tiebreakerStrikeouts }
             : {}),
-          ...(tiebreakerShotsOnGoal !== undefined && tiebreakerPenaltyMinutes !== undefined
-            ? { tiebreakerShotsOnGoal, tiebreakerPenaltyMinutes }
+          ...(typeof tiebreakerShotsOnGoal === "number"
+            ? {
+                tiebreakerShotsOnGoal,
+                ...(typeof tiebreakerPenaltyMinutes === "number" ? { tiebreakerPenaltyMinutes } : {}),
+              }
             : {}),
           ...(isLiveNhlWeekly ? { sendConfirmation: true } : {}),
         },
