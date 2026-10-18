@@ -1292,7 +1292,7 @@ export function CrazyEightsView({
               </span>
             </TiebreakerGuessDescription>
           </DialogHeader>
-          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} />
+          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} tone="yellow" />
           <div className="space-y-4 py-2">
             {isNba ? (
               <div className="space-y-1.5">

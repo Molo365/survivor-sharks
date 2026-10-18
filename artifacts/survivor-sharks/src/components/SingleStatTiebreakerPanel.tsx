@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { tiebreakerHelpLine, tiebreakerStatLabel, type TiebreakerSport } from "@/lib/tiebreakerLabels";
+import { TiebreakerMatchupLogoStrip } from "@/components/TiebreakerGuessDialogUi";
 
 function formatGameTimeEt(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -51,13 +52,11 @@ export function SingleStatTiebreakerPanel({
         </p>
       </div>
       {game && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-500/20 bg-background/30 px-3 py-2">
-          <span className="text-sm font-semibold text-foreground">
-            {game.awayTeam.name} @ {game.homeTeam.name}
-          </span>
-          <span className="text-xs text-muted-foreground shrink-0">
+        <div className="space-y-1.5">
+          <TiebreakerMatchupLogoStrip game={game} tone="yellow" />
+          <p className="text-[10px] text-muted-foreground/60 text-center">
             {formatGameTimeEt(game.startTime)}
-          </span>
+          </p>
         </div>
       )}
       <Input

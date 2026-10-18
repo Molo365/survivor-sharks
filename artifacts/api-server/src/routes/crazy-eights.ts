@@ -8,6 +8,7 @@ import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
+import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
 import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
@@ -529,6 +530,7 @@ router.get("/grid", requireAuth, async (req, res) => {
       viewingPastPeriod,
       tiebreakerColumnHeader,
       tiebreakerActualShotsOnGoal,
+      tiebreakerMatchup: lastGame ? toTiebreakerMatchupPayload(lastGame) : undefined,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
