@@ -458,7 +458,7 @@ export function CrazyEightsLeaderboard({
             {(() => {
               const showTb = !!nhlData?.tiebreakerColumnHeader;
               const rowGrid = showTb
-                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(5.5rem,6.5rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(6rem,7rem)]"
+                ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(4.5rem,5.25rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(5rem,5.75rem)]"
                 : "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_4.5rem]";
               return (
                 <>
