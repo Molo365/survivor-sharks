@@ -17,6 +17,11 @@ import {
   type LivePickCellState,
 } from "@/lib/nflPickEmLivePickCell";
 import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
+import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
 
 const GAME_COL_MIN = 52;
 const STICKY_PLAYER_W = 108;
@@ -140,13 +145,34 @@ export function NflPickEmSeasonLiveBoard({
     });
 
   const games = weekData?.games ?? [];
+  const weeklyTbMeta = (
+    weekData as {
+      weeklyTiebreaker?: {
+        columnHeader?: string | null;
+        actual?: number | null;
+        tiebreakerMatchup?: TiebreakerMatchupGame;
+      };
+    } | undefined
+  )?.weeklyTiebreaker;
+  const weeklyTbColumnHeader = weeklyTbMeta?.columnHeader;
+  const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
+
   const weekPlayerMap = useMemo(() => {
     const m = new Map<
       number,
-      { correct: number; picks: NflPickEmSeasonPlayerPick[] }
+      {
+        correct: number;
+        picks: NflPickEmSeasonPlayerPick[];
+        weeklyTiebreakerGuess: number | null;
+      }
     >();
     for (const p of weekData?.players ?? []) {
-      m.set(p.userId, { correct: p.correct, picks: p.picks });
+      m.set(p.userId, {
+        correct: p.correct,
+        picks: p.picks,
+        weeklyTiebreakerGuess:
+          (p as { weeklyTiebreakerGuess?: number | null }).weeklyTiebreakerGuess ?? null,
+      });
     }
     return m;
   }, [weekData?.players]);
@@ -161,6 +187,7 @@ export function NflPickEmSeasonLiveBoard({
         settledCorrect,
         weekCorrect: settledCorrect + liveCorrect,
         picks: wp?.picks ?? [],
+        weeklyTiebreakerGuess: wp?.weeklyTiebreakerGuess ?? null,
       };
     });
     mapped.sort((a, b) => b.weekCorrect - a.weekCorrect);
@@ -304,7 +331,9 @@ export function NflPickEmSeasonLiveBoard({
       >
         <table
           className="w-full border-collapse text-sm"
-          style={{ minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 }}
+          style={{
+            minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 + (showWeeklyTbCol ? 92 : 0),
+          }}
         >
           <thead className={cn("z-20", STICKY_BG)}>
             <tr className="border-b border-white/[0.08]">
@@ -321,6 +350,17 @@ export function NflPickEmSeasonLiveBoard({
                   <GameHeader game={game} />
                 </th>
               ))}
+              {showWeeklyTbCol && weeklyTbColumnHeader && (
+                <th className="align-bottom font-normal px-1 pb-1">
+                  <TiebreakerStandingsColumnHeader
+                    sport="nfl"
+                    matchup={weeklyTbMeta?.tiebreakerMatchup ?? null}
+                    headerFallback={weeklyTbColumnHeader}
+                    actual={weeklyTbMeta?.actual ?? null}
+                    className="border-l-yellow-500/25 text-yellow-300/90 max-w-[5.5rem]"
+                  />
+                </th>
+              )}
               <th
                 className={cn(
                   "sticky right-0 z-30 text-right align-bottom pb-1 pl-1 pr-2",
@@ -334,7 +374,7 @@ export function NflPickEmSeasonLiveBoard({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ entry, weekCorrect, settledCorrect, weekRank, picks }, idx) => {
+            {rows.map(({ entry, weekCorrect, settledCorrect, weekRank, picks, weeklyTiebreakerGuess }, idx) => {
               const isMe = entry.userId === currentUserId;
               const liveProvisional = weekCorrect > settledCorrect;
               const pickByGame = new Map(picks.map((p) => [p.gameId, p]));
@@ -402,6 +442,14 @@ export function NflPickEmSeasonLiveBoard({
                       </td>
                     );
                   })}
+                  {showWeeklyTbCol && weeklyTbColumnHeader && (
+                    <td className="py-1.5 px-1 text-center align-middle">
+                      <TiebreakerStandingsColumnGuess
+                        guess={weeklyTiebreakerGuess}
+                        className="border-l-yellow-500/25"
+                      />
+                    </td>
+                  )}
                   <td
                     className={cn(
                       "sticky right-0 z-10 py-2 pl-1 pr-2 text-right align-middle",

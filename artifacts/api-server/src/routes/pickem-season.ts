@@ -22,9 +22,10 @@ import {
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
 import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
+import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNflPickemAtsSpreads } from "../lib/nfl-pickem-ats-spreads";
 import {
-  formatNflWeeklyBonusPassingColumnHeader,
+  formatNflWeeklyPassingTiebreakerColumnHeader,
   isNflOfficeSlateLive,
   nflOfficePoolGameSubmissionLocked,
   nflOfficePoolOpponentPickRevealed,
@@ -1640,24 +1641,29 @@ router.get("/week-results", requireAuth, async (req, res) => {
         ))
     : [];
   const weeklyTbByUser = new Map(weeklyTbRows.map((row) => [row.userId, row]));
-  const weeklyTbGameIso = weeklyTbTargetGame?.startTime
-    ? new Date(weeklyTbTargetGame.startTime).toISOString()
-    : games.at(-1)?.date ?? null;
+
+  const tiebreakerGameForMatchup =
+    weeklyTbTargetGame?.id != null
+      ? games.find((g) => g.id === weeklyTbTargetGame.id) ?? games.at(-1)
+      : games.at(-1);
+  const weeklyTiebreakerActual = weeklyTiebreakerResolution.actual;
+  const weeklyTiebreakerMatchup = tiebreakerGameForMatchup
+    ? toTiebreakerMatchupPayload(tiebreakerGameForMatchup)
+    : undefined;
+  const weeklyTiebreakerColumnHeader = tiebreakerGameForMatchup
+    ? formatNflWeeklyPassingTiebreakerColumnHeader(
+        tiebreakerGameForMatchup.awayTeam.abbreviation,
+        tiebreakerGameForMatchup.homeTeam.abbreviation,
+        weeklyTiebreakerActual,
+      )
+    : undefined;
 
   const playersWithWeeklyTb = rankedPlayers.map((player) => {
     if (!pool.weeklyBonusEnabled) return player;
-    const rawGuess = weeklyTbByUser.get(player.userId)?.guess ?? null;
-    const guessRevealed = nflOfficePoolTiebreakerGuessRevealed({
-      pool,
-      requesterUserId: userId,
-      rowUserId: player.userId,
-      slateGameStartIsos: slateGameStartIsos,
-      tiebreakerGameStartIso: weeklyTbGameIso,
-      actualsKnown: weeklyTiebreakerResolution.actual != null,
-    });
     return {
       ...player,
-      weeklyTiebreakerGuess: visibleNflTiebreakerGuess(rawGuess, guessRevealed),
+      // Office-pool standings column: show submitted guesses like NHL weekly SOG.
+      weeklyTiebreakerGuess: weeklyTbByUser.get(player.userId)?.guess ?? null,
     };
   });
 
@@ -1681,8 +1687,10 @@ router.get("/week-results", requireAuth, async (req, res) => {
     },
     ...(pool.weeklyBonusEnabled && {
       weeklyTiebreaker: {
-        columnHeader: formatNflWeeklyBonusPassingColumnHeader(weeklyTiebreakerResolution.actual),
+        columnHeader: weeklyTiebreakerColumnHeader ?? null,
         targetGameId: weeklyTbTargetGame?.id ?? null,
+        actual: weeklyTiebreakerActual,
+        tiebreakerMatchup: weeklyTiebreakerMatchup,
       },
     }),
   });

@@ -307,7 +307,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Tiebreakers",
           items: [
-            "Weekly bonus ties use combined passing yards on that week's last scheduled game (when weekly bonus is enabled). Other players' bonus tiebreaker guesses appear once the weekly slate locks (Sunday 1:00 PM ET), same as game picks.",
+            "Weekly bonus ties use combined passing yards on that week's last scheduled game (when weekly bonus is enabled). Submitted bonus guesses appear on the weekly grid and standings tiebreaker column (same style as NHL weekend pick'em).",
             "For a Week 18 season tie, guess combined passing yards on the last scheduled game.",
             "Closest guess wins; equally close or missing data splits the prize.",
           ],

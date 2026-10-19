@@ -223,9 +223,19 @@ export function nflOfficePoolTiebreakerGuessRevealed(opts: {
   return nflSundayOnePmRevealActive(opts.slateGameStartIsos, now);
 }
 
+export function formatNflWeeklyPassingTiebreakerColumnHeader(
+  awayAbbreviation: string,
+  homeAbbreviation: string,
+  actualCombinedPassing: number | null,
+): string {
+  const actual = actualCombinedPassing != null ? String(actualCombinedPassing) : "TBD";
+  return `${awayAbbreviation}/${homeAbbreviation} PASS (${actual})`;
+}
+
+/** @deprecated Prefer formatNflWeeklyPassingTiebreakerColumnHeader with team abbreviations. */
 export function formatNflWeeklyBonusPassingColumnHeader(actualCombinedPassing: number | null): string {
   const actual = actualCombinedPassing != null ? String(actualCombinedPassing) : "TBD";
-  return `Weekly bonus PASS (${actual})`;
+  return `PASS (${actual})`;
 }
 
 export function visibleNflTiebreakerGuess(
