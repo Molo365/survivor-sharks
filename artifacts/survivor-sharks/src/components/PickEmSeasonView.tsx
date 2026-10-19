@@ -744,6 +744,11 @@ function WeeklyGrid({
 
   const games = weekData?.games ?? [];
   const weekPlayers = weekData?.players ?? [];
+  const weeklyTbColumnHeader = (
+    weekData as {
+      weeklyTiebreaker?: { columnHeader?: string | null };
+    } | undefined
+  )?.weeklyTiebreaker?.columnHeader;
 
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.userId, e])),
@@ -752,10 +757,16 @@ function WeeklyGrid({
 
   const rows = useMemo(
     () =>
-      entries.map((e) => ({
-        ...e,
-        picks: weekPlayers.find((p) => p.userId === e.userId)?.picks ?? [],
-      })),
+      entries.map((e) => {
+        const weekPlayer = weekPlayers.find((p) => p.userId === e.userId);
+        return {
+          ...e,
+          picks: weekPlayer?.picks ?? [],
+          weeklyTiebreakerGuess:
+            (weekPlayer as { weeklyTiebreakerGuess?: number | null } | undefined)
+              ?.weeklyTiebreakerGuess ?? null,
+        };
+      }),
     [entries, weekPlayers],
   );
 
@@ -826,6 +837,14 @@ function WeeklyGrid({
                   <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 sticky left-0 bg-card z-10">
                     Player
                   </th>
+                  {weeklyTbColumnHeader && (
+                    <th
+                      className="px-2 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-yellow-500/80 min-w-[72px] whitespace-nowrap"
+                      title={weeklyTbColumnHeader}
+                    >
+                      Bonus
+                    </th>
+                  )}
                   {games.map((game) => (
                     <th
                       key={game.id}
@@ -905,6 +924,14 @@ function WeeklyGrid({
                           </span>
                         )}
                       </td>
+
+                      {weeklyTbColumnHeader && (
+                        <td className="px-2 py-2 text-center tabular-nums text-sm text-yellow-200/90">
+                          {row.weeklyTiebreakerGuess != null
+                            ? row.weeklyTiebreakerGuess
+                            : "—"}
+                        </td>
+                      )}
 
                       {games.map((game) => {
                         const pick = pickMap.get(game.id);

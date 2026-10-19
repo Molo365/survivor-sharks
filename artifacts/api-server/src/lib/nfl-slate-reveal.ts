@@ -197,3 +197,41 @@ export function nflSundayOnePmRevealActiveForSurvivorWeek(
   }
   return nflSundayOnePmRevealActive(starts, nowMs);
 }
+
+/** Weekly bonus / season tiebreaker guesses — same visibility moment as opponent picks. */
+export function nflOfficePoolTiebreakerGuessRevealed(opts: {
+  pool: { sport: string; poolType: string; sandboxMode?: boolean | null; isActive?: boolean };
+  requesterUserId: number;
+  rowUserId: number;
+  slateGameStartIsos: string[];
+  tiebreakerGameStartIso?: string | null;
+  actualsKnown?: boolean;
+  nowMs?: number;
+}): boolean {
+  if (opts.requesterUserId === opts.rowUserId) return true;
+  if (opts.actualsKnown) return true;
+  if (opts.pool.isActive === false) return true;
+  if (opts.pool.sandboxMode) return true;
+  const now = opts.nowMs ?? Date.now();
+  if (
+    opts.tiebreakerGameStartIso != null &&
+    new Date(opts.tiebreakerGameStartIso).getTime() <= now
+  ) {
+    return true;
+  }
+  if (!isNflOfficePool(opts.pool)) return false;
+  return nflSundayOnePmRevealActive(opts.slateGameStartIsos, now);
+}
+
+export function formatNflWeeklyBonusPassingColumnHeader(actualCombinedPassing: number | null): string {
+  const actual = actualCombinedPassing != null ? String(actualCombinedPassing) : "TBD";
+  return `Weekly bonus PASS (${actual})`;
+}
+
+export function visibleNflTiebreakerGuess(
+  guess: number | null,
+  revealed: boolean,
+): number | null {
+  if (guess == null) return null;
+  return revealed ? guess : null;
+}
