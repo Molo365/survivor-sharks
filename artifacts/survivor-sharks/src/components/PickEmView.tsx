@@ -44,6 +44,7 @@ import {
 } from "@/components/TiebreakerStandingsColumn";
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE } from "@/lib/nhlOfficePoolCopy";
+import { NBA_WEEKEND_ATS_VISIBILITY_NOTICE } from "@/lib/nbaOfficePoolCopy";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -3524,7 +3525,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                   : pickFrequency === "weekly"
                   ? (isNbaAts
-                      ? "Pick every NBA game on the Friday–Sunday slate against the spread. Games are grouped by date (Fri, Sat, Sun). You can pick once ESPN posts the line — spreads often arrive late. Most correct covers for the weekend wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
+                      ? `Pick every NBA game on the Friday–Sunday slate against the spread. Games are grouped by date (Fri, Sat, Sun). You can pick once ESPN posts the line — spreads often arrive late. Most correct covers for the weekend wins the prize pot. ${NBA_WEEKEND_ATS_VISIBILITY_NOTICE} Good luck! 🏀📈`
                       : isNhl
                       ? `Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. ${NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE} Good luck! 🏒✏️`
                       : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
