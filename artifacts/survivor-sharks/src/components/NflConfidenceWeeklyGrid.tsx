@@ -4,6 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
+import type { WeeklyTiebreakerGridMeta } from "@/components/nflConfidenceLiveTypes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,12 +43,14 @@ interface PlayerRow {
   username: string;
   displayName: string | null;
   picks: Record<string, PlayerPick>;
+  weeklyTiebreakerGuess?: number | null;
 }
 
 interface GridResponse {
   week: number;
   games: GameSummary[];
   players: PlayerRow[];
+  weeklyTiebreaker?: WeeklyTiebreakerGridMeta;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -145,6 +153,10 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
   });
 
   const isCurrentWeek = week === (initialWeek ?? 1);
+  const weeklyTb = data?.weeklyTiebreaker;
+  const weeklyTbColumnHeader = weeklyTb?.columnHeader;
+  const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
+  const weeklyTbMatchup = weeklyTb?.tiebreakerMatchup as TiebreakerMatchupGame | undefined;
 
   const pickedGameIds = new Set(
     (data?.players ?? []).flatMap((p) => Object.keys(p.picks)),
@@ -235,6 +247,16 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
                     </th>
                   );
                 })}
+                {showWeeklyTbCol && weeklyTbColumnHeader && (
+                  <th className="px-2 py-2 border-r border-border/20 align-bottom">
+                    <TiebreakerStandingsColumnHeader
+                      sport="nfl"
+                      matchup={weeklyTbMatchup ?? null}
+                      headerFallback={weeklyTbColumnHeader}
+                      actual={weeklyTb?.actual ?? null}
+                    />
+                  </th>
+                )}
                 <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                   Pts
                 </th>
@@ -270,6 +292,11 @@ export function NflConfidenceWeeklyGrid({ poolId, initialWeek }: { poolId: numbe
                         <PickCell pick={player.picks[game.id]} game={game} />
                       </td>
                     ))}
+                    {showWeeklyTbCol && weeklyTbColumnHeader && (
+                      <td className="px-2 py-1 border-r border-border/20 align-middle">
+                        <TiebreakerStandingsColumnGuess guess={player.weeklyTiebreakerGuess} />
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <span className="font-bebas text-xl text-green-400 leading-none">{earnedPts}</span>
                     </td>

@@ -806,7 +806,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
             <Trophy className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
             <p className="text-xs text-yellow-300/80 leading-relaxed">
               <span className="font-semibold text-yellow-300">Tiebreaker:</span>{" "}
-              The last game on the weekly slate. If players are tied on weekly confidence points, the closest prediction of combined QB passing yards wins.
+              The last game on the weekly slate. If players tie on weekly confidence points, the closest guess of combined passing yards (both teams) wins; guesses unlock with the rest of the slate at 1:00 PM ET Sunday.
             </p>
           </div>
         </CardContent>

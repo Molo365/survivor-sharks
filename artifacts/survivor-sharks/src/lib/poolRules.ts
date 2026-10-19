@@ -384,7 +384,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Scoring or elimination",
           items: [
             "Each week is scored on its own. Correct picks earn their confidence value.",
-            "The last game of the week is the tiebreaker when players finish tied on points.",
+            "When players tie on weekly points, the last game on the slate is the tiebreaker: closest guess of combined passing yards (both teams) wins; equal distance splits the prize.",
           ],
         },
         {

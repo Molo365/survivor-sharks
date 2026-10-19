@@ -14,10 +14,47 @@ import {
   nflOfficePoolTiebreakerGuessRevealed,
   nflSundayOnePmRevealActive,
   partitionNflWeekGamesBySubmissionLock,
+  formatNflWeeklyPassingTiebreakerColumnHeader,
   visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
+import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 
 const router = Router({ mergeParams: true });
+
+type WeeklyTiebreakerGameShape = {
+  id: string;
+  startTime: string;
+  awayTeam: { name: string; abbreviation: string; logoUrl: string | null };
+  homeTeam: { name: string; abbreviation: string; logoUrl: string | null };
+};
+
+function buildNflConfidenceWeeklyTiebreakerMeta(
+  tiebreakerGame: WeeklyTiebreakerGameShape | undefined,
+  actualCombinedPassing: number | null,
+) {
+  if (!tiebreakerGame) return undefined;
+  return {
+    columnHeader: formatNflWeeklyPassingTiebreakerColumnHeader(
+      tiebreakerGame.awayTeam.abbreviation,
+      tiebreakerGame.homeTeam.abbreviation,
+      actualCombinedPassing,
+    ),
+    actual: actualCombinedPassing,
+    tiebreakerMatchup: toTiebreakerMatchupPayload({
+      date: tiebreakerGame.startTime,
+      awayTeam: {
+        displayName: tiebreakerGame.awayTeam.name,
+        abbreviation: tiebreakerGame.awayTeam.abbreviation,
+        logo: tiebreakerGame.awayTeam.logoUrl,
+      },
+      homeTeam: {
+        displayName: tiebreakerGame.homeTeam.name,
+        abbreviation: tiebreakerGame.homeTeam.abbreviation,
+        logo: tiebreakerGame.homeTeam.logoUrl,
+      },
+    }),
+  };
+}
 
 // GET /api/pools/:poolId/nfl-confidence-weekly/games
 router.get("/games", requireAuth, async (req, res) => {
@@ -579,24 +616,73 @@ router.get("/grid", requireAuth, async (req, res) => {
     }
   }
 
-  const games = [...typedGameMap.values()].map((g: any) => ({
-    id: g.id,
-    awayTeam: g.awayTeam,
-    homeTeam: g.homeTeam,
-    startTime: g.startTime,
-    status: g.status,
-    awayScore: g.awayScore ?? null,
-    homeScore: g.homeScore ?? null,
-  }));
+  const games = [...typedGameMap.values()]
+    .sort(
+      (a: { startTime: string }, b: { startTime: string }) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    )
+    .map((g: any) => ({
+      id: g.id,
+      awayTeam: g.awayTeam,
+      homeTeam: g.homeTeam,
+      startTime: g.startTime,
+      status: g.status,
+      awayScore: g.awayScore ?? null,
+      homeScore: g.homeScore ?? null,
+    }));
 
-  const players = Array.from(userMap.values()).map(u => ({
-    userId: u.userId,
-    username: u.username,
-    displayName: u.displayName,
-    picks: Object.fromEntries(u.picks.entries()),
-  }));
+  const tiebreakerGame = games.at(-1) as WeeklyTiebreakerGameShape | undefined;
+  const slateGameStartIsosForTb = games.map((g) => g.startTime);
+  const tiebreakerGameStartIso = tiebreakerGame?.startTime ?? null;
 
-  res.json({ week, games, players });
+  const [[actualResult], memberEntries] = await Promise.all([
+    db
+      .select()
+      .from(nflConfidenceResultsTable)
+      .where(and(eq(nflConfidenceResultsTable.poolId, poolId), eq(nflConfidenceResultsTable.week, week)))
+      .limit(1),
+    db
+      .select({
+        userId: entriesTable.userId,
+        tiebreakerPassingYards: entriesTable.tiebreakerPassingYards,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId)),
+  ]);
+  const actualCombinedPassing = actualResult?.actualPassingYards ?? null;
+  const tbGuessByUser = new Map(
+    memberEntries.map((e) => [e.userId, e.tiebreakerPassingYards]),
+  );
+  const weeklyTiebreaker = buildNflConfidenceWeeklyTiebreakerMeta(
+    tiebreakerGame,
+    actualCombinedPassing,
+  );
+
+  const players = Array.from(userMap.values()).map((u) => {
+    const rawGuess = tbGuessByUser.get(u.userId) ?? null;
+    const revealed = nflOfficePoolTiebreakerGuessRevealed({
+      pool,
+      requesterUserId: userId,
+      rowUserId: u.userId,
+      slateGameStartIsos: slateGameStartIsosForTb,
+      tiebreakerGameStartIso,
+      actualsKnown: actualCombinedPassing != null,
+    });
+    return {
+      userId: u.userId,
+      username: u.username,
+      displayName: u.displayName,
+      picks: Object.fromEntries(u.picks.entries()),
+      weeklyTiebreakerGuess: visibleNflTiebreakerGuess(rawGuess, revealed),
+    };
+  });
+
+  res.json({
+    week,
+    games,
+    players,
+    ...(weeklyTiebreaker && { weeklyTiebreaker }),
+  });
 });
 
 // PATCH /api/pools/:poolId/nfl-confidence-weekly/sandbox-week
@@ -925,15 +1011,67 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
 
   let slateGameStartIsos: string[] = [];
   let tiebreakerGameIso: string | null = null;
-  if (!pool.sandboxMode) {
+  let tiebreakerGameForMeta: WeeklyTiebreakerGameShape | undefined;
+  if (pool.sandboxMode) {
+    const sandboxGames = getSandboxGamesForWeek(week)
+      .map(sandboxGameToPickEmShape)
+      .sort(
+        (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+      );
+    slateGameStartIsos = sandboxGames.map((g) => g.startTime);
+    const lastSandbox = sandboxGames.at(-1);
+    if (lastSandbox) {
+      tiebreakerGameIso = lastSandbox.startTime;
+      tiebreakerGameForMeta = {
+        id: lastSandbox.id,
+        startTime: lastSandbox.startTime,
+        awayTeam: {
+          name: lastSandbox.awayTeam.name,
+          abbreviation: lastSandbox.awayTeam.abbreviation,
+          logoUrl: lastSandbox.awayTeam.logoUrl ?? null,
+        },
+        homeTeam: {
+          name: lastSandbox.homeTeam.name,
+          abbreviation: lastSandbox.homeTeam.abbreviation,
+          logoUrl: lastSandbox.homeTeam.logoUrl ?? null,
+        },
+      };
+    }
+  } else {
     try {
-      const weekGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      const weekGames = sortConfidenceGamesByKickoff(await fetchNflGamesByWeek(
+        week,
+        pool.season,
+        pool.isPreseason ? 1 : 2,
+      ));
       slateGameStartIsos = weekGames.map((g) => g.date);
-      tiebreakerGameIso = weekGames.at(-1)?.date ?? null;
+      const lastLive = weekGames.at(-1);
+      tiebreakerGameIso = lastLive?.date ?? null;
+      if (lastLive) {
+        tiebreakerGameForMeta = {
+          id: lastLive.id,
+          startTime: lastLive.date,
+          awayTeam: {
+            name: lastLive.awayTeam.displayName,
+            abbreviation: lastLive.awayTeam.abbreviation,
+            logoUrl: lastLive.awayTeam.logo ?? null,
+          },
+          homeTeam: {
+            name: lastLive.homeTeam.displayName,
+            abbreviation: lastLive.homeTeam.abbreviation,
+            logoUrl: lastLive.homeTeam.logo ?? null,
+          },
+        };
+      }
     } catch {
       /* leave hidden */
     }
   }
+
+  const weeklyTiebreaker = buildNflConfidenceWeeklyTiebreakerMeta(
+    tiebreakerGameForMeta,
+    actualPassingYards,
+  );
 
   const visiblePlayers = players.map((player) => {
     const revealed = nflOfficePoolTiebreakerGuessRevealed({
@@ -957,7 +1095,13 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
-  res.json({ week, players: visiblePlayers, actualPassingYards, actualRushingYards });
+  res.json({
+    week,
+    players: visiblePlayers,
+    actualPassingYards,
+    actualRushingYards: null,
+    ...(weeklyTiebreaker && { weeklyTiebreaker }),
+  });
 });
 
 export default router;
