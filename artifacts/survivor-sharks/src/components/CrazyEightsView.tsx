@@ -23,7 +23,7 @@ import {
 } from "@/components/CrazyEightsPeriodResults";
 import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
 import { NHL_WEEKEND_SATURDAY_LOCK_SENTENCE } from "@/lib/nhlOfficePoolCopy";
-import { NBA_WEEKEND_SUNDAY_LOCK_SENTENCE } from "@/lib/nbaOfficePoolCopy";
+import { NBA_WEEKEND_SATURDAY_LOCK_SENTENCE } from "@/lib/nbaOfficePoolCopy";
 import {
   TiebreakerFieldLabel,
   TiebreakerGuessDescription,
@@ -1157,7 +1157,7 @@ export function CrazyEightsView({
           <p className="text-sm text-muted-foreground mt-0.5">
             Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
             {isNhl && !isLocked && !hasPicks && ` ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
-            {isNba && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SUNDAY_LOCK_SENTENCE}`}
+            {isNba && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
           </p>
           {!isLocked && !hasPicks && (
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -1225,7 +1225,7 @@ export function CrazyEightsView({
               {isNhl
                 ? `Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
                 : isNba
-                  ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SUNDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
+                  ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
                   : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch. Minimum 4 games required to play.`}
             </p>
           </div>
