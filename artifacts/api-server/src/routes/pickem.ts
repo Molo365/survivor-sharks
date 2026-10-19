@@ -29,6 +29,7 @@ import {
 } from "../lib/espn";
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
+import { liveNhlWeeklySundayPickRequiresTiebreaker } from "../lib/nhl-weekly-tiebreaker-submit";
 import {
   fetchWcSchedule,
   WC_PHASES,
@@ -1129,6 +1130,29 @@ router.post("/picks", requireAuth, async (req, res) => {
   if (invalidPickIds.length > 0) {
     res.status(400).json({ error: `Invalid pick option — must be home_win, draw, or away_win` });
     return;
+  }
+
+  if (isLiveNhlWeekly) {
+    const nhlBounds = getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart);
+    const weekEndEt = formatCalendarDateEt(nhlBounds.weekEnd);
+    const submitsSundayPick = picks.some((pick) => {
+      const game = gameMap.get(pick.gameId);
+      if (!game) return false;
+      return formatDateEtDash(new Date(game.date)) === weekEndEt;
+    });
+    if (
+      liveNhlWeeklySundayPickRequiresTiebreaker({
+        isLiveNhlWeekly: true,
+        submitsSundayPick,
+        entryTiebreakerShotsOnGoal: entry.tiebreakerShotsOnGoal,
+        requestTiebreakerShotsOnGoal: tiebreakerShotsOnGoal,
+      })
+    ) {
+      res.status(400).json({
+        error: "Sunday picks require a tiebreaker guess (combined shots on goal for the last Sunday game).",
+      });
+      return;
+    }
   }
 
   let sharedConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
