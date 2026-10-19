@@ -4,6 +4,7 @@ import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db"
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
+import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
 
 const router = Router({ mergeParams: true });
 
@@ -59,10 +60,23 @@ router.get("/", requireAuth, async (req, res) => {
         ? 2
         : 1;
 
+  const weekLabels: Record<string, string> = {};
+  if (pool.sport === "nhl" && pool.poolType === "season") {
+    for (const w of weeks) {
+      weekLabels[String(w)] = nhlSurvivorWeekLabel(
+        pool.createdAt,
+        w,
+        pool.initialPeriodStart,
+        pool.sandboxMode,
+      );
+    }
+  }
+
   res.json({
     poolId,
     maxLives,
     weeks,
+    ...(Object.keys(weekLabels).length > 0 ? { weekLabels } : {}),
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
     picks: picksWithUsername.map(({ pick, username }) => {
       // Own picks are always visible.

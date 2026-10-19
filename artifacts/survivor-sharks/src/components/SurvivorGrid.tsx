@@ -13,10 +13,11 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
 
   const sortedWeeks = [...grid.weeks].sort((a, b) => a - b);
   const maxLives = grid.maxLives ?? 1;
+  const weekHeader = (w: number) => grid.weekLabels?.[String(w)] ?? `Wk ${w}`;
 
   function handleDownloadPdf() {
     if (!grid) return;
-    const columns = ["Player", "Status", ...grid.weeks.map(w => `WK ${w}`)];
+    const columns = ["Player", "Status", ...sortedWeeks.map(weekHeader)];
     const rows = grid.members.map(member => {
       const strikes = member.strikeCount ?? 0;
       const statusLabel = member.status === "eliminated"
@@ -69,7 +70,9 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
             <tr>
               <th className="p-4 font-bebas text-xl tracking-wide min-w-[200px] sticky left-0 bg-card z-10 border-r border-border/50">Shark</th>
               {sortedWeeks.map(w => (
-                <th key={w} className="p-4 text-center font-bebas text-lg text-muted-foreground w-20 min-w-[80px]">Wk {w}</th>
+                <th key={w} className="p-4 text-center font-bebas text-base text-muted-foreground w-20 min-w-[72px] whitespace-nowrap">
+                  {weekHeader(w)}
+                </th>
               ))}
             </tr>
           </thead>

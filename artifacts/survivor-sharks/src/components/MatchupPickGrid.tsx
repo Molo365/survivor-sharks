@@ -982,6 +982,10 @@ export function MatchupPickGrid({
     ? scheduleDays.filter(d => new Date(d.date + "T12:00:00Z").getUTCDay() === 6)
     : scheduleDays;
 
+  const survivorPeriodLabel = isNhlSurvivorSeason
+    ? (schedule?.weekLabel ?? "")
+    : `Week ${currentWeek}`;
+
   const gameList = (sport === "nfl" || sport === "nhl" || (sport === "nba" && poolType === "season"))
     ? visibleDays.flatMap(d => d.games)
     : (games ?? []);
@@ -1016,7 +1020,7 @@ export function MatchupPickGrid({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="font-bebas text-2xl text-primary tracking-wide leading-none mb-1">
-                  Your Pick — Week {currentWeek}
+                  Your Pick — {survivorPeriodLabel}
                 </h3>
                 <p className="text-lg font-medium text-foreground/90">{currentPick.teamName}</p>
                 {currentPickGame && !currentPickGame.hasStarted && (
@@ -1066,7 +1070,7 @@ export function MatchupPickGrid({
       {/* Week heading */}
       <div className="flex items-center gap-3">
         <h2 className="font-bebas text-2xl tracking-wide text-muted-foreground/70 uppercase">
-          Week {currentWeek} Matchups
+          {isNhlSurvivorSeason ? `${survivorPeriodLabel} Matchups` : `Week ${currentWeek} Matchups`}
         </h2>
         <div className="flex-1 h-px bg-border/40" />
         <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">

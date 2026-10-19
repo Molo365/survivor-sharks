@@ -3596,6 +3596,11 @@ components:
           type: array
           items:
             type: integer
+        weekLabels:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Optional map of week number → display label (NHL survivor uses Saturday ET dates, e.g. Oct 24)"
         members:
           type: array
           items:
