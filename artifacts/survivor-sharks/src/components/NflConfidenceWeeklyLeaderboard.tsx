@@ -5,6 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Users, Trophy } from "lucide-react";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
+import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
+import type { WeeklyTiebreakerGridMeta } from "@/components/nflConfidenceLiveTypes";
 import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
@@ -30,6 +36,7 @@ interface WeeklyLeaderboardResponse {
   players: WeeklyPlayer[];
   actualPassingYards: number | null;
   actualRushingYards: number | null;
+  weeklyTiebreaker?: WeeklyTiebreakerGridMeta;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,6 +82,10 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const pickStatusByUserId = new Map((pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]));
 
   const players = data?.players ?? [];
+  const weeklyTb = data?.weeklyTiebreaker;
+  const weeklyTbColumnHeader = weeklyTb?.columnHeader;
+  const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
+  const weeklyTbMatchup = weeklyTb?.tiebreakerMatchup as TiebreakerMatchupGame | undefined;
   const isCurrentWeek = week === (initialWeek ?? 1);
   const isGraded = players.some((p) => p.gradedPicks > 0);
   const isFullyGraded = data?.actualPassingYards != null;
@@ -169,9 +180,27 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
       ) : (
         <div className="space-y-1.5">
           {/* Header */}
-          <div className="grid grid-cols-[2rem_1fr_5rem] px-2 pb-1">
+          <div
+            className={cn(
+              "grid px-2 pb-1 gap-2",
+              showWeeklyTbCol
+                ? "grid-cols-[2rem_1fr_minmax(3.5rem,auto)_4rem]"
+                : "grid-cols-[2rem_1fr_5rem]",
+            )}
+          >
             <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center">#</div>
             <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 pl-2">Player</div>
+            {showWeeklyTbCol && weeklyTbColumnHeader && (
+              <div className="flex justify-center">
+                <TiebreakerStandingsColumnHeader
+                  sport="nfl"
+                  matchup={weeklyTbMatchup ?? null}
+                  headerFallback={weeklyTbColumnHeader}
+                  actual={weeklyTb?.actual ?? null}
+                  className="scale-90 origin-center"
+                />
+              </div>
+            )}
             <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 text-right pr-2">
               {isGraded ? "Pts" : "Picks"}
             </div>
@@ -184,7 +213,10 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
               <div
                 key={player.userId}
                 className={cn(
-                  "grid grid-cols-[2rem_1fr_5rem] items-center rounded-lg border py-1.5 sm:py-2.5 px-2",
+                  "grid items-center rounded-lg border py-1.5 sm:py-2.5 px-2 gap-2",
+                  showWeeklyTbCol
+                    ? "grid-cols-[2rem_1fr_minmax(3.5rem,auto)_4rem]"
+                    : "grid-cols-[2rem_1fr_5rem]",
                   player.rank === 1
                     ? "border-yellow-500/20 bg-yellow-500/5"
                     : isMe
@@ -220,6 +252,14 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
                   )}
                 </div>
 
+                {showWeeklyTbCol && weeklyTbColumnHeader && (
+                  <div className="flex justify-center">
+                    <TiebreakerStandingsColumnGuess
+                      guess={player.tiebreakerPassingYardsGuess}
+                    />
+                  </div>
+                )}
+
                 {/* Points */}
                 <div className="flex items-center justify-end pr-2">
                   {isGraded ? (
@@ -247,8 +287,10 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
       {isFullyGraded && data?.actualPassingYards != null && (
         <TiebreakerActualsCard
           actualPassingYards={data.actualPassingYards}
-          actualRushingYards={data.actualRushingYards ?? null}
+          actualRushingYards={null}
           tiedPlayers={hasTie ? tiedTopPlayers : []}
+          tb1Label="Combined passing yards (both teams)"
+          abbrLabel1="PASS"
         />
       )}
 
