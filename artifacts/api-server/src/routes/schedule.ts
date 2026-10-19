@@ -24,6 +24,7 @@ import {
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
+import { nhlSaturdaySevenPmLockInstant } from "../lib/nhl-slate-reveal";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
@@ -409,12 +410,22 @@ router.get("/", requireAuth, async (req, res) => {
       ? nhlSurvivorWeekLabel(pool.createdAt, week, pool.initialPeriodStart, pool.sandboxMode)
       : bounds.weekLabel;
 
+    const saturdayEt = bounds.days[0] ?? null;
+    const weekendKickoffs = allGames.map((g) => g.date);
+    const poolLockAt = pool.poolType === "season" || pool.sandboxMode
+      ? null
+      : nhlSaturdaySevenPmLockInstant(weekendKickoffs, saturdayEt);
+    const deadlineIso = poolLockAt?.toISOString() ?? bounds.weekEnd.toISOString();
+    const deadlinePassed = poolLockAt
+      ? Date.now() >= poolLockAt.getTime()
+      : Date.now() >= bounds.weekEnd.getTime();
+
     res.json({
       weekLabel,
       weekStart: bounds.weekStart.toISOString(),
       weekEnd: bounds.weekEnd.toISOString(),
-      deadline: bounds.weekEnd.toISOString(),
-      deadlinePassed: Date.now() >= bounds.weekEnd.getTime(),
+      deadline: deadlineIso,
+      deadlinePassed,
       currentWeek: week,
       days,
     });

@@ -21,6 +21,8 @@ test("returns rules for NHL Weekend Pick-Ems", () => {
   assert.ok(rules);
   assert.equal(rules.title, "NHL Weekend Pick-Ems Rules");
   assert.equal(rules.sections.length, 5);
+  const deadlines = rules.sections.find((s) => s.heading === "Picks and deadlines")?.items ?? [];
+  assert.ok(deadlines.some((item) => item.includes("7:00 PM ET")));
 });
 
 test("returns NHL Hit the Ice rules with weekend days and tiebreakers", () => {

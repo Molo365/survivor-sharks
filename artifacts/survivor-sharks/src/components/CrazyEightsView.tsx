@@ -22,6 +22,7 @@ import {
   useCrazyEightsPeriodResults,
 } from "@/components/CrazyEightsPeriodResults";
 import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
+import { NHL_WEEKEND_SATURDAY_LOCK_SENTENCE } from "@/lib/nhlOfficePoolCopy";
 import {
   TiebreakerFieldLabel,
   TiebreakerGuessDescription,
@@ -95,6 +96,8 @@ interface SlateResponse {
   sandboxMode?: boolean;
   poolNotStarted?: boolean;
   startsAt?: string;
+  deadline?: string | null;
+  deadlinePassed?: boolean;
 }
 
 interface SubmittedPick {
@@ -836,7 +839,10 @@ export function CrazyEightsView({
     return times.length > 0 ? Math.min(...times) : Infinity;
   }, [games, selectedIds]);
 
-  const isLocked = !sandboxMode && Date.now() >= earliestSelectedStart;
+  const isLocked = !sandboxMode && (
+    slateData?.deadlinePassed === true ||
+    Date.now() >= earliestSelectedStart
+  );
 
   const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
 
@@ -1149,6 +1155,7 @@ export function CrazyEightsView({
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
+            {isNhl && !isLocked && !hasPicks && ` ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
           </p>
           {!isLocked && !hasPicks && (
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -1213,7 +1220,9 @@ export function CrazyEightsView({
               {isNhl ? "How Hit the Ice works" : isNba ? "How Fast Break works" : "How High Heat works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch{isNhl ? "/puck drop" : isNba ? "/tip-off" : ""}. Minimum 4 games required to play.
+              {isNhl
+                ? `Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
+                : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch${isNba ? "/tip-off" : ""}. Minimum 4 games required to play.`}
             </p>
           </div>
           <button
