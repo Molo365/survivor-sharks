@@ -98,20 +98,28 @@ test("keeps MLB Hit the Ice without rules", () => {
   assert.equal(getPoolRules({ poolType: "crazy_8s", sport: "mlb" }), null);
 });
 
-test("keeps the NFL rules unchanged", () => {
+test("documents NFL office-pool Sunday slate reveal in rules", () => {
   const survivor = getPoolRules({ poolType: "season", sport: "nfl" });
   const pickEm = getPoolRules({ poolType: "pickem_season", sport: "nfl" });
+  const confidence = getPoolRules({ poolType: "nfl_confidence", sport: "nfl" });
 
   assert.equal(survivor?.title, "NFL Survivor Season Rules");
-  assert.equal(survivor?.sections.length, 5);
   assert.equal(pickEm?.title, "NFL Pick-Ems Season Rules");
-  assert.equal(pickEm?.sections.length, 5);
+  assert.equal(confidence?.title, "NFL Confidence Picks — Season Rules");
+
+  const survivorItems = survivor!.sections.flatMap((section) => section.items);
+  assert.ok(survivorItems.some((item) => item.includes("1:00 PM ET")));
+
+  const pickEmDeadlines = pickEm!.sections.find((section) => section.heading === "Picks and deadlines");
+  assert.ok(pickEmDeadlines?.items.some((item) => item.includes("1:00 PM ET")));
 });
 
 test("returns no empty sections for every supported pool type", () => {
   const supportedPools = [
     { poolType: "season", sport: "nfl" },
     { poolType: "pickem_season", sport: "nfl" },
+    { poolType: "nfl_confidence", sport: "nfl" },
+    { poolType: "nfl_confidence_weekly", sport: "nfl" },
     { poolType: "pickem", sport: "nhl", pickFrequency: "weekly" },
     { poolType: "crazy_8s", sport: "nhl" },
     { poolType: "season", sport: "nhl" },

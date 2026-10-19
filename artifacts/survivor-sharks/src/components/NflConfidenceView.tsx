@@ -1319,7 +1319,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
               How confidence picks work
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick a winner for every open game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks at kickoff. In Week 18, you'll also enter a passing &amp; rushing yards tiebreaker.
+              Pick a winner for every open game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks 5 minutes before kickoff. At 1:00 PM ET on the week&apos;s main Sunday, everyone&apos;s picks for that week become visible. In Week 18, you&apos;ll also enter a passing &amp; rushing yards tiebreaker.
             </p>
           </div>
           <button

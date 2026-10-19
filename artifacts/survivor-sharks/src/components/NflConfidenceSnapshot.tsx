@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Download, Check, X, Camera } from "lucide-react";
 import { downloadGridPdf } from "@/lib/downloadGridPdf";
 import { getVisiblePickEmPick } from "@/lib/pickReveal";
+import { nflSundayOnePmRevealActive } from "@/lib/nflSlateReveal";
 import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,9 +95,13 @@ export function NflConfidenceSnapshot({
   const anyGameStarted = games.some(
     (g) => g.status === "in_progress" || g.status === "final",
   );
+  const sundaySlateRevealed = nflSundayOnePmRevealActive(
+    games.map((g) => g.startTime),
+  );
+  const snapshotUnlocked = anyGameStarted || sundaySlateRevealed;
 
   // Always show the snapshot table to the viewing user if they have submitted picks,
-  // even before kickoff — opponents' picks stay hidden server-side until kickoff.
+  // even before kickoff — opponents' picks unlock at 1 PM ET Sunday or first kickoff.
   const hasOwnPicks = useMemo(() => {
     if (!user?.id) return false;
     const ownRow = players.find((p) => p.userId === user.id);
@@ -249,16 +254,16 @@ export function NflConfidenceSnapshot({
         </div>
       </div>
 
-      {/* Lock guard: hide from everyone until kickoff, UNLESS the viewer has their own picks */}
-      {!anyGameStarted && !hasOwnPicks ? (
+      {/* Lock guard: hide until slate goes live, UNLESS the viewer has their own picks */}
+      {!snapshotUnlocked && !hasOwnPicks ? (
         <div className="rounded-xl border border-border/30 bg-muted/[0.03] py-16 flex flex-col items-center gap-3 text-center">
           <Camera className="w-8 h-8 text-muted-foreground/25" />
           <div>
             <p className="font-bebas text-xl tracking-wide text-muted-foreground/50">
-              Picks Hidden Until Kick-Off
+              Picks Hidden Until Slate Opens
             </p>
             <p className="text-sm text-muted-foreground/40 mt-1">
-              Snapshot will appear once the first game of Week {selectedWeek} begins.
+              Snapshot appears at 1:00 PM ET on the week&apos;s main Sunday, or when the first game of Week {selectedWeek} begins.
             </p>
           </div>
         </div>
