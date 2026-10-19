@@ -45,6 +45,7 @@ import {
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE } from "@/lib/nhlOfficePoolCopy";
 import { NBA_WEEKEND_ATS_VISIBILITY_NOTICE } from "@/lib/nbaOfficePoolCopy";
+import { NBA_WEEKEND_PICKS_OPEN_SENTENCE } from "@/lib/platformWeekCopy";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -3961,7 +3962,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   }).format(new Date(`${poolStartsAt}T12:00:00Z`))}
                 </p>
                 <p className="text-sm mt-1 max-w-md mx-auto">
-                  You&apos;re early — spread lines for that weekend aren&apos;t up yet. Invite your group now; picking opens Monday when lines typically post.
+                  You&apos;re early — spread lines for that weekend aren&apos;t up yet. Invite your group now; {NBA_WEEKEND_PICKS_OPEN_SENTENCE.toLowerCase()}
                 </p>
               </div>
             ) : (
@@ -4243,7 +4244,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               </p>
               <p className="text-sm mt-1 max-w-md mx-auto">
                 {isNbaAts
-                  ? "This pool is ready for members. The ATS pick sheet opens on Monday when spread lines post for that Fri–Sun weekend (lines stay locked once set)."
+                  ? `This pool is ready for members. ${NBA_WEEKEND_PICKS_OPEN_SENTENCE} Lines stay locked once set.`
                   : "This pool is open for invites. Picks will open automatically when the week begins."}
               </p>
             </div>

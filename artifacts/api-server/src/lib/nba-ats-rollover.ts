@@ -4,6 +4,7 @@ import {
   type EspnGame,
 } from "./espn";
 import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "./nba-ats-period";
+import { isPlatformPromotionAllowedAfterPeriodEnd } from "./platform-period";
 import {
   computeNbaAtsWeeklyLeaderGroups,
   nbaAtsWeeklyPeriodReason,
@@ -99,6 +100,15 @@ export async function advanceRecurringNbaAtsPools({
           "info",
           { poolId: pool.id, currentWeek: pool.currentWeek, sundayEt, todayEt },
           "NBA ATS recurring rollover: Sunday has not passed, skipping",
+        );
+        continue;
+      }
+
+      if (!isPlatformPromotionAllowedAfterPeriodEnd(sundayEt, now)) {
+        log(
+          "info",
+          { poolId: pool.id, currentWeek: pool.currentWeek, sundayEt, todayEt },
+          "NBA ATS recurring rollover: next period opens Tuesday 6:00 AM ET, skipping advancement",
         );
         continue;
       }

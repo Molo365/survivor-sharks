@@ -1,5 +1,7 @@
 /** User-facing copy for NBA weekend office pools (ATS pick'em + Fast Break). */
 
+import { NBA_WEEKEND_PICKS_OPEN_SENTENCE, PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
+
 export const NBA_WEEKEND_SATURDAY_LOCK_SENTENCE =
   "The pool locks Saturday at 6:00 PM ET. Games that already started cannot be picked or changed.";
 
@@ -12,7 +14,8 @@ export const NBA_WEEKEND_ATS_VISIBILITY_NOTICE =
 export function nbaWeekendAtsLockAndVisibilityRules(): string[] {
   return [
     "Each game locks five minutes before tip-off once it has started.",
-    "The pick sheet opens Monday ET when spread lines are typically posted for that Fri–Sun weekend.",
+    NBA_WEEKEND_PICKS_OPEN_SENTENCE,
+    PLATFORM_TUESDAY_OPENS_SENTENCE,
     NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
     "After lock, you cannot add or change picks for the rest of the weekend.",
     NBA_WEEKEND_REVEAL_SENTENCE,
