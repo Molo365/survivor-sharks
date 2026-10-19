@@ -109,6 +109,21 @@ export function NflConfidenceSnapshot({
     [games],
   );
 
+  const poolRevealContext = useMemo(
+    () => ({
+      sport: "nfl" as const,
+      poolType:
+        variant === "weekly" ? "nfl_confidence_weekly"
+        : variant === "pickem_season" ? "pickem_season"
+        : "nfl_confidence",
+    }),
+    [variant],
+  );
+  const slateGameStartTimes = useMemo(
+    () => sortedGames.map((g) => g.startTime),
+    [sortedGames],
+  );
+
   const enrichedPlayers = useMemo(
     () =>
       players
@@ -139,6 +154,8 @@ export function NflConfidenceSnapshot({
           entryUserId: p.userId,
           currentUserId: user?.id ?? null,
           gameStartTime: g.startTime,
+          pool: poolRevealContext,
+          slateGameStartTimes,
         });
         if (!pick) return "—";
         const isAway = pick.pickedTeamId === g.awayTeam.id;
@@ -342,6 +359,8 @@ export function NflConfidenceSnapshot({
                             entryUserId: p.userId,
                             currentUserId: user?.id ?? null,
                             gameStartTime: g.startTime,
+                            pool: poolRevealContext,
+                            slateGameStartTimes,
                           });
                           if (!pick) {
                             return (

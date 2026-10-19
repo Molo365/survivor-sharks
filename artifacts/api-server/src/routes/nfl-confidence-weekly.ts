@@ -8,6 +8,7 @@ import { fetchNflGamesByWeek } from "../lib/espn";
 import { calcPrize } from "../lib/prizeCalc";
 import { settleNflConfidenceWeeklyPool } from "../lib/auto-eliminator";
 import { sortConfidenceGamesByKickoff, validateConfidenceSubmission } from "../lib/confidence-submission";
+import { isNflOfficeSlateLive, nflSundayOnePmRevealActive } from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 
@@ -504,6 +505,8 @@ router.get("/grid", requireAuth, async (req, res) => {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const typedGameMap = gameMap as Map<string, any>;
+  const slateGameStartIsos = [...typedGameMap.values()].map((g: { startTime: string }) => g.startTime);
+  const nflSundayReveal = !pool.sandboxMode && nflSundayOnePmRevealActive(slateGameStartIsos);
 
   const userMap = new Map<number, {
     userId: number;
@@ -528,9 +531,10 @@ router.get("/grid", requireAuth, async (req, res) => {
       });
     }
     const game = typedGameMap.get(pick.gameId);
+    const isOwnPick = pick.userId === userId;
     const isGameLocked = game ? new Date(game.startTime).getTime() - 5 * 60 * 1000 <= Date.now() : false;
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    userMap.get(pick.userId)!.picks.set(pick.gameId, isGameLocked ? {
+    userMap.get(pick.userId)!.picks.set(pick.gameId, (isOwnPick || isGameLocked || nflSundayReveal) ? {
       pickedTeamId: pick.pickedTeamId,
       pickedTeamName: pick.pickedTeamName,
       pickedTeamLogoUrl: game ? (pickedIsHome ? game.homeTeam.logoUrl : game.awayTeam.logoUrl) ?? null : null,
@@ -548,14 +552,13 @@ router.get("/grid", requireAuth, async (req, res) => {
   // Visibility rule: hide another player's picks until they've locked their full slate.
   {
     const totalGamesInWeek = typedGameMap.size;
-    const now = Date.now();
-    const slateIsLive =
-      totalGamesInWeek === 0 ||
-      [...typedGameMap.values()].some(
-        (g: any) =>
-          new Date(g.startTime).getTime() <= now ||
-          (g.status && g.status !== "scheduled" && g.status !== "pre"),
-      );
+    const slateIsLive = isNflOfficeSlateLive({
+      pool,
+      games: [...typedGameMap.values()].map((g: { startTime: string; status?: string }) => ({
+        startTime: g.startTime,
+        status: g.status,
+      })),
+    });
     if (!slateIsLive) {
       for (const [uid, player] of userMap) {
         if (uid === userId) continue;

@@ -6,6 +6,10 @@ import { requireAuth } from "../middlewares/auth";
 import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
 import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
+import {
+  isNflOfficePool,
+  nflSundayOnePmRevealActiveForSurvivorWeek,
+} from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 
@@ -46,6 +50,16 @@ router.get("/", requireAuth, async (req, res) => {
     : new Map<string, Date>();
 
   const now = new Date();
+  const nflOfficeSurvivor = isNflOfficePool(pool) && !pool.sandboxMode;
+  const nflWeekSlateRevealed = new Map<number, boolean>();
+  if (nflOfficeSurvivor) {
+    for (const w of weeks) {
+      nflWeekSlateRevealed.set(
+        w,
+        nflSundayOnePmRevealActiveForSurvivorWeek(teamKickoffMap, w, now.getTime()),
+      );
+    }
+  }
 
   const picksWithUsername = await db.select({
     pick: picksTable,
@@ -97,7 +111,8 @@ router.get("/", requireAuth, async (req, res) => {
         kickoffPassed = kickoff !== undefined && now >= kickoff;
       }
 
-      const showTeam = isOwnPick || kickoffPassed || isGraded;
+      const slateRevealed = nflOfficeSurvivor && nflWeekSlateRevealed.get(pick.week) === true;
+      const showTeam = isOwnPick || kickoffPassed || isGraded || slateRevealed;
 
       return {
         id: pick.id,
