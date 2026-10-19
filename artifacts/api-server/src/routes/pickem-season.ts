@@ -24,6 +24,10 @@ import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker
 import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 import { loadNflPickemAtsSpreads } from "../lib/nfl-pickem-ats-spreads";
 import {
+  isNflOfficeSlateLive,
+  nflOfficePoolOpponentPickRevealed,
+} from "../lib/nfl-slate-reveal";
+import {
   computeLiveCorrectAts,
   gradePickemSeasonPendingPicksForFinalGame,
   isNflPickemSeasonAts,
@@ -1386,6 +1390,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
   const gameStartMap = new Map<string, string>(
     games.map(g => [g.id, g.date]),
   );
+  const slateGameStartIsos = games.map((g) => g.date);
 
   const players = Array.from(picksByUser.entries()).map(([uid, data]) => {
     const correct = data.picks.filter(p => p.result === "correct").length;
@@ -1398,10 +1403,13 @@ router.get("/week-results", requireAuth, async (req, res) => {
       total,
       picks: data.picks.map(p => {
         const startTime = gameStartMap.get(p.gameId);
-        const isLocked = startTime
-          ? isGameLocked(startTime)
-          : false;
-        const reveal = isLocked || uid === userId;
+        const reveal = nflOfficePoolOpponentPickRevealed({
+          pool,
+          isOwnPick: uid === userId,
+          result: p.result,
+          gameStartIso: startTime,
+          slateGameStartIsos,
+        });
         if (!reveal) {
           return {
             gameId: p.gameId,
@@ -1545,14 +1553,10 @@ router.get("/week-results", requireAuth, async (req, res) => {
 
   // Slate-level visibility gate: if no game in the week has kicked off yet,
   // hide picks for players who haven't locked a full slate (same rule as nfl-confidence).
-  const now = Date.now();
-  const slateIsLive =
-    games.length > 0 &&
-    games.some(
-      (g) =>
-        new Date(g.date).getTime() <= now ||
-        (g.status && g.status !== "scheduled"),
-    );
+  const slateIsLive = isNflOfficeSlateLive({
+    pool,
+    games: games.map((g) => ({ startTime: g.date, status: g.status })),
+  });
   if (!slateIsLive) {
     for (const player of rankedPlayers) {
       if (player.userId === userId) continue;
@@ -1817,6 +1821,8 @@ router.get("/grid", requireAuth, async (req, res) => {
       })
     : new Map<string, SpreadLine>();
 
+  const gridSlateStartIsos = [...gameMap.values()].map((g: { startTime: string }) => g.startTime);
+
   const userMap = new Map<number, {
     userId: number;
     username: string;
@@ -1840,9 +1846,13 @@ router.get("/grid", requireAuth, async (req, res) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const game = gameMap.get(pick.gameId) as any;
     const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
-    const revealed = pick.userId === userId
-      || (pick.result != null && pick.result !== "pending")
-      || (!pool.sandboxMode && game != null && new Date(game.startTime).getTime() <= Date.now());
+    const revealed = nflOfficePoolOpponentPickRevealed({
+      pool,
+      isOwnPick: pick.userId === userId,
+      result: pick.result,
+      gameStartIso: game?.startTime,
+      slateGameStartIsos: gridSlateStartIsos,
+    });
     userMap.get(pick.userId)!.picks.set(pick.gameId, revealed ? {
       pickedTeamId: pick.pickedTeamId,
       pickedTeamName: pick.pickedTeamName,
@@ -1858,16 +1868,14 @@ router.get("/grid", requireAuth, async (req, res) => {
   // Visibility rule
   {
     const totalGamesInWeek = gameMap.size;
-    const now = Date.now();
-    const slateIsLive =
-      totalGamesInWeek === 0 ||
+    const slateIsLive = isNflOfficeSlateLive({
+      pool,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      [...gameMap.values()].some(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (g: any) =>
-          new Date(g.startTime).getTime() <= now ||
-          (g.status && g.status !== "scheduled"),
-      );
+      games: [...gameMap.values()].map((g: any) => ({
+        startTime: g.startTime,
+        status: g.status,
+      })),
+    });
     if (!slateIsLive) {
       for (const [uid, player] of userMap) {
         if (uid === userId) continue;

@@ -1,3 +1,8 @@
+import {
+  NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
+  nflOfficePoolLockAndVisibilityRules,
+} from "./nflOfficePoolCopy";
+
 export interface PoolRulesSection {
   heading: string;
   items: string[];
@@ -236,6 +241,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Picks and deadlines",
           items: [
             "You can change your pick until that team's game starts. Then the pick locks.",
+            `Other players' picks stay hidden until that player's game kicks off. ${NFL_OFFICE_SUNDAY_REVEAL_SENTENCE}`,
             "If you do not make a pick before the week's results are processed, it counts as a loss.",
             "A Survivor pool that has already started cannot be joined.",
           ],
@@ -287,9 +293,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         },
         {
           heading: "Picks and deadlines",
-          items: [
-            "Each game locks at its own kickoff. Other games stay open until they start.",
-          ],
+          items: nflOfficePoolLockAndVisibilityRules({ fiveMinutePregameLock: false }),
         },
         {
           heading: "Scoring or elimination",
@@ -311,6 +315,84 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Prizes",
           items: prizeItems(pool),
+        },
+      ],
+    };
+  }
+
+  if (pool.poolType === "nfl_confidence") {
+    const weeklyBonusItems = pool.weeklyBonusEnabled
+      ? [
+          "If weekly bonus is enabled and its player threshold is met, the weekly winner receives the configured bonus.",
+          "Weekly bonus ties use combined passing yards on that week's last scheduled game.",
+        ]
+      : [];
+
+    return {
+      title: "NFL Confidence Picks — Season Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Pick a winner for every game on the weekly slate and assign a unique confidence value from 1 through the number of games (no repeats).",
+            "Higher confidence on correct picks earns more points. The season winner has the highest total points.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: nflOfficePoolLockAndVisibilityRules({ fiveMinutePregameLock: true }),
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "Points accumulate all season from correct confidence picks.",
+            "While games are in progress, standings may show live points; only final results count.",
+            ...weeklyBonusItems,
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            "Week 18 season ties use combined QB passing yards on the last scheduled game.",
+            "Closest guess wins; equally close or missing data splits the prize.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: prizeItems(pool),
+        },
+      ],
+    };
+  }
+
+  if (pool.poolType === "nfl_confidence_weekly") {
+    return {
+      title: "NFL Confidence Picks — Weekly Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Each week, pick a winner for every game and assign unique confidence values from 1 through the number of games.",
+            "The highest point total for that week wins the weekly prize.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: nflOfficePoolLockAndVisibilityRules({ fiveMinutePregameLock: true }),
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "Each week is scored on its own. Correct picks earn their confidence value.",
+            "The last game of the week is the tiebreaker when players finish tied on points.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: [
+            ...prizeItems(pool),
+            "Prizes are worked out for each week.",
+          ],
         },
       ],
     };

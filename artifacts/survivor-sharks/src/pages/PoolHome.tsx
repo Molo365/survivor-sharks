@@ -567,12 +567,15 @@ export default function PoolHome() {
                     <NflConfidenceWeeklyView poolId={pool.id} currentWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceWeeklyLeaderboard poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceWeeklyGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="live" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceLiveBoard
                       poolId={pool.id}
                       week={pool.currentWeek}
@@ -607,6 +610,7 @@ export default function PoolHome() {
                 </div>
                 <div className="mt-3 md:mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
               <NflConfidenceView
                 poolId={pool.id}
                 currentWeek={pool.currentWeek}
@@ -614,12 +618,15 @@ export default function PoolHome() {
               />
                   </TabsContent>
                   <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceLeaderboard poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="grid" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceGrid poolId={pool.id} initialWeek={pool.currentWeek} />
                   </TabsContent>
                   <TabsContent value="live" className="m-0 focus-visible:outline-none">
+                    <PickVisibilityNotice kind="nfl-office-grid" />
                     <NflConfidenceLiveBoard
                       poolId={pool.id}
                       week={pool.currentWeek}

@@ -3,15 +3,28 @@
  * the PicksGrid guard so PDF exports cannot leak opponent picks the on-screen grid hides.
  */
 
+import { isNflOfficePool, nflSundayOnePmRevealActive } from "./nflSlateReveal";
+
 export function isOpponentPickVisible(opts: {
   isOwnPick: boolean;
   result?: string | null;
   gameStartTime?: string | null;
   sandboxMode?: boolean;
+  pool?: { sport?: string; poolType?: string };
+  slateGameStartTimes?: string[];
 }): boolean {
   if (opts.isOwnPick) return true;
   if (opts.sandboxMode) return opts.result != null && opts.result !== "pending";
   if (opts.result != null && opts.result !== "pending") return true;
+  if (
+    opts.pool &&
+    opts.slateGameStartTimes &&
+    isNflOfficePool(opts.pool) &&
+    !opts.sandboxMode &&
+    nflSundayOnePmRevealActive(opts.slateGameStartTimes)
+  ) {
+    return true;
+  }
   if (!opts.gameStartTime) return false;
   return new Date(opts.gameStartTime).getTime() <= Date.now();
 }
@@ -25,6 +38,8 @@ export function getVisiblePickEmPick<
     currentUserId: number | null;
     gameStartTime?: string | null;
     sandboxMode?: boolean;
+    pool?: { sport?: string; poolType?: string };
+    slateGameStartTimes?: string[];
   },
 ): T | undefined {
   if (!pick) return undefined;
@@ -39,6 +54,8 @@ export function getVisiblePickEmPick<
       result: pick.result,
       gameStartTime: opts.gameStartTime,
       sandboxMode: opts.sandboxMode,
+      pool: opts.pool,
+      slateGameStartTimes: opts.slateGameStartTimes,
     })) {
       return undefined;
     }

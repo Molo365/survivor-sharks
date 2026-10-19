@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { etWallClockToUtc } from "./nflSlateReveal";
 import { formatPickEmPickExport, getVisiblePickEmPick, isOpponentPickVisible } from "./pickReveal";
 
 describe("isOpponentPickVisible", () => {
@@ -18,6 +19,23 @@ describe("isOpponentPickVisible", () => {
 
   it("shows graded opponent picks even without start time", () => {
     expect(isOpponentPickVisible({ isOwnPick: false, result: "correct" })).toBe(true);
+  });
+
+  it("shows NFL opponent picks after 1 PM ET Sunday slate reveal", () => {
+    const mnf = "2025-09-09T00:15:00Z";
+    const slate = ["2025-09-07T17:00:00Z", mnf];
+    vi.useFakeTimers();
+    vi.setSystemTime(etWallClockToUtc("2025-09-07", 14, 0));
+    expect(
+      isOpponentPickVisible({
+        isOwnPick: false,
+        result: "pending",
+        gameStartTime: mnf,
+        pool: { sport: "nfl", poolType: "nfl_confidence" },
+        slateGameStartTimes: slate,
+      }),
+    ).toBe(true);
+    vi.useRealTimers();
   });
 });
 

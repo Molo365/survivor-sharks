@@ -69,6 +69,7 @@ import {
 } from "../lib/nhl-tiebreaker-standings";
 import { toTiebreakerMatchupPayload, type TiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
+import { nflOfficePoolOpponentPickRevealed } from "../lib/nfl-slate-reveal";
 import {
   buildThreeWayPickConfirmationItems,
   buildTeamPickConfirmationItems,
@@ -1372,14 +1373,26 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
 /**
  * Shared reveal gate used by the leaderboard entry loop and the daily-pick drill-down.
  * Own picks are always shown; other players' picks are hidden until the game is graded
- * or has actually started. The five-minute submission lock intentionally does not reveal picks.
+ * or has actually started, except NFL office pools reveal the full slate at 1:00 PM ET Sunday.
+ * The five-minute submission lock intentionally does not reveal picks.
  */
 function isPickRevealed(opts: {
   isOwnPick: boolean;
   sandboxMode: boolean;
   result: string | null;
   startTime: string | null | undefined;
+  pool?: { sport: string; poolType: string };
+  slateGameStartIsos?: string[];
 }): boolean {
+  if (opts.pool && opts.slateGameStartIsos) {
+    return nflOfficePoolOpponentPickRevealed({
+      pool: { sport: opts.pool.sport, poolType: opts.pool.poolType, sandboxMode: opts.sandboxMode },
+      isOwnPick: opts.isOwnPick,
+      result: opts.result,
+      gameStartIso: opts.startTime,
+      slateGameStartIsos: opts.slateGameStartIsos,
+    });
+  }
   if (opts.isOwnPick) return true;
   if (opts.sandboxMode) return opts.result !== "pending";
   // A pick whose result is already set is definitively graded and public —
@@ -1463,6 +1476,7 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
   }
 
   const gameMap = new Map(games.map((g) => [g.id, g]));
+  const slateGameStartIsos = games.map((g) => g.date);
 
   const details = picks.map((pick) => {
     const game = gameMap.get(pick.gameId);
@@ -1471,6 +1485,8 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
       sandboxMode: pool.sandboxMode ?? false,
       result: pick.result,
       startTime: game?.date,
+      pool,
+      slateGameStartIsos,
     });
     // 3-way pools (mls/superleague) store "home_win"/"draw"/"away_win" as pickedTeamId,
     // not an actual team ID.  Detect before computing logo/side.
@@ -2759,6 +2775,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       gameStartMap.set(g.id, g.date);
     }
   }
+  const leaderboardSlateStartIsos = [...gameStartMap.values()];
 
   let lbRank = 1;
   const tiebreakerActualsKnown = isMlb
@@ -2822,6 +2839,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           sandboxMode: pool.sandboxMode ?? false,
           result: p.result,
           startTime,
+          pool,
+          slateGameStartIsos: leaderboardSlateStartIsos,
         });
         if (!revealed) {
           return {
