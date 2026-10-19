@@ -28,12 +28,24 @@ export interface GridPlayerRow {
   username: string;
   displayName: string | null;
   picks: Record<string, PlayerPick>;
+  weeklyTiebreakerGuess?: number | null;
+}
+
+export interface WeeklyTiebreakerGridMeta {
+  columnHeader: string | null;
+  actual: number | null;
+  tiebreakerMatchup?: {
+    awayTeam: { name: string; abbreviation?: string; logoUrl?: string | null };
+    homeTeam: { name: string; abbreviation?: string; logoUrl?: string | null };
+    startTime?: string | null;
+  };
 }
 
 export interface ConfidenceGridResponse {
   week: number;
   games: GameSummary[];
   players: GridPlayerRow[];
+  weeklyTiebreaker?: WeeklyTiebreakerGridMeta;
 }
 
 export interface ConfidenceLeaderboardPlayer {

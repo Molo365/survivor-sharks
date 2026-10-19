@@ -5,6 +5,10 @@ import {
   pickChampionsLeaguePeriodIndices,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
+import {
+  CHAMPIONS_LEAGUE_POST_MATCHDAY_GRACE_MS,
+  resolveChampionsLeagueDefaultPeriodKey,
+} from "./champions-league-default-period";
 
 function period(dates: string[]): ChampionsLeaguePoolPeriod {
   const sorted = [...dates].sort();

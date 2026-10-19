@@ -324,7 +324,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
     const weeklyBonusItems = pool.weeklyBonusEnabled
       ? [
           "If weekly bonus is enabled and its player threshold is met, the weekly winner receives the configured bonus.",
-          "Weekly bonus ties use combined passing yards on that week's last scheduled game.",
+          "Weekly bonus ties use combined passing yards on that week's last scheduled game. Submitted bonus guesses appear on the weekly grid and live board tiebreaker column (same style as NHL weekend pick'em).",
         ]
       : [];
 
