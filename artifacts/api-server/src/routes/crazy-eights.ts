@@ -9,6 +9,7 @@ import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
+import { formatNbaPointsTiebreakerColumnHeader } from "../lib/nhl-tiebreaker-standings";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
 import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
@@ -621,10 +622,36 @@ router.get("/grid", requireAuth, async (req, res) => {
     const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     const dateLabel = `${fmt.format(friDt)} – ${fmt.format(sunDt)}`;
 
+    const memberTiebreakers = await db
+      .select({
+        userId: entriesTable.userId,
+        tiebreakerPoints: entriesTable.tiebreakerPoints,
+      })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    const tbByUser = new Map(memberTiebreakers.map((row) => [row.userId, row]));
+    const lastGame = games.at(-1) ?? null;
+    let tiebreakerActualPoints: number | null = null;
+    let tiebreakerColumnHeader: string | undefined;
+    if (lastGame) {
+      if (lastGame.isCompleted) {
+        const stats = await fetchNbaTiebreakerStats(lastGame.id);
+        tiebreakerActualPoints = stats.totalPoints;
+      }
+      tiebreakerColumnHeader = formatNbaPointsTiebreakerColumnHeader(
+        lastGame.awayTeam.abbreviation,
+        lastGame.homeTeam.abbreviation,
+        tiebreakerActualPoints,
+      );
+    }
+
     res.json({
       date,
       dateLabel,
       viewingPastPeriod,
+      tiebreakerColumnHeader,
+      tiebreakerActualPoints,
+      tiebreakerMatchup: lastGame ? toTiebreakerMatchupPayload(lastGame) : undefined,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
@@ -639,6 +666,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         username: u.username,
         displayName: u.displayName,
         picks: Object.fromEntries(u.picks.entries()),
+        tiebreakerPointsGuess: tbByUser.get(u.userId)?.tiebreakerPoints ?? null,
       })),
     });
     return;
@@ -1140,6 +1168,15 @@ router.post("/picks", requireAuth, async (req, res) => {
         res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
         return;
       }
+      if (
+        (entry as { tiebreakerPoints?: number | null }).tiebreakerPoints == null
+        && typeof tiebreakerPoints !== "number"
+      ) {
+        res.status(400).json({
+          error: "Fast Break requires a tiebreaker guess (combined points for the last game of the weekend).",
+        });
+        return;
+      }
     }
 
     const submission = await db.transaction(async (tx) => {
@@ -1198,7 +1235,10 @@ router.post("/picks", requireAuth, async (req, res) => {
 
       await tx
         .update(entriesTable)
-        .set({ tiebreakerPoints: tiebreakerPoints ?? null, tiebreakerThrees: tiebreakerThrees ?? null } as any)
+        .set({
+          tiebreakerPoints: typeof tiebreakerPoints === "number" ? tiebreakerPoints : (entry as any).tiebreakerPoints,
+          tiebreakerThrees: null,
+        } as any)
         .where(eq(entriesTable.id, entry.id));
 
       return { alreadySubmitted: false as const, saved };

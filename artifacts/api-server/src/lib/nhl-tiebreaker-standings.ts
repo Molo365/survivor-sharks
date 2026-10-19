@@ -25,3 +25,13 @@ export function formatNhlSogTiebreakerColumnHeader(
   const actual = actualShotsOnGoal != null ? String(actualShotsOnGoal) : "TBD";
   return `${awayAbbreviation}/${homeAbbreviation} SOG (${actual})`;
 }
+
+/** Fast Break / NBA Crazy 8s weekend grid — combined points on last game. */
+export function formatNbaPointsTiebreakerColumnHeader(
+  awayAbbreviation: string,
+  homeAbbreviation: string,
+  actualCombinedPoints: number | null,
+): string {
+  const actual = actualCombinedPoints != null ? String(actualCombinedPoints) : "TBD";
+  return `${awayAbbreviation}/${homeAbbreviation} PTS (${actual})`;
+}

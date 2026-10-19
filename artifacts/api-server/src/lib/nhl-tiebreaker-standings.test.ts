@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  formatNbaPointsTiebreakerColumnHeader,
   formatNhlSogTiebreakerColumnHeader,
   revealTiebreakerGuessForStandings,
 } from "./nhl-tiebreaker-standings";
