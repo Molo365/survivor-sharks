@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   etWallClockToUtc,
   isNflOfficePool,
+  nflOfficePoolGameSubmissionLocked,
+  nflOfficePoolWeekSubmissionLocked,
   nflSundayOnePmRevealActive,
   nflOfficePoolOpponentPickRevealed,
   primaryNflSundayEtDate,
@@ -38,6 +40,52 @@ describe("nflSundayOnePmRevealActive", () => {
     const slate = ["2025-09-07T17:00:00Z"];
     const atOne = etWallClockToUtc("2025-09-07", 13, 0).getTime();
     assert.equal(nflSundayOnePmRevealActive(slate, atOne), true);
+  });
+});
+
+describe("nflOfficePoolGameSubmissionLocked", () => {
+  const pool = { sport: "nfl", poolType: "pickem_season", sandboxMode: false };
+  const mnf = "2025-09-09T00:15:00Z";
+  const slate = ["2025-09-07T17:00:00Z", mnf];
+
+  it("locks MNF before kickoff after Sunday 1 PM ET", () => {
+    const now = etWallClockToUtc("2025-09-07", 14, 0).getTime();
+    assert.equal(
+      nflOfficePoolGameSubmissionLocked({
+        pool,
+        gameStartIso: mnf,
+        slateGameStartIsos: slate,
+        lockStyle: "kickoff",
+        nowMs: now,
+      }),
+      true,
+    );
+  });
+
+  it("does not lock division predictor at Sunday 1 PM alone", () => {
+    const ndp = { sport: "nfl", poolType: "nfl_division_predictor", sandboxMode: false };
+    const now = etWallClockToUtc("2025-09-07", 14, 0).getTime();
+    assert.equal(
+      nflOfficePoolGameSubmissionLocked({
+        pool: ndp,
+        gameStartIso: mnf,
+        slateGameStartIsos: slate,
+        lockStyle: "kickoff",
+        nowMs: now,
+      }),
+      false,
+    );
+  });
+});
+
+describe("nflOfficePoolWeekSubmissionLocked", () => {
+  it("locks survivor week picks after Sunday 1 PM ET", () => {
+    const pool = { sport: "nfl", poolType: "season", sandboxMode: false };
+    const now = etWallClockToUtc("2025-09-07", 14, 0).getTime();
+    assert.equal(
+      nflOfficePoolWeekSubmissionLocked(pool, ["2025-09-07T17:00:00Z"], now),
+      true,
+    );
   });
 });
 

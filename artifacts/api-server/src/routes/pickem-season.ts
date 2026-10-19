@@ -25,6 +25,7 @@ import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 import { loadNflPickemAtsSpreads } from "../lib/nfl-pickem-ats-spreads";
 import {
   isNflOfficeSlateLive,
+  nflOfficePoolGameSubmissionLocked,
   nflOfficePoolOpponentPickRevealed,
 } from "../lib/nfl-slate-reveal";
 import {
@@ -78,7 +79,19 @@ async function assertAtsLinesForPicks(
   return missing.length > 0 ? missing : null;
 }
 
-function isGameLocked(startIso: string): boolean {
+function isGameLocked(
+  startIso: string,
+  pool?: typeof poolsTable.$inferSelect,
+  slateGameStartIsos?: string[],
+): boolean {
+  if (pool && slateGameStartIsos) {
+    return nflOfficePoolGameSubmissionLocked({
+      pool,
+      gameStartIso: startIso,
+      slateGameStartIsos,
+      lockStyle: "kickoff",
+    });
+  }
   return new Date(startIso).getTime() <= Date.now();
 }
 
@@ -380,6 +393,7 @@ router.get("/games", requireAuth, async (req, res) => {
 
   const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const slateGameStartIsos = games.map((g) => g.date);
 
   // Auto-designate: last game of the week by start time is the tiebreaker reference game (Week 18 only)
   const tiebreakerGameId = week === NFL_TOTAL_WEEKS ? (games.at(-1)?.id ?? null) : null;
@@ -412,7 +426,7 @@ router.get("/games", requireAuth, async (req, res) => {
       id: g.id,
       startTime: g.date,
       status,
-      deadlinePassed: isGameLocked(g.date),
+      deadlinePassed: isGameLocked(g.date, pool, slateGameStartIsos),
       awayTeam: {
         id: g.awayTeam.id,
         name: g.awayTeam.displayName,
@@ -511,7 +525,15 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: "The weekly tiebreaker game is not available yet" });
       return;
     }
-    if (isGameLocked(new Date(weeklyTiebreakerGame.startTime!).toISOString())) {
+    const precheckGames = await fetchNflGamesByWeek(numWeek, pool.season, pool.isPreseason ? 1 : 2);
+    const precheckSlate = precheckGames.map((g) => g.date);
+    if (
+      isGameLocked(
+        new Date(weeklyTiebreakerGame.startTime!).toISOString(),
+        pool,
+        precheckSlate,
+      )
+    ) {
       res.status(400).json({ error: "The weekly tiebreaker is locked because its target game has started" });
       return;
     }
@@ -689,6 +711,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   const games = await fetchNflGamesByWeek(numWeek, pool.season, pool.isPreseason ? 1 : 2);
+  const slateGameStartIsos = games.map((g) => g.date);
   const gameMap = new Map(games.map(g => [g.id, g]));
 
   const lockedIds: string[] = [];
@@ -697,7 +720,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   for (const pick of picks) {
     const game = gameMap.get(pick.gameId);
     if (!game) { unknownIds.push(pick.gameId); }
-    else if (isGameLocked(game.date)) { lockedIds.push(pick.gameId); }
+    else if (isGameLocked(game.date, pool, slateGameStartIsos)) { lockedIds.push(pick.gameId); }
   }
 
   if (unknownIds.length > 0) {
@@ -1490,7 +1513,7 @@ router.get("/week-results", requireAuth, async (req, res) => {
       id: g.id,
       startTime: g.date,
       status: g.status,
-      deadlinePassed: isGameLocked(g.date),
+      deadlinePassed: isGameLocked(g.date, pool, slateGameStartIsos),
       awayTeam: {
         id: g.awayTeam.id,
         name: g.awayTeam.displayName,

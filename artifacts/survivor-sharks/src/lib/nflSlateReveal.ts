@@ -80,3 +80,39 @@ export function nflSundayOnePmRevealActive(
 export function isNflOfficePool(pool: { sport?: string; poolType?: string }): boolean {
   return pool.sport === "nfl" && pool.poolType !== "nfl_division_predictor";
 }
+
+export const NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS = 5 * 60 * 1000;
+
+export type NflOfficePoolSubmissionLockStyle = "five_minute" | "kickoff";
+
+export function nflOfficePoolGameSubmissionLocked(opts: {
+  pool: { sport?: string; poolType?: string; sandboxMode?: boolean | null };
+  gameStartIso: string;
+  slateGameStartIsos: string[];
+  lockStyle: NflOfficePoolSubmissionLockStyle;
+  nowMs?: number;
+}): boolean {
+  if (opts.pool.sandboxMode) return false;
+  const now = opts.nowMs ?? Date.now();
+  const kickoff = new Date(opts.gameStartIso).getTime();
+  if (!Number.isFinite(kickoff)) return false;
+
+  if (opts.lockStyle === "five_minute") {
+    if (now >= kickoff - NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS) return true;
+  } else if (now >= kickoff) {
+    return true;
+  }
+
+  if (!isNflOfficePool(opts.pool)) return false;
+  if (kickoff <= now) return false;
+  return nflSundayOnePmRevealActive(opts.slateGameStartIsos, now);
+}
+
+export function nflOfficePoolWeekSubmissionLocked(
+  pool: { sport?: string; poolType?: string; sandboxMode?: boolean | null },
+  slateGameStartIsos: string[],
+  nowMs: number = Date.now(),
+): boolean {
+  if (pool.sandboxMode || !isNflOfficePool(pool)) return false;
+  return nflSundayOnePmRevealActive(slateGameStartIsos, nowMs);
+}

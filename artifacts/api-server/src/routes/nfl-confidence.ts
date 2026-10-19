@@ -13,7 +13,12 @@ import {
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
 import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
 import { validateConfidenceSubmission } from "../lib/confidence-submission";
-import { isNflOfficeSlateLive, nflSundayOnePmRevealActive } from "../lib/nfl-slate-reveal";
+import {
+  isNflOfficeSlateLive,
+  nflOfficePoolGameSubmissionLocked,
+  nflSundayOnePmRevealActive,
+  partitionNflWeekGamesBySubmissionLock,
+} from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 type NflConfidenceTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -343,7 +348,17 @@ router.post("/picks", requireAuth, async (req, res) => {
       res.status(400).json({ error: "The weekly tiebreaker game is not available yet" });
       return;
     }
-    if (new Date(weeklyTiebreakerGame.startTime!).getTime() <= Date.now()) {
+    const weeklyTbSlate = (await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2)).map(
+      (g) => g.date,
+    );
+    if (
+      nflOfficePoolGameSubmissionLocked({
+        pool,
+        gameStartIso: weeklyTiebreakerGame.startTime!,
+        slateGameStartIsos: weeklyTbSlate,
+        lockStyle: "five_minute",
+      })
+    ) {
       res.status(400).json({ error: "The weekly tiebreaker is locked because its target game has started" });
       return;
     }
@@ -392,9 +407,13 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.season,
       pool.isPreseason ? 1 : 2,
     );
-    const nowMs = Date.now();
-    openGames = liveGames.filter((game) => new Date(game.date).getTime() > nowMs);
-    startedGames = liveGames.filter((game) => new Date(game.date).getTime() <= nowMs);
+    const partitioned = partitionNflWeekGamesBySubmissionLock({
+      pool,
+      games: liveGames,
+      lockStyle: "five_minute",
+    });
+    openGames = partitioned.openGames;
+    startedGames = partitioned.lockedGames;
     expectedCount = openGames.length;
   }
 
