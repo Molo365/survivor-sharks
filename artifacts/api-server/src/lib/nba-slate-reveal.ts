@@ -1,6 +1,7 @@
-import { etWallClockToUtc, primaryNflSundayEtDate } from "./nfl-slate-reveal";
+import { etWallClockToUtc } from "./nfl-slate-reveal";
+import { primaryNhlSaturdayEtDate } from "./nhl-slate-reveal";
 
-/** NBA weekend office pools lock and reveal at 1:00 PM ET on the primary Sunday (Fri–Sun slate). */
+/** NBA weekend office pools lock and reveal at 6:00 PM ET on the primary Saturday (Fri–Sun slate). */
 export function isNbaWeekendOfficePool(pool: {
   sport: string;
   poolType: string;
@@ -10,21 +11,21 @@ export function isNbaWeekendOfficePool(pool: {
   return pool.poolType === "crazy_8s";
 }
 
-export function nbaSundayOnePmLockInstant(
+export function nbaSaturdaySixPmLockInstant(
   gameStartIsos: string[],
-  sundayEtFallback?: string | null,
+  saturdayEtFallback?: string | null,
 ): Date | null {
-  const sunday = primaryNflSundayEtDate(gameStartIsos) ?? sundayEtFallback ?? null;
-  if (!sunday) return null;
-  return etWallClockToUtc(sunday, 13, 0);
+  const saturday = primaryNhlSaturdayEtDate(gameStartIsos) ?? saturdayEtFallback ?? null;
+  if (!saturday) return null;
+  return etWallClockToUtc(saturday, 18, 0);
 }
 
-export function nbaSundayOnePmLockActive(
+export function nbaSaturdaySixPmLockActive(
   gameStartIsos: string[],
   nowMs: number = Date.now(),
-  sundayEtFallback?: string | null,
+  saturdayEtFallback?: string | null,
 ): boolean {
-  const lockAt = nbaSundayOnePmLockInstant(gameStartIsos, sundayEtFallback);
+  const lockAt = nbaSaturdaySixPmLockInstant(gameStartIsos, saturdayEtFallback);
   if (!lockAt) return false;
   return nowMs >= lockAt.getTime();
 }
@@ -32,13 +33,13 @@ export function nbaSundayOnePmLockActive(
 const NBA_ATS_PREGAME_LOCK_MS = 5 * 60 * 1000;
 
 /**
- * Pick submission for NBA ATS: locks at tip (5-minute pregame) or Sunday 1 PM for unstarted games.
+ * Pick submission for NBA ATS: locks at tip (5-minute pregame) or Saturday 6 PM for unstarted games.
  */
 export function nbaWeekendPoolGameSubmissionLocked(opts: {
   pool: { sport: string; poolType: string; sandboxMode?: boolean | null };
   gameStartIso: string;
   slateGameStartIsos: string[];
-  sundayEtFallback?: string | null;
+  saturdayEtFallback?: string | null;
   nowMs?: number;
 }): boolean {
   if (opts.pool.sandboxMode) return false;
@@ -49,21 +50,21 @@ export function nbaWeekendPoolGameSubmissionLocked(opts: {
   const kickoff = new Date(opts.gameStartIso).getTime();
   if (!Number.isFinite(kickoff)) return false;
   if (now >= kickoff - NBA_ATS_PREGAME_LOCK_MS) return true;
-  return nbaSundayOnePmLockActive(
+  return nbaSaturdaySixPmLockActive(
     opts.slateGameStartIsos,
     now,
-    opts.sundayEtFallback,
+    opts.saturdayEtFallback,
   );
 }
 
 export function nbaWeekendPoolPeriodLocked(
   pool: { sport: string; poolType: string; sandboxMode?: boolean | null },
   slateGameStartIsos: string[],
-  sundayEtFallback?: string | null,
+  saturdayEtFallback?: string | null,
   nowMs: number = Date.now(),
 ): boolean {
   if (pool.sandboxMode || !isNbaWeekendOfficePool(pool)) return false;
-  return nbaSundayOnePmLockActive(slateGameStartIsos, nowMs, sundayEtFallback);
+  return nbaSaturdaySixPmLockActive(slateGameStartIsos, nowMs, saturdayEtFallback);
 }
 
 export function nbaWeekendPoolOpponentPickRevealed(opts: {
@@ -72,7 +73,7 @@ export function nbaWeekendPoolOpponentPickRevealed(opts: {
   result: string | null | undefined;
   gameStartIso: string | null | undefined;
   slateGameStartIsos: string[];
-  sundayEtFallback?: string | null;
+  saturdayEtFallback?: string | null;
   gameStarted?: boolean;
   nowMs?: number;
 }): boolean {
@@ -85,10 +86,10 @@ export function nbaWeekendPoolOpponentPickRevealed(opts: {
     (opts.gameStartIso != null && new Date(opts.gameStartIso).getTime() <= now);
   if (started) return true;
   if (!isNbaWeekendOfficePool(opts.pool) || opts.pool.poolType !== "nba_ats") return false;
-  return nbaSundayOnePmLockActive(
+  return nbaSaturdaySixPmLockActive(
     opts.slateGameStartIsos,
     now,
-    opts.sundayEtFallback,
+    opts.saturdayEtFallback,
   );
 }
 
@@ -97,7 +98,7 @@ export function nbaWeekendPoolTiebreakerGuessRevealed(opts: {
   requesterUserId: number;
   rowUserId: number;
   slateGameStartIsos: string[];
-  sundayEtFallback?: string | null;
+  saturdayEtFallback?: string | null;
   actualsKnown?: boolean;
   nowMs?: number;
 }): boolean {
@@ -106,9 +107,9 @@ export function nbaWeekendPoolTiebreakerGuessRevealed(opts: {
   if (opts.pool.isActive === false) return true;
   if (opts.pool.sandboxMode) return true;
   if (!isNbaWeekendOfficePool(opts.pool)) return false;
-  return nbaSundayOnePmLockActive(
+  return nbaSaturdaySixPmLockActive(
     opts.slateGameStartIsos,
     opts.nowMs ?? Date.now(),
-    opts.sundayEtFallback,
+    opts.saturdayEtFallback,
   );
 }

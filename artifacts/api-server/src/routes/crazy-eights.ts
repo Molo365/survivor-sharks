@@ -24,8 +24,8 @@ import {
   nhlWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nhl-slate-reveal";
 import {
-  nbaSundayOnePmLockActive,
-  nbaSundayOnePmLockInstant,
+  nbaSaturdaySixPmLockActive,
+  nbaSaturdaySixPmLockInstant,
   nbaWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nba-slate-reveal";
 
@@ -130,7 +130,7 @@ function isGridPickRevealed(opts: {
   nhlWeekendSlateIsos?: string[];
   nhlSaturdayEt?: string | null;
   nbaWeekendSlateIsos?: string[];
-  nbaSundayEt?: string | null;
+  nbaSaturdayEt?: string | null;
 }): boolean {
   if (opts.isOwnPick) return true;
   if (opts.result != null && opts.result !== "pending") return true;
@@ -141,7 +141,7 @@ function isGridPickRevealed(opts: {
     }
   }
   if (opts.nbaWeekendSlateIsos?.length) {
-    if (nbaSundayOnePmLockActive(opts.nbaWeekendSlateIsos, undefined, opts.nbaSundayEt ?? null)) {
+    if (nbaSaturdaySixPmLockActive(opts.nbaWeekendSlateIsos, undefined, opts.nbaSaturdayEt ?? null)) {
       return true;
     }
   }
@@ -354,7 +354,7 @@ router.get("/slate", requireAuth, async (req, res) => {
     const weekLabel = `${fmt.format(new Date(Date.UTC(fy, fm - 1, fd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
     const poolLockAt = isSandbox
       ? null
-      : nbaSundayOnePmLockInstant(games.map((g) => g.date), sunDate);
+      : nbaSaturdaySixPmLockInstant(games.map((g) => g.date), satDate);
     res.json({
       sport: "nba",
       week: slateWeek,
@@ -659,7 +659,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         result: pick.result ?? null,
         game,
         nbaWeekendSlateIsos,
-        nbaSundayEt: sunDate,
+        nbaSaturdayEt: satDate,
       });
       const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
       userMap.get(pick.userId)!.picks.set(pick.gameId, {
@@ -720,7 +720,7 @@ router.get("/grid", requireAuth, async (req, res) => {
           requesterUserId: userId,
           rowUserId: u.userId,
           slateGameStartIsos: nbaWeekendSlateIsos,
-          sundayEtFallback: sunDate,
+          saturdayEtFallback: satDate,
           actualsKnown: tiebreakerActualPoints != null,
         });
         return {
@@ -1194,7 +1194,7 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   if (pool.sport === "nba") {
     const isSandbox = (pool as any).sandboxMode as boolean;
-    const { games, gameDates, friDate, sunDate } = await getNbaWeekendSlate(pool);
+    const { games, gameDates, friDate, satDate } = await getNbaWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
 
     for (const pick of picks) {
@@ -1230,8 +1230,8 @@ router.post("/picks", requireAuth, async (req, res) => {
 
     const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
     const slateIsos = games.map((g) => g.date);
-    if (!isSandbox && nbaSundayOnePmLockActive(slateIsos, nowMs, sunDate)) {
-      res.status(400).json({ error: "Picks are locked — the pool locked Sunday at 1:00 PM ET." });
+    if (!isSandbox && nbaSaturdaySixPmLockActive(slateIsos, nowMs, satDate)) {
+      res.status(400).json({ error: "Picks are locked — the pool locked Saturday at 6:00 PM ET." });
       return;
     }
     // In sandbox mode the anchor games are historical; skip the real-time lock.

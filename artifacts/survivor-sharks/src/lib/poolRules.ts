@@ -10,7 +10,7 @@ import {
 import {
   nbaWeekendAtsLockAndVisibilityRules,
   NBA_WEEKEND_REVEAL_SENTENCE,
-  NBA_WEEKEND_SUNDAY_LOCK_SENTENCE,
+  NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
 } from "./nbaOfficePoolCopy";
 
 export interface PoolRulesSection {
@@ -123,7 +123,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
               ]
             : [
                 "Submit all your picks together before the first game you picked starts, or before the pool locks — whichever comes first.",
-                NBA_WEEKEND_SUNDAY_LOCK_SENTENCE,
+                NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
                 "Once you submit, your picks are locked in. A second submission is refused.",
               ],
         },
@@ -191,7 +191,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "Enter combined points (both teams) for the last game on the weekend slate.",
             "The closest guess wins; equally close guesses split the prize.",
-            `Tiebreaker guesses become visible when the pool locks Sunday at 1:00 PM ET (same moment as everyone's picks).`,
+            `Tiebreaker guesses become visible when the pool locks Saturday at 6:00 PM ET (same moment as everyone's picks).`,
           ],
         },
         {
