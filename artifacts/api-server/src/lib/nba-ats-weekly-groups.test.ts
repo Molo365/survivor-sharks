@@ -2,29 +2,29 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nbaAtsWeeklyPeriodReason, rankNbaAtsUsersByWeeklyScore } from "./nba-ats-weekly-ranking";
 
-test("rankNbaAtsUsersByWeeklyScore orders by correct count then margin", () => {
+test("rankNbaAtsUsersByWeeklyScore orders by correct count then closest points guess", () => {
   const scoreByUser = new Map([
     [1, 5],
     [2, 5],
     [3, 4],
   ]);
-  const marginByUser = new Map([
-    [1, 12],
+  const diffByUser = new Map([
+    [1, 2],
     [2, 8],
   ]);
-  assert.deepEqual(rankNbaAtsUsersByWeeklyScore(scoreByUser, marginByUser), [[1], [2], [3]]);
+  assert.deepEqual(rankNbaAtsUsersByWeeklyScore(scoreByUser, diffByUser), [[1], [2], [3]]);
 });
 
-test("rankNbaAtsUsersByWeeklyScore treats equal margins as co-winners", () => {
+test("rankNbaAtsUsersByWeeklyScore treats equal diffs as co-winners", () => {
   const scoreByUser = new Map([
     [10, 3],
     [11, 3],
   ]);
-  const marginByUser = new Map([
-    [10, 5],
-    [11, 5],
+  const diffByUser = new Map([
+    [10, 4],
+    [11, 4],
   ]);
-  assert.deepEqual(rankNbaAtsUsersByWeeklyScore(scoreByUser, marginByUser), [[10, 11]]);
+  assert.deepEqual(rankNbaAtsUsersByWeeklyScore(scoreByUser, diffByUser), [[10, 11]]);
 });
 
 test("nbaAtsWeeklyPeriodReason", () => {

@@ -1,7 +1,7 @@
-/** Order finish groups by correct ATS picks, breaking ties with total victory margin. */
+/** Order finish groups by correct ATS picks, breaking ties with closest combined-points guess. */
 export function rankNbaAtsUsersByWeeklyScore(
   scoreByUser: Map<number, number>,
-  marginByUser: Map<number, number>,
+  tiebreakerDiffByUser: Map<number, number>,
 ): number[][] {
   const byScore = new Map<number, number[]>();
   for (const [userId, correct] of scoreByUser) {
@@ -18,14 +18,14 @@ export function rankNbaAtsUsersByWeeklyScore(
       continue;
     }
     const ranked = usersAtScore
-      .map((uid) => ({ userId: uid, margin: marginByUser.get(uid) ?? 0 }))
-      .sort((a, b) => b.margin - a.margin);
+      .map((uid) => ({ userId: uid, diff: tiebreakerDiffByUser.get(uid) ?? Infinity }))
+      .sort((a, b) => a.diff - b.diff);
 
     let i = 0;
     while (i < ranked.length) {
-      const topMargin = ranked[i]!.margin;
+      const topDiff = ranked[i]!.diff;
       const coGroup: number[] = [];
-      while (i < ranked.length && ranked[i]!.margin === topMargin) {
+      while (i < ranked.length && ranked[i]!.diff === topDiff) {
         coGroup.push(ranked[i]!.userId);
         i++;
       }

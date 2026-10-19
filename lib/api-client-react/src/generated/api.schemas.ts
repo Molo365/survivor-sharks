@@ -1363,6 +1363,8 @@ export interface PickEmPickInput {
   tiebreakerShotsOnGoal?: number;
   /** NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week */
   tiebreakerPenaltyMinutes?: number;
+  /** NBA Pick'em tiebreaker — combined points guess for the last game of the Fri–Sun weekend */
+  tiebreakerPoints?: number;
   /** The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games */
   date?: string;
   /** Request one pick confirmation email after the final request of a live NHL weekly submission */
@@ -1509,6 +1511,16 @@ export interface PickEmLeaderboardEntry {
      */
   tiebreakerNhlDiff?: number | null;
   /**
+     * Player's tiebreaker combined points guess (NBA Pick'em pools only)
+     * @nullable
+     */
+  tiebreakerPointsGuess?: number | null;
+  /**
+     * Absolute difference between points guess and actual (null if no actual yet)
+     * @nullable
+     */
+  tiebreakerPointsDiff?: number | null;
+  /**
      * Prize amount won; populated on winning entries once the period is fully graded; null otherwise
      * @nullable
      */
@@ -1567,6 +1579,11 @@ export interface PickEmLeaderboard {
      * @nullable
      */
   tiebreakerActualPenaltyMinutes?: number | null;
+  /**
+     * Combined points in the tiebreaker game once final (NBA Pick'em pools only; null if not applicable or game not yet final)
+     * @nullable
+     */
+  tiebreakerActualPoints?: number | null;
 }
 
 export type PickEmDailyResultsGameAwayTeam = {

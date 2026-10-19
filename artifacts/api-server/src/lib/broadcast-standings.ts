@@ -114,7 +114,7 @@ type PickemLeaderboardEntry = {
   tiebreakerRunsDiff?: number | null;
   tiebreakerShotsOnGoalGuess?: number | null;
   tiebreakerNhlDiff?: number | null;
-  atsTiebreakerMargin?: number | null;
+  tiebreakerPointsDiff?: number | null;
 };
 
 type PickemLeaderboardResponse = {
@@ -215,8 +215,8 @@ function pickemTiebreaker(entry: PickemLeaderboardEntry, sport: string, poolType
   value: number | null;
   label: string | undefined;
 } {
-  if (poolType === "nba_ats" && entry.atsTiebreakerMargin != null) {
-    return { value: entry.atsTiebreakerMargin, label: "Margin tiebreaker" };
+  if (poolType === "nba_ats" && entry.tiebreakerPointsDiff != null) {
+    return { value: entry.tiebreakerPointsDiff, label: "Tiebreaker difference" };
   }
   if (sport === "mlb" && entry.tiebreakerRunsDiff != null) {
     return { value: entry.tiebreakerRunsDiff, label: "Tiebreaker difference" };

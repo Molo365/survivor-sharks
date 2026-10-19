@@ -30,6 +30,8 @@ import {
 import { fetchDailyStrikeouts } from "../lib/mlb-stats";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { liveNhlWeeklySundayPickRequiresTiebreaker } from "../lib/nhl-weekly-tiebreaker-submit";
+import { liveNbaAtsPickRequiresTiebreaker } from "../lib/nba-ats-tiebreaker-submit";
+import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import {
   fetchWcSchedule,
   WC_PHASES,
@@ -61,6 +63,7 @@ import {
 } from "../lib/pickem-periods";
 import { mergeWeeklySoccerLeaderboardAggregates } from "../lib/pickem-leaderboard-members";
 import {
+  formatNbaPointsTiebreakerColumnHeader,
   formatNhlSogTiebreakerColumnHeader,
   revealTiebreakerGuessForStandings,
 } from "../lib/nhl-tiebreaker-standings";
@@ -841,6 +844,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerStrikeouts,
     tiebreakerShotsOnGoal,
     tiebreakerPenaltyMinutes,
+    tiebreakerPoints,
     date: submittedDate,
     sendConfirmation,
   } = req.body as {
@@ -849,6 +853,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     tiebreakerStrikeouts?: number;
     tiebreakerShotsOnGoal?: number;
     tiebreakerPenaltyMinutes?: number;
+    tiebreakerPoints?: number;
     date?: string;
     sendConfirmation?: boolean;
   };
@@ -906,6 +911,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     && pool.poolType === "pickem"
     && sport === "nhl"
     && pool.pickFrequency === "weekly";
+  const isLiveNbaAts = !pool.sandboxMode && isAts;
   const isWeeklySoccer = (isMls || isChampionsLeague) && pool.pickFrequency === "weekly";
   const todayEspn = formatDateEt(new Date());
   const todayEt = getTodayEtDate();
@@ -1155,6 +1161,19 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   }
 
+  if (
+    liveNbaAtsPickRequiresTiebreaker({
+      isLiveNbaAts,
+      entryTiebreakerPoints: entry.tiebreakerPoints,
+      requestTiebreakerPoints: tiebreakerPoints,
+    })
+  ) {
+    res.status(400).json({
+      error: "NBA Pick'em requires a tiebreaker guess (combined points for the last game of the weekend).",
+    });
+    return;
+  }
+
   let sharedConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
   let saved = 0;
 
@@ -1223,6 +1242,13 @@ router.post("/picks", requireAuth, async (req, res) => {
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
+  if (isAts && typeof tiebreakerPoints === "number") {
+    await tx
+      .update(entriesTable)
+      .set({ tiebreakerPoints })
+      .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
+  }
+
   if (isSharedPickConfirmationSport(sport)) {
     const currentPicks = await tx.select({
       gameId: pickemPicksTable.gameId,
@@ -1279,24 +1305,41 @@ router.post("/picks", requireAuth, async (req, res) => {
   res.status(201).json({ saved, skipped: 0 });
 });
 
-// PATCH /api/pools/:poolId/pickem/tiebreaker — NHL weekly SOG guess without resubmitting picks
+// PATCH /api/pools/:poolId/pickem/tiebreaker — tiebreaker guess without resubmitting picks
 router.patch("/tiebreaker", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
-  const { tiebreakerShotsOnGoal } = req.body as { tiebreakerShotsOnGoal?: unknown };
+  const { tiebreakerShotsOnGoal, tiebreakerPoints } = req.body as {
+    tiebreakerShotsOnGoal?: unknown;
+    tiebreakerPoints?: unknown;
+  };
 
-  if (typeof tiebreakerShotsOnGoal !== "number" || tiebreakerShotsOnGoal < 0) {
-    res.status(400).json({ error: "tiebreakerShotsOnGoal must be a number ≥ 0" });
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
     return;
   }
 
-  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool || pool.poolType !== "pickem" || pool.sport !== "nhl" || pool.pickFrequency !== "weekly") {
-    res.status(400).json({ error: "Tiebreaker updates are only for NHL weekly Pick'em pools" });
+  const isNhlWeekly =
+    pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
+  const isNbaAtsPool = (pool.poolType as string) === "nba_ats";
+
+  if (!isNhlWeekly && !isNbaAtsPool) {
+    res.status(400).json({ error: "Tiebreaker updates are only for NHL weekly or NBA Pick'em pools" });
     return;
   }
   if (!pool.isActive) {
     res.status(400).json({ error: "This pool has ended — tiebreaker guesses can no longer be changed." });
+    return;
+  }
+
+  if (isNhlWeekly) {
+    if (typeof tiebreakerShotsOnGoal !== "number" || tiebreakerShotsOnGoal < 0) {
+      res.status(400).json({ error: "tiebreakerShotsOnGoal must be a number ≥ 0" });
+      return;
+    }
+  } else if (typeof tiebreakerPoints !== "number" || tiebreakerPoints < 0) {
+    res.status(400).json({ error: "tiebreakerPoints must be a number ≥ 0" });
     return;
   }
 
@@ -1310,12 +1353,20 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     return;
   }
 
+  if (isNhlWeekly) {
+    await db
+      .update(entriesTable)
+      .set({ tiebreakerShotsOnGoal: tiebreakerShotsOnGoal as number })
+      .where(eq(entriesTable.id, entry.id));
+    res.json({ ok: true, tiebreakerShotsOnGoal });
+    return;
+  }
+
   await db
     .update(entriesTable)
-    .set({ tiebreakerShotsOnGoal })
+    .set({ tiebreakerPoints: tiebreakerPoints as number })
     .where(eq(entriesTable.id, entry.id));
-
-  res.json({ ok: true, tiebreakerShotsOnGoal });
+  res.json({ ok: true, tiebreakerPoints });
 });
 
 /**
@@ -2412,7 +2463,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isNhl = sport === "nhl";
   const weeklySoccerLeaderboard = isChampionsLeague || isCalendarSoccerWeekly;
 
-  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl, poolMembersForLb] = await Promise.all([
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl, poolEntriesNbaAts, poolMembersForLb] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -2530,6 +2581,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           .from(entriesTable)
           .where(eq(entriesTable.poolId, poolId))
       : Promise.resolve(null as null),
+    isAts
+      ? db
+          .select({
+            userId: entriesTable.userId,
+            tiebreakerPoints: entriesTable.tiebreakerPoints,
+          })
+          .from(entriesTable)
+          .where(eq(entriesTable.poolId, poolId))
+      : Promise.resolve(null as null),
     weeklySoccerLeaderboard
       ? db
           .select({
@@ -2594,6 +2654,13 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  const nbaAtsTiebreakerByUser = new Map<number, number | null>();
+  if (poolEntriesNbaAts) {
+    for (const entry of poolEntriesNbaAts) {
+      nbaAtsTiebreakerByUser.set(entry.userId, entry.tiebreakerPoints ?? null);
+    }
+  }
+
   // For MLB pools: compute actualRuns and actualStrikeouts from the tiebreaker game only —
   // the last game on the slate by start time (matching the frontend's isTiebreakerGame tag).
   // Mirrors NFL Confidence's pattern of isolating a single tiebreakerGame.
@@ -2652,33 +2719,30 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  let tiebreakerActualPoints: number | null = null;
+  if (isAts && isWeekly && espnGames.length > 0) {
+    const tiebreakerGame = espnGames[espnGames.length - 1]!;
+    leaderboardTiebreakerMatchup = toTiebreakerMatchupPayload(tiebreakerGame);
+    if (!pool.sandboxMode) {
+      tiebreakerGameStarted = hasGameStarted(tiebreakerGame.date);
+    }
+    if (tiebreakerGame.isCompleted) {
+      const stats = await fetchNbaTiebreakerStats(tiebreakerGame.id);
+      tiebreakerActualPoints =
+        stats.totalPoints ??
+        ((tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0));
+    }
+    leaderboardTiebreakerColumnHeader = formatNbaPointsTiebreakerColumnHeader(
+      tiebreakerGame.awayTeam.abbreviation,
+      tiebreakerGame.homeTeam.abbreviation,
+      tiebreakerActualPoints,
+    );
+  }
+
   const picksByUser = new Map<number, Map<string, typeof allPicks[0]>>();
   for (const pick of allPicks) {
     if (!picksByUser.has(pick.userId)) picksByUser.set(pick.userId, new Map());
     picksByUser.get(pick.userId)!.set(pick.gameId, pick);
-  }
-
-  // For ended nba_ats pools: compute per-user total margin of victory across
-  // correct picks, using final scores already returned by espnGames. This is the
-  // same margin used by the closure block's tiebreaker; returning it here lets
-  // the "POOL ENDED" view display why the tiebreak resolved the way it did.
-  const atsTiebreakerMarginByUser = new Map<number, number>(); // userId → total |home−away|
-  if (isAts && !pool.isActive) {
-    const marginByGame = new Map<string, number>();
-    for (const g of espnGames) {
-      if (g.isCompleted && g.homeScore != null && g.awayScore != null) {
-        marginByGame.set(g.id, Math.abs(g.homeScore - g.awayScore));
-      }
-    }
-    for (const pick of allPicks) {
-      if (pick.result !== "correct") continue;
-      const margin = marginByGame.get(pick.gameId);
-      if (margin == null) continue;
-      atsTiebreakerMarginByUser.set(
-        pick.userId,
-        (atsTiebreakerMarginByUser.get(pick.userId) ?? 0) + margin,
-      );
-    }
   }
 
   // Build gameId → ISO start-time map for pick redaction.
@@ -2701,7 +2765,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     ? tiebreakerActualRuns != null && tiebreakerActualStrikeouts != null
     : isNhl
       ? tiebreakerActualShotsOnGoal != null
-      : false;
+      : isAts
+        ? tiebreakerActualPoints != null
+        : false;
   const entries = leaderboardAggregates.map((row, i) => {
     if (i > 0 && Number(row.correct) === Number(leaderboardAggregates[i - 1].correct)) {
       // same correct count as previous player — keep rank unchanged (tie)
@@ -2725,6 +2791,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       shotsGuess != null
         ? Math.abs(shotsGuess - tiebreakerActualShotsOnGoal)
         : null;
+    const pointsGuess = nbaAtsTiebreakerByUser.get(row.userId) ?? null;
+    const nbaPtsDiff =
+      isAts && tiebreakerActualPoints != null && pointsGuess != null
+        ? Math.abs(pointsGuess - tiebreakerActualPoints)
+        : null;
     const kickoffReveal = shouldRevealTiebreakerGuess({
       requesterUserId: userId,
       rowUserId: row.userId,
@@ -2736,6 +2807,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
     const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
     const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
+    const showPoints = revealTiebreakerGuessForStandings(pool, pointsGuess, kickoffReveal);
     return {
       rank: lbRank,
       userId: row.userId,
@@ -2775,7 +2847,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       tiebreakerShotsOnGoalGuess: isNhl ? (showShots ? shotsGuess : null) : undefined,
       tiebreakerPenaltyMinutesGuess: isNhl ? (showPim ? pimGuess : null) : undefined,
       tiebreakerNhlDiff: isNhl ? nhlDiff : undefined,
-      atsTiebreakerMargin: isAts && !pool.isActive ? (atsTiebreakerMarginByUser.get(row.userId) ?? 0) : undefined,
+      tiebreakerPointsGuess: isAts ? (showPoints ? pointsGuess : null) : undefined,
+      tiebreakerPointsDiff: isAts ? nbaPtsDiff : undefined,
     };
   });
 
@@ -2816,7 +2889,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         isTiebreakerGame: (isMlb && idx === espnGames.length - 1) ||
           (isNhl && isWeekly && weekBounds != null &&
             (pool.sandboxMode || todayEt === weekBounds.weekEnd) &&
-            idx === espnGames.length - 1),
+            idx === espnGames.length - 1) ||
+          (isAts && isWeekly && idx === espnGames.length - 1),
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, logoUrl: g.awayTeam.logo ?? null },
         homeTeam: { id: g.homeTeam.id, abbreviation: g.homeTeam.abbreviation, logoUrl: g.homeTeam.logo ?? null },
         leagueSlug: g.leagueSlug ?? null,
@@ -2847,7 +2921,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     tiebreakerActualStrikeouts: isMlb ? tiebreakerActualStrikeouts : undefined,
     tiebreakerActualShotsOnGoal: isNhl ? tiebreakerActualShotsOnGoal : undefined,
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
-    tiebreakerGameStarted: isNhl && isWeekly ? tiebreakerGameStarted : undefined,
+    tiebreakerActualPoints: isAts ? tiebreakerActualPoints : undefined,
+    tiebreakerGameStarted: (isNhl && isWeekly) || isAts ? tiebreakerGameStarted : undefined,
     tiebreakerColumnHeader: leaderboardTiebreakerColumnHeader,
     tiebreakerMatchup: leaderboardTiebreakerMatchup,
   });

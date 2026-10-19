@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { pickemPicksTable } from "@workspace/db";
+import { entriesTable, pickemPicksTable } from "@workspace/db";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { nbaAtsWeeklyPeriodReason, rankNbaAtsUsersByWeeklyScore } from "./nba-ats-weekly-ranking";
 
@@ -8,7 +8,7 @@ export { nbaAtsWeeklyPeriodReason, rankNbaAtsUsersByWeeklyScore } from "./nba-at
 export async function computeNbaAtsWeeklyLeaderGroups(
   poolId: number,
   week: number,
-  gameScoreMap: Map<string, number>,
+  actualCombinedPoints: number | null,
 ): Promise<{ groups: number[][]; totalParticipants: number }> {
   const scoreRows = await db
     .select({ userId: pickemPicksTable.userId, correct: count() })
@@ -42,31 +42,27 @@ export async function computeNbaAtsWeeklyLeaderGroups(
     return { groups: [], totalParticipants: 0 };
   }
 
-  const sortedScores = [...new Set(scoreByUser.values())].sort((a, b) => b - a);
-  const tiedUserIds = sortedScores
-    .filter((score) => [...scoreByUser.entries()].filter(([, s]) => s === score).length > 1)
-    .flatMap((score) => [...scoreByUser.entries()].filter(([, s]) => s === score).map(([uid]) => uid));
+  const userIds = [...scoreByUser.keys()];
+  const guessRows = await db
+    .select({ userId: entriesTable.userId, tiebreakerPoints: entriesTable.tiebreakerPoints })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), inArray(entriesTable.userId, userIds)));
 
-  const marginByUser = new Map<number, number>();
-  if (tiedUserIds.length > 0 && gameScoreMap.size > 0) {
-    const tiedCorrectPicks = await db
-      .select({ userId: pickemPicksTable.userId, gameId: pickemPicksTable.gameId })
-      .from(pickemPicksTable)
-      .where(
-        and(
-          eq(pickemPicksTable.poolId, poolId),
-          eq(pickemPicksTable.week, week),
-          eq(pickemPicksTable.result, "correct"),
-          inArray(pickemPicksTable.userId, tiedUserIds),
-        ),
-      );
+  const pointsGuessByUser = new Map<number, number | null>();
+  for (const row of guessRows) {
+    pointsGuessByUser.set(row.userId, row.tiebreakerPoints ?? null);
+  }
 
-    for (const pick of tiedCorrectPicks) {
-      const margin = gameScoreMap.get(pick.gameId) ?? 0;
-      marginByUser.set(pick.userId, (marginByUser.get(pick.userId) ?? 0) + margin);
+  const tiebreakerDiffByUser = new Map<number, number>();
+  for (const uid of userIds) {
+    const guess = pointsGuessByUser.get(uid) ?? null;
+    if (actualCombinedPoints != null && guess != null) {
+      tiebreakerDiffByUser.set(uid, Math.abs(guess - actualCombinedPoints));
+    } else {
+      tiebreakerDiffByUser.set(uid, Infinity);
     }
   }
 
-  const groups = rankNbaAtsUsersByWeeklyScore(scoreByUser, marginByUser);
+  const groups = rankNbaAtsUsersByWeeklyScore(scoreByUser, tiebreakerDiffByUser);
   return { groups, totalParticipants: scoreByUser.size };
 }

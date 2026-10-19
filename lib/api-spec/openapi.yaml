@@ -4356,6 +4356,9 @@ components:
         tiebreakerPenaltyMinutes:
           type: integer
           description: "NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week"
+        tiebreakerPoints:
+          type: integer
+          description: "NBA Pick'em tiebreaker — combined points guess for the last game of the Fri–Sun weekend"
         date:
           type: string
           description: "The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games"
@@ -4520,6 +4523,12 @@ components:
         tiebreakerNhlDiff:
           type: ["integer", "null"]
           description: "Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)"
+        tiebreakerPointsGuess:
+          type: ["integer", "null"]
+          description: "Player's tiebreaker combined points guess (NBA Pick'em pools only)"
+        tiebreakerPointsDiff:
+          type: ["integer", "null"]
+          description: "Absolute difference between points guess and actual (null if no actual yet)"
         prizeWon:
           type: ["integer", "null"]
           description: "Prize amount won; populated on winning entries once the period is fully graded; null otherwise"
@@ -4570,9 +4579,12 @@ components:
         tiebreakerActualPenaltyMinutes:
           type: ["integer", "null"]
           description: "Combined penalty minutes in the tiebreaker game (legacy secondary stat; NHL weekly resolution uses shots on goal only)"
+        tiebreakerActualPoints:
+          type: ["integer", "null"]
+          description: "Combined points in the tiebreaker game once final (NBA Pick'em pools only; null if not applicable or game not yet final)"
         tiebreakerGameStarted:
           type: ["boolean", "null"]
-          description: "True when the NHL weekly tiebreaker game (last kickoff of the weekend) has started (NHL weekly pools only)"
+          description: "True when the tiebreaker game (last kickoff of the weekend) has started (NHL weekly and NBA Pick'em pools)"
 
     PickEmDailyResultsGame:
       type: object
