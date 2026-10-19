@@ -9,8 +9,10 @@ import {
 describe("NHL weekly tiebreaker standings visibility", () => {
   const nhlWeekly = { sport: "nhl", poolType: "pickem", pickFrequency: "weekly" };
 
-  it("shows submitted guesses before the tiebreaker game starts", () => {
-    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, false), true);
+  it("hides guesses until kickoff or period lock for NHL weekly", () => {
+    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, false), false);
+    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, false, { periodLocked: true }), true);
+    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, true), true);
     assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, null, true), false);
   });
 
@@ -20,9 +22,10 @@ describe("NHL weekly tiebreaker standings visibility", () => {
     assert.equal(revealTiebreakerGuessForStandings(mlbWeekly, 10, true), true);
   });
 
-  it("shows NBA Pick'em guesses before the tiebreaker game starts", () => {
+  it("hides NBA ATS guesses until kickoff or period lock", () => {
     const nbaAts = { sport: "nba", poolType: "nba_ats", pickFrequency: "weekly" };
-    assert.equal(revealTiebreakerGuessForStandings(nbaAts, 218, false), true);
+    assert.equal(revealTiebreakerGuessForStandings(nbaAts, 218, false), false);
+    assert.equal(revealTiebreakerGuessForStandings(nbaAts, 218, false, { periodLocked: true }), true);
   });
 
   it("formats the standings column header with actual or TBD", () => {

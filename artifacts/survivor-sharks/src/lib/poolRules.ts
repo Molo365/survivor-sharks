@@ -175,7 +175,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "If picks include Sunday games, you will be asked for combined shots on goal (both teams) on the last game of Sunday's slate.",
             "The closest guess wins; equally close guesses split the prize.",
-            "Other players' guesses stay hidden until that game starts.",
+            "Other players' tiebreaker guesses stay hidden until the weekend pick period locks (when the first game of the weekend has started), or until that tiebreaker game starts.",
           ],
         },
         {

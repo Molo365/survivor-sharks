@@ -65,6 +65,7 @@ import { mergeWeeklySoccerLeaderboardAggregates } from "../lib/pickem-leaderboar
 import {
   formatNbaPointsTiebreakerColumnHeader,
   formatNhlSogTiebreakerColumnHeader,
+  isPickemPeriodLockedForTiebreakerReveal,
   revealTiebreakerGuessForStandings,
 } from "../lib/nhl-tiebreaker-standings";
 import { toTiebreakerMatchupPayload, type TiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
@@ -2225,6 +2226,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     : isNhl
       ? tiebreakerActualShotsOnGoal != null
       : false;
+  const prevWeekTiebreakerPeriodLocked = hasResults || !pool.isActive;
   const entries = aggregates.map((row, i) => {
     if (tiebreakWinnerIds != null && Number(row.correct) === weekTopCorrect) {
       // tiebreaker resolved: confirmed winners keep rank 1; tied-on-picks losers drop to rank (winners + 1)
@@ -2252,10 +2254,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       actualsKnown: tiebreakerActualsKnown,
       gameStarted: tiebreakerGameStarted,
     });
-    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal);
-    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
-    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
-    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
+    const prevTbRevealOpts = { periodLocked: prevWeekTiebreakerPeriodLocked };
+    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal, prevTbRevealOpts);
+    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal, prevTbRevealOpts);
+    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal, prevTbRevealOpts);
+    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal, prevTbRevealOpts);
     return {
       rank: weekRank,
       userId: row.userId,
@@ -2700,6 +2703,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   let tiebreakerActualPenaltyMinutes: number | null = null;
   let leaderboardTiebreakerColumnHeader: string | undefined;
   let leaderboardTiebreakerMatchup: TiebreakerMatchupPayload | undefined;
+  let nhlWeekendPeriodLocked = false;
   if (isNhl && isWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
     const { days, espnDates } = getNhlWeekBounds(
@@ -2732,6 +2736,11 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         tiebreakerGame.homeTeam.abbreviation,
         tiebreakerActualShotsOnGoal,
       );
+    }
+    if (weekendGames.length > 0) {
+      nhlWeekendPeriodLocked = pool.sandboxMode
+        ? weekendGames.every((g) => lbSandboxScoreMap.has(g.id) || hasGameStarted(g.date))
+        : weekendGames.some((g) => hasGameStarted(g.date));
     }
   }
 
@@ -2776,6 +2785,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
   const leaderboardSlateStartIsos = [...gameStartMap.values()];
+  const tiebreakerPeriodLocked =
+    (isNhl && isWeekly && nhlWeekendPeriodLocked) ||
+    (isAts && isWeekly && espnGames.some((g) => hasGameStarted(g.date))) ||
+    isPickemPeriodLockedForTiebreakerReveal(leaderboardSlateStartIsos);
 
   let lbRank = 1;
   const tiebreakerActualsKnown = isMlb
@@ -2820,11 +2833,12 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       actualsKnown: tiebreakerActualsKnown,
       gameStarted: tiebreakerGameStarted,
     });
-    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal);
-    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
-    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
-    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
-    const showPoints = revealTiebreakerGuessForStandings(pool, pointsGuess, kickoffReveal);
+    const tbRevealOpts = { periodLocked: tiebreakerPeriodLocked };
+    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal, tbRevealOpts);
+    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal, tbRevealOpts);
+    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal, tbRevealOpts);
+    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal, tbRevealOpts);
+    const showPoints = revealTiebreakerGuessForStandings(pool, pointsGuess, kickoffReveal, tbRevealOpts);
     return {
       rank: lbRank,
       userId: row.userId,
