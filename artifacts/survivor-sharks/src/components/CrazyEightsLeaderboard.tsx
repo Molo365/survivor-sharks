@@ -28,6 +28,7 @@ interface PlayerRow {
   picks: Record<string, PlayerPick>;
   tiebreakerShotsOnGoalGuess?: number | null;
   tiebreakerPenaltyMinutesGuess?: number | null;
+  tiebreakerPointsGuess?: number | null;
 }
 
 interface GridResponse {
@@ -37,6 +38,7 @@ interface GridResponse {
   players: PlayerRow[];
   tiebreakerColumnHeader?: string;
   tiebreakerActualShotsOnGoal?: number | null;
+  tiebreakerActualPoints?: number | null;
   tiebreakerMatchup?: TiebreakerMatchupGame | null;
 }
 
@@ -457,6 +459,10 @@ export function CrazyEightsLeaderboard({
           <div className="rounded-xl border border-border/40 overflow-hidden">
             {(() => {
               const showTb = !!nhlData?.tiebreakerColumnHeader;
+              const tbSport = isNba ? "nba" : "nhl";
+              const tbActual = isNba
+                ? nhlData?.tiebreakerActualPoints
+                : nhlData?.tiebreakerActualShotsOnGoal;
               const rowGrid = showTb
                 ? "grid-cols-[2.25rem_minmax(0,1fr)_minmax(5.5rem,1fr)_3.25rem_minmax(4.5rem,5.25rem)] sm:grid-cols-[2.5rem_minmax(0,1.15fr)_minmax(8rem,1fr)_4rem_minmax(5rem,5.75rem)]"
                 : "grid-cols-[2.25rem_minmax(0,1fr)_minmax(6.5rem,1fr)_3.75rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(9rem,1fr)_4.5rem]";
@@ -476,10 +482,10 @@ export function CrazyEightsLeaderboard({
                     <span className="text-right pr-1">Points</span>
                     {showTb && nhlData.tiebreakerColumnHeader && (
                       <TiebreakerStandingsColumnHeader
-                        sport="nhl"
+                        sport={tbSport}
                         matchup={nhlData.tiebreakerMatchup ?? null}
                         headerFallback={nhlData.tiebreakerColumnHeader}
-                        actual={nhlData.tiebreakerActualShotsOnGoal}
+                        actual={tbActual}
                       />
                     )}
                   </div>
@@ -538,7 +544,9 @@ export function CrazyEightsLeaderboard({
                             <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5 hidden sm:block">{pointsLine}</p>
                           </div>
                           {showTb && (
-                            <TiebreakerStandingsColumnGuess guess={player.tiebreakerShotsOnGoalGuess} />
+                            <TiebreakerStandingsColumnGuess
+                              guess={isNba ? player.tiebreakerPointsGuess : player.tiebreakerShotsOnGoalGuess}
+                            />
                           )}
                         </div>
                       );

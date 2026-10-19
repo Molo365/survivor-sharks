@@ -8,6 +8,16 @@ function parseNhlSogTiebreakerHeader(header: string): { away: string; home: stri
   return { away: m[1].toUpperCase(), home: m[2].toUpperCase(), actualLabel: m[3] };
 }
 
+function parseNbaPtsTiebreakerHeader(header: string): { away: string; home: string; actualLabel: string } | null {
+  const m = header.match(/^([A-Za-z]{2,4})\/([A-Za-z]{2,4})\s+PTS\s+\(([^)]+)\)\s*$/i);
+  if (!m) return null;
+  return { away: m[1].toUpperCase(), home: m[2].toUpperCase(), actualLabel: m[3] };
+}
+
+function parseTiebreakerHeaderFallback(header: string): { away: string; home: string; actualLabel: string } | null {
+  return parseNhlSogTiebreakerHeader(header) ?? parseNbaPtsTiebreakerHeader(header);
+}
+
 function abbrevPair(
   matchup: TiebreakerMatchupGame | null | undefined,
   headerFallback?: string | null,
@@ -18,7 +28,7 @@ function abbrevPair(
     if (away && home) return { away: away.toUpperCase(), home: home.toUpperCase() };
   }
   if (headerFallback) {
-    const parsed = parseNhlSogTiebreakerHeader(headerFallback);
+    const parsed = parseTiebreakerHeaderFallback(headerFallback);
     if (parsed) return { away: parsed.away, home: parsed.home };
   }
   return null;
@@ -39,7 +49,7 @@ export function TiebreakerStandingsColumnHeader({
   className?: string;
 }) {
   const pair = abbrevPair(matchup, headerFallback);
-  const parsed = headerFallback ? parseNhlSogTiebreakerHeader(headerFallback) : null;
+  const parsed = headerFallback ? parseTiebreakerHeaderFallback(headerFallback) : null;
   const actualLabel =
     actual != null
       ? String(actual)

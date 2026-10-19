@@ -1065,6 +1065,7 @@ export function CrazyEightsView({
     }
     toast({ title: "Tiebreaker saved!", description: "Your guesses are locked in." });
     await queryClient.invalidateQueries({ queryKey: myPicksKey });
+    await queryClient.invalidateQueries({ queryKey: ["crazy-eights-grid", poolId] });
   }
 
   async function handleUpdateNbaTiebreaker(points: number) {
@@ -1084,6 +1085,7 @@ export function CrazyEightsView({
     }
     toast({ title: "Tiebreaker saved!", description: "Your guesses are locked in." });
     await queryClient.invalidateQueries({ queryKey: myPicksKey });
+    await queryClient.invalidateQueries({ queryKey: ["crazy-eights-grid", poolId] });
   }
 
   if (viewingPastPeriod) {
