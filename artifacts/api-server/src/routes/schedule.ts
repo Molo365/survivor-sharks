@@ -24,6 +24,7 @@ import {
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
+import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 
@@ -280,13 +281,16 @@ router.get("/", requireAuth, async (req, res) => {
       };
     });
 
+    const slateGameStartIsos = nflGames.map((g) => g.date);
+    const officeSlatePickLocked = nflOfficePoolWeekSubmissionLocked(pool, slateGameStartIsos);
     const farFuture = "2099-01-01T00:00:00.000Z";
     res.json({
       weekLabel: `Week ${week}`,
       weekStart: sortedDates[0] ? `${sortedDates[0]}T00:00:00.000Z` : farFuture,
       weekEnd: sortedDates[sortedDates.length - 1] ? `${sortedDates[sortedDates.length - 1]}T23:59:59.000Z` : farFuture,
       deadline: farFuture,
-      deadlinePassed: false,
+      deadlinePassed: officeSlatePickLocked,
+      officeSlatePickLocked,
       currentWeek: week,
       days,
     });

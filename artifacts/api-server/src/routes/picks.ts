@@ -22,6 +22,7 @@ import {
 } from "../lib/espn";
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
@@ -254,6 +255,15 @@ router.post("/", requireAuth, async (req, res) => {
 
   // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
   if (!pool.sandboxMode) {
+  if (pool.sport === "nfl" && pool.poolType === "season") {
+    const weekGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    if (nflOfficePoolWeekSubmissionLocked(pool, weekGames.map((g) => g.date))) {
+      res.status(400).json({
+        error: "Weekly picks are locked — the Sunday 1:00 PM ET slate deadline has passed.",
+      });
+      return;
+    }
+  }
   if (pool.sport === "mlb") {
     // MLB weekly: entire week locks on Monday 10 PM ET
     if (isMlbPickDeadlinePassed(pool.createdAt, pool.currentWeek)) {

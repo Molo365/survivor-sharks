@@ -610,7 +610,6 @@ export default function PoolHome() {
                 </div>
                 <div className="mt-3 md:mt-8">
                   <TabsContent value="picks" className="m-0 focus-visible:outline-none">
-                    <PickVisibilityNotice kind="nfl-office-grid" />
               <NflConfidenceView
                 poolId={pool.id}
                 currentWeek={pool.currentWeek}

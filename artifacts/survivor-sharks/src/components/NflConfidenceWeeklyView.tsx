@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { tiebreakerStatLabel } from "@/lib/tiebreakerLabels";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { nflOfficePoolGameSubmissionLocked } from "@/lib/nflSlateReveal";
 import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2, BarChart3, Play, Clapperboard } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1015,10 +1016,19 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
 
   const games: PickEmGame[] = slate?.games ?? [];
   const isSandbox = slate?.sandboxMode ?? false;
-  const nowMs = Date.now();
+  const slateGameStartIsos = games.map((game) => game.startTime);
+  const officePool = { sport: "nfl", poolType: "nfl_confidence_weekly", sandboxMode: isSandbox };
   const openGames = isSandbox
     ? games
-    : games.filter((game) => new Date(game.startTime).getTime() > nowMs);
+    : games.filter(
+        (game) =>
+          !nflOfficePoolGameSubmissionLocked({
+            pool: officePool,
+            gameStartIso: game.startTime,
+            slateGameStartIsos,
+            lockStyle: "five_minute",
+          }),
+      );
   const openGameIds = new Set(openGames.map((game) => game.id));
   const maxConfidence = openGames.length;
 
@@ -1242,7 +1252,13 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
             isSelected={!!pickedTeams[game.id]}
             isLocked={
               isLocked ||
-              (!isSandbox && new Date(game.startTime).getTime() <= nowMs)
+              (!isSandbox &&
+                nflOfficePoolGameSubmissionLocked({
+                  pool: officePool,
+                  gameStartIso: game.startTime,
+                  slateGameStartIsos,
+                  lockStyle: "five_minute",
+                }))
             }
             sandboxMode={slate?.sandboxMode ?? false}
             confidence={confidence[game.id]}

@@ -992,10 +992,17 @@ export function MatchupPickGrid({
     ? visibleDays.flatMap(d => d.games)
     : (games ?? []);
 
+  const officeSlatePickLocked =
+    sport === "nfl"
+    && poolType === "season"
+    && Boolean((schedule as { officeSlatePickLocked?: boolean } | undefined)?.officeSlatePickLocked);
+
   const currentPickGame = currentPick
     ? gameList.find(g => g.homeTeam.id === currentPick.teamId || g.awayTeam.id === currentPick.teamId)
     : undefined;
-  const pickIsLocked = !!(currentPick && currentPickGame?.hasStarted);
+  const pickIsLocked =
+    officeSlatePickLocked
+    || !!(currentPick && currentPickGame?.hasStarted);
 
   return (
     <div className="space-y-6">
@@ -1009,10 +1016,18 @@ export function MatchupPickGrid({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bebas text-2xl text-destructive tracking-wide leading-none mb-1">
-                  Pick Locked — Game In Progress
+                  {officeSlatePickLocked && !currentPickGame?.hasStarted
+                    ? "Pick Locked — Sunday Slate Closed"
+                    : "Pick Locked — Game In Progress"}
                 </h3>
-                <p className="text-base font-medium text-foreground/90">{currentPick.teamName}</p>
-                <p className="text-xs text-muted-foreground mt-1">This game has started. Your pick cannot be changed.</p>
+                {currentPick ? (
+                  <p className="text-base font-medium text-foreground/90">{currentPick.teamName}</p>
+                ) : null}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {officeSlatePickLocked && !currentPickGame?.hasStarted
+                    ? "The 1:00 PM ET Sunday deadline has passed. Picks are locked for this week."
+                    : "This game has started. Your pick cannot be changed."}
+                </p>
               </div>
               <Lock className="w-5 h-5 text-destructive/60 shrink-0 mt-1" />
             </div>
@@ -1054,7 +1069,7 @@ export function MatchupPickGrid({
                 : sport === "nba"
                   ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                   : sport === "nfl"
-                    ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot."
+                    ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. At 1:00 PM ET on the week's main Sunday, picks lock for the rest of the week."
                     : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."}
             </p>
           </div>
@@ -1101,6 +1116,7 @@ export function MatchupPickGrid({
               currentPickTeamId={currentPick?.teamId}
               currentPickResult={currentPick?.result ?? null}
               selectedTeam={pickIsLocked ? null : selectedTeam}
+              deadlineLock={officeSlatePickLocked}
               onSelect={(team) => {
                 if (!pickIsLocked) setSelectedTeam(prev => prev?.gameId === team.gameId && prev?.id === team.id ? null : team);
               }}

@@ -1,3 +1,5 @@
+import { NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS } from "./nfl-slate-reveal";
+
 export interface ConfidenceSubmissionPick {
   gameId: string;
   pickedTeamId: string;
@@ -47,7 +49,7 @@ export function validateConfidenceSubmission({
       return { ok: false, error: `Duplicate game: ${pick.gameId}` };
     }
     submittedGameIds.add(pick.gameId);
-    if (new Date(game.date).getTime() <= nowMs) {
+    if (new Date(game.date).getTime() - NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS <= nowMs) {
       return { ok: false, error: `Game ${pick.gameId} has already locked` };
     }
     if (pick.pickedTeamId !== game.homeTeam.id && pick.pickedTeamId !== game.awayTeam.id) {

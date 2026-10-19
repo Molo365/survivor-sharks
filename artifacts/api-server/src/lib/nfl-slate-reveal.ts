@@ -5,6 +5,47 @@ export function isNflOfficePool(pool: { sport: string; poolType: string }): bool
   return pool.sport === "nfl" && pool.poolType !== "nfl_division_predictor";
 }
 
+export const NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS = 5 * 60 * 1000;
+
+export type NflOfficePoolSubmissionLockStyle = "five_minute" | "kickoff";
+
+/**
+ * Whether a game accepts new picks/changes. Office pools also lock all unstarted games
+ * at 1:00 PM ET on the week's main Sunday (same moment as slate reveal).
+ */
+export function nflOfficePoolGameSubmissionLocked(opts: {
+  pool: { sport: string; poolType: string; sandboxMode?: boolean | null };
+  gameStartIso: string;
+  slateGameStartIsos: string[];
+  lockStyle: NflOfficePoolSubmissionLockStyle;
+  nowMs?: number;
+}): boolean {
+  if (opts.pool.sandboxMode) return false;
+  const now = opts.nowMs ?? Date.now();
+  const kickoff = new Date(opts.gameStartIso).getTime();
+  if (!Number.isFinite(kickoff)) return false;
+
+  if (opts.lockStyle === "five_minute") {
+    if (now >= kickoff - NFL_OFFICE_CONFIDENCE_PREGAME_LOCK_MS) return true;
+  } else if (now >= kickoff) {
+    return true;
+  }
+
+  if (!isNflOfficePool(opts.pool)) return false;
+  if (kickoff <= now) return false;
+  return nflSundayOnePmRevealActive(opts.slateGameStartIsos, now);
+}
+
+/** Survivor-style pools: no pick changes for the week after the Sunday 1 PM slate lock. */
+export function nflOfficePoolWeekSubmissionLocked(
+  pool: { sport: string; poolType: string; sandboxMode?: boolean | null },
+  slateGameStartIsos: string[],
+  nowMs: number = Date.now(),
+): boolean {
+  if (pool.sandboxMode || !isNflOfficePool(pool)) return false;
+  return nflSundayOnePmRevealActive(slateGameStartIsos, nowMs);
+}
+
 /** Convert an ET calendar date (YYYY-MM-DD) and wall-clock time to a UTC instant. */
 export function etWallClockToUtc(
   calendarDateEt: string,
@@ -112,6 +153,36 @@ export function isNflOfficeSlateLive(opts: {
   if (anyLive) return true;
   if (!isNflOfficePool(opts.pool) || opts.pool.sandboxMode) return false;
   return nflSundayOnePmRevealActive(opts.games.map((g) => g.startTime), now);
+}
+
+export function partitionNflWeekGamesBySubmissionLock<
+  T extends { date: string },
+>(opts: {
+  pool: { sport: string; poolType: string; sandboxMode?: boolean | null };
+  games: T[];
+  lockStyle: NflOfficePoolSubmissionLockStyle;
+  nowMs?: number;
+}): { openGames: T[]; lockedGames: T[]; slateGameStartIsos: string[] } {
+  const slateGameStartIsos = opts.games.map((game) => game.date);
+  const nowMs = opts.nowMs ?? Date.now();
+  const openGames: T[] = [];
+  const lockedGames: T[] = [];
+  for (const game of opts.games) {
+    if (
+      nflOfficePoolGameSubmissionLocked({
+        pool: opts.pool,
+        gameStartIso: game.date,
+        slateGameStartIsos,
+        lockStyle: opts.lockStyle,
+        nowMs,
+      })
+    ) {
+      lockedGames.push(game);
+    } else {
+      openGames.push(game);
+    }
+  }
+  return { openGames, lockedGames, slateGameStartIsos };
 }
 
 export function nflSundayOnePmRevealActiveForSurvivorWeek(

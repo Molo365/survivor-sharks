@@ -8,7 +8,12 @@ import { fetchNflGamesByWeek } from "../lib/espn";
 import { calcPrize } from "../lib/prizeCalc";
 import { settleNflConfidenceWeeklyPool } from "../lib/auto-eliminator";
 import { sortConfidenceGamesByKickoff, validateConfidenceSubmission } from "../lib/confidence-submission";
-import { isNflOfficeSlateLive, nflSundayOnePmRevealActive } from "../lib/nfl-slate-reveal";
+import {
+  isNflOfficeSlateLive,
+  nflOfficePoolGameSubmissionLocked,
+  nflSundayOnePmRevealActive,
+  partitionNflWeekGamesBySubmissionLock,
+} from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 
@@ -287,9 +292,13 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.season,
       pool.isPreseason ? 1 : 2,
     ));
-    const nowMs = Date.now();
-    openGames = liveGames.filter((game) => new Date(game.date).getTime() > nowMs);
-    startedGames = liveGames.filter((game) => new Date(game.date).getTime() <= nowMs);
+    const partitioned = partitionNflWeekGamesBySubmissionLock({
+      pool,
+      games: liveGames,
+      lockStyle: "five_minute",
+    });
+    openGames = partitioned.openGames;
+    startedGames = partitioned.lockedGames;
   }
 
   const weekSundayOffsets = [
