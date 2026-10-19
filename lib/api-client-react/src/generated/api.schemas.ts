@@ -754,6 +754,8 @@ export interface SurvivorGrid {
   /** Lives in this pool (1 single elim, 2 double elim, 3 NHL/NBA season survivor) */
   maxLives?: number;
   weeks: number[];
+  /** Week number → display label (NHL survivor Saturday dates) */
+  weekLabels?: { [key: string]: string };
   members: PoolMember[];
   picks: Pick[];
 }

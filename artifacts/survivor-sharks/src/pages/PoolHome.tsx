@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey, useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
+import { useGetPool, useGetPickEmLeaderboard, getGetPoolQueryKey, getGetPickEmLeaderboardQueryKey, useGetWcBracket, getGetWcBracketQueryKey, useGetPoolPickStatus, getGetPoolPickStatusQueryKey, useGetPoolSchedule, getGetPoolScheduleQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavBar } from "@/components/NavBar";
 import { AdSlot } from "@/components/AdSlot";
@@ -106,6 +106,14 @@ export default function PoolHome() {
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
+  const isNhlSurvivorSeason = Boolean(pool?.sport === "nhl" && isClassicSeason);
+  const { data: nhlSurvivorSchedule } = useGetPoolSchedule(poolId, {
+    query: {
+      enabled: Boolean(poolId && isNhlSurvivorSeason),
+      queryKey: getGetPoolScheduleQueryKey(poolId),
+      staleTime: 60_000,
+    },
+  });
   const isNhlRecurringWeeklyPickEm = Boolean(
     isPickEm &&
     pool?.sport === "nhl" &&
@@ -416,7 +424,12 @@ export default function PoolHome() {
                     </span>
                   )}
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
-                    <span className="flex items-center gap-1 text-accent"><Activity className="w-4 h-4" /> Wk {pool.currentWeek}</span>
+                    <span className="flex items-center gap-1 text-accent">
+                      <Activity className="w-4 h-4" />
+                      {isNhlSurvivorSeason && nhlSurvivorSchedule?.weekLabel
+                        ? nhlSurvivorSchedule.weekLabel
+                        : `Wk ${pool.currentWeek}`}
+                    </span>
                   )}
                   {/* Compact inline stat — mobile only */}
                   <span className="md:hidden bg-card border border-border/50 px-2 py-1 rounded-lg text-center shadow-sm">

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nhlSurvivorSlateForSettlement, saturdayGamesEt } from "./nhl-survivor-slate";
+import {
+  formatShortMonthDayEt,
+  nhlSurvivorSlateForSettlement,
+  nhlSurvivorWeekLabel,
+  saturdayGamesEt,
+} from "./nhl-survivor-slate";
 
 test("keeps only Saturday games in Eastern Time", () => {
   const saturday = { id: "sat", date: "2026-01-03T18:00:00.000Z" };
@@ -22,4 +27,14 @@ test("falls back to the original games when no Saturday exists", () => {
   ];
 
   assert.equal(nhlSurvivorSlateForSettlement(games), games);
+});
+
+test("formatShortMonthDayEt renders ET month and day", () => {
+  assert.equal(formatShortMonthDayEt("2026-10-24"), "Oct 24");
+});
+
+test("nhlSurvivorWeekLabel uses the Saturday date for the pool week", () => {
+  const createdAt = new Date("2026-10-01T12:00:00.000Z");
+  const label = nhlSurvivorWeekLabel(createdAt, 4, "2026-10-06");
+  assert.match(label, /^[A-Z][a-z]{2} \d{1,2}$/);
 });
