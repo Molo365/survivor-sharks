@@ -43,6 +43,7 @@ import {
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
+import { NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE } from "@/lib/nhlOfficePoolCopy";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -3525,7 +3526,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   ? (isNbaAts
                       ? "Pick every NBA game on the Friday–Sunday slate against the spread. Games are grouped by date (Fri, Sat, Sun). You can pick once ESPN posts the line — spreads often arrive late. Most correct covers for the weekend wins the prize pot. Each game locks at tip-off. Good luck! 🏀📈"
                       : isNhl
-                      ? "Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. Each game locks 5 minutes before puck drop. Good luck! 🏒✏️"
+                      ? `Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. ${NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE} Good luck! 🏒✏️`
                       : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
                   : "Pick the winner of every MLB game today. Whoever has the most correct picks by end of day wins. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾"}
               </p>
@@ -3582,6 +3583,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     {nhlWeeklyAllGames.length} game{nhlWeeklyAllGames.length !== 1 ? "s" : ""}
                     {" · "}
                     {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                    {isLiveNhlWeekly && !slateLocked && " · Pool locks Saturday 7:00 PM ET"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -3598,7 +3600,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   ) : null}
                   {slateLocked && (
                     <span className="text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border bg-muted/20 text-muted-foreground/70 border-border/30">
-                      Slate Locked
+                      {isLiveNhlWeekly ? "Pool locked · Sat 7 PM ET" : "Slate Locked"}
                     </span>
                   )}
                 </div>

@@ -18,6 +18,11 @@ import {
   resolveCrazyEightsPeriod,
   type CrazyEightsPeriodPool,
 } from "../lib/crazy-eights-periods";
+import {
+  nhlSaturdaySevenPmLockActive,
+  nhlSaturdaySevenPmLockInstant,
+  nhlWeekendPoolTiebreakerGuessRevealed,
+} from "../lib/nhl-slate-reveal";
 
 const router = Router({ mergeParams: true });
 
@@ -117,10 +122,17 @@ function isGridPickRevealed(opts: {
   sandboxMode: boolean;
   result: string | null;
   game: EspnGame | undefined;
+  nhlWeekendSlateIsos?: string[];
+  nhlSaturdayEt?: string | null;
 }): boolean {
   if (opts.isOwnPick) return true;
   if (opts.result != null && opts.result !== "pending") return true;
   if (opts.sandboxMode || !opts.game) return false;
+  if (opts.nhlWeekendSlateIsos?.length) {
+    if (nhlSaturdaySevenPmLockActive(opts.nhlWeekendSlateIsos, undefined, opts.nhlSaturdayEt ?? null)) {
+      return true;
+    }
+  }
   return new Date(opts.game.date).getTime() <= Date.now();
 }
 
@@ -286,6 +298,9 @@ router.get("/slate", requireAuth, async (req, res) => {
     const [ny, nm, nd] = sunDate.split("-").map(Number);
     const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
     const weekLabel = `${fmt.format(new Date(Date.UTC(sy, sm - 1, sd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
+    const poolLockAt = isSandbox
+      ? null
+      : nhlSaturdaySevenPmLockInstant(games.map((g) => g.date), satDate);
     res.json({
       sport: "nhl",
       week: slateWeek,
@@ -294,6 +309,8 @@ router.get("/slate", requireAuth, async (req, res) => {
       sunDate,
       sandboxMode: isSandbox,
       viewingPastPeriod,
+      deadline: poolLockAt?.toISOString() ?? null,
+      deadlinePassed: poolLockAt ? Date.now() >= poolLockAt.getTime() : false,
       games: games.map(g => {
         const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
         return {
@@ -475,6 +492,7 @@ router.get("/grid", requireAuth, async (req, res) => {
     }
     games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const gameMap = new Map(games.map(g => [g.id, g]));
+    const nhlWeekendSlateIsos = games.map((g) => g.date);
 
     const userMap = new Map<number, {
       userId: number; username: string; displayName: string | null;
@@ -491,6 +509,8 @@ router.get("/grid", requireAuth, async (req, res) => {
         sandboxMode: pool.sandboxMode ?? false,
         result: pick.result ?? null,
         game,
+        nhlWeekendSlateIsos,
+        nhlSaturdayEt: date,
       });
       const pickedIsHome = game ? pick.pickedTeamId === game.homeTeam.id : false;
       userMap.get(pick.userId)!.picks.set(pick.gameId, {
@@ -541,14 +561,26 @@ router.get("/grid", requireAuth, async (req, res) => {
         awayScore: g.awayScore ?? null,
         homeScore: g.homeScore ?? null,
       })),
-      players: Array.from(userMap.values()).map(u => ({
-        userId: u.userId,
-        username: u.username,
-        displayName: u.displayName,
-        picks: Object.fromEntries(u.picks.entries()),
-        tiebreakerShotsOnGoalGuess: tbByUser.get(u.userId)?.tiebreakerShotsOnGoal ?? null,
-        tiebreakerPenaltyMinutesGuess: tbByUser.get(u.userId)?.tiebreakerPenaltyMinutes ?? null,
-      })),
+      players: Array.from(userMap.values()).map(u => {
+        const sogGuess = tbByUser.get(u.userId)?.tiebreakerShotsOnGoal ?? null;
+        const pimGuess = tbByUser.get(u.userId)?.tiebreakerPenaltyMinutes ?? null;
+        const tbRevealed = nhlWeekendPoolTiebreakerGuessRevealed({
+          pool: { sport: "nhl", poolType: "crazy_8s", pickFrequency: "weekly", sandboxMode: pool.sandboxMode, isActive: pool.isActive },
+          requesterUserId: userId,
+          rowUserId: u.userId,
+          slateGameStartIsos: nhlWeekendSlateIsos,
+          saturdayEtFallback: date,
+          actualsKnown: tiebreakerActualShotsOnGoal != null,
+        });
+        return {
+          userId: u.userId,
+          username: u.username,
+          displayName: u.displayName,
+          picks: Object.fromEntries(u.picks.entries()),
+          tiebreakerShotsOnGoalGuess: tbRevealed ? sogGuess : null,
+          tiebreakerPenaltyMinutesGuess: tbRevealed ? pimGuess : null,
+        };
+      }),
     });
     return;
   }
@@ -1046,6 +1078,11 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
 
     const selectedGames = picks.map(p => gameMap.get(p.gameId)!);
+    const slateIsos = games.map((g) => g.date);
+    if (!isSandbox && nhlSaturdaySevenPmLockActive(slateIsos, nowMs, satDate)) {
+      res.status(400).json({ error: "Picks are locked — the pool locked Saturday at 7:00 PM ET." });
+      return;
+    }
     // In sandbox mode the anchor games are historical; skip the real-time lock.
     if (!isSandbox && selectedGames.some(game => isCrazyEightsGameStarted(game, nowMs))) {
       res.status(400).json({ error: "Picks are locked — the earliest selected game has already started" });
@@ -1424,17 +1461,24 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     return;
   }
   if (!pool.sandboxMode) {
-    const periodDeadline = pool.sport === "nhl"
-      ? getNhlWeekBounds(
-          anchor,
-          pool.currentWeek,
-          pool.sandboxMode ? null : pool.initialPeriodStart,
-        ).weekEnd
-      : getNbaWeekendBounds(anchor, pool.currentWeek).weekEnd;
     const nowMs = Date.now();
-    if (isCrazyEightsGameStarted(tiebreakerGame, nowMs) || nowMs >= periodDeadline.getTime()) {
+    const nhlLocked = pool.sport === "nhl" && nhlSaturdaySevenPmLockActive(
+      games.map((g) => g.date),
+      nowMs,
+      (await getNhlWeekendSlate(pool)).satDate,
+    );
+    const periodDeadline = pool.sport === "nhl"
+      ? null
+      : getNbaWeekendBounds(anchor, pool.currentWeek).weekEnd;
+    if (
+      isCrazyEightsGameStarted(tiebreakerGame, nowMs) ||
+      nhlLocked ||
+      (periodDeadline != null && nowMs >= periodDeadline.getTime())
+    ) {
       res.status(423).json({
-        error: "Tiebreaker guesses are locked because the current period's tiebreaker game has started or the period deadline has passed.",
+        error: pool.sport === "nhl"
+          ? "Tiebreaker guesses are locked — the pool locked Saturday at 7:00 PM ET."
+          : "Tiebreaker guesses are locked because the current period's tiebreaker game has started or the period deadline has passed.",
       });
       return;
     }

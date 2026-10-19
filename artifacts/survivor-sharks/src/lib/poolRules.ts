@@ -2,6 +2,11 @@ import {
   NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
   nflOfficePoolLockAndVisibilityRules,
 } from "./nflOfficePoolCopy";
+import {
+  nhlWeekendPickemLockAndVisibilityRules,
+  NHL_WEEKEND_REVEAL_SENTENCE,
+  NHL_WEEKEND_SATURDAY_LOCK_SENTENCE,
+} from "./nhlOfficePoolCopy";
 
 export interface PoolRulesSection {
   heading: string;
@@ -104,10 +109,16 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         },
         {
           heading: "Picks and deadlines",
-          items: [
-            "Submit all your picks together before the first game you picked starts.",
-            "Once you submit, your picks are locked in. A second submission is refused.",
-          ],
+          items: isNhlHitTheIce
+            ? [
+                "Submit all your picks together before the first game you picked starts, or before the pool locks — whichever comes first.",
+                NHL_WEEKEND_SATURDAY_LOCK_SENTENCE,
+                "Once you submit, your picks are locked in. A second submission is refused.",
+              ]
+            : [
+                "Submit all your picks together before the first game you picked starts.",
+                "Once you submit, your picks are locked in. A second submission is refused.",
+              ],
         },
         {
           heading: "Scoring or elimination",
@@ -122,6 +133,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             `When you submit, enter one guess for the last game of the weekend: combined ${tiebreakerStat} (both teams).`,
             `If players tie on points, the closest guess wins. If the guess is equally close, the prize is split evenly.`,
+            ...(isNhlHitTheIce ? [NHL_WEEKEND_REVEAL_SENTENCE] : []),
           ],
         },
         {
@@ -156,10 +168,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         },
         {
           heading: "Picks and deadlines",
-          items: [
-            "Each game locks 5 minutes before puck drop. Other games stay open until their own lock.",
-            "Other players can see a pick when that game's puck drop has passed.",
-          ],
+          items: nhlWeekendPickemLockAndVisibilityRules(),
         },
         {
           heading: "Scoring or elimination",
@@ -175,7 +184,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "If picks include Sunday games, you will be asked for combined shots on goal (both teams) on the last game of Sunday's slate.",
             "The closest guess wins; equally close guesses split the prize.",
-            "Other players' guesses stay hidden until that game starts.",
+            "Tiebreaker guesses become visible when the pool locks Saturday at 7:00 PM ET (same moment as everyone's picks).",
           ],
         },
         {

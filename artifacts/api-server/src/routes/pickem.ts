@@ -65,8 +65,16 @@ import { mergeWeeklySoccerLeaderboardAggregates } from "../lib/pickem-leaderboar
 import {
   formatNbaPointsTiebreakerColumnHeader,
   formatNhlSogTiebreakerColumnHeader,
+  isNhlWeeklyPickemPool,
   revealTiebreakerGuessForStandings,
 } from "../lib/nhl-tiebreaker-standings";
+import {
+  isNhlWeekendOfficePool,
+  nhlSaturdaySevenPmLockActive,
+  nhlWeekendPoolGameSubmissionLocked,
+  nhlWeekendPoolOpponentPickRevealed,
+  nhlWeekendPoolTiebreakerGuessRevealed,
+} from "../lib/nhl-slate-reveal";
 import { toTiebreakerMatchupPayload, type TiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import { nflOfficePoolOpponentPickRevealed } from "../lib/nfl-slate-reveal";
@@ -90,9 +98,49 @@ const WC_PICK_LABELS: Record<WcPickOption, string> = {
   away_win: "Away Win",
 };
 
-/** 5-minute pregame lock */
+/** 5-minute pregame lock (non-NHL-weekly pick'em) */
 function isGameLocked(gameStartIso: string): boolean {
   return new Date(gameStartIso).getTime() - 5 * 60 * 1000 <= Date.now();
+}
+
+function isLiveNhlWeeklyPickemPool(pool: typeof poolsTable.$inferSelect): boolean {
+  return isNhlWeeklyPickemPool(pool) && !pool.sandboxMode;
+}
+
+function isPickemSubmissionLocked(
+  pool: typeof poolsTable.$inferSelect,
+  gameStartIso: string,
+  slateGameStartIsos: string[],
+  saturdayEtFallback?: string | null,
+): boolean {
+  if (pool.sandboxMode) return false;
+  if (isLiveNhlWeeklyPickemPool(pool)) {
+    return nhlWeekendPoolGameSubmissionLocked({
+      pool,
+      gameStartIso,
+      slateGameStartIsos,
+      saturdayEtFallback,
+    });
+  }
+  return isGameLocked(gameStartIso);
+}
+
+function nhlWeeklyTiebreakerGuessRevealedForStandings(
+  pool: typeof poolsTable.$inferSelect,
+  requesterUserId: number,
+  rowUserId: number,
+  slateGameStartIsos: string[],
+  actualsKnown: boolean,
+  saturdayEtFallback?: string | null,
+): boolean {
+  return nhlWeekendPoolTiebreakerGuessRevealed({
+    pool,
+    requesterUserId,
+    rowUserId,
+    slateGameStartIsos,
+    saturdayEtFallback,
+    actualsKnown,
+  });
 }
 
 /** Picks become public at the actual scheduled kickoff, not at the submission lock. */
@@ -329,11 +377,27 @@ router.get("/games", requireAuth, async (req, res) => {
   const isSandboxNba = pool.sandboxMode && sport === "nba" && pool.pickFrequency === "weekly";
   const isSandboxWeekly = isSandboxNhl || isSandboxNba;
 
+  let liveNhlWeekendStartIsos: string[] = [];
+  let liveNhlSaturdayEt: string | null = null;
+  if (isLiveNhlWeeklyPickemPool(pool)) {
+    const weekendGames = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
+    liveNhlWeekendStartIsos = weekendGames.map((g) => g.date);
+    liveNhlSaturdayEt =
+      getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null;
+  }
+
   const formattedGames = games.map((g, idx) => {
     const existing = pickMap.get(g.id);
     const sbScore = sandboxScoreMap.get(g.id);
     // In sandbox mode: locked iff the game has been graded (score exists). Otherwise always unlocked.
-    const locked = isSandboxWeekly ? sbScore != null : isGameLocked(g.date);
+    const locked = isSandboxWeekly
+      ? sbScore != null
+      : isPickemSubmissionLocked(pool, g.date, liveNhlWeekendStartIsos, liveNhlSaturdayEt);
     const base = {
       id: g.id,
       startTime: g.date,
@@ -404,6 +468,8 @@ router.get("/games", requireAuth, async (req, res) => {
   const isPastDate = requestedDate < todayEt;
   const slateDeadlinePassed = isSandboxWeekly
     ? games.every(g => sandboxScoreMap.has(g.id))
+    : isLiveNhlWeeklyPickemPool(pool) && liveNhlWeekendStartIsos.length > 0
+      ? nhlSaturdaySevenPmLockActive(liveNhlWeekendStartIsos, undefined, liveNhlSaturdayEt)
     : isAts
     // ATS: slate is only fully locked once EVERY game has started (not just one)
     ? games.length > 0 && games.every((g) => isGameLocked(g.date))
@@ -1094,7 +1160,17 @@ router.post("/picks", requireAuth, async (req, res) => {
       unknownGameIds.push(pick.gameId);
     } else if (isWeeklySoccer && formatDateEtDash(new Date(game.date)) !== pick.gameDate) {
       mismatchedGameDateIds.push(pick.gameId);
-    } else if (!pool.sandboxMode && isGameLocked(game.date)) {
+    } else if (
+      !pool.sandboxMode &&
+      isPickemSubmissionLocked(
+        pool,
+        game.date,
+        isLiveNhlWeekly ? [...gameMap.values()].map((g) => g.date) : [],
+        isLiveNhlWeekly
+          ? getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null
+          : undefined,
+      )
+    ) {
       // Sandbox mode: never lock picks regardless of game start time
       lockedGameIds.push(pick.gameId);
     } else if (is3way && !isThreeWayPickOption(pick.pickedTeamId)) {
@@ -1354,6 +1430,23 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     return;
   }
 
+  if (isNhlWeekly && !pool.sandboxMode) {
+    const weekendGames = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      pool.currentWeek,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
+    const saturdayEt =
+      getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null;
+    if (nhlSaturdaySevenPmLockActive(weekendGames.map((g) => g.date), undefined, saturdayEt)) {
+      res.status(423).json({
+        error: "Tiebreaker guesses are locked — the pool locked Saturday at 7:00 PM ET.",
+      });
+      return;
+    }
+  }
+
   if (isNhlWeekly) {
     await db
       .update(entriesTable)
@@ -1381,10 +1474,27 @@ function isPickRevealed(opts: {
   sandboxMode: boolean;
   result: string | null;
   startTime: string | null | undefined;
-  pool?: { sport: string; poolType: string };
+  pool?: { sport: string; poolType: string; pickFrequency?: string | null };
   slateGameStartIsos?: string[];
+  saturdayEtFallback?: string | null;
 }): boolean {
   if (opts.pool && opts.slateGameStartIsos) {
+    const poolCtx = {
+      sport: opts.pool.sport,
+      poolType: opts.pool.poolType,
+      pickFrequency: opts.pool.pickFrequency,
+      sandboxMode: opts.sandboxMode,
+    };
+    if (isNhlWeekendOfficePool(poolCtx) && opts.pool.poolType === "pickem") {
+      return nhlWeekendPoolOpponentPickRevealed({
+        pool: poolCtx,
+        isOwnPick: opts.isOwnPick,
+        result: opts.result,
+        gameStartIso: opts.startTime,
+        slateGameStartIsos: opts.slateGameStartIsos,
+        saturdayEtFallback: opts.saturdayEtFallback,
+      });
+    }
     return nflOfficePoolOpponentPickRevealed({
       pool: { sport: opts.pool.sport, poolType: opts.pool.poolType, sandboxMode: opts.sandboxMode },
       isOwnPick: opts.isOwnPick,
@@ -2776,6 +2886,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
   const leaderboardSlateStartIsos = [...gameStartMap.values()];
+  const nhlLeaderboardSaturdayEt =
+    isNhl && isWeekly && !pool.sandboxMode
+      ? getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null
+      : null;
 
   let lbRank = 1;
   const tiebreakerActualsKnown = isMlb
@@ -2813,18 +2927,27 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       isAts && tiebreakerActualPoints != null && pointsGuess != null
         ? Math.abs(pointsGuess - tiebreakerActualPoints)
         : null;
-    const kickoffReveal = shouldRevealTiebreakerGuess({
-      requesterUserId: userId,
-      rowUserId: row.userId,
-      poolIsActive: pool.isActive,
-      actualsKnown: tiebreakerActualsKnown,
-      gameStarted: tiebreakerGameStarted,
-    });
-    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, kickoffReveal);
-    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, kickoffReveal);
-    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, kickoffReveal);
-    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, kickoffReveal);
-    const showPoints = revealTiebreakerGuessForStandings(pool, pointsGuess, kickoffReveal);
+    const tiebreakerStandingsReveal = isNhlWeeklyPickemPool(pool)
+      ? nhlWeeklyTiebreakerGuessRevealedForStandings(
+          pool,
+          userId,
+          row.userId,
+          leaderboardSlateStartIsos,
+          tiebreakerActualsKnown,
+          nhlLeaderboardSaturdayEt,
+        )
+      : shouldRevealTiebreakerGuess({
+          requesterUserId: userId,
+          rowUserId: row.userId,
+          poolIsActive: pool.isActive,
+          actualsKnown: tiebreakerActualsKnown,
+          gameStarted: tiebreakerGameStarted,
+        });
+    const showRuns = revealTiebreakerGuessForStandings(pool, runsGuess, tiebreakerStandingsReveal);
+    const showStrikes = revealTiebreakerGuessForStandings(pool, strikesGuess, tiebreakerStandingsReveal);
+    const showShots = revealTiebreakerGuessForStandings(pool, shotsGuess, tiebreakerStandingsReveal);
+    const showPim = revealTiebreakerGuessForStandings(pool, pimGuess, tiebreakerStandingsReveal);
+    const showPoints = revealTiebreakerGuessForStandings(pool, pointsGuess, tiebreakerStandingsReveal);
     return {
       rank: lbRank,
       userId: row.userId,
@@ -2841,6 +2964,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           startTime,
           pool,
           slateGameStartIsos: leaderboardSlateStartIsos,
+          saturdayEtFallback: nhlLeaderboardSaturdayEt,
         });
         if (!revealed) {
           return {

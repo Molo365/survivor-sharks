@@ -9,8 +9,9 @@ import {
 describe("NHL weekly tiebreaker standings visibility", () => {
   const nhlWeekly = { sport: "nhl", poolType: "pickem", pickFrequency: "weekly" };
 
-  it("shows submitted guesses before the tiebreaker game starts", () => {
-    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, false), true);
+  it("hides NHL weekly guesses until pool lock (kickoffReveal gate)", () => {
+    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, false), false);
+    assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, 48, true), true);
     assert.equal(revealTiebreakerGuessForStandings(nhlWeekly, null, true), false);
   });
 
