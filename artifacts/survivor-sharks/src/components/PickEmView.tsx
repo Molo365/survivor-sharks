@@ -42,7 +42,6 @@ import {
   TiebreakerStandingsColumnGuess,
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
-import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -1225,9 +1224,11 @@ interface WeeklyLeaderboardProps {
   weekStart: string;
   weekEnd: string;
   isNbaAts?: boolean;
-  showNhlTiebreakerColumn?: boolean;
+  showTiebreakerColumn?: boolean;
+  tiebreakerSport?: "nhl" | "nba";
   tiebreakerColumnHeader?: string | null;
   tiebreakerActualShotsOnGoal?: number | null;
+  tiebreakerActualPoints?: number | null;
   tiebreakerMatchup?: TiebreakerMatchupGame | null;
 }
 
@@ -1238,9 +1239,11 @@ function WeeklyLeaderboard({
   weekStart,
   weekEnd,
   isNbaAts,
-  showNhlTiebreakerColumn,
+  showTiebreakerColumn,
+  tiebreakerSport = "nhl",
   tiebreakerColumnHeader,
   tiebreakerActualShotsOnGoal,
+  tiebreakerActualPoints,
   tiebreakerMatchup,
 }: WeeklyLeaderboardProps) {
   const todayEt = getTodayEt();
@@ -1264,8 +1267,11 @@ function WeeklyLeaderboard({
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-  const tbCol = showNhlTiebreakerColumn && tiebreakerColumnHeader;
+  const tbCol = showTiebreakerColumn && tiebreakerColumnHeader;
   const minWidth = Math.max(380, 150 + days.length * 40 + 80 + (tbCol ? 92 : 0));
+  const tbActual = tiebreakerSport === "nba" ? tiebreakerActualPoints : tiebreakerActualShotsOnGoal;
+  const tbGuess = (entry: PickEmLeaderboardEntry) =>
+    tiebreakerSport === "nba" ? entry.tiebreakerPointsGuess : entry.tiebreakerShotsOnGoalGuess;
 
   function renderDayControl(
     entry: PickEmLeaderboardEntry,
@@ -1394,7 +1400,7 @@ function WeeklyLeaderboard({
                     {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
                   </div>
                   {tbCol && tiebreakerColumnHeader && (
-                    <TiebreakerStandingsColumnGuess guess={entry.tiebreakerShotsOnGoalGuess} className="min-w-[2.75rem]" />
+                    <TiebreakerStandingsColumnGuess guess={tbGuess(entry)} className="min-w-[2.75rem]" />
                   )}
                 </div>
               </div>
@@ -1439,10 +1445,10 @@ function WeeklyLeaderboard({
                     style={{ width: 92 }}
                   >
                     <TiebreakerStandingsColumnHeader
-                      sport="nhl"
+                      sport={tiebreakerSport}
                       matchup={tiebreakerMatchup}
                       headerFallback={tiebreakerColumnHeader}
-                      actual={tiebreakerActualShotsOnGoal}
+                      actual={tbActual}
                     />
                   </th>
                 )}
@@ -1504,7 +1510,7 @@ function WeeklyLeaderboard({
 
                       {tbCol && (
                         <td className={cn("px-2 py-2.5", rowBg)}>
-                          <TiebreakerStandingsColumnGuess guess={entry.tiebreakerShotsOnGoalGuess} />
+                          <TiebreakerStandingsColumnGuess guess={tbGuess(entry)} />
                         </td>
                       )}
                     </tr>
@@ -1753,7 +1759,9 @@ function PrevWeekResultsModal({
   isNbaAts,
   tiebreakerColumnHeader: defaultTbHeader,
   tiebreakerMatchup: defaultTbMatchup,
-  showNhlTiebreakerColumn,
+  showTiebreakerColumn,
+  tiebreakerSport = "nhl",
+  tiebreakerActualPoints: defaultTbPoints,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1771,7 +1779,9 @@ function PrevWeekResultsModal({
   isNbaAts?: boolean;
   tiebreakerColumnHeader?: string | null;
   tiebreakerMatchup?: TiebreakerMatchupGame | null;
-  showNhlTiebreakerColumn?: boolean;
+  showTiebreakerColumn?: boolean;
+  tiebreakerSport?: "nhl" | "nba";
+  tiebreakerActualPoints?: number | null;
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
@@ -1812,7 +1822,13 @@ function PrevWeekResultsModal({
   const tiebreakerMatchup = isDefaultWeek
     ? (defaultTbMatchup ?? null)
     : ((altWeekData as { tiebreakerMatchup?: TiebreakerMatchupGame })?.tiebreakerMatchup ?? defaultTbMatchup ?? null);
-  const tbCol = showNhlTiebreakerColumn && tiebreakerColumnHeader;
+  const tiebreakerActualPoints = isDefaultWeek
+    ? (defaultTbPoints ?? null)
+    : ((altWeekData as { tiebreakerActualPoints?: number })?.tiebreakerActualPoints ?? defaultTbPoints ?? null);
+  const tbCol = showTiebreakerColumn && tiebreakerColumnHeader;
+  const tbActual = tiebreakerSport === "nba" ? tiebreakerActualPoints : tiebreakerActualShotsOnGoal;
+  const tbGuess = (entry: PickEmLeaderboardEntry) =>
+    tiebreakerSport === "nba" ? entry.tiebreakerPointsGuess : entry.tiebreakerShotsOnGoalGuess;
   const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
 
   const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
@@ -1919,10 +1935,10 @@ function PrevWeekResultsModal({
                           style={{ width: 92 }}
                         >
                           <TiebreakerStandingsColumnHeader
-                            sport="nhl"
+                            sport={tiebreakerSport}
                             matchup={tiebreakerMatchup}
                             headerFallback={tiebreakerColumnHeader}
-                            actual={tiebreakerActualShotsOnGoal}
+                            actual={tbActual}
                           />
                         </th>
                       )}
@@ -2024,7 +2040,7 @@ function PrevWeekResultsModal({
                             </td>
                             {tbCol && (
                               <td className={cn("px-2 py-2.5", rowBg)}>
-                                <TiebreakerStandingsColumnGuess guess={entry.tiebreakerShotsOnGoalGuess} />
+                                <TiebreakerStandingsColumnGuess guess={tbGuess(entry)} />
                               </td>
                             )}
                           </tr>
@@ -2286,6 +2302,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isSandbox = poolDetail?.sandboxMode === true;
   const isLiveNhlWeekly = isNhlWeekly && !isSandbox;
   const isNbaAts = (poolDetail?.poolType as string) === "nba_ats";
+  const isLiveNbaAts = isNbaAts && !isSandbox;
   const { data: nbaAtsPeriodResults = [] } = useNbaAtsPeriodResults(poolId, isNbaAts && isRecurring);
   const weeklyStartsAt = (isMlb || sport === "mls") && isWeekly ? poolDetail?.initialPeriodStart : null;
 
@@ -2336,6 +2353,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   // Tiebreaker dialog state — NHL
   const [showNhlTiebreaker, setShowNhlTiebreaker] = useState(false);
   const [tbShots, setTbShots] = useState("");
+  const [showNbaAtsTiebreaker, setShowNbaAtsTiebreaker] = useState(false);
+  const [tbPoints, setTbPoints] = useState("");
+  const pendingAtsPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>>([]);
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
   const pendingSatPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
   const nhlWeekendPollGamesRef = useRef<PickEmGame[]>([]);
@@ -2516,6 +2536,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     return sorted.at(-1) ?? null;
   }, [isNhlWeekly, sunSlate?.games, nhlWeeklyAllGames]);
 
+  const nbaAtsTiebreakerGame = useMemo(() => {
+    if (!isNbaAts || !slate?.games?.length) return null;
+    const tbId = leaderboard?.games?.find((g) => g.isTiebreakerGame)?.id;
+    if (tbId) {
+      return slate.games.find((g) => g.id === tbId) ?? null;
+    }
+    const sorted = [...slate.games].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    );
+    return sorted.at(-1) ?? null;
+  }, [isNbaAts, leaderboard?.games, slate?.games]);
+
   const nhlLiveBoardGames = useMemo((): PickEmLiveGame[] => {
     if (!isNhlWeekly || !leaderboard?.games?.length) return [];
     const detailById = new Map(nhlWeeklyAllGames.map((g) => [g.id, g]));
@@ -2556,6 +2588,27 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const showNhlTiebreakerPrompt =
     missingNhlTiebreakerGuess && hasSundayPicksSaved && !viewingPastPeriod;
 
+  const currentNbaAtsTiebreakerGuess = isLiveNbaAts
+    ? leaderboard?.entries.find((entry) => entry.userId === user?.id)
+    : undefined;
+  const hasAtsPicksSaved = (slate?.games ?? []).some((g) => g.userPickTeamId);
+  const missingNbaAtsTiebreakerGuess =
+    isLiveNbaAts && (currentNbaAtsTiebreakerGuess?.tiebreakerPointsGuess == null);
+  const showNbaAtsTiebreakerPrompt =
+    missingNbaAtsTiebreakerGuess && hasAtsPicksSaved && !viewingPastPeriod;
+
+  function openNbaAtsTiebreakerDialog(
+    pendingPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>,
+  ) {
+    pendingAtsPicksRef.current = pendingPicks;
+    setTbPoints(
+      currentNbaAtsTiebreakerGuess?.tiebreakerPointsGuess != null
+        ? String(currentNbaAtsTiebreakerGuess.tiebreakerPointsGuess)
+        : "",
+    );
+    setShowNbaAtsTiebreaker(true);
+  }
+
   function openNhlTiebreakerDialog(
     pendingSunPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     pendingSatPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }> = [],
@@ -2576,6 +2629,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     if (!showNhlTiebreakerPrompt || showNhlTiebreaker || !leaderboard) return;
     openNhlTiebreakerDialog([]);
   }, [showNhlTiebreakerPrompt, showNhlTiebreaker, leaderboard]);
+
+  useEffect(() => {
+    if (!showNbaAtsTiebreakerPrompt || showNbaAtsTiebreaker || !leaderboard) return;
+    openNbaAtsTiebreakerDialog([]);
+  }, [showNbaAtsTiebreakerPrompt, showNbaAtsTiebreaker, leaderboard]);
 
   useEffect(() => {
     setLocalPicks(new Map());
@@ -2835,15 +2893,64 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       .filter(Boolean) as Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>;
 
     if (picks.length === 0) {
+      if (showNbaAtsTiebreakerPrompt) {
+        openNbaAtsTiebreakerDialog([]);
+        return;
+      }
       toast({ title: "No open picks to submit", description: "All games may have already started." });
       return;
     }
+
+    if (isLiveNbaAts && missingNbaAtsTiebreakerGuess) {
+      openNbaAtsTiebreakerDialog(picks);
+      return;
+    }
+
     try {
       const res = await submitPicks.mutateAsync({ poolId, data: { picks } });
       toast({ title: "Picks saved!", description: `${res.saved} pick${res.saved !== 1 ? "s" : ""} saved.` });
       void invalidatePoolQueries(queryClient, poolId);
     } catch {
       toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
+    }
+  }
+
+  async function finalizeAtsWithTiebreaker(
+    picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string; gameDate?: string }>,
+    points: number,
+  ): Promise<void> {
+    if (picks.length > 0) {
+      const res = await submitPicks.mutateAsync({
+        poolId,
+        data: { picks, tiebreakerPoints: points },
+      });
+      pendingAtsPicksRef.current = [];
+      toast({
+        title: "Picks saved!",
+        description: `${res.saved} pick${res.saved !== 1 ? "s" : ""} saved with tiebreaker.`,
+      });
+    } else {
+      await saveNbaAtsTiebreakerOnly(points);
+      pendingAtsPicksRef.current = [];
+      toast({ title: "Tiebreaker saved!" });
+    }
+    void invalidatePoolQueries(queryClient, poolId);
+  }
+
+  async function saveNbaAtsTiebreakerOnly(points: number): Promise<void> {
+    const token = localStorage.getItem("auth_token");
+    const res = await fetch(`/api/pools/${poolId}/pickem/tiebreaker`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ tiebreakerPoints: points }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Failed to save tiebreaker");
     }
   }
 
@@ -3052,7 +3159,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         tiebreakerActualPenaltyMinutes={(prevWeekResults as any).tiebreakerActualPenaltyMinutes ?? null}
         tiebreakerColumnHeader={(prevWeekResults as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? null}
         tiebreakerMatchup={(prevWeekResults as { tiebreakerMatchup?: TiebreakerMatchupGame }).tiebreakerMatchup ?? null}
-        showNhlTiebreakerColumn={isNhl && isWeekly}
+        showTiebreakerColumn={(isNhl && isWeekly) || isNbaAts}
+        tiebreakerSport={isNbaAts ? "nba" : "nhl"}
+        tiebreakerActualPoints={(prevWeekResults as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? null}
       />
     )}
     {/* MLB Tiebreaker Dialog */}
@@ -3219,6 +3328,97 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             {pendingPicksRef.current.length === 0 && pendingSatPicksRef.current.length === 0
               ? "Save Tiebreaker"
               : "Submit Picks"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* NBA Pick'em tiebreaker dialog */}
+    <Dialog open={showNbaAtsTiebreaker} onOpenChange={(open) => { if (!open) setShowNbaAtsTiebreaker(false); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <TiebreakerGuessDialogTitle />
+          <TiebreakerGuessDescription
+            game={
+              nbaAtsTiebreakerGame
+                ? {
+                    awayTeam: {
+                      name: nbaAtsTiebreakerGame.awayTeam.name,
+                      logoUrl: nbaAtsTiebreakerGame.awayTeam.logoUrl,
+                    },
+                    homeTeam: {
+                      name: nbaAtsTiebreakerGame.homeTeam.name,
+                      logoUrl: nbaAtsTiebreakerGame.homeTeam.logoUrl,
+                    },
+                    startTime: nbaAtsTiebreakerGame.startTime,
+                  }
+                : null
+            }
+          >
+            <span className="block">
+              Live weekend picks need a tiebreaker guess on the last game of the Fri–Sun slate.
+            </span>
+            <span className="block">
+              Guess <strong className="text-foreground">combined points</strong> (both teams) for this game. Closest guess wins; same distance splits the prize.
+            </span>
+          </TiebreakerGuessDescription>
+        </DialogHeader>
+        <TiebreakerMatchupLogoStrip
+          tone="yellow"
+          game={
+            nbaAtsTiebreakerGame
+              ? {
+                  awayTeam: {
+                    name: nbaAtsTiebreakerGame.awayTeam.name,
+                    logoUrl: nbaAtsTiebreakerGame.awayTeam.logoUrl,
+                  },
+                  homeTeam: {
+                    name: nbaAtsTiebreakerGame.homeTeam.name,
+                    logoUrl: nbaAtsTiebreakerGame.homeTeam.logoUrl,
+                  },
+                  startTime: nbaAtsTiebreakerGame.startTime,
+                }
+              : null
+          }
+        />
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <TiebreakerFieldLabel>Combined Points — Tiebreaker Game</TiebreakerFieldLabel>
+            <Input
+              type="number"
+              min={0}
+              placeholder="e.g. 224"
+              value={tbPoints}
+              onChange={(e) => setTbPoints(e.target.value)}
+              className="text-lg font-mono h-12"
+              autoFocus
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex flex-row gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowNbaAtsTiebreaker(false)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 font-bebas text-xl tracking-widest"
+            onClick={() => {
+              const points = parseInt(tbPoints, 10);
+              if (isNaN(points) || points < 0) {
+                toast({ variant: "destructive", title: "Enter valid guess", description: "Combined points must be ≥ 0." });
+                return;
+              }
+              setShowNbaAtsTiebreaker(false);
+              const pending = pendingAtsPicksRef.current;
+              void finalizeAtsWithTiebreaker(pending, points).catch((e: Error) => {
+                toast({
+                  variant: "destructive",
+                  title: "Failed to save picks",
+                  description: e.message || "Please try again.",
+                });
+              });
+            }}
+          >
+            {pendingAtsPicksRef.current.length === 0 ? "Save Tiebreaker" : "Submit Picks"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -3816,20 +4016,22 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     <p className="text-muted-foreground">Results are final.</p>
                   </div>
                   {leaderboard && leaderboard.entries.length > 0 && (() => {
-                    // Determine actual winner(s) using margin-of-victory as tiebreaker.
-                    // Entries are sorted correct DESC by the API; topPlayers share the max.
                     const maxCorrect = leaderboard.entries[0]?.correct ?? 0;
-                    const topPlayers = leaderboard.entries.filter(e => e.correct === maxCorrect);
-                    const hasMarginData = topPlayers.some(e => (e as any).atsTiebreakerMargin != null);
+                    const topPlayers = leaderboard.entries.filter((e) => e.correct === maxCorrect);
+                    const hasPtsData = topPlayers.some((e) => e.tiebreakerPointsDiff != null);
 
                     let actualWinners = topPlayers;
                     let tiebreakerWasUsed = false;
 
-                    if (hasMarginData && topPlayers.length > 1) {
-                      const maxMargin = Math.max(...topPlayers.map(e => (e as any).atsTiebreakerMargin ?? 0));
-                      const marginWinners = topPlayers.filter(e => ((e as any).atsTiebreakerMargin ?? 0) === maxMargin);
-                      tiebreakerWasUsed = marginWinners.length < topPlayers.length;
-                      if (tiebreakerWasUsed) actualWinners = marginWinners;
+                    if (hasPtsData && topPlayers.length > 1) {
+                      const minDiff = Math.min(
+                        ...topPlayers.map((e) => e.tiebreakerPointsDiff ?? Infinity),
+                      );
+                      const ptsWinners = topPlayers.filter(
+                        (e) => (e.tiebreakerPointsDiff ?? Infinity) === minDiff,
+                      );
+                      tiebreakerWasUsed = ptsWinners.length < topPlayers.length;
+                      if (tiebreakerWasUsed) actualWinners = ptsWinners;
                     }
 
                     return (
@@ -3851,18 +4053,20 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         {/* Tiebreaker breakdown — shown only when margin resolved a tied correct count */}
                         {tiebreakerWasUsed && (
                           <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-5 py-4">
-                            <p className="text-sky-400/80 font-bebas text-sm tracking-wider mb-3 uppercase">Tiebreaker — Margin of Victory</p>
+                            <p className="text-sky-400/80 font-bebas text-sm tracking-wider mb-3 uppercase">Tiebreaker — Combined Points Guess</p>
                             <div className="space-y-1">
                               {topPlayers
                                 .slice()
-                                .sort((a, b) => ((b as any).atsTiebreakerMargin ?? 0) - ((a as any).atsTiebreakerMargin ?? 0))
+                                .sort((a, b) => (a.tiebreakerPointsDiff ?? Infinity) - (b.tiebreakerPointsDiff ?? Infinity))
                                 .map((e) => {
-                                  const margin: number = (e as any).atsTiebreakerMargin ?? 0;
-                                  const isWinner = actualWinners.some(w => w.userId === e.userId);
+                                  const isWinner = actualWinners.some((w) => w.userId === e.userId);
                                   return (
                                     <div key={e.userId} className={cn("flex items-center justify-between text-sm", isWinner ? "text-foreground font-medium" : "text-muted-foreground")}>
                                       <span>{e.displayName || e.username}{e.userId === user?.id ? " (you)" : ""}</span>
-                                      <span className="font-mono tabular-nums">{margin} pts total margin</span>
+                                      <span className="font-mono tabular-nums">
+                                        guess {e.tiebreakerPointsGuess ?? "—"}
+                                        {e.tiebreakerPointsDiff != null ? ` · off by ${e.tiebreakerPointsDiff}` : ""}
+                                      </span>
                                     </div>
                                   );
                                 })}
@@ -3873,7 +4077,6 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         <div className="rounded-xl border border-border/40 overflow-hidden">
                           {leaderboard.entries.map((entry, idx) => {
                             const isMe = entry.userId === user?.id;
-                            const margin: number | undefined = (entry as any).atsTiebreakerMargin;
                             return (
                               <div
                                 key={entry.userId}
@@ -3897,8 +4100,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                                   {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                                 </span>
                                 <span className="shrink-0 text-right">
-                                  {tiebreakerWasUsed && margin != null && entry.correct === maxCorrect && (
-                                    <span className="font-mono text-xs text-sky-400/70 mr-2 tabular-nums">{margin}pts</span>
+                                  {tiebreakerWasUsed && entry.correct === maxCorrect && entry.tiebreakerPointsGuess != null && (
+                                    <span className="font-mono text-xs text-sky-400/70 mr-2 tabular-nums">
+                                      TB {entry.tiebreakerPointsGuess}
+                                    </span>
                                   )}
                                   <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
                                   <span className="font-bebas text-xl text-muted-foreground/40">/{entry.picked}</span>
@@ -3982,10 +4187,12 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       </div>
                     ))}
                   </div>
-                  {openGames.length > 0 && (
+                  {(openGames.length > 0 || showNbaAtsTiebreakerPrompt) && (
                     <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                       <p className="text-sm text-muted-foreground">
-                        {pendingPickCount > 0 ? (
+                        {showNbaAtsTiebreakerPrompt && openGames.length === 0 ? (
+                          <span className="text-yellow-400/80">Add your tiebreaker guess for this weekend</span>
+                        ) : pendingPickCount > 0 ? (
                           <span className="text-yellow-400/80">
                             {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
                           </span>
@@ -3997,11 +4204,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       </p>
                       <Button
                         onClick={handleSubmit}
-                        disabled={submitPicks.isPending || localPicks.size === 0}
+                        disabled={submitPicks.isPending || (localPicks.size === 0 && !showNbaAtsTiebreakerPrompt)}
                         className="font-bebas text-xl tracking-widest px-8 h-12"
                       >
                         {submitPicks.isPending ? (
                           <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                        ) : showNbaAtsTiebreakerPrompt && openGames.length === 0 ? (
+                          "Save Tiebreaker"
                         ) : (
                           "Submit Picks"
                         )}
@@ -4355,9 +4564,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 weekStart={leaderboard.weekStart}
                 weekEnd={leaderboard.weekEnd}
                 isNbaAts={isNbaAts}
-                showNhlTiebreakerColumn={isNhl && isWeekly}
+                showTiebreakerColumn={(isNhl && isWeekly) || isNbaAts}
+                tiebreakerSport={isNbaAts ? "nba" : "nhl"}
                 tiebreakerColumnHeader={(leaderboard as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? null}
                 tiebreakerActualShotsOnGoal={leaderboard.tiebreakerActualShotsOnGoal ?? null}
+                tiebreakerActualPoints={(leaderboard as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? null}
                 tiebreakerMatchup={(leaderboard as { tiebreakerMatchup?: TiebreakerMatchupGame }).tiebreakerMatchup ?? null}
               />
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (

@@ -5076,12 +5076,9 @@ export async function processPickEmResults(): Promise<{
         }
       }
 
-      // Build the game-score map for the margin tiebreaker while checking for
-      // unfinished games. Both concerns use the same fetchGamesForDate calls so
-      // we merge them into one loop; nbaGameScoreMap is only used if we don't
-      // hit an unfinished game (i.e. if we reach the closure logic below).
-      const nbaGameScoreMap = new Map<string, number>(); // gameId → |homeScore - awayScore|
+      // Check for unfinished games and resolve combined points on the last weekend game.
       let nbaHasUnfinished = false;
+      let nbaTiebreakerLastGame: Awaited<ReturnType<typeof fetchGamesForDate>>[number] | null = null;
       for (const [espnDate, gameIds] of nbaGameIdsByDate) {
         if (nbaHasUnfinished) break;
         const gamesOnDate = await fetchGamesForDate("nba", espnDate);
@@ -5092,7 +5089,12 @@ export async function processPickEmResults(): Promise<{
             break;
           }
           if (g.isCompleted && g.homeScore != null && g.awayScore != null) {
-            nbaGameScoreMap.set(g.id, Math.abs(g.homeScore - g.awayScore));
+            if (
+              !nbaTiebreakerLastGame
+              || new Date(g.date).getTime() > new Date(nbaTiebreakerLastGame.date).getTime()
+            ) {
+              nbaTiebreakerLastGame = g;
+            }
           }
         }
       }
@@ -5105,11 +5107,19 @@ export async function processPickEmResults(): Promise<{
         continue;
       }
 
-      // 2. Rank players for the week (correct ATS count + margin tiebreaker).
+      let actualCombinedPoints: number | null = null;
+      if (nbaTiebreakerLastGame) {
+        const stats = await fetchNbaTiebreakerStats(nbaTiebreakerLastGame.id);
+        actualCombinedPoints =
+          stats.totalPoints ??
+          ((nbaTiebreakerLastGame.homeScore ?? 0) + (nbaTiebreakerLastGame.awayScore ?? 0));
+      }
+
+      // 2. Rank players for the week (correct ATS count + closest combined-points guess).
       const { groups, totalParticipants } = await computeNbaAtsWeeklyLeaderGroups(
         pool.id,
         pool.currentWeek,
-        nbaGameScoreMap,
+        actualCombinedPoints,
       );
       const totalEntries = totalParticipants;
       if (totalEntries === 0) continue;

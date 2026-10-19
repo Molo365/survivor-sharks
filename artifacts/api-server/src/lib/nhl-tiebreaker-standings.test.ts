@@ -20,8 +20,18 @@ describe("NHL weekly tiebreaker standings visibility", () => {
     assert.equal(revealTiebreakerGuessForStandings(mlbWeekly, 10, true), true);
   });
 
+  it("shows NBA Pick'em guesses before the tiebreaker game starts", () => {
+    const nbaAts = { sport: "nba", poolType: "nba_ats", pickFrequency: "weekly" };
+    assert.equal(revealTiebreakerGuessForStandings(nbaAts, 218, false), true);
+  });
+
   it("formats the standings column header with actual or TBD", () => {
     assert.equal(formatNhlSogTiebreakerColumnHeader("BUF", "TOR", 52), "BUF/TOR SOG (52)");
     assert.equal(formatNhlSogTiebreakerColumnHeader("BUF", "TOR", null), "BUF/TOR SOG (TBD)");
+  });
+
+  it("formats NBA Fast Break PTS column header", () => {
+    assert.equal(formatNbaPointsTiebreakerColumnHeader("LAL", "BOS", 224), "LAL/BOS PTS (224)");
+    assert.equal(formatNbaPointsTiebreakerColumnHeader("LAL", "BOS", null), "LAL/BOS PTS (TBD)");
   });
 });

@@ -6,14 +6,18 @@ export function isNhlWeeklyPickemPool(pool: {
   return pool.sport === "nhl" && pool.poolType === "pickem" && pool.pickFrequency === "weekly";
 }
 
-/** Standings: NHL weekly shows every submitted guess (office-pool style). */
+export function isNbaAtsPickemPool(pool: { poolType: string }): boolean {
+  return pool.poolType === "nba_ats";
+}
+
+/** Standings: NHL weekly + NBA Pick'em show every submitted guess (office-pool style). */
 export function revealTiebreakerGuessForStandings(
   pool: { sport: string; poolType: string; pickFrequency: string },
   guess: number | null,
   kickoffReveal: boolean,
 ): boolean {
   if (guess == null) return false;
-  if (isNhlWeeklyPickemPool(pool)) return true;
+  if (isNhlWeeklyPickemPool(pool) || isNbaAtsPickemPool(pool)) return true;
   return kickoffReveal;
 }
 

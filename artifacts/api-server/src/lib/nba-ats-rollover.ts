@@ -55,14 +55,13 @@ function isEligiblePool(pool: NbaAtsRolloverPool): boolean {
     && (pool.pickFrequency == null || pool.pickFrequency === "weekly");
 }
 
-function buildNbaAtsGameScoreMap(weekendGames: EspnGame[]): Map<string, number> {
-  const gameScoreMap = new Map<string, number>();
-  for (const game of weekendGames) {
-    if (game.isCompleted && game.homeScore != null && game.awayScore != null) {
-      gameScoreMap.set(game.id, Math.abs(game.homeScore - game.awayScore));
-    }
-  }
-  return gameScoreMap;
+function lastWeekendCombinedPoints(weekendGames: EspnGame[]): number | null {
+  const completed = weekendGames
+    .filter((g) => g.isCompleted && g.homeScore != null && g.awayScore != null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const last = completed.at(-1);
+  if (!last) return null;
+  return (last.homeScore ?? 0) + (last.awayScore ?? 0);
 }
 
 /** Settle completed live NBA ATS weekends (period payout row) and advance currentWeek. */
@@ -149,11 +148,11 @@ export async function advanceRecurringNbaAtsPools({
         continue;
       }
 
-      const gameScoreMap = buildNbaAtsGameScoreMap(weekendGames);
+      const actualCombinedPoints = lastWeekendCombinedPoints(weekendGames);
       const { groups } = await computeNbaAtsWeeklyLeaderGroups(
         pool.id,
         pool.currentWeek,
-        gameScoreMap,
+        actualCombinedPoints,
       );
       const reason = nbaAtsWeeklyPeriodReason(groups);
       const settled = await store.recordPeriodAndAdvance(pool, groups, reason);
