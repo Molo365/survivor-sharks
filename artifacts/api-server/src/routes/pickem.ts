@@ -75,6 +75,13 @@ import {
   nhlWeekendPoolOpponentPickRevealed,
   nhlWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nhl-slate-reveal";
+import {
+  isNbaWeekendOfficePool,
+  nbaSundayOnePmLockActive,
+  nbaWeekendPoolGameSubmissionLocked,
+  nbaWeekendPoolOpponentPickRevealed,
+  nbaWeekendPoolTiebreakerGuessRevealed,
+} from "../lib/nba-slate-reveal";
 import { toTiebreakerMatchupPayload, type TiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNbaAtsSpreads } from "../lib/nba-ats-spreads";
 import { nflOfficePoolOpponentPickRevealed } from "../lib/nfl-slate-reveal";
@@ -107,11 +114,15 @@ function isLiveNhlWeeklyPickemPool(pool: typeof poolsTable.$inferSelect): boolea
   return isNhlWeeklyPickemPool(pool) && !pool.sandboxMode;
 }
 
+function isLiveNbaAtsPool(pool: typeof poolsTable.$inferSelect): boolean {
+  return (pool.poolType as string) === "nba_ats" && !pool.sandboxMode;
+}
+
 function isPickemSubmissionLocked(
   pool: typeof poolsTable.$inferSelect,
   gameStartIso: string,
   slateGameStartIsos: string[],
-  saturdayEtFallback?: string | null,
+  weekendAnchorEtFallback?: string | null,
 ): boolean {
   if (pool.sandboxMode) return false;
   if (isLiveNhlWeeklyPickemPool(pool)) {
@@ -119,7 +130,15 @@ function isPickemSubmissionLocked(
       pool,
       gameStartIso,
       slateGameStartIsos,
-      saturdayEtFallback,
+      saturdayEtFallback: weekendAnchorEtFallback,
+    });
+  }
+  if (isLiveNbaAtsPool(pool)) {
+    return nbaWeekendPoolGameSubmissionLocked({
+      pool,
+      gameStartIso,
+      slateGameStartIsos,
+      sundayEtFallback: weekendAnchorEtFallback,
     });
   }
   return isGameLocked(gameStartIso);
@@ -139,6 +158,24 @@ function nhlWeeklyTiebreakerGuessRevealedForStandings(
     rowUserId,
     slateGameStartIsos,
     saturdayEtFallback,
+    actualsKnown,
+  });
+}
+
+function nbaAtsTiebreakerGuessRevealedForStandings(
+  pool: typeof poolsTable.$inferSelect,
+  requesterUserId: number,
+  rowUserId: number,
+  slateGameStartIsos: string[],
+  actualsKnown: boolean,
+  sundayEtFallback?: string | null,
+): boolean {
+  return nbaWeekendPoolTiebreakerGuessRevealed({
+    pool,
+    requesterUserId,
+    rowUserId,
+    slateGameStartIsos,
+    sundayEtFallback,
     actualsKnown,
   });
 }
@@ -391,13 +428,25 @@ router.get("/games", requireAuth, async (req, res) => {
       getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null;
   }
 
+  let liveNbaAtsWeekendStartIsos: string[] = [];
+  let liveNbaAtsSundayEt: string | null = null;
+  if (isLiveNbaAtsPool(pool) && isAts) {
+    const { espnDates, days } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
+    const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
+    liveNbaAtsWeekendStartIsos = weekendGames.map((g) => g.date);
+    liveNbaAtsSundayEt = days.at(-1) ?? null;
+  }
+  const liveWeekendSlateIsos =
+    liveNhlWeekendStartIsos.length > 0 ? liveNhlWeekendStartIsos : liveNbaAtsWeekendStartIsos;
+  const liveWeekendAnchorEt = liveNhlSaturdayEt ?? liveNbaAtsSundayEt;
+
   const formattedGames = games.map((g, idx) => {
     const existing = pickMap.get(g.id);
     const sbScore = sandboxScoreMap.get(g.id);
     // In sandbox mode: locked iff the game has been graded (score exists). Otherwise always unlocked.
     const locked = isSandboxWeekly
       ? sbScore != null
-      : isPickemSubmissionLocked(pool, g.date, liveNhlWeekendStartIsos, liveNhlSaturdayEt);
+      : isPickemSubmissionLocked(pool, g.date, liveWeekendSlateIsos, liveWeekendAnchorEt);
     const base = {
       id: g.id,
       startTime: g.date,
@@ -470,9 +519,12 @@ router.get("/games", requireAuth, async (req, res) => {
     ? games.every(g => sandboxScoreMap.has(g.id))
     : isLiveNhlWeeklyPickemPool(pool) && liveNhlWeekendStartIsos.length > 0
       ? nhlSaturdaySevenPmLockActive(liveNhlWeekendStartIsos, undefined, liveNhlSaturdayEt)
-    : isAts
-    // ATS: slate is only fully locked once EVERY game has started (not just one)
-    ? games.length > 0 && games.every((g) => isGameLocked(g.date))
+    : isAts && !pool.sandboxMode && games.length > 0
+      ? nbaSundayOnePmLockActive(
+          games.map((g) => g.date),
+          undefined,
+          getNbaAtsSlateBoundsForPool(pool, pool.currentWeek).days.at(-1) ?? null,
+        )
     : isPastDate || (games.length > 0 && games.some((g) => isGameLocked(g.date)));
 
   // Format the label from the requested date (not always "today")
@@ -1165,10 +1217,12 @@ router.post("/picks", requireAuth, async (req, res) => {
       isPickemSubmissionLocked(
         pool,
         game.date,
-        isLiveNhlWeekly ? [...gameMap.values()].map((g) => g.date) : [],
+        isLiveNhlWeekly || isLiveNbaAts ? [...gameMap.values()].map((g) => g.date) : [],
         isLiveNhlWeekly
           ? getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null
-          : undefined,
+          : isLiveNbaAts
+            ? getNbaAtsSlateBoundsForPool(pool, pool.currentWeek).days.at(-1) ?? null
+            : undefined,
       )
     ) {
       // Sandbox mode: never lock picks regardless of game start time
@@ -1456,6 +1510,19 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     return;
   }
 
+  if (isNbaAtsPool && !pool.sandboxMode) {
+    const { espnDates, days } = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
+    const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
+    const weekendGames = results.flat();
+    const sundayEt = days.at(-1) ?? null;
+    if (nbaSundayOnePmLockActive(weekendGames.map((g) => g.date), undefined, sundayEt)) {
+      res.status(423).json({
+        error: "Tiebreaker guesses are locked — the pool locked Sunday at 1:00 PM ET.",
+      });
+      return;
+    }
+  }
+
   await db
     .update(entriesTable)
     .set({ tiebreakerPoints: tiebreakerPoints as number })
@@ -1477,6 +1544,7 @@ function isPickRevealed(opts: {
   pool?: { sport: string; poolType: string; pickFrequency?: string | null };
   slateGameStartIsos?: string[];
   saturdayEtFallback?: string | null;
+  sundayEtFallback?: string | null;
 }): boolean {
   if (opts.pool && opts.slateGameStartIsos) {
     const poolCtx = {
@@ -1493,6 +1561,16 @@ function isPickRevealed(opts: {
         gameStartIso: opts.startTime,
         slateGameStartIsos: opts.slateGameStartIsos,
         saturdayEtFallback: opts.saturdayEtFallback,
+      });
+    }
+    if (isNbaWeekendOfficePool(poolCtx) && opts.pool.poolType === "nba_ats") {
+      return nbaWeekendPoolOpponentPickRevealed({
+        pool: poolCtx,
+        isOwnPick: opts.isOwnPick,
+        result: opts.result,
+        gameStartIso: opts.startTime,
+        slateGameStartIsos: opts.slateGameStartIsos,
+        sundayEtFallback: opts.sundayEtFallback ?? opts.saturdayEtFallback,
       });
     }
     return nflOfficePoolOpponentPickRevealed({
@@ -2890,6 +2968,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     isNhl && isWeekly && !pool.sandboxMode
       ? getNhlWeekBounds(pool.createdAt, pool.currentWeek, pool.initialPeriodStart).days[0] ?? null
       : null;
+  const nbaAtsLeaderboardSundayEt =
+    isAts && isWeekly && !pool.sandboxMode
+      ? getNbaAtsSlateBoundsForPool(pool, pool.currentWeek).days.at(-1) ?? null
+      : null;
 
   let lbRank = 1;
   const tiebreakerActualsKnown = isMlb
@@ -2936,6 +3018,15 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           tiebreakerActualsKnown,
           nhlLeaderboardSaturdayEt,
         )
+      : isAts
+        ? nbaAtsTiebreakerGuessRevealedForStandings(
+            pool,
+            userId,
+            row.userId,
+            leaderboardSlateStartIsos,
+            tiebreakerActualsKnown,
+            nbaAtsLeaderboardSundayEt,
+          )
       : shouldRevealTiebreakerGuess({
           requesterUserId: userId,
           rowUserId: row.userId,
@@ -2965,6 +3056,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           pool,
           slateGameStartIsos: leaderboardSlateStartIsos,
           saturdayEtFallback: nhlLeaderboardSaturdayEt,
+          sundayEtFallback: nbaAtsLeaderboardSundayEt,
         });
         if (!revealed) {
           return {

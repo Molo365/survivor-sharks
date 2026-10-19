@@ -10,14 +10,13 @@ export function isNbaAtsPickemPool(pool: { poolType: string }): boolean {
   return pool.poolType === "nba_ats";
 }
 
-/** Standings: NHL weekly reveals at Saturday 7 PM pool lock; NBA ATS shows early (office style). */
+/** Standings: reveal when kickoffReveal is true (office pool lock or game started). */
 export function revealTiebreakerGuessForStandings(
   pool: { sport: string; poolType: string; pickFrequency: string },
   guess: number | null,
   kickoffReveal: boolean,
 ): boolean {
   if (guess == null) return false;
-  if (isNbaAtsPickemPool(pool)) return true;
   return kickoffReveal;
 }
 

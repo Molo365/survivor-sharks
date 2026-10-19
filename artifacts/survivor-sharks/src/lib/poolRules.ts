@@ -7,6 +7,11 @@ import {
   NHL_WEEKEND_REVEAL_SENTENCE,
   NHL_WEEKEND_SATURDAY_LOCK_SENTENCE,
 } from "./nhlOfficePoolCopy";
+import {
+  nbaWeekendAtsLockAndVisibilityRules,
+  NBA_WEEKEND_REVEAL_SENTENCE,
+  NBA_WEEKEND_SUNDAY_LOCK_SENTENCE,
+} from "./nbaOfficePoolCopy";
 
 export interface PoolRulesSection {
   heading: string;
@@ -91,6 +96,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
   const isNhlSurvivorSeason = pool.sport === "nhl" && pool.poolType === "season";
   const isNhlHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nhl";
   const isNbaHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nba";
+  const isNbaAts = pool.sport === "nba" && pool.poolType === "nba_ats";
 
   if (isNhlHitTheIce || isNbaHitTheIce) {
     const sportName = isNhlHitTheIce ? "NHL" : "NBA";
@@ -116,7 +122,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
                 "Once you submit, your picks are locked in. A second submission is refused.",
               ]
             : [
-                "Submit all your picks together before the first game you picked starts.",
+                "Submit all your picks together before the first game you picked starts, or before the pool locks — whichever comes first.",
+                NBA_WEEKEND_SUNDAY_LOCK_SENTENCE,
                 "Once you submit, your picks are locked in. A second submission is refused.",
               ],
         },
@@ -134,6 +141,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             `When you submit, enter one guess for the last game of the weekend: combined ${tiebreakerStat} (both teams).`,
             `If players tie on points, the closest guess wins. If the guess is equally close, the prize is split evenly.`,
             ...(isNhlHitTheIce ? [NHL_WEEKEND_REVEAL_SENTENCE] : []),
+            ...(isNbaHitTheIce ? [NBA_WEEKEND_REVEAL_SENTENCE] : []),
           ],
         },
         {
@@ -142,6 +150,48 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
             "Your tiebreaker guesses reset each weekend.",
             "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: [
+            ...prizeItems(pool),
+            "Prizes are worked out for each weekend.",
+          ],
+        },
+      ],
+    };
+  }
+
+  if (isNbaAts) {
+    return {
+      title: "NBA Pick'em (ATS) Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Each Fri–Sun weekend, pick against the spread for every game on the slate when lines are posted.",
+            "Most correct covers wins the weekend prize.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: nbaWeekendAtsLockAndVisibilityRules(),
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "Each correct cover earns one point.",
+            "The player with the most correct covers finishes first.",
+            "A postponed game is marked postponed and does not add a point.",
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            "Enter combined points (both teams) for the last game on the weekend slate.",
+            "The closest guess wins; equally close guesses split the prize.",
+            `Tiebreaker guesses become visible when the pool locks Sunday at 1:00 PM ET (same moment as everyone's picks).`,
           ],
         },
         {
