@@ -48,6 +48,10 @@ import { PoolRulesSheet } from "@/components/PoolRulesSheet";
 import { PoolMemberIdentityProvider, PoolParticipantsTrigger } from "@/components/PoolMemberIdentity";
 import { SPORT_LABELS } from "@/lib/sport-branding";
 import { getPoolRules } from "@/lib/poolRules";
+import {
+  isNflOfficePoolHeaderPool,
+  NFL_OFFICE_POOL_HEADER_HINT,
+} from "@/lib/nflOfficePoolCopy";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
 import { cn } from "@/lib/utils";
@@ -446,6 +450,11 @@ export default function PoolHome() {
                     )}
                   </span>
                 </div>
+                {isNflOfficePoolHeaderPool(pool.sport, String(pool.poolType)) && (
+                  <p className="mt-2 max-w-3xl text-sm font-normal normal-case leading-snug tracking-normal text-muted-foreground">
+                    {NFL_OFFICE_POOL_HEADER_HINT}
+                  </p>
+                )}
               </div>
               {/* Full stat boxes — desktop only */}
               <div className="hidden md:flex gap-4 shrink-0">

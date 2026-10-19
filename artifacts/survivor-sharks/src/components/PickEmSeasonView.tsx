@@ -1999,10 +1999,9 @@ export function PickEmSeasonView({
               >
                 <p>
                   Pick the winner of every NFL game each week. Points accumulate all season — whoever has
-                  the most correct picks after Week 18 wins. Each game locks at kickoff. At 1:00 PM ET on
-                  the week&apos;s main Sunday, everyone&apos;s picks for that week become visible (including
-                  Monday night). In Week 18, enter a combined passing-yards tiebreaker on the last game to
-                  settle any ties. Good luck! 🦈🏈
+                  the most correct picks after Week 18 wins. Lock and visibility follow the weekly slate
+                  note on the pool header. In Week 18, enter a combined passing-yards tiebreaker on the
+                  last game to settle any ties. Good luck! 🦈🏈
                 </p>
               </PickEmWelcomePanel>
 
