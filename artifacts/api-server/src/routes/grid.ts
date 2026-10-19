@@ -4,6 +4,7 @@ import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db"
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
+import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
 
 const router = Router({ mergeParams: true });
@@ -61,14 +62,18 @@ router.get("/", requireAuth, async (req, res) => {
         : 1;
 
   const weekLabels: Record<string, string> = {};
-  if (pool.sport === "nhl" && pool.poolType === "season") {
+  if (pool.poolType === "season") {
     for (const w of weeks) {
-      weekLabels[String(w)] = nhlSurvivorWeekLabel(
-        pool.createdAt,
-        w,
-        pool.initialPeriodStart,
-        pool.sandboxMode,
-      );
+      if (pool.sport === "nhl") {
+        weekLabels[String(w)] = nhlSurvivorWeekLabel(
+          pool.createdAt,
+          w,
+          pool.initialPeriodStart,
+          pool.sandboxMode,
+        );
+      } else if (pool.sport === "nba") {
+        weekLabels[String(w)] = nbaSurvivorWeekLabel(pool.createdAt, w, pool.sandboxMode);
+      }
     }
   }
 

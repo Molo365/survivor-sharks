@@ -739,6 +739,8 @@ export function MatchupPickGrid({
   }
 
   const isNhlSurvivorSeason = sport === "nhl" && poolType === "season";
+  const isNbaSurvivorSeason = sport === "nba" && poolType === "season";
+  const isDateLabeledSurvivor = isNhlSurvivorSeason || isNbaSurvivorSeason;
 
   // Compute which teams are exhausted (picked in any prior week, excluding the
   // current week) so MatchupCard grays them out. Each team can only be used once.
@@ -982,7 +984,7 @@ export function MatchupPickGrid({
     ? scheduleDays.filter(d => new Date(d.date + "T12:00:00Z").getUTCDay() === 6)
     : scheduleDays;
 
-  const survivorPeriodLabel = isNhlSurvivorSeason
+  const survivorPeriodLabel = isDateLabeledSurvivor
     ? (schedule?.weekLabel ?? "")
     : `Week ${currentWeek}`;
 
@@ -1070,7 +1072,7 @@ export function MatchupPickGrid({
       {/* Week heading */}
       <div className="flex items-center gap-3">
         <h2 className="font-bebas text-2xl tracking-wide text-muted-foreground/70 uppercase">
-          {isNhlSurvivorSeason ? `${survivorPeriodLabel} Matchups` : `Week ${currentWeek} Matchups`}
+          {isDateLabeledSurvivor ? `${survivorPeriodLabel} Matchups` : `Week ${currentWeek} Matchups`}
         </h2>
         <div className="flex-1 h-px bg-border/40" />
         <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">

@@ -22,6 +22,7 @@ import {
   type EspnGame,
 } from "../lib/espn";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
+import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
 
 const router = Router({ mergeParams: true });
@@ -464,8 +465,12 @@ router.get("/", requireAuth, async (req, res) => {
       return { date: dateStr, label, games };
     });
 
+    const sandboxWeekLabel = pool.poolType === "season"
+      ? `${nbaSurvivorWeekLabel(pool.createdAt, week, true)} — Sandbox`
+      : `${bounds.weekLabel} — Sandbox`;
+
     res.json({
-      weekLabel: `${bounds.weekLabel} — Sandbox`,
+      weekLabel: sandboxWeekLabel,
       weekStart: bounds.weekStart.toISOString(),
       weekEnd: bounds.weekEnd.toISOString(),
       deadline: farFuture,
@@ -507,8 +512,12 @@ router.get("/", requireAuth, async (req, res) => {
       return { date: dateStr, label, games };
     });
 
+    const weekLabel = pool.poolType === "season"
+      ? nbaSurvivorWeekLabel(pool.createdAt, week, pool.sandboxMode)
+      : bounds.weekLabel;
+
     res.json({
-      weekLabel: bounds.weekLabel,
+      weekLabel,
       weekStart: bounds.weekStart.toISOString(),
       weekEnd: bounds.weekEnd.toISOString(),
       deadline: bounds.weekEnd.toISOString(),
