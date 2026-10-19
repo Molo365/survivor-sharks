@@ -19,8 +19,10 @@ import {
   nflOfficePoolTiebreakerGuessRevealed,
   nflSundayOnePmRevealActive,
   partitionNflWeekGamesBySubmissionLock,
+  formatNflWeeklyPassingTiebreakerColumnHeader,
   visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
+import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 
 const router = Router({ mergeParams: true });
 type NflConfidenceTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -353,10 +355,14 @@ router.post("/picks", requireAuth, async (req, res) => {
     const weeklyTbSlate = (await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2)).map(
       (g) => g.date,
     );
+    const weeklyTbStartIso =
+      weeklyTiebreakerGame.startTime instanceof Date
+        ? weeklyTiebreakerGame.startTime.toISOString()
+        : String(weeklyTiebreakerGame.startTime);
     if (
       nflOfficePoolGameSubmissionLocked({
         pool,
-        gameStartIso: weeklyTiebreakerGame.startTime!,
+        gameStartIso: weeklyTbStartIso,
         slateGameStartIsos: weeklyTbSlate,
         lockStyle: "five_minute",
       })
@@ -737,14 +743,84 @@ router.get("/grid", requireAuth, async (req, res) => {
     homeScore: g.homeScore ?? null,
   }));
 
-  const players = Array.from(userMap.values()).map(u => ({
+  let weeklyTbByUser = new Map<number, { guess: number | null; actual: number | null }>();
+  let weeklyTiebreakerMeta:
+    | {
+        columnHeader: string | null;
+        actual: number | null;
+        tiebreakerMatchup: ReturnType<typeof toTiebreakerMatchupPayload>;
+      }
+    | undefined;
+
+  if (pool.weeklyBonusEnabled) {
+    const weeklyTbRows = await db
+      .select({
+        userId: nflWeeklyTiebreakersTable.userId,
+        guess: nflWeeklyTiebreakersTable.guess,
+        actual: nflWeeklyTiebreakersTable.actual,
+      })
+      .from(nflWeeklyTiebreakersTable)
+      .where(and(
+        eq(nflWeeklyTiebreakersTable.poolId, poolId),
+        eq(nflWeeklyTiebreakersTable.week, week),
+      ));
+    weeklyTbByUser = new Map(
+      weeklyTbRows.map((row) => [row.userId, { guess: row.guess, actual: row.actual }]),
+    );
+    const weeklyTbTarget = await resolveWeeklyTiebreakerGame(pool, week);
+    const gamesArray = [...typedGameMap.values()];
+    const tiebreakerGameForMatchup = weeklyTbTarget?.id
+      ? gamesArray.find((g: { id: string }) => g.id === weeklyTbTarget.id) ?? gamesArray.at(-1)
+      : gamesArray.at(-1);
+    const weeklyActual =
+      weeklyTbRows.find((row) => row.actual != null)?.actual ?? null;
+    if (tiebreakerGameForMatchup) {
+      const g = tiebreakerGameForMatchup as {
+        id: string;
+        startTime: string;
+        awayTeam: { name: string; abbreviation: string; logoUrl: string | null };
+        homeTeam: { name: string; abbreviation: string; logoUrl: string | null };
+      };
+      weeklyTiebreakerMeta = {
+        columnHeader: formatNflWeeklyPassingTiebreakerColumnHeader(
+          g.awayTeam.abbreviation,
+          g.homeTeam.abbreviation,
+          weeklyActual,
+        ),
+        actual: weeklyActual,
+        tiebreakerMatchup: toTiebreakerMatchupPayload({
+          date: g.startTime,
+          awayTeam: {
+            displayName: g.awayTeam.name,
+            abbreviation: g.awayTeam.abbreviation,
+            logo: g.awayTeam.logoUrl,
+          },
+          homeTeam: {
+            displayName: g.homeTeam.name,
+            abbreviation: g.homeTeam.abbreviation,
+            logo: g.homeTeam.logoUrl,
+          },
+        }),
+      };
+    }
+  }
+
+  const players = Array.from(userMap.values()).map((u) => ({
     userId: u.userId,
     username: u.username,
     displayName: u.displayName,
     picks: Object.fromEntries(u.picks.entries()),
+    ...(pool.weeklyBonusEnabled && {
+      weeklyTiebreakerGuess: weeklyTbByUser.get(u.userId)?.guess ?? null,
+    }),
   }));
 
-  res.json({ week, games, players });
+  res.json({
+    week,
+    games,
+    players,
+    ...(weeklyTiebreakerMeta && { weeklyTiebreaker: weeklyTiebreakerMeta }),
+  });
 });
 
 // PATCH /api/pools/:poolId/nfl-confidence/sandbox-week

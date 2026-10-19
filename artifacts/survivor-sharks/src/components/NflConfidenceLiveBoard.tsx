@@ -15,6 +15,11 @@ import type {
   GameSummary,
   PlayerPick,
 } from "@/components/nflConfidenceLiveTypes";
+import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
 
 const GAME_COL_MIN = 56;
 const STICKY_PLAYER_W = 112;
@@ -175,10 +180,24 @@ export function NflConfidenceLiveBoard({
     return list;
   }, [gridData?.games]);
 
+  const weeklyTb = gridData?.weeklyTiebreaker;
+  const weeklyTbColumnHeader = weeklyTb?.columnHeader;
+  const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
+  const weeklyTbMatchup = weeklyTb?.tiebreakerMatchup as TiebreakerMatchupGame | undefined;
+
   const playerPickMap = useMemo(() => {
-    const m = new Map<number, Record<string, import("@/components/nflConfidenceLiveTypes").PlayerPick>>();
+    const m = new Map<
+      number,
+      {
+        picks: Record<string, import("@/components/nflConfidenceLiveTypes").PlayerPick>;
+        weeklyTiebreakerGuess: number | null;
+      }
+    >();
     for (const p of gridData?.players ?? []) {
-      m.set(p.userId, p.picks);
+      m.set(p.userId, {
+        picks: p.picks,
+        weeklyTiebreakerGuess: p.weeklyTiebreakerGuess ?? null,
+      });
     }
     return m;
   }, [gridData?.players]);
@@ -186,14 +205,18 @@ export function NflConfidenceLiveBoard({
   const rows = useMemo(() => {
     const lbPlayers = lbData?.players ?? [];
     if (lbPlayers.length > 0) {
-      return lbPlayers.map((lb) => ({
-        rank: lb.rank,
-        userId: lb.userId,
-        name: lb.displayName || lb.username,
-        weekPoints: lb.weekPoints,
-        seasonPoints: lb.seasonPoints,
-        picks: playerPickMap.get(lb.userId) ?? {},
-      }));
+      return lbPlayers.map((lb) => {
+        const gridRow = playerPickMap.get(lb.userId);
+        return {
+          rank: lb.rank,
+          userId: lb.userId,
+          name: lb.displayName || lb.username,
+          weekPoints: lb.weekPoints,
+          seasonPoints: lb.seasonPoints,
+          picks: gridRow?.picks ?? {},
+          weeklyTiebreakerGuess: gridRow?.weeklyTiebreakerGuess ?? null,
+        };
+      });
     }
     return (gridData?.players ?? []).map((p, i) => ({
       rank: i + 1,
@@ -202,6 +225,7 @@ export function NflConfidenceLiveBoard({
       weekPoints: 0,
       seasonPoints: undefined,
       picks: p.picks,
+      weeklyTiebreakerGuess: p.weeklyTiebreakerGuess ?? null,
     }));
   }, [lbData?.players, gridData?.players, playerPickMap]);
 
@@ -342,7 +366,9 @@ export function NflConfidenceLiveBoard({
       <div ref={scrollRef} className="overflow-x-auto overflow-y-visible [scrollbar-width:thin]">
         <table
           className="w-full border-collapse text-sm"
-          style={{ minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 }}
+          style={{
+            minWidth: STICKY_PLAYER_W + games.length * GAME_COL_MIN + 56 + (showWeeklyTbCol ? 92 : 0),
+          }}
         >
           <thead className={cn("z-20", STICKY_BG)}>
             <tr className="border-b border-white/[0.08]">
@@ -359,6 +385,17 @@ export function NflConfidenceLiveBoard({
                   <GameHeader game={game} />
                 </th>
               ))}
+              {showWeeklyTbCol && weeklyTbColumnHeader && (
+                <th className="align-bottom font-normal px-1 pb-1">
+                  <TiebreakerStandingsColumnHeader
+                    sport="nfl"
+                    matchup={weeklyTbMatchup ?? null}
+                    headerFallback={weeklyTbColumnHeader}
+                    actual={weeklyTb?.actual ?? null}
+                    className="border-l-yellow-500/25 text-yellow-300/90 max-w-[5.5rem]"
+                  />
+                </th>
+              )}
               <th
                 className={cn(
                   "sticky right-0 z-30 text-right align-bottom pb-1 pl-1 pr-2",
@@ -434,6 +471,14 @@ export function NflConfidenceLiveBoard({
                       </td>
                     );
                   })}
+                  {showWeeklyTbCol && weeklyTbColumnHeader && (
+                    <td className="py-1.5 px-1 text-center align-middle">
+                      <TiebreakerStandingsColumnGuess
+                        guess={row.weeklyTiebreakerGuess}
+                        className="border-l-yellow-500/25"
+                      />
+                    </td>
+                  )}
                   <td
                     className={cn(
                       "sticky right-0 z-10 py-2 pl-1 pr-2 text-right align-middle",

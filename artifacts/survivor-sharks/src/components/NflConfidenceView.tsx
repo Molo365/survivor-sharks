@@ -1386,14 +1386,22 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
               This guess is collected now; weekly tiebreaker resolution is handled separately.
             </p>
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-500/20 bg-background/30 px-3 py-2">
-            <span className="text-sm font-semibold text-foreground">
-              {weeklyTiebreakerGame.awayTeam.name} @ {weeklyTiebreakerGame.homeTeam.name}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {formatTimeEt(weeklyTiebreakerGame.startTime)}
-            </span>
-          </div>
+          <TiebreakerMatchupLogoStrip
+            tone="yellow"
+            game={{
+              awayTeam: {
+                name: weeklyTiebreakerGame.awayTeam.name,
+                abbreviation: weeklyTiebreakerGame.awayTeam.abbreviation,
+                logoUrl: weeklyTiebreakerGame.awayTeam.logoUrl,
+              },
+              homeTeam: {
+                name: weeklyTiebreakerGame.homeTeam.name,
+                abbreviation: weeklyTiebreakerGame.homeTeam.abbreviation,
+                logoUrl: weeklyTiebreakerGame.homeTeam.logoUrl,
+              },
+              startTime: weeklyTiebreakerGame.startTime,
+            }}
+          />
           <Input
             type="number"
             min="0"
