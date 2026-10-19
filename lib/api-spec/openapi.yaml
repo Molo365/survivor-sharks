@@ -3600,7 +3600,7 @@ components:
           type: object
           additionalProperties:
             type: string
-          description: "Optional map of week number → display label (NHL survivor uses Saturday ET dates, e.g. Oct 24)"
+          description: "Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22)"
         members:
           type: array
           items:

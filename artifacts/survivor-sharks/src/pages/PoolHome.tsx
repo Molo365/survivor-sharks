@@ -106,10 +106,12 @@ export default function PoolHome() {
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
   const isClassicSeason = (pool?.poolType as string) === "season";
-  const isNhlSurvivorSeason = Boolean(pool?.sport === "nhl" && isClassicSeason);
-  const { data: nhlSurvivorSchedule } = useGetPoolSchedule(poolId, {
+  const isSurvivorSeasonPool = Boolean(
+    isClassicSeason && (pool?.sport === "nhl" || pool?.sport === "nba"),
+  );
+  const { data: survivorSchedule } = useGetPoolSchedule(poolId, {
     query: {
-      enabled: Boolean(poolId && isNhlSurvivorSeason),
+      enabled: Boolean(poolId && isSurvivorSeasonPool),
       queryKey: getGetPoolScheduleQueryKey(poolId),
       staleTime: 60_000,
     },
@@ -426,8 +428,8 @@ export default function PoolHome() {
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
                     <span className="flex items-center gap-1 text-accent">
                       <Activity className="w-4 h-4" />
-                      {isNhlSurvivorSeason && nhlSurvivorSchedule?.weekLabel
-                        ? nhlSurvivorSchedule.weekLabel
+                      {isSurvivorSeasonPool && survivorSchedule?.weekLabel
+                        ? survivorSchedule.weekLabel
                         : `Wk ${pool.currentWeek}`}
                     </span>
                   )}
