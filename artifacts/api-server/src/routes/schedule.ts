@@ -26,6 +26,7 @@ import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
 import { nhlSaturdaySevenPmLockInstant } from "../lib/nhl-slate-reveal";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
+import { nflPlatformNextPeriodOpensAt } from "../lib/nfl-platform-promotion";
 
 const router = Router({ mergeParams: true });
 
@@ -284,6 +285,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     const slateGameStartIsos = nflGames.map((g) => g.date);
     const officeSlatePickLocked = nflOfficePoolWeekSubmissionLocked(pool, slateGameStartIsos);
+    const nextPeriodOpensAt = nflPlatformNextPeriodOpensAt(pool, nflGames);
     const farFuture = "2099-01-01T00:00:00.000Z";
     res.json({
       weekLabel: `Week ${week}`,
@@ -293,6 +295,7 @@ router.get("/", requireAuth, async (req, res) => {
       deadlinePassed: officeSlatePickLocked,
       officeSlatePickLocked,
       currentWeek: week,
+      nextPeriodOpensAt,
       days,
     });
     return;

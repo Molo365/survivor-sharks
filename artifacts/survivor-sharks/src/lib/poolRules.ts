@@ -2,6 +2,7 @@ import {
   NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
   nflOfficePoolLockAndVisibilityRules,
 } from "./nflOfficePoolCopy";
+import { PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
 import {
   nhlWeekendPickemLockAndVisibilityRules,
   NHL_WEEKEND_REVEAL_SENTENCE,
@@ -301,6 +302,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "You can change your pick until that team's game starts. Then the pick locks.",
             `Other players' picks stay hidden until that player's game kicks off. ${NFL_OFFICE_SUNDAY_REVEAL_SENTENCE}`,
+            PLATFORM_TUESDAY_OPENS_SENTENCE,
             "If you do not make a pick before the week's results are processed, it counts as a loss.",
             "A Survivor pool that has already started cannot be joined.",
           ],

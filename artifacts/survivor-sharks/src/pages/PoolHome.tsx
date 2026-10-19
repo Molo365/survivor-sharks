@@ -109,13 +109,22 @@ export default function PoolHome() {
   const isSurvivorSeasonPool = Boolean(
     isClassicSeason && (pool?.sport === "nhl" || pool?.sport === "nba"),
   );
+  const isNflOfficeSchedulePool = Boolean(
+    pool?.sport === "nfl"
+    && !(pool as { sandboxMode?: boolean }).sandboxMode
+    && pool.poolType !== "nfl_division_predictor"
+    && pool.poolType !== "wc_bracket",
+  );
   const { data: survivorSchedule } = useGetPoolSchedule(poolId, {
     query: {
-      enabled: Boolean(poolId && isSurvivorSeasonPool),
+      enabled: Boolean(poolId && (isSurvivorSeasonPool || isNflOfficeSchedulePool)),
       queryKey: getGetPoolScheduleQueryKey(poolId),
       staleTime: 60_000,
     },
   });
+  const nflNextPeriodOpensAt = isNflOfficeSchedulePool
+    ? (survivorSchedule as { nextPeriodOpensAt?: string | null } | undefined)?.nextPeriodOpensAt
+    : null;
   const isNhlRecurringWeeklyPickEm = Boolean(
     isPickEm &&
     pool?.sport === "nhl" &&
@@ -426,11 +435,27 @@ export default function PoolHome() {
                     </span>
                   )}
                   {pool.sport !== "intl" && pool.sport !== "worldcup" && (
-                    <span className="flex items-center gap-1 text-accent">
-                      <Activity className="w-4 h-4" />
-                      {isSurvivorSeasonPool && survivorSchedule?.weekLabel
-                        ? survivorSchedule.weekLabel
-                        : `Wk ${pool.currentWeek}`}
+                    <span className="flex flex-col gap-0.5 text-accent">
+                      <span className="flex items-center gap-1">
+                        <Activity className="w-4 h-4" />
+                        {isSurvivorSeasonPool && survivorSchedule?.weekLabel
+                          ? survivorSchedule.weekLabel
+                          : `Wk ${pool.currentWeek}`}
+                      </span>
+                      {nflNextPeriodOpensAt && (
+                        <span className="text-[10px] font-normal text-muted-foreground leading-tight">
+                          Week {pool.currentWeek + 1} picks open{" "}
+                          {new Intl.DateTimeFormat("en-US", {
+                            timeZone: "America/New_York",
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }).format(new Date(nflNextPeriodOpensAt))}{" "}
+                          ET
+                        </span>
+                      )}
                     </span>
                   )}
                   {/* Compact inline stat — mobile only */}

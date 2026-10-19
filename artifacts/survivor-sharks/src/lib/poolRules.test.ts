@@ -114,6 +114,7 @@ test("documents NFL office-pool Sunday slate reveal in rules", () => {
 
   const pickEmDeadlines = pickEm!.sections.find((section) => section.heading === "Picks and deadlines");
   assert.ok(pickEmDeadlines?.items.some((item) => item.includes("1:00 PM ET")));
+  assert.ok(pickEmDeadlines?.items.some((item) => item.includes("Tuesday at 6:00 AM ET")));
 });
 
 test("returns no empty sections for every supported pool type", () => {
