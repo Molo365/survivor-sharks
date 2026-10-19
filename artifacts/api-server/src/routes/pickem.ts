@@ -1013,7 +1013,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
   if (isNbaAtsPreStart(pool)) {
     res.status(409).json({
-      error: `Picks open on ${getNbaAtsPicksOpenDate(pool)} (Monday ET). Spread lines are not posted for this weekend yet.`,
+      error: `Picks open on ${getNbaAtsPicksOpenDate(pool)} at 6:00 AM ET (Tuesday). Spread lines are not posted for this weekend yet.`,
     });
     return;
   }

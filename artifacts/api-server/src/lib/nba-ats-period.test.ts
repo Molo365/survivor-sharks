@@ -17,10 +17,10 @@ const basePool = {
 };
 
 describe("NBA ATS initial weekend", () => {
-  it("withholds picks until Monday ET before the first weekend", () => {
-    assert.equal(getNbaAtsPicksOpenDate(basePool), "2026-10-19");
-    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-18T23:59:59-04:00")), true);
-    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-19T00:00:00-04:00")), false);
+  it("withholds picks until Tuesday 6 AM ET before the first weekend", () => {
+    assert.equal(getNbaAtsPicksOpenDate(basePool), "2026-10-20");
+    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-19T23:59:59-04:00")), true);
+    assert.equal(isNbaAtsPreStart(basePool, new Date("2026-10-20T06:00:00-04:00")), false);
   });
 
   it("does not pre-start when initialPeriodStart is unset (legacy pools)", () => {

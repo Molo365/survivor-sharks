@@ -85,6 +85,7 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
+import { isPlatformPromotionAllowedAfterPeriodEnd } from "./platform-period";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
 import { recordNbaAtsPeriodAndAdvance } from "./nba-ats-recurring-settlement";
@@ -4438,6 +4439,15 @@ export async function processPickEmResults(): Promise<{
         continue;
       }
 
+      const nhlPeriodLastDay = nhlBounds.days[nhlBounds.days.length - 1]!;
+      if (!isPlatformPromotionAllowedAfterPeriodEnd(nhlPeriodLastDay, new Date())) {
+        logger.info(
+          { poolId: pool.id, currentWeek: pool.currentWeek, nhlPeriodLastDay, todayEt: nhlTodayEt },
+          "NHL recurring weekly: next period opens Tuesday 6:00 AM ET, skipping advancement",
+        );
+        continue;
+      }
+
       const [{ pendingCount }] = await db
         .select({ pendingCount: count() })
         .from(pickemPicksTable)
@@ -5417,6 +5427,16 @@ async function resolveNbaTiebreakerForPeriod(
  *                     NHL: weekend pair [satDate, sunDate]
  * @param periodGames  Pre-fetched EspnGames for these dates.
  */
+function recurringCrazyEightsPromotionDeferred(
+  pool: typeof poolsTable.$inferSelect,
+  periodDates: string[],
+  now = new Date(),
+): boolean {
+  if (!isRecurringNhlOrNbaCrazyEights(pool) || periodDates.length === 0) return false;
+  const periodLastDay = periodDates.reduce((a, b) => (a > b ? a : b));
+  return !isPlatformPromotionAllowedAfterPeriodEnd(periodLastDay, now);
+}
+
 export async function resolveCrazyEightsPeriod(
   pool: typeof poolsTable.$inferSelect,
   periodDates: string[],
@@ -5502,6 +5522,7 @@ export async function resolveCrazyEightsPeriod(
       scheduleAvailable: true,
       hasUnfinishedGames: hasUnfinished,
     })) {
+      if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
       await recordCrazyEightsPeriodAndAdvance(pool, [], "no picks");
     }
     return;
@@ -5581,6 +5602,7 @@ export async function resolveCrazyEightsPeriod(
   // 6. If no group has more than one player, no tiebreaking needed at any position.
   const anyTied = scoreGroups.some((g) => g.length > 1);
   if (!anyTied) {
+    if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
     await declareCrazyEightsWinners(pool, scoreGroups, "outright winner");
     return;
   }
@@ -5593,6 +5615,7 @@ export async function resolveCrazyEightsPeriod(
 
   if (!lastGame) {
     // No completed game to use as a reference — split all tied groups.
+    if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
     await declareCrazyEightsWinners(pool, scoreGroups, "split-pot: no completed tiebreaker game");
     return;
   }
@@ -5626,6 +5649,7 @@ export async function resolveCrazyEightsPeriod(
   const topGroup = resolvedGroups[0];
   const reason = topGroup.length > 1 ? "split-pot: tiebreaker exhausted" : "tiebreaker resolved";
 
+  if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
   await declareCrazyEightsWinners(pool, resolvedGroups, reason);
 }
 
