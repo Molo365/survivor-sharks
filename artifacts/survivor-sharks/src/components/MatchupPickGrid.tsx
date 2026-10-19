@@ -1069,7 +1069,7 @@ export function MatchupPickGrid({
                 : sport === "nba"
                   ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                   : sport === "nfl"
-                    ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. At 1:00 PM ET on the week's main Sunday, picks lock for the rest of the week."
+                    ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. See the weekly slate note on the pool header for lock times."
                     : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."}
             </p>
           </div>
