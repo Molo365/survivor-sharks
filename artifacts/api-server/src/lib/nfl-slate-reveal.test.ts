@@ -7,6 +7,7 @@ import {
   nflOfficePoolWeekSubmissionLocked,
   nflSundayOnePmRevealActive,
   nflOfficePoolOpponentPickRevealed,
+  nflOfficePoolTiebreakerGuessRevealed,
   primaryNflSundayEtDate,
 } from "./nfl-slate-reveal";
 
@@ -106,6 +107,32 @@ describe("nflOfficePoolOpponentPickRevealed", () => {
         nowMs: now,
       }),
       true,
+    );
+  });
+
+  it("reveals tiebreaker guesses after Sunday 1 PM ET slate lock", () => {
+    const now = etWallClockToUtc("2025-09-07", 14, 0).getTime();
+    assert.equal(
+      nflOfficePoolTiebreakerGuessRevealed({
+        pool,
+        requesterUserId: 1,
+        rowUserId: 2,
+        slateGameStartIsos: sundayGames,
+        tiebreakerGameStartIso: mnf,
+        nowMs: now,
+      }),
+      true,
+    );
+    assert.equal(
+      nflOfficePoolTiebreakerGuessRevealed({
+        pool,
+        requesterUserId: 1,
+        rowUserId: 2,
+        slateGameStartIsos: sundayGames,
+        tiebreakerGameStartIso: mnf,
+        nowMs: etWallClockToUtc("2025-09-07", 12, 0).getTime(),
+      }),
+      false,
     );
   });
 

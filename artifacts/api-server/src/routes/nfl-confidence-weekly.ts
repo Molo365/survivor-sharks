@@ -11,8 +11,10 @@ import { sortConfidenceGamesByKickoff, validateConfidenceSubmission } from "../l
 import {
   isNflOfficeSlateLive,
   nflOfficePoolGameSubmissionLocked,
+  nflOfficePoolTiebreakerGuessRevealed,
   nflSundayOnePmRevealActive,
   partitionNflWeekGamesBySubmissionLock,
+  visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
 
 const router = Router({ mergeParams: true });
@@ -921,7 +923,41 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     currentRank += group.length;
   }
 
-  res.json({ week, players, actualPassingYards, actualRushingYards });
+  let slateGameStartIsos: string[] = [];
+  let tiebreakerGameIso: string | null = null;
+  if (!pool.sandboxMode) {
+    try {
+      const weekGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+      slateGameStartIsos = weekGames.map((g) => g.date);
+      tiebreakerGameIso = weekGames.at(-1)?.date ?? null;
+    } catch {
+      /* leave hidden */
+    }
+  }
+
+  const visiblePlayers = players.map((player) => {
+    const revealed = nflOfficePoolTiebreakerGuessRevealed({
+      pool,
+      requesterUserId: userId,
+      rowUserId: player.userId,
+      slateGameStartIsos,
+      tiebreakerGameStartIso: tiebreakerGameIso,
+      actualsKnown: actualPassingYards != null,
+    });
+    return {
+      ...player,
+      tiebreakerPassingYardsGuess: visibleNflTiebreakerGuess(
+        player.tiebreakerPassingYardsGuess,
+        revealed,
+      ),
+      tiebreakerRushingYardsGuess: visibleNflTiebreakerGuess(
+        player.tiebreakerRushingYardsGuess,
+        revealed,
+      ),
+    };
+  });
+
+  res.json({ week, players: visiblePlayers, actualPassingYards, actualRushingYards });
 });
 
 export default router;

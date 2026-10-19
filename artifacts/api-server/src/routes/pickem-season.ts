@@ -22,11 +22,15 @@ import {
 } from "../lib/nfl-weekly-tiebreaker";
 import { getCanonicalWeeklyTiebreakerTarget } from "../lib/nfl-weekly-tiebreaker-resolution";
 import { resolveWeeklyBonusThreshold } from "../lib/pool-start";
+import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { loadNflPickemAtsSpreads } from "../lib/nfl-pickem-ats-spreads";
 import {
+  formatNflWeeklyPassingTiebreakerColumnHeader,
   isNflOfficeSlateLive,
   nflOfficePoolGameSubmissionLocked,
   nflOfficePoolOpponentPickRevealed,
+  nflOfficePoolTiebreakerGuessRevealed,
+  visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
 import {
   computeLiveCorrectAts,
@@ -1135,13 +1139,45 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     }
   }
 
+  let week18SlateIsos: string[] = [];
+  let week18TiebreakerGameIso: string | null = null;
+  if (pool.currentWeek >= NFL_TOTAL_WEEKS || actualPassingYards != null) {
+    try {
+      const w18Games = await fetchNflGamesByWeek(
+        NFL_TOTAL_WEEKS,
+        pool.season,
+        pool.isPreseason ? 1 : 2,
+      );
+      week18SlateIsos = w18Games.map((g) => g.date);
+      week18TiebreakerGameIso = w18Games.at(-1)?.date ?? null;
+    } catch {
+      /* ESPN unavailable — leave guesses hidden for opponents */
+    }
+  }
+
+  const visibleEntries = entries.map((entry) => {
+    const tbRevealed = nflOfficePoolTiebreakerGuessRevealed({
+      pool,
+      requesterUserId: userId,
+      rowUserId: entry.userId,
+      slateGameStartIsos: week18SlateIsos,
+      tiebreakerGameStartIso: week18TiebreakerGameIso,
+      actualsKnown: actualPassingYards != null,
+    });
+    return {
+      ...entry,
+      tiebreakerPassingYards: visibleNflTiebreakerGuess(entry.tiebreakerPassingYards, tbRevealed),
+      tiebreakerRushingYards: visibleNflTiebreakerGuess(entry.tiebreakerRushingYards, tbRevealed),
+    };
+  });
+
   res.json({
     currentWeek: pool.currentWeek,
     totalWeeks: NFL_TOTAL_WEEKS,
     actualPassingYards,
     actualRushingYards,
     liveGamesInProgress,
-    entries,
+    entries: visibleEntries,
   });
 });
 
@@ -1588,10 +1624,53 @@ router.get("/week-results", requireAuth, async (req, res) => {
     }
   }
 
+  const weeklyTbTargetGame = pool.weeklyBonusEnabled
+    ? await resolveWeeklyTiebreakerGame(pool, week)
+    : null;
+  const weeklyTbRows = pool.weeklyBonusEnabled
+    ? await db
+        .select({
+          userId: nflWeeklyTiebreakersTable.userId,
+          guess: nflWeeklyTiebreakersTable.guess,
+          actual: nflWeeklyTiebreakersTable.actual,
+        })
+        .from(nflWeeklyTiebreakersTable)
+        .where(and(
+          eq(nflWeeklyTiebreakersTable.poolId, poolId),
+          eq(nflWeeklyTiebreakersTable.week, week),
+        ))
+    : [];
+  const weeklyTbByUser = new Map(weeklyTbRows.map((row) => [row.userId, row]));
+
+  const tiebreakerGameForMatchup =
+    weeklyTbTargetGame?.id != null
+      ? games.find((g) => g.id === weeklyTbTargetGame.id) ?? games.at(-1)
+      : games.at(-1);
+  const weeklyTiebreakerActual = weeklyTiebreakerResolution.actual;
+  const weeklyTiebreakerMatchup = tiebreakerGameForMatchup
+    ? toTiebreakerMatchupPayload(tiebreakerGameForMatchup)
+    : undefined;
+  const weeklyTiebreakerColumnHeader = tiebreakerGameForMatchup
+    ? formatNflWeeklyPassingTiebreakerColumnHeader(
+        tiebreakerGameForMatchup.awayTeam.abbreviation,
+        tiebreakerGameForMatchup.homeTeam.abbreviation,
+        weeklyTiebreakerActual,
+      )
+    : undefined;
+
+  const playersWithWeeklyTb = rankedPlayers.map((player) => {
+    if (!pool.weeklyBonusEnabled) return player;
+    return {
+      ...player,
+      // Office-pool standings column: show submitted guesses like NHL weekly SOG.
+      weeklyTiebreakerGuess: weeklyTbByUser.get(player.userId)?.guess ?? null,
+    };
+  });
+
   res.json({
     week,
     games: formattedGames,
-    players: rankedPlayers,
+    players: playersWithWeeklyTb,
     winners,
     hasResults,
     tiebreakerStatus: weeklyTiebreakerResolution.status,
@@ -1606,6 +1685,14 @@ router.get("/week-results", requireAuth, async (req, res) => {
         ? Number(enrolledPlayerCount)
         : null,
     },
+    ...(pool.weeklyBonusEnabled && {
+      weeklyTiebreaker: {
+        columnHeader: weeklyTiebreakerColumnHeader ?? null,
+        targetGameId: weeklyTbTargetGame?.id ?? null,
+        actual: weeklyTiebreakerActual,
+        tiebreakerMatchup: weeklyTiebreakerMatchup,
+      },
+    }),
   });
 });
 

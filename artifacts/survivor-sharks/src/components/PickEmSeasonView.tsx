@@ -28,7 +28,12 @@ import {
   TiebreakerGuessDescription,
   TiebreakerGuessDialogTitle,
   TiebreakerMatchupLogoStrip,
+  type TiebreakerMatchupGame,
 } from "@/components/TiebreakerGuessDialogUi";
+import {
+  TiebreakerStandingsColumnGuess,
+  TiebreakerStandingsColumnHeader,
+} from "@/components/TiebreakerStandingsColumn";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tabs,
@@ -744,6 +749,17 @@ function WeeklyGrid({
 
   const games = weekData?.games ?? [];
   const weekPlayers = weekData?.players ?? [];
+  const weeklyTbMeta = (
+    weekData as {
+      weeklyTiebreaker?: {
+        columnHeader?: string | null;
+        actual?: number | null;
+        tiebreakerMatchup?: TiebreakerMatchupGame;
+      };
+    } | undefined
+  )?.weeklyTiebreaker;
+  const weeklyTbColumnHeader = weeklyTbMeta?.columnHeader;
+  const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
 
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.userId, e])),
@@ -752,10 +768,16 @@ function WeeklyGrid({
 
   const rows = useMemo(
     () =>
-      entries.map((e) => ({
-        ...e,
-        picks: weekPlayers.find((p) => p.userId === e.userId)?.picks ?? [],
-      })),
+      entries.map((e) => {
+        const weekPlayer = weekPlayers.find((p) => p.userId === e.userId);
+        return {
+          ...e,
+          picks: weekPlayer?.picks ?? [],
+          weeklyTiebreakerGuess:
+            (weekPlayer as { weeklyTiebreakerGuess?: number | null } | undefined)
+              ?.weeklyTiebreakerGuess ?? null,
+        };
+      }),
     [entries, weekPlayers],
   );
 
@@ -818,7 +840,7 @@ function WeeklyGrid({
             <table
               className="w-full text-sm border-collapse"
               style={{
-                minWidth: `${Math.max(340, 200 + games.length * 68)}px`,
+                minWidth: `${Math.max(340, 200 + games.length * 68 + (showWeeklyTbCol ? 92 : 0))}px`,
               }}
             >
               <thead>
@@ -826,6 +848,16 @@ function WeeklyGrid({
                   <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 sticky left-0 bg-card z-10">
                     Player
                   </th>
+                  {showWeeklyTbCol && weeklyTbColumnHeader && (
+                    <th className="px-2 py-2 border-b border-border/20 align-bottom whitespace-nowrap">
+                      <TiebreakerStandingsColumnHeader
+                        sport="nfl"
+                        matchup={weeklyTbMeta?.tiebreakerMatchup ?? null}
+                        headerFallback={weeklyTbColumnHeader}
+                        actual={weeklyTbMeta?.actual ?? null}
+                      />
+                    </th>
+                  )}
                   {games.map((game) => (
                     <th
                       key={game.id}
@@ -905,6 +937,14 @@ function WeeklyGrid({
                           </span>
                         )}
                       </td>
+
+                      {showWeeklyTbCol && weeklyTbColumnHeader && (
+                        <td className="px-2 py-2 align-middle">
+                          <TiebreakerStandingsColumnGuess
+                            guess={row.weeklyTiebreakerGuess}
+                          />
+                        </td>
+                      )}
 
                       {games.map((game) => {
                         const pick = pickMap.get(game.id);
@@ -2191,14 +2231,22 @@ export function PickEmSeasonView({
                            This guess is collected now; weekly tiebreaker resolution is handled separately.
                          </p>
                        </div>
-                       <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-500/20 bg-background/30 px-3 py-2">
-                         <span className="text-sm font-semibold text-foreground">
-                           {weeklyTiebreakerGame.awayTeam.name} @ {weeklyTiebreakerGame.homeTeam.name}
-                         </span>
-                         <span className="text-xs text-muted-foreground">
-                           {formatGameTimeEt(weeklyTiebreakerGame.startTime)}
-                         </span>
-                       </div>
+                       <TiebreakerMatchupLogoStrip
+                         tone="yellow"
+                         game={{
+                           awayTeam: {
+                             name: weeklyTiebreakerGame.awayTeam.name,
+                             abbreviation: weeklyTiebreakerGame.awayTeam.abbreviation,
+                             logoUrl: weeklyTiebreakerGame.awayTeam.logoUrl,
+                           },
+                           homeTeam: {
+                             name: weeklyTiebreakerGame.homeTeam.name,
+                             abbreviation: weeklyTiebreakerGame.homeTeam.abbreviation,
+                             logoUrl: weeklyTiebreakerGame.homeTeam.logoUrl,
+                           },
+                           startTime: weeklyTiebreakerGame.startTime,
+                         }}
+                       />
                        <Input
                          type="number"
                          min="0"

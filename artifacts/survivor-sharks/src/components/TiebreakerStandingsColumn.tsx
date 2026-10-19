@@ -14,8 +14,18 @@ function parseNbaPtsTiebreakerHeader(header: string): { away: string; home: stri
   return { away: m[1].toUpperCase(), home: m[2].toUpperCase(), actualLabel: m[3] };
 }
 
+function parseNflPassTiebreakerHeader(header: string): { away: string; home: string; actualLabel: string } | null {
+  const m = header.match(/^([A-Za-z]{2,4})\/([A-Za-z]{2,4})\s+PASS\s+\(([^)]+)\)\s*$/i);
+  if (!m) return null;
+  return { away: m[1].toUpperCase(), home: m[2].toUpperCase(), actualLabel: m[3] };
+}
+
 function parseTiebreakerHeaderFallback(header: string): { away: string; home: string; actualLabel: string } | null {
-  return parseNhlSogTiebreakerHeader(header) ?? parseNbaPtsTiebreakerHeader(header);
+  return (
+    parseNhlSogTiebreakerHeader(header)
+    ?? parseNbaPtsTiebreakerHeader(header)
+    ?? parseNflPassTiebreakerHeader(header)
+  );
 }
 
 function abbrevPair(
