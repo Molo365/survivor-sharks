@@ -172,8 +172,9 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "How it works",
           items: [
-            "Each Fri–Sun weekend, pick against the spread for every game on the slate when lines are posted.",
-            "Most correct covers wins the weekend prize.",
+            "Each Fri–Sun weekend, pick up to 12 games against the spread when ESPN posts lines (your “dirty dozen”).",
+            "The full slate is visible all weekend; you only need lines on the games you pick.",
+            "Most correct covers among your submitted picks wins the weekend prize.",
           ],
         },
         {
