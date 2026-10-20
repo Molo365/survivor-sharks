@@ -4044,7 +4044,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         {slate?.games.length ?? 0} on slate
                         {" · "}
                         <span className={nbaAtsAtPickLimit ? "text-yellow-400/90" : undefined}>
-                          {localPicks.size}/{NBA_ATS_MAX_PICKS} picks
+                          {localPicks.size === 0
+                            ? `Up to ${NBA_ATS_MAX_PICKS} picks`
+                            : `${localPicks.size}/${NBA_ATS_MAX_PICKS} picks`}
                         </span>
                         {gamesFetching && !gamesLoading && (
                           <span className="text-muted-foreground/50"> · refreshing…</span>
@@ -4300,6 +4302,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                       <p className="text-sm text-muted-foreground">
                         {showNbaAtsTiebreakerPrompt && openGames.length === 0 ? (
                           <span className="text-yellow-400/80">Add your tiebreaker guess for this weekend</span>
+                        ) : localPicks.size === 0 && nbaAtsLinesReadyCount === 0 ? (
+                          <span className="text-muted-foreground/80">
+                            Up to {NBA_ATS_MAX_PICKS} picks when ESPN posts lines
+                          </span>
+                        ) : localPicks.size === 0 ? (
+                          <span className="text-muted-foreground">
+                            Up to {NBA_ATS_MAX_PICKS} picks
+                            <span className="text-muted-foreground/70">
+                              {" "}· {nbaAtsLinesReadyCount} line{nbaAtsLinesReadyCount !== 1 ? "s" : ""} ready
+                            </span>
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">
                             {localPicks.size}/{NBA_ATS_MAX_PICKS} picks selected
