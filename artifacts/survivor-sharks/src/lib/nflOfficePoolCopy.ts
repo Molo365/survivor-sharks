@@ -5,6 +5,23 @@ import { PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
 export const NFL_OFFICE_SUNDAY_REVEAL_SENTENCE =
   "At 1:00 PM ET on the week's main Sunday, everyone's picks for that week become visible—including games that have not kicked off yet (such as Monday night).";
 
+/** Pick'em season: the main weekly deadline members should remember. */
+export const NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE =
+  "At 1:00 PM ET on the week's main Sunday, the full weekly slate locks — you cannot add or change picks for any game that has not started yet (including Monday night), and everyone's picks for that week become visible.";
+
+export const NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE =
+  "Games that kick off before that Sunday 1:00 PM moment (Thursday, Saturday, or early Sunday) lock when they start.";
+
+export function nflPickemSeasonWelcomeBlurb(): string {
+  return (
+    "Pick the winner of every NFL game each week. Points accumulate all season — whoever has " +
+    "the most correct picks after Week 18 wins. " +
+    `${NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE} ` +
+    `${NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE} ` +
+    "In Week 18, enter a combined passing-yards tiebreaker on the last game to settle any ties. Good luck! 🦈🏈"
+  );
+}
+
 export const NFL_OFFICE_INCOMPLETE_SLATE_SENTENCE =
   "If you have not picked every game in the week, other players may not see your partial slate until you finish or the slate goes live.";
 
@@ -18,14 +35,19 @@ export function nflOfficePoolLockAndVisibilityRules(opts: {
   /** Confidence pools lock 5 minutes before kickoff; pick'em season locks at kickoff. */
   fiveMinutePregameLock: boolean;
 }): string[] {
-  const lockLine = opts.fiveMinutePregameLock
-    ? "Each game locks 5 minutes before kickoff. Other games stay open until their own lock."
-    : "Each game locks at its own kickoff. Other games stay open until they start.";
+  if (opts.fiveMinutePregameLock) {
+    return [
+      "Each game locks 5 minutes before kickoff until the Sunday office moment below.",
+      "At the same 1:00 PM ET Sunday moment, all games that have not started yet lock for picks (you cannot add or change picks for the rest of the week).",
+      "Other players' picks appear for a game once that game locks.",
+      NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
+      NFL_OFFICE_INCOMPLETE_SLATE_SENTENCE,
+      PLATFORM_TUESDAY_OPENS_SENTENCE,
+    ];
+  }
   return [
-    lockLine,
-    "At the same 1:00 PM ET Sunday moment, all games that have not started yet lock for picks (you cannot add or change picks for the rest of the week).",
-    "Other players' picks appear for a game once that game locks.",
-    NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
+    NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE,
+    NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE,
     NFL_OFFICE_INCOMPLETE_SLATE_SENTENCE,
     PLATFORM_TUESDAY_OPENS_SENTENCE,
   ];

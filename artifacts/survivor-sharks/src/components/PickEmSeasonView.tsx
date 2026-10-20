@@ -35,6 +35,7 @@ import {
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
 import { useToast } from "@/hooks/use-toast";
+import { nflPickemSeasonWelcomeBlurb } from "@/lib/nflOfficePoolCopy";
 import {
   Tabs,
   TabsContent,
