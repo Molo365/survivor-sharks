@@ -8,12 +8,14 @@ import {
   fetchSuperLeagueGamesForDate,
   getNbaAtsSlateBounds,
   getNhlWeekBounds,
+  NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
   type EspnGame,
 } from "./espn";
 import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
 import { getMlsConfiguredPeriod } from "./mls-weekly-period";
 import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "./nba-ats-period";
+import { fetchNbaSurvivorGamesByWeek } from "./nba-survivor-slate";
 
 export type PoolSlateContext = {
   id: number;
@@ -90,6 +92,11 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
 
   if (SURVIVOR_TYPES.has(pt) && sport === "nfl") {
     return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
+  }
+
+  if (pt === "season" && sport === "nba") {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    return fetchNbaSurvivorGamesByWeek(anchor, pool.currentWeek);
   }
 
   if (pt === "pickem") {

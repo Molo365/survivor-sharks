@@ -117,7 +117,7 @@ test("NHL and NBA terminal proof requires a complete season-end date", () => {
     sport: "nba",
     followingRegularSeasonSlate: "unknown",
     followingSlateHasRegularSeasonGame: false,
-    lastRegularSeasonGameDate: "2026-04-16T23:00:00Z",
+    lastRegularSeasonGameDate: "2026-04-25T23:00:00Z",
     currentPeriodEnd: new Date("2026-04-12T23:59:59Z"),
     followingPeriodEnd,
   }), false);

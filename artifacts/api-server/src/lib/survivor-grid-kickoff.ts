@@ -5,8 +5,10 @@ import {
   fetchNflGamesByWeek,
   fetchNhlGamesByWeek,
   NHL_SANDBOX_ANCHOR,
+  NBA_SANDBOX_ANCHOR,
 } from "./espn";
 import { nhlSurvivorSlateForSettlement } from "./nhl-survivor-slate";
+import { fetchNbaSurvivorGamesByWeek } from "./nba-survivor-slate";
 
 type SurvivorGridPool = Pick<
   typeof poolsTable.$inferSelect,
@@ -51,6 +53,9 @@ export async function buildSurvivorGridTeamKickoffMap(
           initialPeriodStart,
         );
         games = nhlSurvivorSlateForSettlement(weekGames);
+      } else if (pool.sport === "nba") {
+        const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+        games = await fetchNbaSurvivorGamesByWeek(anchor, week, seasonType);
       } else {
         games = await fetchGames(pool.sport, week, pool.season ?? undefined, seasonType);
       }
