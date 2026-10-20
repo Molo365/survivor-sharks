@@ -45,7 +45,9 @@ import {
 import { PickEmWelcomePanel } from "@/components/PickEmWelcomePanel";
 import { NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE } from "@/lib/nhlOfficePoolCopy";
 import { NBA_WEEKEND_ATS_VISIBILITY_NOTICE } from "@/lib/nbaOfficePoolCopy";
+import { NBA_ATS_MAX_PICKS } from "@/lib/nbaAtsPicks";
 import { NBA_WEEKEND_PICKS_OPEN_SENTENCE } from "@/lib/platformWeekCopy";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,7 +56,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CrazyEightsPeriodResults, useNbaAtsPeriodResults } from "@/components/CrazyEightsPeriodResults";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lock, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
+import { Target, ShieldAlert, Clock, Check, X, Trophy, RefreshCw, Copy, Wifi, LayoutGrid, BarChart2, BarChart3, Users, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, XCircle, Lock, Shuffle, Zap, Play, OctagonX, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
@@ -1093,6 +1095,31 @@ function etDateFromPickEmGame(game: PickEmGame): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date(game.startTime));
+}
+
+function hasNbaAtsLine(game: PickEmGame): boolean {
+  const spread = (game as { spread?: number | null }).spread;
+  const favoriteTeamId = (game as { favoriteTeamId?: string | null }).favoriteTeamId;
+  return spread != null && favoriteTeamId != null;
+}
+
+type NbaAtsDayGroup = { date: string; label: string; games: PickEmGame[] };
+
+function groupPickEmGamesByEtDay(games: PickEmGame[]): NbaAtsDayGroup[] {
+  const map = new Map<string, PickEmGame[]>();
+  for (const game of games) {
+    const date = etDateFromPickEmGame(game);
+    const list = map.get(date) ?? [];
+    list.push(game);
+    map.set(date, list);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, dayGames]) => ({
+      date,
+      label: formatNbaAtsDayHeading(date),
+      games: dayGames,
+    }));
 }
 
 // ── Daily pick detail panel ───────────────────────────────────────────────────
@@ -2349,6 +2376,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const prevPeriodLabel = (prevWeekResults as { periodLabel?: string } | undefined)?.periodLabel;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
+  const [nbaAtsWaitingOpen, setNbaAtsWaitingOpen] = useState(false);
 
   // Tiebreaker dialog state — MLB
   const [showTiebreaker, setShowTiebreaker] = useState(false);
@@ -2377,7 +2405,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   } = useGetPickEmGames(poolId, dateParams, {
     query: {
       queryKey: getGetPickEmGamesQueryKey(poolId, dateParams),
-      refetchInterval: (query) => isToday ? pickRefetchInterval(query.state.data) : false,
+      refetchInterval: (query) =>
+        (isNbaAts || isToday) ? pickRefetchInterval(query.state.data) : false,
     },
   });
   const poolStartsAt = weeklyStartsAt
@@ -2699,6 +2728,14 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       if (next.get(gameId) === teamId) {
         next.delete(gameId);
       } else {
+        const addingNew = !next.has(gameId);
+        if (isNbaAts && addingNew && next.size >= NBA_ATS_MAX_PICKS) {
+          toast({
+            title: `${NBA_ATS_MAX_PICKS}-pick limit`,
+            description: `You can only pick ${NBA_ATS_MAX_PICKS} games per weekend. Deselect one to choose another.`,
+          });
+          return prev;
+        }
         next.set(gameId, teamId);
       }
       return next;
@@ -2904,6 +2941,15 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       return;
     }
 
+    if (picks.length > NBA_ATS_MAX_PICKS) {
+      toast({
+        variant: "destructive",
+        title: `${NBA_ATS_MAX_PICKS}-pick limit`,
+        description: `Submit at most ${NBA_ATS_MAX_PICKS} spread picks for this weekend.`,
+      });
+      return;
+    }
+
     if (isLiveNbaAts && missingNbaAtsTiebreakerGuess) {
       openNbaAtsTiebreakerDialog(picks);
       return;
@@ -3073,21 +3119,27 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   const nbaAtsDaysGrouped = useMemo(() => {
     if (!isNbaAts || !slate?.games.length) return [];
-    const map = new Map<string, PickEmGame[]>();
-    for (const game of slate.games) {
-      const date = etDateFromPickEmGame(game);
-      const list = map.get(date) ?? [];
-      list.push(game);
-      map.set(date, list);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, games]) => ({
-        date,
-        label: formatNbaAtsDayHeading(date),
-        games,
-      }));
+    return groupPickEmGamesByEtDay(slate.games);
   }, [isNbaAts, slate?.games]);
+
+  const nbaAtsReadyDaysGrouped = useMemo(() => {
+    if (!isNbaAts || !slate?.games.length) return [];
+    return groupPickEmGamesByEtDay(slate.games.filter(hasNbaAtsLine));
+  }, [isNbaAts, slate?.games]);
+
+  const nbaAtsWaitingDaysGrouped = useMemo(() => {
+    if (!isNbaAts || !slate?.games.length) return [];
+    return groupPickEmGamesByEtDay(slate.games.filter((g) => !hasNbaAtsLine(g)));
+  }, [isNbaAts, slate?.games]);
+
+  const nbaAtsLinesReadyCount = useMemo(() => {
+    if (!isNbaAts || !slate?.games.length) return 0;
+    const fromApi = (slate as { linesReadyCount?: number }).linesReadyCount;
+    if (typeof fromApi === "number") return fromApi;
+    return slate.games.filter(hasNbaAtsLine).length;
+  }, [isNbaAts, slate]);
+
+  const nbaAtsAtPickLimit = isNbaAts && localPicks.size >= NBA_ATS_MAX_PICKS;
 
   const nbaAtsRangeLabel = useMemo(() => {
     if (!isNbaAts) return "";
@@ -3526,7 +3578,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     : "🌍 Welcome to World Cup 2026 Pick-Ems! Pick Home Win, Draw, or Away Win for every group stage match. 💡 Pro tip: Pick all 72 matches now before June 11 kickoff so you never miss a game — you can change any pick until that match kicks off. Most correct picks by July 2 wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! 🦈⚽"
                   : pickFrequency === "weekly"
                   ? (isNbaAts
-                      ? `Pick every NBA game on the Friday–Sunday slate against the spread. Games are grouped by date (Fri, Sat, Sun). You can pick once ESPN posts the line — spreads often arrive late. Most correct covers for the weekend wins the prize pot. ${NBA_WEEKEND_ATS_VISIBILITY_NOTICE} Good luck! 🏀📈`
+                      ? `Pick up to ${NBA_ATS_MAX_PICKS} NBA games on the Friday–Sunday slate against the spread (your dirty dozen). The full schedule is here; picks unlock per game when ESPN posts the line — spreads often arrive Wed–Fri. Most correct covers among your picks wins the prize pot. ${NBA_WEEKEND_ATS_VISIBILITY_NOTICE} Good luck! 🏀📈`
                       : isNhl
                       ? `Pick the winner of every NHL game on Saturday and Sunday. Picks accumulate over the weekend — whoever has the most correct picks by Sunday wins the prize pot. ${NHL_WEEKEND_PICKEM_VISIBILITY_NOTICE} Good luck! 🏒✏️`
                       : "Pick the winner of every MLB game each day. Picks accumulate all week — whoever has the most correct picks by Sunday wins the prize pot. Each game locks at first pitch. Postponed games are voided. Good luck! 🦈⚾")
@@ -3985,8 +4037,20 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     {nbaAtsRangeLabel || "This week"}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {gamesLoading ? "Loading…" : `${slate?.games.length ?? 0} game${(slate?.games.length ?? 0) !== 1 ? "s" : ""}`}
-                    {" · "}{localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                    {gamesLoading ? "Loading…" : (
+                      <>
+                        {nbaAtsLinesReadyCount} line{nbaAtsLinesReadyCount !== 1 ? "s" : ""} ready
+                        {" · "}
+                        {slate?.games.length ?? 0} on slate
+                        {" · "}
+                        <span className={nbaAtsAtPickLimit ? "text-yellow-400/90" : undefined}>
+                          {localPicks.size}/{NBA_ATS_MAX_PICKS} picks
+                        </span>
+                        {gamesFetching && !gamesLoading && (
+                          <span className="text-muted-foreground/50"> · refreshing…</span>
+                        )}
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -4160,16 +4224,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ) : (
                 <>
                   {/* Spread-pending notice: shown when at least one game has no line set yet */}
-                  {(slate?.games ?? []).some((g) => !(g as any).spread) && !slateLocked && (
+                  {nbaAtsWaitingDaysGrouped.length > 0 && !slateLocked && (
                     <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-yellow-500/30 bg-yellow-500/8">
                       <span className="text-yellow-400 text-sm mt-0.5">⚡</span>
                       <p className="text-sm text-yellow-200/80">
-                        Spread lines appear when ESPN posts them. You can see every matchup now; picks unlock per game once the number is in.
+                        Spread lines appear when ESPN posts them (often Wed–Fri). Pick up to {NBA_ATS_MAX_PICKS} games once a line is in — check back; this page refreshes automatically.
+                      </p>
+                    </div>
+                  )}
+                  {nbaAtsAtPickLimit && !slateLocked && (
+                    <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-primary/25 bg-primary/5">
+                      <span className="text-primary text-sm mt-0.5">12</span>
+                      <p className="text-sm text-muted-foreground">
+                        You&apos;ve hit the {NBA_ATS_MAX_PICKS}-pick cap. Deselect a game to swap in another.
                       </p>
                     </div>
                   )}
                   <div className="space-y-6">
-                    {nbaAtsDaysGrouped.map((day) => (
+                    {nbaAtsReadyDaysGrouped.map((day) => (
                       <div key={day.date} className="space-y-3">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/80 leading-none">
@@ -4185,24 +4257,57 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             key={game.id}
                             game={game}
                             pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                            selectionBlocked={nbaAtsAtPickLimit}
                             onPick={(teamId) => togglePick(game.id, teamId)}
                           />
                         ))}
                       </div>
                     ))}
                   </div>
+                  {nbaAtsWaitingDaysGrouped.length > 0 && (
+                    <Collapsible open={nbaAtsWaitingOpen} onOpenChange={setNbaAtsWaitingOpen}>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-left hover:bg-muted/30 transition-colors">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Waiting on ESPN lines (
+                          {nbaAtsWaitingDaysGrouped.reduce((n, d) => n + d.games.length, 0)} games)
+                        </span>
+                        <ChevronDown className={cn("w-4 h-4 shrink-0 text-muted-foreground transition-transform", nbaAtsWaitingOpen && "rotate-180")} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4 space-y-6">
+                        {nbaAtsWaitingDaysGrouped.map((day) => (
+                          <div key={day.date} className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bebas text-lg tracking-wide text-muted-foreground/60 leading-none">
+                                {day.label}
+                              </h4>
+                              <div className="flex-1 h-px bg-border/20" />
+                            </div>
+                            {day.games.map((game) => (
+                              <AtsGameCard
+                                key={game.id}
+                                game={game}
+                                pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
+                                onPick={(teamId) => togglePick(game.id, teamId)}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
                   {(openGames.length > 0 || showNbaAtsTiebreakerPrompt) && (
                     <div className="pt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-t border-border/40">
                       <p className="text-sm text-muted-foreground">
                         {showNbaAtsTiebreakerPrompt && openGames.length === 0 ? (
                           <span className="text-yellow-400/80">Add your tiebreaker guess for this weekend</span>
-                        ) : pendingPickCount > 0 ? (
-                          <span className="text-yellow-400/80">
-                            {pendingPickCount} game{pendingPickCount !== 1 ? "s" : ""} without a pick
-                          </span>
                         ) : (
-                          <span className="text-green-400/80 flex items-center gap-1">
-                            <Check className="w-4 h-4" /> All open games picked
+                          <span className="text-muted-foreground">
+                            {localPicks.size}/{NBA_ATS_MAX_PICKS} picks selected
+                            {nbaAtsLinesReadyCount > 0 && (
+                              <span className="text-muted-foreground/70">
+                                {" "}· {nbaAtsLinesReadyCount} line{nbaAtsLinesReadyCount !== 1 ? "s" : ""} ready
+                              </span>
+                            )}
                           </span>
                         )}
                       </p>

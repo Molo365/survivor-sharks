@@ -44,6 +44,7 @@ import {
   getNbaAtsSlateBoundsForPool,
   isNbaAtsPreStart,
 } from "../lib/nba-ats-period";
+import { NBA_ATS_MAX_PICKS, nbaAtsExceedsPickLimit } from "../lib/nba-ats-picks";
 import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
 import {
   championsLeagueRegulationOutcome,
@@ -545,6 +546,10 @@ router.get("/games", requireAuth, async (req, res) => {
   const isMlbDaily = sport === "mlb" && pool.pickFrequency === "daily";
   const poolClosed = !pool.isActive && !pool.isRecurring;
 
+  const atsLinesReadyCount = isAts
+    ? formattedGames.filter((g) => g.spread != null && g.favoriteTeamId != null).length
+    : 0;
+
   res.json({
     date: requestedDate,
     label,
@@ -554,7 +559,13 @@ router.get("/games", requireAuth, async (req, res) => {
     sport,
     phase,
     games: formattedGames,
-    ...(isAts ? { weekLabel: atsWeekLabel } : {}),
+    ...(isAts
+      ? {
+          weekLabel: atsWeekLabel,
+          maxPicks: NBA_ATS_MAX_PICKS,
+          linesReadyCount: atsLinesReadyCount,
+        }
+      : {}),
   });
 });
 
@@ -1257,6 +1268,24 @@ router.post("/picks", requireAuth, async (req, res) => {
     const noLineIds = picks.filter((p) => !atsLines.has(p.gameId)).map((p) => p.gameId);
     if (noLineIds.length > 0) {
       res.status(409).json({ error: `Line not out yet for: ${noLineIds.join(", ")}` });
+      return;
+    }
+
+    const existingAtsRows = await db
+      .select({ gameId: pickemPicksTable.gameId })
+      .from(pickemPicksTable)
+      .where(
+        and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, pool.currentWeek),
+        ),
+      );
+    if (nbaAtsExceedsPickLimit(existingAtsRows.map((r) => r.gameId), picks.map((p) => p.gameId))) {
+      res.status(400).json({
+        error: `You can submit at most ${NBA_ATS_MAX_PICKS} spread picks per weekend.`,
+        maxPicks: NBA_ATS_MAX_PICKS,
+      });
       return;
     }
   }

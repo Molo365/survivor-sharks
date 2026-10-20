@@ -22,15 +22,17 @@ interface AtsGameCardProps {
   pickedTeamId: string | null;
   /** Called with the team ID the user chose. Ignored when game is locked. */
   onPick: (teamId: string) => void;
+  /** When true, user cannot add a new pick on this game (e.g. weekend pick cap). */
+  selectionBlocked?: boolean;
 }
 
-export function AtsGameCard({ game, pickedTeamId, onPick }: AtsGameCardProps) {
+export function AtsGameCard({ game, pickedTeamId, onPick, selectionBlocked }: AtsGameCardProps) {
   const spread: number | null = (game as any).spread ?? null;
   const favoriteTeamId: string | null = (game as any).favoriteTeamId ?? null;
 
   const isLocked = game.deadlinePassed;
   const hasLine = spread != null && favoriteTeamId != null;
-  const pickLocked = isLocked || !hasLine;
+  const pickLocked = isLocked || !hasLine || (selectionBlocked === true && pickedTeamId == null);
   const isFinal = game.status === "final";
   const isInProgress = game.status === "in_progress";
   const liveDetail = game.liveDetail ?? null;

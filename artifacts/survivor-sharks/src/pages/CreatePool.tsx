@@ -144,9 +144,9 @@ const POOL_TYPES = [
     id: "nba_ats" as const,
     label: "Weekend Pick-Ems",
     icon: Zap,
-    tagline: "Every Game. Against The Spread.",
+    tagline: "Dirty Dozen. Against The Spread.",
     description:
-      "Pick every game on the Friday–Sunday NBA slate to cover the commissioner-set spread. Most covers wins the week.",
+      "Pick up to 12 Friday–Sunday NBA games to cover the spread when ESPN posts lines. Most covers wins the week.",
     badge: "ATS",
     badgeClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     cardClass: "border-orange-500/60 bg-[linear-gradient(145deg,rgba(234,88,12,0.08)_0%,transparent_100%)]",

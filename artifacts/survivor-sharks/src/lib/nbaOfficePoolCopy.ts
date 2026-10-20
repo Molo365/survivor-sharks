@@ -9,7 +9,7 @@ export const NBA_WEEKEND_REVEAL_SENTENCE =
   "At that same moment, everyone's picks and tiebreaker guesses for the weekend become visible.";
 
 export const NBA_WEEKEND_ATS_VISIBILITY_NOTICE =
-  `You can add or change picks on any game that has not started yet until Saturday 6:00 PM ET. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} ${NBA_WEEKEND_REVEAL_SENTENCE}`;
+  `Pick up to 12 games per weekend once ESPN posts the spread. You can add or change picks on any open game until Saturday 6:00 PM ET. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} ${NBA_WEEKEND_REVEAL_SENTENCE}`;
 
 export function nbaWeekendAtsLockAndVisibilityRules(): string[] {
   return [
