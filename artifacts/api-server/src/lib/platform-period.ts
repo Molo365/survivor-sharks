@@ -1,4 +1,4 @@
-import { getWeekBoundsEt } from "./espn";
+import { formatCalendarDateEt, getWeekBoundsEt } from "./espn";
 import { etWallClockToUtc } from "./nfl-slate-reveal";
 
 /** Platform week: prior period viewable through Monday; next period opens Tuesday 6:00 AM ET. */
@@ -45,4 +45,12 @@ export function isBeforePlatformPicksOpenForWeekContaining(anchorDateEt: string,
 export function getPlatformPicksOpenDateEtForWeekContaining(anchorDateEt: string): string {
   const { weekStart } = getWeekBoundsEt(anchorDateEt);
   return offsetDateEt(weekStart, 1);
+}
+
+/** Last ET calendar day among games on an NFL (or other) slate. */
+export function periodLastDayEtFromGameStartIsos(gameStartIsos: string[]): string | null {
+  if (gameStartIsos.length === 0) return null;
+  return gameStartIsos
+    .map((iso) => formatCalendarDateEt(new Date(iso)))
+    .reduce((a, b) => (a > b ? a : b));
 }

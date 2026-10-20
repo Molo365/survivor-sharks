@@ -85,7 +85,8 @@ import { fetchSingleGameStrikeouts, fetchDailyStrikeouts } from "./mlb-stats";
 import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
-import { isPlatformPromotionAllowedAfterPeriodEnd } from "./platform-period";
+import { isPlatformPromotionAllowedAfterPeriodEnd, periodLastDayEtFromGameStartIsos } from "./platform-period";
+import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
 import { recordNbaAtsPeriodAndAdvance } from "./nba-ats-recurring-settlement";
@@ -3282,6 +3283,12 @@ export async function processPickEmResults(): Promise<{
                   { poolId: pool.id, week: pool.currentWeek },
                   "NFL Confidence Weekly live: week fully graded — pool settled and closed",
                 );
+              } else if (nflPlatformPromotionDeferred(pool, games)) {
+                const periodLastDay = periodLastDayEtFromGameStartIsos(games.map((g) => g.date));
+                logger.info(
+                  { poolId: pool.id, week: pool.currentWeek, periodLastDay },
+                  "NFL Confidence Weekly live: next week opens Tuesday 6:00 AM ET, skipping advancement",
+                );
               } else {
                 await db
                   .update(poolsTable)
@@ -6100,6 +6107,15 @@ export async function advanceCompletedNflPools(): Promise<number> {
           );
           continue;
         }
+      }
+
+      if (nflPlatformPromotionDeferred(pool, games)) {
+        const periodLastDay = periodLastDayEtFromGameStartIsos(games.map((g) => g.date));
+        logger.info(
+          { poolId: pool.id, week: pool.currentWeek, periodLastDay },
+          "NFL auto-advance: next week opens Tuesday 6:00 AM ET, skipping advancement",
+        );
+        continue;
       }
 
       // Compare-and-set keeps this idempotent if a slow scheduler poll overlaps

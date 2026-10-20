@@ -1,5 +1,7 @@
 /** User-facing copy for NFL office-pool pick visibility (excludes division predictor). */
 
+import { PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
+
 export const NFL_OFFICE_SUNDAY_REVEAL_SENTENCE =
   "At 1:00 PM ET on the week's main Sunday, everyone's picks for that week become visible—including games that have not kicked off yet (such as Monday night).";
 
@@ -25,5 +27,6 @@ export function nflOfficePoolLockAndVisibilityRules(opts: {
     "Other players' picks appear for a game once that game locks.",
     NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
     NFL_OFFICE_INCOMPLETE_SLATE_SENTENCE,
+    PLATFORM_TUESDAY_OPENS_SENTENCE,
   ];
 }
