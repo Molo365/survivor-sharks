@@ -5,20 +5,16 @@ import { PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
 export const NFL_OFFICE_SUNDAY_REVEAL_SENTENCE =
   "At 1:00 PM ET on the week's main Sunday, everyone's picks for that week become visible—including games that have not kicked off yet (such as Monday night).";
 
-/** Pick'em season: the main weekly deadline members should remember. */
-export const NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE =
-  "At 1:00 PM ET on the week's main Sunday, the full weekly slate locks — you cannot add or change picks for any game that has not started yet (including Monday night), and everyone's picks for that week become visible.";
-
-export const NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE =
-  "Games that kick off before that Sunday 1:00 PM moment (Thursday, Saturday, or early Sunday) lock when they start.";
+/** Pick'em season: Sunday 1 PM office lock (welcome + rules). */
+export const NFL_PICKEM_SEASON_SUNDAY_POOL_LOCK_SENTENCE =
+  "At 1:00 PM ET on Sunday, the pool locks completely and all picks become visible (including Monday night).";
 
 /** Short welcome panel only; full detail stays in pool rules. */
 export function nflPickemSeasonWelcomeBlurb(): string {
   return (
-    "Pick every NFL game each week—the most correct picks after Week 18 wins the season. " +
-    "At 1:00 PM ET on the main Sunday, all games lock for the week: anything not yet played is locked for picks " +
-    "(including Monday night), and everyone's picks become visible. " +
-    "Week 18: passing-yards tiebreaker on the last game for ties. Good luck! 🦈🏈"
+    "Pick the winner of every NFL game each week. Points accumulate all season — whoever has the most correct picks after Week 18 wins. " +
+    `${NFL_PICKEM_SEASON_SUNDAY_POOL_LOCK_SENTENCE} ` +
+    "In Week 18, enter a combined passing-yards tiebreaker on the last game to settle any ties. Good luck! 🦈🏈"
   );
 }
 
@@ -46,8 +42,7 @@ export function nflOfficePoolLockAndVisibilityRules(opts: {
     ];
   }
   return [
-    NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE,
-    NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE,
+    NFL_PICKEM_SEASON_SUNDAY_POOL_LOCK_SENTENCE,
     NFL_OFFICE_INCOMPLETE_SLATE_SENTENCE,
     PLATFORM_TUESDAY_OPENS_SENTENCE,
   ];
