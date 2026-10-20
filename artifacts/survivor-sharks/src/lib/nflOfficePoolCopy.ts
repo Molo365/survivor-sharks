@@ -16,8 +16,8 @@ export const NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE =
 export function nflPickemSeasonWelcomeBlurb(): string {
   return (
     "Pick every NFL game each week—the most correct picks after Week 18 wins the season. " +
-    "You can change picks on any game that hasn't started yet until 1:00 PM ET on the main Sunday; " +
-    "then the weekly slate locks, everyone's picks become visible (including Monday night), and no further changes are allowed. " +
+    "At 1:00 PM ET on the main Sunday, all games lock for the week: anything not yet played is locked for picks " +
+    "(including Monday night), and everyone's picks become visible. " +
     "Week 18: passing-yards tiebreaker on the last game for ties. Good luck! 🦈🏈"
   );
 }
