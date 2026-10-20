@@ -87,13 +87,10 @@ export function isFinalCalendarSurvivorPeriod(options: {
   ) return false;
   const lastGame = new Date(options.lastRegularSeasonGameDate).getTime();
   if (!Number.isFinite(lastGame)) return false;
-  // NBA Survivor uses the full Mon-Sun period, so any regular-season game in
-  // the following week proves the current period is not terminal. NHL picks
-  // only the Sat-Sun slate; a final league game on the following Mon-Fri still
-  // means the current weekend was the last pickable Survivor slate.
-  const terminalBoundary = options.sport === "nba"
-    ? options.currentPeriodEnd
-    : options.followingPeriodEnd;
+  // NHL and NBA survivor slates are weekend-only (Sat/Sun and Fri–Sun). A final
+  // league game on the following Mon–Thu still means the current weekend was
+  // the last pickable survivor slate.
+  const terminalBoundary = options.followingPeriodEnd;
   return lastGame <= terminalBoundary.getTime();
 }
 

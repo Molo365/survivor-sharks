@@ -17,6 +17,7 @@ import {
   fetchCurrentChampionsLeagueSlate,
 } from "../lib/espn";
 import { validateNbaPoolCreation } from "../lib/nba-pool-creation-validation";
+import { fetchNbaSurvivorGamesByWeek } from "../lib/nba-survivor-slate";
 import { bracketBlueprint, type MlbField, SANDBOX_MLB_FIELD } from "../lib/mlb-bracket";
 import { validateMlbPoolCreation } from "../lib/mlb-pool-creation-validation";
 import { getNdpLockState } from "../lib/ndp-lock";
@@ -115,7 +116,12 @@ async function getPoolStartState(pool: PoolRow) {
           candidate.initialPeriodStart,
         );
       }
-      if (candidate.sport === "nba") return fetchNbaGamesByWeek(candidate.createdAt, candidate.currentWeek);
+      if (candidate.sport === "nba") {
+        if (candidate.poolType === "season") {
+          return fetchNbaSurvivorGamesByWeek(candidate.createdAt, candidate.currentWeek);
+        }
+        return fetchNbaGamesByWeek(candidate.createdAt, candidate.currentWeek);
+      }
       if (candidate.sport === "mlb" && candidate.pickFrequency === "weekly") {
         const bounds = getMlbWeekBounds(candidate.createdAt, candidate.currentWeek);
         return (await Promise.all(bounds.espnDates.map((date) => fetchGamesForDate("mlb", date)))).flat();

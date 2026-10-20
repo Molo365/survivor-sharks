@@ -730,7 +730,7 @@ export function MatchupPickGrid({
   // Dismissible how-to hint for NFL and NHL survivor pools
   const hintKey = `survivor-hint-dismissed-${poolId}`;
   const [showHint, setShowHint] = useState<boolean>(() => {
-    if ((sport !== "nfl" && sport !== "nhl") || poolType !== "season") return false;
+    if ((sport !== "nfl" && sport !== "nhl" && sport !== "nba") || poolType !== "season") return false;
     try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
   });
   function dismissHint() {
@@ -977,12 +977,17 @@ export function MatchupPickGrid({
   // NFL, NHL, and NBA Survivor (poolType==="season") use the pool-scoped schedule
   // (date-bounded, sandbox-aware). Other NBA pool types (if any reach this component)
   // and FIFA still use the live feed via useListSportGames.
-  // NHL Survivor Season additionally filters down to Saturday games only.
+  // NHL Survivor: Saturday only. NBA Survivor: Friday–Sunday (defensive if API sends more).
 
   const scheduleDays = schedule?.days ?? [];
   const visibleDays = isNhlSurvivorSeason
     ? scheduleDays.filter(d => new Date(d.date + "T12:00:00Z").getUTCDay() === 6)
-    : scheduleDays;
+    : isNbaSurvivorSeason
+      ? scheduleDays.filter((d) => {
+          const dow = new Date(`${d.date}T12:00:00Z`).getUTCDay();
+          return dow === 5 || dow === 6 || dow === 0;
+        })
+      : scheduleDays;
 
   const survivorPeriodLabel = isDateLabeledSurvivor
     ? (schedule?.weekLabel ?? "")
@@ -1058,16 +1063,20 @@ export function MatchupPickGrid({
       {/* How-to hint — NFL/NHL survivor, shown once per pool, dismissible */}
       {showHint && (
         <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">{sport === "nhl" ? "🏒" : "🏈"}</span>
+          <span className="text-xl leading-none mt-0.5">{sport === "nhl" ? "🏒" : sport === "nba" ? "🏀" : "🏈"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              {sport === "nhl" ? "How NHL Survivor works" : "How NFL Survivor works"}
+              {sport === "nhl"
+                ? "How NHL Survivor works"
+                : sport === "nba"
+                  ? "How NBA Survivor works"
+                  : "How NFL Survivor works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
               {sport === "nhl"
                 ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                 : sport === "nba"
-                  ? "Pick one NBA team each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                  ? "Pick one NBA team from Friday–Sunday games each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                   : sport === "nfl"
                     ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. At 1:00 PM ET on the week's main Sunday, picks lock for the rest of the week."
                     : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."}

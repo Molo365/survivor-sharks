@@ -95,6 +95,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
     pool.poolType === "pickem" &&
     pool.pickFrequency === "weekly";
   const isNhlSurvivorSeason = pool.sport === "nhl" && pool.poolType === "season";
+  const isNbaSurvivorSeason = pool.sport === "nba" && pool.poolType === "season";
   const isNhlHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nhl";
   const isNbaHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nba";
   const isNbaAts = pool.sport === "nba" && pool.poolType === "nba_ats";
@@ -236,6 +237,44 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "If picks include Sunday games, you will be asked for combined shots on goal (both teams) on the last game of Sunday's slate.",
             "The closest guess wins; equally close guesses split the prize.",
             "Tiebreaker guesses become visible when the pool locks Saturday at 7:00 PM ET (same moment as everyone's picks).",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: prizeItems(pool),
+        },
+      ],
+    };
+  }
+
+  if (isNbaSurvivorSeason) {
+    return {
+      title: "NBA Survivor Season Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Pick one NBA team from Friday–Sunday games each week.",
+            "Each team can be used only once per season.",
+          ],
+        },
+        {
+          heading: "Picks and deadlines",
+          items: [
+            "You can change your pick until that team's game starts. Then the pick locks.",
+            "A missed pick counts as a loss for that week.",
+            "You have three lives. A loss costs one life; your third loss eliminates you.",
+            "A postponed pick is a push and does not cost a life.",
+            "A Survivor pool that has already started cannot be joined.",
+          ],
+        },
+        {
+          heading: "Scoring or elimination",
+          items: [
+            "The week settles after all Friday–Sunday games finish, then the pool moves to the next week.",
+            "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
+            "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
+            "When one player remains, that player wins the pool.",
           ],
         },
         {

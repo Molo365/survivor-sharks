@@ -122,6 +122,10 @@ import {
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
 import { nhlSurvivorSlateForSettlement } from "./nhl-survivor-slate";
 import {
+  fetchNbaSurvivorGamesByWeek,
+  nbaSurvivorSlateForSettlement,
+} from "./nba-survivor-slate";
+import {
   isThreeWayPickEmSport,
   threeWayPickEmOutcome,
 } from "./pickem-grading";
@@ -213,7 +217,9 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
           expectedSeasonType,
           pool.initialPeriodStart,
         ))
-      : await fetchNbaGamesByWeek(anchor!, pool.currentWeek);
+      : nbaSurvivorSlateForSettlement(
+          await fetchNbaSurvivorGamesByWeek(anchor!, pool.currentWeek),
+        );
     return isCompleteRegularSeasonSlate(games, expectedSeasonType);
   }
   if (pool.sport !== "superleague") return false;
@@ -296,10 +302,14 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
         [currentGames, followingGames] = await Promise.all([
           pool.sport === "nhl"
             ? fetchNhlGamesByWeek(pool.createdAt, week, expectedSeasonType, pool.initialPeriodStart)
-            : fetchNbaGamesByWeek(pool.createdAt, week),
+            : nbaSurvivorSlateForSettlement(
+                await fetchNbaSurvivorGamesByWeek(pool.createdAt, week),
+              ),
           pool.sport === "nhl"
             ? fetchNhlGamesByWeek(pool.createdAt, week + 1, expectedSeasonType, pool.initialPeriodStart)
-            : fetchNbaGamesByWeek(pool.createdAt, week + 1),
+            : nbaSurvivorSlateForSettlement(
+                await fetchNbaSurvivorGamesByWeek(pool.createdAt, week + 1),
+              ),
         ]);
       }
       followingRegularSeasonSlate = classifyFollowingRegularSeasonSlate(
@@ -318,10 +328,10 @@ async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Pro
             : await fetchLastSeasonTypeGameDate(pool.sport, seasonYears[0], expectedSeasonType);
           const currentBounds = pool.sport === "nhl"
             ? getNhlWeekBounds(pool.createdAt, week, pool.initialPeriodStart)
-            : getNbaWeekBounds(pool.createdAt, week);
+            : getNbaWeekendBounds(pool.createdAt, week);
           const followingBounds = pool.sport === "nhl"
             ? getNhlWeekBounds(pool.createdAt, week + 1, pool.initialPeriodStart)
-            : getNbaWeekBounds(pool.createdAt, week + 1);
+            : getNbaWeekendBounds(pool.createdAt, week + 1);
           terminalPeriodConfirmed = isFinalCalendarSurvivorPeriod({
             sport: pool.sport,
             followingRegularSeasonSlate,
@@ -520,7 +530,7 @@ export async function processCompletedGames(): Promise<{
       await Promise.all(nbaPoolWeekKeys.map(async key => {
         const ref = nbaRows.find(r => `${r.poolId}:${r.week}` === key)!;
         const anchor = ref.sandboxMode ? NBA_SANDBOX_ANCHOR : ref.poolCreatedAt;
-        const games = await fetchNbaGamesByWeek(anchor, ref.week);
+        const games = await fetchNbaSurvivorGamesByWeek(anchor, ref.week);
         nbaGamesByPoolWeek.set(key, games);
         const completed = games.filter(g => g.isCompleted);
         logger.info(

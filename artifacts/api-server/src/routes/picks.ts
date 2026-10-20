@@ -16,6 +16,7 @@ import {
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   fetchNbaGamesByWeek,
+  getNbaWeekendBounds,
   fetchNflGamesByWeek,
   NBA_SANDBOX_ANCHOR,
   SUPER_LEAGUE_TEAM_IDS,
@@ -23,6 +24,7 @@ import {
 import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
+import { fetchNbaSurvivorGamesByWeek, weekendGamesEt } from "../lib/nba-survivor-slate";
 import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
@@ -253,6 +255,58 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
+  if (pool.sport === "nba" && pool.poolType === "season") {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    const { espnDates } = getNbaWeekendBounds(anchor, week);
+    if (espnDates.length < 1) {
+      res.status(503).json({ error: "Unable to verify the NBA weekend schedule. Please retry shortly.", retryable: true });
+      return;
+    }
+    const dayResults = await Promise.all(
+      espnDates.map((date) => fetchGamesForDateChecked("nba", date, 2, true)),
+    );
+    if (dayResults.some((games) => games === null)) {
+      res.status(503).json({ error: "The NBA weekend schedule is unavailable. Please retry your pick shortly.", retryable: true });
+      return;
+    }
+    const weekendGames = weekendGamesEt(
+      dayResults.flatMap((games) => (games ?? [])),
+    );
+    const pickedGame = weekendGames.find(
+      (game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId,
+    );
+    if (!pickedGame) {
+      const allWeekGames = await fetchNbaGamesByWeek(anchor, week);
+      const weekdayGame = allWeekGames.find(
+        (game) =>
+          (game.homeTeam.id === teamId || game.awayTeam.id === teamId) &&
+          weekendGamesEt([game]).length === 0,
+      );
+      if (weekdayGame) {
+        res.status(400).json({ error: "NBA Survivor picks must be teams playing Friday–Sunday." });
+        return;
+      }
+      res.status(503).json({
+        error: "Unable to verify the selected team's game in the NBA weekend schedule. Please retry shortly.",
+        retryable: true,
+      });
+      return;
+    }
+    const kickoffMs = new Date(pickedGame.date).getTime();
+    if (!Number.isFinite(kickoffMs)) {
+      res.status(503).json({ error: "Unable to verify the selected team's NBA game time. Please retry shortly.", retryable: true });
+      return;
+    }
+    if (!pool.sandboxMode && (
+      pickedGame.status === "in_progress" ||
+      pickedGame.status === "final" ||
+      kickoffMs <= Date.now()
+    )) {
+      res.status(400).json({ error: "That team's NBA game has already started — choose another team." });
+      return;
+    }
+  }
+
   // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
   if (!pool.sandboxMode) {
   if (pool.sport === "nfl" && pool.poolType === "season") {
@@ -401,7 +455,9 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
     const nhlGames = await fetchNhlGamesByWeek(NHL_SANDBOX_ANCHOR, week, pool.isPreseason ? 1 : 2);
     gameList = nhlGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
   } else if (pool.sport === "nba") {
-    const nbaGames = await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
+    const nbaGames = pool.poolType === "season"
+      ? await fetchNbaSurvivorGamesByWeek(NBA_SANDBOX_ANCHOR, week)
+      : await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
     gameList = nbaGames.map(g => ({ id: g.id, homeTeamId: g.homeTeam.id, awayTeamId: g.awayTeam.id }));
   } else if (pool.sport === "superleague") {
     // Generate 15 synthetic matchups from the 30 Super League clubs for sandbox play

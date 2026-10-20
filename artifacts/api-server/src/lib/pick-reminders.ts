@@ -6,6 +6,7 @@ import { countSubmittedPickemGames, resolveNflGameIds, resolveNflSelectableGames
 import { logger } from "./logger";
 export { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames, shouldClaimReminder } from "./pick-reminder-windows";
 import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, nextUnpickedGameReminderTiming, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
+import { fetchNbaSurvivorGamesByWeek } from "./nba-survivor-slate";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -32,7 +33,11 @@ async function gamesForPool(pool: typeof poolsTable.$inferSelect): Promise<EspnG
       pool.initialPeriodStart,
     );
   }
-  if (pool.sport === "nba") return fetchNbaGamesByWeek(pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt, pool.currentWeek);
+  if (pool.sport === "nba") {
+    const anchor = pool.sandboxMode ? NBA_SANDBOX_ANCHOR : pool.createdAt;
+    if (pool.poolType === "season") return fetchNbaSurvivorGamesByWeek(anchor, pool.currentWeek);
+    return fetchNbaGamesByWeek(anchor, pool.currentWeek);
+  }
   if (pool.sport === "nfl") return fetchNflGamesByWeek(pool.currentWeek, pool.season, pool.isPreseason ? 1 : 2);
   const period = await resolvePickemPeriod(pool);
   if (!period) return [];

@@ -12,6 +12,7 @@ import {
   fetchNhlGamesByWeek,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
+  getNbaWeekendBounds,
   fetchNbaGamesByWeek,
   NBA_SANDBOX_ANCHOR,
   getTodayEtDate,
@@ -23,6 +24,7 @@ import {
 } from "../lib/espn";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
+import { fetchNbaSurvivorGamesByWeek } from "../lib/nba-survivor-slate";
 import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
 import { nhlSaturdaySevenPmLockInstant } from "../lib/nhl-slate-reveal";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
@@ -440,8 +442,13 @@ router.get("/", requireAuth, async (req, res) => {
   // opening night week (Oct 22–28), regardless of when the pool was actually created.
   if (pool.sport === "nba" && pool.sandboxMode) {
     const week = pool.currentWeek;
-    const bounds = getNbaWeekBounds(NBA_SANDBOX_ANCHOR, week);
-    const allGames = await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
+    const isSurvivorSeason = pool.poolType === "season";
+    const bounds = isSurvivorSeason
+      ? getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, week)
+      : getNbaWeekBounds(NBA_SANDBOX_ANCHOR, week);
+    const allGames = isSurvivorSeason
+      ? await fetchNbaSurvivorGamesByWeek(NBA_SANDBOX_ANCHOR, week)
+      : await fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, week);
 
     const storedScoreRows = await db
       .select()
@@ -502,8 +509,13 @@ router.get("/", requireAuth, async (req, res) => {
   // ── NBA live path ─────────────────────────────────────────────────────────
   if (pool.sport === "nba") {
     const week = pool.currentWeek;
-    const bounds = getNbaWeekBounds(pool.createdAt, week);
-    const allGames = await fetchNbaGamesByWeek(pool.createdAt, week);
+    const isSurvivorSeason = pool.poolType === "season";
+    const bounds = isSurvivorSeason
+      ? getNbaWeekendBounds(pool.createdAt, week)
+      : getNbaWeekBounds(pool.createdAt, week);
+    const allGames = isSurvivorSeason
+      ? await fetchNbaSurvivorGamesByWeek(pool.createdAt, week)
+      : await fetchNbaGamesByWeek(pool.createdAt, week);
 
     const gamesByDate = new Map<string, EspnGame[]>();
     for (const dateStr of bounds.days) {
