@@ -12,13 +12,13 @@ export const NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE =
 export const NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE =
   "Games that kick off before that Sunday 1:00 PM moment (Thursday, Saturday, or early Sunday) lock when they start.";
 
+/** Short welcome panel only; full detail stays in pool rules. */
 export function nflPickemSeasonWelcomeBlurb(): string {
   return (
-    "Pick the winner of every NFL game each week. Points accumulate all season — whoever has " +
-    "the most correct picks after Week 18 wins. " +
-    `${NFL_PICKEM_SEASON_SUNDAY_SLATE_LOCK_SENTENCE} ` +
-    `${NFL_PICKEM_SEASON_EARLY_KICKOFF_LOCK_SENTENCE} ` +
-    "In Week 18, enter a combined passing-yards tiebreaker on the last game to settle any ties. Good luck! 🦈🏈"
+    "Pick every NFL game each week—the most correct picks after Week 18 wins the season. " +
+    "At 1:00 PM ET on the main Sunday, the weekly slate locks and everyone's picks become visible (including Monday night). " +
+    "Games that already kicked off earlier in the week locked when they started. " +
+    "Week 18: passing-yards tiebreaker on the last game for ties. Good luck! 🦈🏈"
   );
 }
 
