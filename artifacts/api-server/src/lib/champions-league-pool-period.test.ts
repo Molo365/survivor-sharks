@@ -7,7 +7,6 @@ import {
   toPoolPeriod,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
-import { resolveChampionsLeagueDefaultPeriodKey } from "./champions-league-default-period";
 import {
   CHAMPIONS_LEAGUE_POST_MATCHDAY_GRACE_MS,
   resolveChampionsLeagueDefaultPeriodKey,
