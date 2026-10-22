@@ -4,8 +4,18 @@ const RETURN_TO_STORAGE_KEY = "post_auth_return_to";
 
 export { sanitizeReturnTo };
 
+/** Wouter v3 `useLocation()` is pathname-only; read `?returnTo=` from the browser when needed. */
+function returnToQueryString(location: string): string {
+  const fromLocation = location.split("?", 2)[1];
+  if (fromLocation) return fromLocation;
+  if (typeof window !== "undefined" && window.location.search) {
+    return window.location.search.replace(/^\?/, "");
+  }
+  return "";
+}
+
 export function getReturnToFromLocation(location: string): string | null {
-  const query = location.split("?", 2)[1] ?? "";
+  const query = returnToQueryString(location);
   return sanitizeReturnTo(new URLSearchParams(query).get("returnTo"));
 }
 

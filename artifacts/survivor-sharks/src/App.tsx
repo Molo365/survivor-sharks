@@ -31,7 +31,7 @@ import Profile from "@/pages/Profile";
 import PastPools from "@/pages/PastPools";
 import Feedback from "@/pages/Feedback";
 import AuthInviteContinuation from "@/pages/AuthInviteContinuation";
-import { loginPathWithReturn } from "@/lib/post-auth-redirect";
+import { loginPathWithReturn, rememberReturnTo } from "@/lib/post-auth-redirect";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
 import { BetaBanner } from "@/components/BetaBanner";
 import LegalDocument from "@/pages/LegalDocument";
@@ -67,6 +67,7 @@ const ProtectedRoute = ({ component: Component }: { component: any }) => {
       typeof window !== "undefined"
         ? `${window.location.pathname}${window.location.search}`
         : location;
+    rememberReturnTo(path);
     return <Redirect to={loginPathWithReturn(path)} />;
   }
   return <Component />;
