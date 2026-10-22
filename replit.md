@@ -61,6 +61,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
+- **Production DB lags code:** Railway deploy does not run drizzle migrations. After changing `lib/db/src/schema/`, ship matching SQL in `lib/db/drizzle/` and apply it on Railway Postgres (or rely on API startup patches if enabled). Missing columns surface as `500` and empty pick-em UIs — see `.agents/memory/production-incident-triage.md`.
 - Always run `pnpm run typecheck:libs` after changing `lib/db/src/schema/` before typechecking artifacts — the composite lib must rebuild first.
 - Always run `pnpm --filter @workspace/api-spec run codegen` after changing `openapi.yaml`.
 - Express 5 types `req.params` as `string | string[]` — always wrap with `String(req.params.xxx)` before parsing.

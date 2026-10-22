@@ -18,6 +18,7 @@
 - [Pick visibility timing](pick-visibility-timing.md) — submission locks and pick disclosure are separate: opponents' picks reveal only at actual kickoff or after grading.
 - [NFL tie grading](nfl-tie-grading.md) — final NFL ties need explicit resolved outcomes; otherwise confidence/Pick-Em rows can remain pending and block closure.
 - [Drizzle migration drift](drizzle-migration-drift.md) — dev may be push-applied ahead of checked-in migration history; scope generated migrations before external production use.
+- [Production incident triage (Railway)](production-incident-triage.md) — deploy logs first; `column does not exist` → SQL from `lib/db/drizzle/` for Molo; “no games” often means 500, not empty ESPN; avoid multi-hour ESPN digests before ruling out DB drift.
 - [High Heat weekly closure](crazy-eights-weekly-closure.md) — MLB weekly Crazy 8s must not use the daily resolver or open-pool pick endpoints after closure.
 - [MLB postseason bracket data](mlb-postseason-bracket-data.md) — ESPN uses abbreviated round notes; confirm the field from seeded standings and map game series through the persisted feeder graph.
 - [MLB live series slot matching](mlb-live-series-slot-matching.md) — map ESPN live games by round and team pair; generated series IDs may not equal saved bracket slots.
