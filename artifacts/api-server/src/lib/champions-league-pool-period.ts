@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { pickemPicksTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
+  fetchChampionsLeaguePickemSlates,
   fetchCurrentChampionsLeagueSlate,
   fetchGamesForDate,
   formatDateEtDash,
@@ -51,13 +52,32 @@ export function groupSortedDatesIntoChampionsLeaguePeriods(sortedUniqueDates: st
   return periods;
 }
 
-function toPoolPeriod(dates: string[]): ChampionsLeaguePoolPeriod {
+export function toPoolPeriod(dates: string[]): ChampionsLeaguePoolPeriod {
   const sorted = [...dates].sort();
   return {
     dates: sorted,
     weekStart: sorted[0]!,
     weekEnd: sorted[sorted.length - 1]!,
   };
+}
+
+/** Merge pick-history periods with the live ESPN slate so new pools see the open matchday. */
+export function mergeChampionsLeaguePeriodsWithLiveSlate(
+  fromPicks: ChampionsLeaguePoolPeriod[],
+  slateDates: string[],
+): ChampionsLeaguePoolPeriod[] {
+  const periods = [...fromPicks];
+  if (slateDates.length === 0) {
+    return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+  }
+  const slatePeriod = toPoolPeriod(slateDates);
+  const overlapsSlate = periods.some(
+    (period) =>
+      period.weekStart === slatePeriod.weekStart
+      || period.dates.some((date) => slatePeriod.dates.includes(date)),
+  );
+  if (!overlapsSlate) periods.push(slatePeriod);
+  return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 }
 
 export async function listChampionsLeaguePickPeriods(poolId: number): Promise<ChampionsLeaguePoolPeriod[]> {
@@ -164,6 +184,16 @@ export type ChampionsLeaguePeriodContext = {
   previous: ChampionsLeaguePoolPeriod | null;
 };
 
+function championsLeagueEspnPeriodDates(
+  slates: Awaited<ReturnType<typeof fetchChampionsLeaguePickemSlates>>,
+): string[] {
+  const dates = new Set<string>();
+  for (const slate of [slates.visible, slates.upcoming, slates.lastCompleted]) {
+    for (const date of slate?.dates ?? []) dates.add(date);
+  }
+  return [...dates];
+}
+
 /**
  * Derive current (ESPN slate) and previous (last graded pick period) matchdays for a pool.
  */
@@ -171,7 +201,12 @@ export async function resolveChampionsLeaguePeriodContext(
   poolId: number,
   now = new Date(),
 ): Promise<ChampionsLeaguePeriodContext> {
-  const periods = await listChampionsLeaguePickPeriods(poolId);
+  const fromPicks = await listChampionsLeaguePickPeriods(poolId);
+  const slates = await fetchChampionsLeaguePickemSlates(now);
+  let periods = mergeChampionsLeaguePeriodsWithLiveSlate(
+    fromPicks,
+    championsLeagueEspnPeriodDates(slates),
+  );
   if (periods.length === 0) {
     return { current: null, previous: null };
   }
@@ -183,12 +218,34 @@ export async function resolveChampionsLeaguePeriodContext(
     }
   }
 
-  const slate = await fetchCurrentChampionsLeagueSlate(now);
-  const { current: currentIdx, previous: previousIdx } = pickChampionsLeaguePeriodIndices(
+  const slateDatesForCurrent =
+    slates.visible?.dates
+    ?? slates.upcoming?.dates
+    ?? [];
+
+  let { current: currentIdx, previous: previousIdx } = pickChampionsLeaguePeriodIndices(
     periods,
     gradedWeekStarts,
-    slate?.dates ?? [],
+    slateDatesForCurrent,
   );
+
+  if (previousIdx === null && slates.lastCompleted) {
+    const lastPeriod = toPoolPeriod(slates.lastCompleted.dates);
+    if (!periods.some((p) => p.weekStart === lastPeriod.weekStart)) {
+      periods = [...periods, lastPeriod].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    }
+    previousIdx = periods.findIndex((p) => p.weekStart === lastPeriod.weekStart);
+    if (previousIdx < 0) previousIdx = null;
+  }
+
+  if (currentIdx === null && slates.upcoming) {
+    const upcomingPeriod = toPoolPeriod(slates.upcoming.dates);
+    if (!periods.some((p) => p.weekStart === upcomingPeriod.weekStart)) {
+      periods = [...periods, upcomingPeriod].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    }
+    currentIdx = periods.findIndex((p) => p.weekStart === upcomingPeriod.weekStart);
+    if (currentIdx < 0) currentIdx = null;
+  }
 
   const current = currentIdx !== null ? await enrichPhaseLabel(periods[currentIdx]!) : null;
   const previous = previousIdx !== null ? await enrichPhaseLabel(periods[previousIdx]!) : null;
@@ -220,8 +277,13 @@ export async function resolveChampionsLeagueOpenPickState(
     if (ctx.current?.weekStart === defaultKey) displayPeriod = ctx.current;
     else if (ctx.previous?.weekStart === defaultKey) displayPeriod = ctx.previous;
     else {
-      const periods = await listChampionsLeaguePickPeriods(poolId);
-      displayPeriod = periods.find((p) => p.weekStart === defaultKey) ?? null;
+      const fromPicks = await listChampionsLeaguePickPeriods(poolId);
+      const slates = await fetchChampionsLeaguePickemSlates(now);
+      const merged = mergeChampionsLeaguePeriodsWithLiveSlate(
+        fromPicks,
+        championsLeagueEspnPeriodDates(slates),
+      );
+      displayPeriod = merged.find((p) => p.weekStart === defaultKey) ?? null;
     }
   }
 
