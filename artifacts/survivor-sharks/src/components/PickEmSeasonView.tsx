@@ -2136,14 +2136,10 @@ export function PickEmSeasonView({
                 <div className="text-center py-16 text-muted-foreground">
                   <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
                   <p className="font-bebas text-2xl tracking-wide">
-                    {(slate as { scheduleUnavailable?: boolean } | undefined)?.scheduleUnavailable
-                      ? "Schedule temporarily unavailable"
-                      : "No games this week"}
+                    No games this week
                   </p>
                   <p className="text-sm mt-1">
-                    {(slate as { scheduleUnavailable?: boolean } | undefined)?.scheduleUnavailable
-                      ? "We could not load this week from ESPN. Try again in a few minutes."
-                      : "Check back when the schedule is posted."}
+                    Check back when the schedule is posted.
                   </p>
                 </div>
               ) : (

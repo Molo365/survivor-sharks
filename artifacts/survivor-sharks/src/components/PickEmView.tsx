@@ -2313,7 +2313,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     setSelectedPeriodStart(null);
   }, [poolId]);
 
-  const { data: pickEmPeriods, isLoading: pickEmPeriodsLoading } = useQuery({
+  const { data: pickEmPeriods } = useQuery({
     queryKey: ["pickem-periods", poolId],
     queryFn: () => authedFetch<PickEmPeriodListResponse>(`/api/pools/${poolId}/pickem/periods`),
     enabled: isWeeklyPeriodHistory,
@@ -3180,7 +3180,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const nhlWeeklyPoolClosed = isNhlWeekly && (satSlate?.poolClosed ?? false);
 
   // MLS weekly combined loading/empty/closed.
-  const mlsWeeklyLoading = isMlsWeekly && (pickEmPeriodsLoading || mlsWeekLoading);
+  const mlsWeeklyLoading = isMlsWeekly && mlsWeekLoading;
   const mlsWeeklyEmpty = isMlsWeekly && !mlsWeeklyLoading && mlsWeeklyAllGames.length === 0;
   const mlsWeeklyPoolClosed = isMlsWeekly && ((mlsWeekData as any)?.poolClosed ?? false);
 

@@ -295,34 +295,13 @@ router.get("/games", requireAuth, async (req, res) => {
     return;
   }
 
-  const isLiveNbaWeeklyPickem =
-    sport === "nba"
-    && pool.pickFrequency === "weekly"
-    && (pool.poolType as string) === "pickem"
-    && !pool.sandboxMode
-    && !isAts;
-
   let allGames = isIntl
     ? await fetchIntlGamesForDate(espnDate)
     : sport === "superleague"
       ? await fetchSuperLeagueGamesForDate(espnDate)
-      : isLiveNhlWeeklyPickemPool(pool)
-        ? (await fetchNhlGamesByWeek(
-          pool.createdAt,
-          pool.currentWeek,
-          pool.isPreseason ? 1 : 2,
-          pool.initialPeriodStart,
-        )).filter((g) => formatCalendarDateEt(new Date(g.date)) === requestedDate)
-      : isLiveNbaWeeklyPickem
-        ? (await fetchNbaGamesByWeek(pool.createdAt, pool.currentWeek))
-          .filter((g) => formatCalendarDateEt(new Date(g.date)) === requestedDate)
-      : await fetchGamesForDate(
-        sport,
-        espnDate,
-        sport === "nhl" && pool.poolType === "pickem" && pool.sandboxMode
-          ? (pool.isPreseason ? 1 : 2)
-          : 2,
-      );
+      : sport === "nhl" && pool.poolType === "pickem" && !pool.sandboxMode
+        ? await fetchGamesForDate(sport, espnDate, pool.isPreseason ? 1 : 2)
+      : await fetchGamesForDate(sport, espnDate);
   allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Sandbox mode for NHL weekly Pick'em: map the requested day-of-week onto the anchor week

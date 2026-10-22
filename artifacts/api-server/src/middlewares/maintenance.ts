@@ -3,7 +3,6 @@ import { getMaintenanceState } from "../lib/maintenance";
 
 const ALWAYS_ALLOWED_EXACT = new Set([
   "/api/healthz",
-  "/api/healthz/ready",
   "/api/maintenance-status",
   "/api/auth/login",
   "/api/auth/me",

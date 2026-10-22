@@ -1,5 +1,3 @@
-import { loginPathWithReturnTo } from "./return-to";
-
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
@@ -376,8 +374,7 @@ export async function customFetch<T = unknown>(
         PUBLIC_EXACT.has(pathname) ||
         PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
       if (!isPublicPath) {
-        const returnPath = `${pathname}${window.location.search || ""}`;
-        window.location.href = loginPathWithReturnTo(returnPath);
+        window.location.href = "/login";
       }
     }
     const errorData = await parseErrorBody(response, method);
