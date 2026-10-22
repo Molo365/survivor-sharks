@@ -10,6 +10,7 @@ import {
   type ConfidenceLiveCellState,
 } from "@/lib/nflConfidenceLivePickCell";
 import { computeCrazyEightsLivePeriodPoints } from "@/lib/crazyEightsLivePoints";
+import { crazyEightsLiveCellDisplayPoints } from "@/lib/crazyEightsScoring";
 import { formatSecondsAgo } from "@/lib/nflPickEmLivePickCell";
 
 const GAME_COL_MIN = 56;
@@ -486,10 +487,18 @@ export function CrazyEightsLiveBoard({
                   </td>
                   {displayGames.map((game) => {
                     const pick = row.picks[game.id] as PlayerPick | undefined;
-                    const { state, abbr, points } = resolveNflConfidenceLivePickCell(
+                    const { state, abbr, points: confPts } = resolveNflConfidenceLivePickCell(
                       pick,
                       game,
                     );
+                    const rawPts =
+                      pick && poolType
+                        ? crazyEightsLiveCellDisplayPoints(poolType, pick, state)
+                        : confPts;
+                    const points =
+                      rawPts != null && poolType === "fast_break_multiplier"
+                        ? Math.round(rawPts * 100) / 100
+                        : rawPts;
                     return (
                       <td key={game.id} className="py-1.5 px-0.5 text-center align-middle">
                         <ConfidencePickCell state={state} abbr={abbr} points={points} />

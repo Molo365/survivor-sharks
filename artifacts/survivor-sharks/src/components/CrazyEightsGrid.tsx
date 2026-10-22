@@ -3,6 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import {
+  crazyEightsGridCellPointsLabel,
+  crazyEightsWeekendPointsSummary,
+  formatCrazyEightsWeekendPointsLabel,
+} from "@/lib/crazyEightsScoring";
 import { ChevronLeft, ChevronRight, AlertCircle, Users } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -29,6 +34,7 @@ interface PlayerPick {
   pickedTeamName: string;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
+  lockedDecimalOdds?: number | null;
   result: string | null;
 }
 
@@ -42,6 +48,7 @@ interface PlayerRow {
 interface GridResponse {
   date: string;
   dateLabel: string;
+  poolType?: string;
   games: GameSummary[];
   players: PlayerRow[];
 }
@@ -149,7 +156,17 @@ function GameHeader({ game, sport }: { game: GameSummary; sport: string }) {
 
 // ── Pick cell ─────────────────────────────────────────────────────────────────
 
-function PickCell({ pick, game, sport }: { pick: PlayerPick | undefined; game: GameSummary; sport: string }) {
+function PickCell({
+  pick,
+  game,
+  sport,
+  poolType = "crazy_8s",
+}: {
+  pick: PlayerPick | undefined;
+  game: GameSummary;
+  sport: string;
+  poolType?: string;
+}) {
   if (!pick) {
     return (
       <div className="flex items-center justify-center min-w-[76px] h-full">
@@ -182,10 +199,11 @@ function PickCell({ pick, game, sport }: { pick: PlayerPick | undefined; game: G
       </span>
       {pick.confidencePoints != null && (
         <span className={cn(
-          "text-[9px] font-bold px-1 rounded leading-none",
+          "text-[9px] font-bold px-1 rounded leading-none font-mono",
           isWin ? "text-green-300" : isLoss ? "text-red-300" : "text-purple-300",
+          poolType === "fast_break_multiplier" && !isWin && !isLoss && "text-amber-300/90",
         )}>
-          {pick.confidencePoints}pt
+          {crazyEightsGridCellPointsLabel(poolType, pick) ?? `${pick.confidencePoints}pt`}
         </span>
       )}
     </div>
@@ -254,6 +272,8 @@ export function CrazyEightsGrid({
     (data?.players ?? []).flatMap((p) => Object.keys(p.picks)),
   );
   const displayGames = (data?.games ?? []).filter((g) => pickedGameIds.has(g.id));
+  const poolType = data?.poolType ?? "crazy_8s";
+  const isMultiplier = poolType === "fast_break_multiplier";
 
   if (isLoading) {
     return (
@@ -332,9 +352,8 @@ export function CrazyEightsGrid({
             </thead>
             <tbody>
               {(data?.players ?? []).map((player, rowIdx) => {
-                const totalPts = Object.values(player.picks).reduce(
-                  (sum, p) => sum + (p.confidencePoints ?? 0), 0,
-                );
+                const summary = crazyEightsWeekendPointsSummary(player.picks, poolType);
+                const totalLabel = formatCrazyEightsWeekendPointsLabel(summary, poolType);
                 return (
                   <tr
                     key={player.userId}
@@ -348,14 +367,14 @@ export function CrazyEightsGrid({
                         <span className="font-semibold text-sm truncate max-w-[90px]">
                           {player.displayName ?? player.username}
                         </span>
-                        <span className="text-[9px] text-purple-300 font-bold shrink-0">
-                          {totalPts}pt
+                        <span className="text-[9px] text-purple-300 font-bold shrink-0 font-mono whitespace-nowrap">
+                          {totalLabel}
                         </span>
                       </div>
                     </td>
                     {displayGames.map((game) => (
                       <td key={game.id} className="px-1 py-1 border-r border-border/20 last:border-r-0">
-                        <PickCell pick={player.picks[game.id]} game={game} sport={sport} />
+                        <PickCell pick={player.picks[game.id]} game={game} sport={sport} poolType={poolType} />
                       </td>
                     ))}
                   </tr>
@@ -378,7 +397,11 @@ export function CrazyEightsGrid({
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded bg-purple-500/10 border border-purple-500/20" /> Pending
           </span>
-          <span className="ml-auto text-muted-foreground/50">Numbers = confidence points</span>
+          <span className="ml-auto text-muted-foreground/50">
+            {isMultiplier
+              ? "Numbers = points earned (or confidence × odds before grade)"
+              : "Numbers = confidence points earned"}
+          </span>
         </div>
       )}
     </div>
