@@ -28,8 +28,8 @@ Read this first when picking up **Survivor Sharks** work for **Molo** (product o
 | Item | Branch / PR | Notes |
 |------|-------------|--------|
 | **NBA ATS Dirty Dozen** | Merged **#117**; copy **#118** | Up to 12 spread picks, ESPN lines |
-| **Fast Break Multiplier** | `cursor/fast-break-multiplier-b582`, **draft #119** | `fast_break_multiplier`: ML required, score = Σ(conf × locked decimal) on correct picks. Migration **`0021_fast_break_multiplier.sql`** must run in prod before live. |
-| **Login → pool after reminder** | `cursor/login-return-to-pool-b582`, **draft #120** | `returnTo` query + post-login redirect; protected routes send `/login?returnTo=/pools/:id` |
+| **Fast Break Multiplier** | Merged **#119** | `fast_break_multiplier`: ML required, score = Σ(conf × locked decimal) on correct picks. Migration **`0021_fast_break_multiplier.sql`** must run in prod before live pools work. |
+| **Login → pool after reminder** | `cursor/login-return-to-pool-b582`, **draft #120** | `returnTo` query + post-login redirect; protected routes send `/login?returnTo=/pools/:id`. Shared allowlist in `lib/api-client-react/src/return-to.ts`. |
 
 If deploy was blocked by Railway, **main in GitHub may be ahead of what’s running** — compare Railway deployment **commit SHA** to `main`.
 
