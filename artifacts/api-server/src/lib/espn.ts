@@ -373,6 +373,14 @@ export function parseGame(event: EspnEvent): EspnGame {
   };
 }
 
+/** ESPN preseason is weeks 1–4. After that, seasontype=1 returns an empty slate. */
+export const NFL_PRESEASON_MAX_WEEK = 4;
+
+export function resolveNflEspnSeasonType(seasonType: number, week: number): number {
+  if (seasonType === 1 && week > NFL_PRESEASON_MAX_WEEK) return 2;
+  return seasonType;
+}
+
 async function fetchGames(sport: string, week?: number, season?: number, seasonType = 2): Promise<EspnGame[]> {
   const base = ESPN_ENDPOINTS[sport];
   if (!base) return [];
@@ -384,10 +392,14 @@ async function fetchGames(sport: string, week?: number, season?: number, seasonT
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[espn] ${sport} scoreboard HTTP ${res.status}: ${url}`);
+      return [];
+    }
     const data = await res.json() as { events?: EspnEvent[] };
     return (data.events ?? []).map(parseGame);
-  } catch {
+  } catch (err) {
+    console.warn(`[espn] ${sport} scoreboard fetch failed: ${url}`, err);
     return [];
   }
 }
@@ -1372,7 +1384,13 @@ export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promis
  * @param seasonType ESPN season type: 1=preseason, 2=regular (default), 3=postseason.
  */
 export async function fetchNflGamesByWeek(week: number, season?: number, seasonType = 2): Promise<EspnGame[]> {
-  return fetchGames("nfl", week, season, seasonType);
+  const type = resolveNflEspnSeasonType(seasonType, week);
+  if (type !== seasonType) {
+    console.warn(
+      `[espn] NFL week ${week} requested seasontype=${seasonType}; using ${type} (preseason only covers weeks 1–${NFL_PRESEASON_MAX_WEEK})`,
+    );
+  }
+  return fetchGames("nfl", week, season, type);
 }
 
 /**
