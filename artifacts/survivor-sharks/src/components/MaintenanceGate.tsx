@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Wrench } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSiteMaintenance } from "@/hooks/useSiteMaintenance";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const POLL_INTERVAL_MS = 20_000;
 const DEFAULT_MESSAGE = "We’ll be back soon.";
-
-interface MaintenanceStatus {
-  enabled: boolean;
-  message: string | null;
-  canBypass: boolean;
-}
 
 interface MaintenanceEventDetail {
   enabled: boolean;
@@ -34,50 +27,9 @@ function isMaintenanceLoginPath(path: string) {
 }
 
 export function MaintenanceGate({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<MaintenanceStatus | null>(null);
+  const status = useSiteMaintenance();
   const [location] = useLocation();
-  const { user } = useAuth();
-
-  const refreshStatus = useCallback(async () => {
-    const token = localStorage.getItem("auth_token");
-    const response = await fetch(`${API_BASE}/api/maintenance-status`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`Maintenance status request failed: ${response.status}`);
-    }
-    const nextStatus = await response.json() as MaintenanceStatus;
-    setStatus(nextStatus);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const poll = () => {
-      refreshStatus().catch(() => {
-        if (active) setStatus((current) => current ?? { enabled: false, message: null, canBypass: false });
-      });
-    };
-    poll();
-    const timer = window.setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [refreshStatus]);
-
-  useEffect(() => {
-    const handleMaintenance = (event: Event) => {
-      const detail = (event as CustomEvent<MaintenanceEventDetail>).detail;
-      setStatus((current) => ({
-        enabled: detail.enabled,
-        message: detail.message,
-        canBypass: current?.canBypass ?? false,
-      }));
-    };
-    window.addEventListener(MAINTENANCE_EVENT, handleMaintenance);
-    return () => window.removeEventListener(MAINTENANCE_EVENT, handleMaintenance);
-  }, []);
+  const { user, logout } = useAuth();
 
   if (status === null) {
     return (
@@ -103,6 +55,28 @@ export function MaintenanceGate({ children }: { children: ReactNode }) {
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             {status.message || DEFAULT_MESSAGE}
           </p>
+          {user && user.role !== "admin" && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Signed in as <span className="text-foreground">{user.displayName || user.username}</span>.
+            </p>
+          )}
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/super-admin"
+              className="inline-flex items-center justify-center rounded-md px-6 py-2.5 text-sm font-semibold tracking-wide bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Staff sign in
+            </Link>
+            {user && (
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              >
+                Sign out
+              </button>
+            )}
+          </div>
         </section>
       </main>
     );

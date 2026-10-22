@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
 import { appendReturnToQuery, resolvePostAuthDestination } from "@/lib/post-auth-redirect";
+import { useSiteMaintenance } from "@/hooks/useSiteMaintenance";
 
 const formSchema = z.object({
   email: z.string().trim().min(1, "Email is required"),
@@ -57,13 +58,16 @@ export default function Login() {
     defaultValues: { email: "" },
   });
 
+  const maintenance = useSiteMaintenance();
   const pendingCode = getPendingInviteCode(location);
   const normalizedLocation = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
   const isSuperAdminLogin =
     normalizedLocation === "/super-admin" ||
     normalizedLocation.endsWith("/super-admin");
+  const maintenanceBlocksSession =
+    maintenance?.enabled === true && user?.role !== "admin";
 
-  if (!isLoading && user && !pendingCode && !isSuperAdminLogin) {
+  if (!isLoading && user && !pendingCode && !isSuperAdminLogin && !maintenanceBlocksSession) {
     return <Redirect to={resolvePostAuthDestination(location, false)} replace />;
   }
 
