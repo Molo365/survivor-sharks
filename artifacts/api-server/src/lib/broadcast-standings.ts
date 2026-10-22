@@ -64,6 +64,7 @@ const MESSAGE_ONLY_BROADCAST_POOL_KEYS = new Set([
   "nhl:crazy_8s",
   "mlb:crazy_8s",
   "nba:crazy_8s",
+  "nba:fast_break_multiplier",
 ]);
 export function isSupportedNflBroadcastPool(pool: Pick<BroadcastPool, "sport" | "poolType">): boolean {
   return pool.sport === "nfl" && (

@@ -51,6 +51,8 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
   const isRecurringApplicable =
     (isMlbNhlMlsSuper && poolType === "pickem") ||
     (poolType as string) === "crazy_8s" ||
+    (poolType as string) === "fast_break_multiplier" ||
+    poolType === "nba_ats" ||
     poolType === "nfl_confidence_weekly";
 
   const isStartWeekApplicable =

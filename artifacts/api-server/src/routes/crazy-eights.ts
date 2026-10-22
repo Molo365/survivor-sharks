@@ -356,6 +356,7 @@ router.get("/slate", requireAuth, async (req, res) => {
       ? await loadNbaMoneylines({
           poolId,
           week: slateWeek,
+          sandboxMode: isSandbox,
           games: games.map((g) => ({
             id: g.id,
             homeTeamId: g.homeTeam.id,
@@ -1236,6 +1237,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       ? await loadNbaMoneylines({
           poolId,
           week: pool.currentWeek,
+          sandboxMode: isSandbox,
           games: games.map((g) => ({
             id: g.id,
             homeTeamId: g.homeTeam.id,
