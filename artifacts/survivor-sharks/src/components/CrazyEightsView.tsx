@@ -31,7 +31,7 @@ import {
   TiebreakerMatchupLogoStrip,
   type TiebreakerMatchupGame,
 } from "@/components/TiebreakerGuessDialogUi";
-import { formatDecimalOdds } from "@/lib/crazyEightsScoring";
+import { crazyEightsCorrectPickPoints, formatDecimalOdds } from "@/lib/crazyEightsScoring";
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -233,13 +233,40 @@ function authedFetch<T>(url: string): Promise<T> {
 
 // ── Locked picks view ────────────────────────────────────────────────────────
 
-function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) {
+function LockedPickRow({
+  pick,
+  sport,
+  poolType = "crazy_8s",
+}: {
+  pick: SubmittedPick;
+  sport: string;
+  poolType?: string;
+}) {
+  const isMultiplier = poolType === "fast_break_multiplier";
   const isFinal = pick.status === "final";
   const isLive = pick.status === "in_progress";
   const isPostponed = pick.status === "postponed";
+  const lockedOdds = pick.lockedDecimalOdds;
+  const earnedPts =
+    isMultiplier && pick.result === "correct"
+      ? crazyEightsCorrectPickPoints(poolType, {
+          confidencePoints: pick.confidencePoints,
+          lockedDecimalOdds: pick.lockedDecimalOdds,
+          result: pick.result,
+        })
+      : null;
+
+  function isPickedTeam(team: SlateTeam): boolean {
+    return (
+      pick.pickedTeamId === team.id
+      || pick.pickedTeamId === team.abbreviation
+      || pick.pickedTeamName === team.abbreviation
+      || pick.pickedTeamName === team.name
+    );
+  }
 
   function teamSide(team: SlateTeam, side: "away" | "home", score: number | null) {
-    const isPicked = pick.pickedTeamId === team.id;
+    const isPicked = isPickedTeam(team);
     const isCorrect = isPicked && pick.result === "correct";
     const isWrong = isPicked && pick.result === "incorrect";
     const isHome = side === "home";
@@ -266,6 +293,11 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
         )}>
           {team.name}
         </span>
+        {isMultiplier && isPicked && lockedOdds != null && Number.isFinite(lockedOdds) && (
+          <span className="text-[10px] sm:text-[11px] text-amber-400/90 font-mono mt-0.5">
+            {formatDecimalOdds(lockedOdds)}
+          </span>
+        )}
         {(isFinal || isLive) && score != null && (
           <span className={cn(
             "font-bebas text-3xl leading-none mt-0.5",
@@ -356,6 +388,30 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
           </div>
           {teamSide(pick.homeTeam, "home", pick.homeScore)}
         </div>
+        {isMultiplier && pick.confidencePoints != null && (
+          <div className="border-t border-border/30 bg-muted/10 px-3 py-2 text-center text-[10px] sm:text-[11px] leading-snug">
+            {lockedOdds != null && Number.isFinite(lockedOdds) ? (
+              <>
+                <span className="text-amber-400/90 font-mono">
+                  {pick.confidencePoints} × {formatDecimalOdds(lockedOdds)}
+                </span>
+                {pick.result === "correct" && earnedPts != null && (
+                  <span className="text-green-400 font-semibold"> · {earnedPts.toFixed(2)} pts</span>
+                )}
+                {pick.result === "incorrect" && (
+                  <span className="text-muted-foreground"> · 0 pts</span>
+                )}
+                {pick.result === "pending" && lockedOdds != null && (
+                  <span className="text-muted-foreground">
+                    {" "}· if correct: {(pick.confidencePoints * lockedOdds).toFixed(2)} pts
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground/80">Locked moneyline unavailable for this pick</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -429,7 +485,7 @@ function LockedPicksView({
         </p>
         <div className="space-y-2">
           {sorted.map((pick) => (
-            <LockedPickRow key={pick.gameId} pick={pick} sport={sport} />
+            <LockedPickRow key={pick.gameId} pick={pick} sport={sport} poolType={poolType} />
           ))}
         </div>
       </div>
