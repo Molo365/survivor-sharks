@@ -20,6 +20,7 @@ export interface PlayerPick {
   pickedTeamName: string | null;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
+  lockedDecimalOdds?: number | null;
   result: string | null;
 }
 

@@ -31,6 +31,7 @@ import {
   TiebreakerMatchupLogoStrip,
   type TiebreakerMatchupGame,
 } from "@/components/TiebreakerGuessDialogUi";
+import { formatDecimalOdds } from "@/lib/crazyEightsScoring";
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -45,6 +46,7 @@ function isGameStarted(game: { status: string; startTime: string }, sandboxMode:
 interface CrazyEightsViewProps {
   poolId: number;
   sport: string;
+  poolType?: string;
   pickFrequency?: string;
   poolName?: string;
   isActive?: boolean;
@@ -77,6 +79,9 @@ interface SlateGame {
   awayPitcher?: PitcherInfo | null;
   homePitcher?: PitcherInfo | null;
   liveDetail?: string | null;
+  hasMoneyline?: boolean;
+  homeDecimalOdds?: number;
+  awayDecimalOdds?: number;
 }
 
 interface TiebreakerGame {
@@ -88,6 +93,8 @@ interface TiebreakerGame {
 interface SlateResponse {
   sport: "mlb" | "nhl" | "nba";
   games: SlateGame[];
+  linesReadyCount?: number;
+  maxPicks?: number;
   gameDate?: string;
   weekLabel?: string;
   friDate?: string;
@@ -107,6 +114,7 @@ interface SubmittedPick {
   pickedTeamName: string;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
+  lockedDecimalOdds?: number | null;
   result: string;
   homeTeam: SlateTeam;
   awayTeam: SlateTeam;
@@ -356,6 +364,7 @@ function LockedPickRow({ pick, sport }: { pick: SubmittedPick; sport: string }) 
 function LockedPicksView({
   picks,
   sport,
+  poolType = "crazy_8s",
   tiebreakerRuns,
   tiebreakerStrikeouts,
   tiebreakerShotsOnGoal,
@@ -367,6 +376,7 @@ function LockedPicksView({
 }: {
   picks: SubmittedPick[];
   sport: string;
+  poolType?: string;
   tiebreakerRuns: number | null;
   tiebreakerStrikeouts: number | null;
   tiebreakerShotsOnGoal: number | null;
@@ -379,6 +389,7 @@ function LockedPicksView({
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
   const isNhl = sport === "nhl";
   const isNba = sport === "nba";
+  const isMultiplier = poolType === "fast_break_multiplier";
   const [editShots, setEditShots] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -391,7 +402,7 @@ function LockedPicksView({
         <div>
           <h2 className="font-bebas text-2xl tracking-wide flex items-center gap-2">
             <Lock className="w-5 h-5 text-purple-400" />
-            {isNhl ? "Your Hit the Ice! Picks" : isNba ? "Your Fast Break Picks" : "Your High Heat Picks"}
+            {isNhl ? "Your Hit the Ice! Picks" : isMultiplier ? "Your Fast Break Multiplier Picks" : isNba ? "Your Fast Break Picks" : "Your High Heat Picks"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isNhl || isNba ? "Weekend picks are submitted and locked." : "Today's picks are submitted and locked."}
@@ -407,7 +418,7 @@ function LockedPicksView({
         <div>
           <p className="font-semibold text-sm">Picks submitted!</p>
           <p className="text-xs text-muted-foreground">
-            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : isNba ? "Your Fast Break picks are locked in. Good luck this weekend!" : "Your High Heat picks are locked in. Good luck!"}
+            {isNhl ? "Your Hit the Ice! picks are locked in. Good luck this weekend!" : isMultiplier ? "Your multiplier picks are locked in. Good luck this weekend!" : isNba ? "Your Fast Break picks are locked in. Good luck this weekend!" : "Your High Heat picks are locked in. Good luck!"}
           </p>
         </div>
       </div>
@@ -544,6 +555,8 @@ function GameCard({
   usedPoints,
   pickedTeam,
   maxPicks,
+  showMoneylines = false,
+  moneylinePending = false,
   onTeamClick,
   onAssignConfidence,
 }: {
@@ -556,6 +569,8 @@ function GameCard({
   usedPoints: Set<number>;
   pickedTeam: string | null;
   maxPicks: number;
+  showMoneylines?: boolean;
+  moneylinePending?: boolean;
   onTeamClick: (teamId: string) => void;
   onAssignConfidence: (pts: number) => void;
 }) {
@@ -563,7 +578,11 @@ function GameCard({
   const isLive = game.status === "in_progress";
   const isPostponed = game.status === "postponed";
   const isSuspended = game.status === "suspended";
-  const isDisabled = isSuspended || (isLocked && !isSelected) || (gameHasStarted && !isSelected);
+  const isDisabled =
+    isSuspended
+    || moneylinePending
+    || (isLocked && !isSelected)
+    || (gameHasStarted && !isSelected);
   const isNhl = sport === "nhl";
 
   const awayPitcher = sport !== "mlb" ? null : pitcherLine(game.awayPitcher);
@@ -574,6 +593,10 @@ function GameCard({
     const isPicked = pickedTeam === team.id;
     const score = isHome ? game.homeScore : game.awayScore;
     const pitcher = isHome ? homePitcher : awayPitcher;
+    const decimal =
+      showMoneylines
+        ? (isHome ? game.homeDecimalOdds : game.awayDecimalOdds)
+        : undefined;
 
     return (
       <button
@@ -620,6 +643,11 @@ function GameCard({
               <div className="text-[10px] md:text-xs text-muted-foreground">
                 {isHome ? "Home" : "Away"}
               </div>
+              {showMoneylines && decimal != null && (
+                <div className="text-[10px] md:text-[11px] text-amber-400/90 font-mono mt-0.5">
+                  {formatDecimalOdds(decimal)}
+                </div>
+              )}
               {pitcher && (
                 <div className="text-[10px] md:text-[11px] text-muted-foreground/70 leading-tight mt-0.5 max-w-[160px] md:max-w-none">
                   {pitcher}
@@ -650,6 +678,11 @@ function GameCard({
           <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">
             LIVE{game.liveDetail ? ` · ${game.liveDetail}` : ""}
           </span>
+        </div>
+      )}
+      {moneylinePending && (
+        <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/25 text-[10px] font-semibold text-amber-300/90 uppercase tracking-wide">
+          Waiting for ESPN money line
         </div>
       )}
 
@@ -692,6 +725,15 @@ function GameCard({
         <div className="px-3 pb-3 md:px-5 md:pb-4 border-t border-purple-500/20 pt-2.5">
           <p className="text-[10px] md:text-xs text-muted-foreground mb-1.5 font-semibold uppercase tracking-wider">
             Confidence points
+            {showMoneylines && pickedTeam && confidence != null && (() => {
+              const dec = pickedTeam === game.homeTeam.id ? game.homeDecimalOdds : game.awayDecimalOdds;
+              if (dec == null) return null;
+              return (
+                <span className="normal-case font-normal text-amber-400/80">
+                  {" "}· if correct: {confidence} × {formatDecimalOdds(dec)} = {(confidence * dec).toFixed(2)} pts
+                </span>
+              );
+            })()}
           </p>
           <div className="flex flex-wrap gap-1">
             {Array.from({ length: maxPicks }, (_, i) => i + 1).map((pts) => {
@@ -727,6 +769,7 @@ function GameCard({
 export function CrazyEightsView({
   poolId,
   sport,
+  poolType = "crazy_8s",
   pickFrequency = "daily",
   isActive = true,
   periodStart,
@@ -737,6 +780,7 @@ export function CrazyEightsView({
   const queryClient = useQueryClient();
   const isNhl = sport === "nhl";
   const isNba = sport === "nba";
+  const isMultiplier = poolType === "fast_break_multiplier";
   const isWeekendSport = isNhl || isNba;
   const isWeekly = pickFrequency === "weekly";
   const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -825,10 +869,21 @@ export function CrazyEightsView({
   const games: SlateGame[] = slateData?.games ?? [];
   const sandboxMode = slateData?.sandboxMode ?? false;
 
-  const MAX_PICKS = useMemo(
-    () => Math.min(games.filter(g => !isGameStarted(g, sandboxMode)).length, 8),
-    [games, sandboxMode]
-  );
+  const MAX_PICKS = useMemo(() => {
+    const cap = slateData?.maxPicks ?? 8;
+    const open = games.filter((g) => {
+      if (isGameStarted(g, sandboxMode)) return false;
+      if (isMultiplier && g.hasMoneyline === false) return false;
+      return true;
+    });
+    return Math.min(open.length, cap);
+  }, [games, sandboxMode, isMultiplier, slateData?.maxPicks]);
+
+  const linesReadyCount = useMemo(() => {
+    if (!isMultiplier) return 0;
+    if (typeof slateData?.linesReadyCount === "number") return slateData.linesReadyCount;
+    return games.filter((g) => g.hasMoneyline).length;
+  }, [isMultiplier, slateData?.linesReadyCount, games]);
 
   const existingPicks = myPicksData?.picks ?? [];
   const hasPicks = existingPicks.length > 0;
@@ -875,6 +930,11 @@ export function CrazyEightsView({
 
   function handleTeamClick(gameId: string, teamId: string) {
     if (isLocked) return;
+    const game = games.find((g) => g.id === gameId);
+    if (isMultiplier && game && !game.hasMoneyline) {
+      toast({ title: "Line not ready", description: "This game does not have ESPN money lines yet.", variant: "destructive" });
+      return;
+    }
     if (selectedIds.includes(gameId)) {
       if (pickedTeams[gameId] === teamId) {
         setSelectedIds((prev) => prev.filter((id) => id !== gameId));
@@ -1110,6 +1170,7 @@ export function CrazyEightsView({
       <LockedPicksView
         picks={existingPicks}
         sport={sport}
+        poolType={poolType}
         tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
         tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
         tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
@@ -1125,11 +1186,18 @@ export function CrazyEightsView({
   // ── All games started ─────────────────────────────────────────────────────
 
   if (MAX_PICKS === 0) {
+    const waitingLines = isMultiplier && games.length > 0;
     return (
       <div className="text-center py-16 text-muted-foreground">
         <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">No Games Available</p>
-        <p className="text-sm">All games for this period have already started.</p>
+        <p className="font-bebas text-2xl tracking-wide mb-1">
+          {waitingLines ? "Lines Not Ready" : "No Games Available"}
+        </p>
+        <p className="text-sm">
+          {waitingLines
+            ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon.`
+            : "All games for this period have already started."}
+        </p>
       </div>
     );
   }
@@ -1150,12 +1218,16 @@ export function CrazyEightsView({
             {isNhl ? <Snowflake className="w-6 h-6 text-cyan-400" /> : <Dice5 className="w-6 h-6 text-purple-400" />}
             {isNhl
               ? `Hit the Ice! — ${slateData?.weekLabel ?? "This Weekend"}`
-              : isNba
-                ? `Fast Break — ${slateData?.weekLabel ?? "This Weekend"}`
-                : "High Heat — Today's Slate"}
+              : isMultiplier
+                ? `Fast Break Multiplier — ${slateData?.weekLabel ?? "This Weekend"}`
+                : isNba
+                  ? `Fast Break — ${slateData?.weekLabel ?? "This Weekend"}`
+                  : "High Heat — Today's Slate"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Select {MAX_PICKS} game{MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–{MAX_PICKS}.
+            {isMultiplier
+              ? `Pick ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"} with ESPN money lines, assign confidence 1–${MAX_PICKS}, and earn confidence × decimal odds on correct picks.`
+              : `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–${MAX_PICKS}.`}
             {isNhl && !isLocked && !hasPicks && ` ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
             {isNba && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
           </p>
@@ -1219,14 +1291,16 @@ export function CrazyEightsView({
           <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : isNba ? "🏀" : "⚾"}</span>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-foreground leading-snug">
-              {isNhl ? "How Hit the Ice works" : isNba ? "How Fast Break works" : "How High Heat works"}
+              {isNhl ? "How Hit the Ice works" : isMultiplier ? "How Fast Break Multiplier works" : isNba ? "How Fast Break works" : "How High Heat works"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
               {isNhl
                 ? `Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
-                : isNba
-                  ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
-                  : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch. Minimum 4 games required to play.`}
+                : isMultiplier
+                  ? `Pick up to 8 games with posted money lines, assign confidence 1–8, and score confidence × locked decimal odds on winners. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`
+                  : isNba
+                    ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
+                    : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch. Minimum 4 games required to play.`}
             </p>
           </div>
           <button
@@ -1260,6 +1334,18 @@ export function CrazyEightsView({
         </div>
       )}
 
+      {isMultiplier && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-sm text-amber-200/90">
+          <span className="font-semibold text-amber-200">Money lines:</span>{" "}
+          {linesReadyCount} of {games.length} games ready
+          {linesReadyCount < MAX_PICKS && linesReadyCount > 0
+            ? ` — you need ${MAX_PICKS} lined games to submit.`
+            : linesReadyCount === 0
+              ? " — picks unlock when ESPN posts lines."
+              : ""}
+        </div>
+      )}
+
       {/* Game list */}
       <div className="space-y-3">
         {games.map((game) => (
@@ -1274,6 +1360,8 @@ export function CrazyEightsView({
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
             maxPicks={MAX_PICKS}
+            showMoneylines={isMultiplier}
+            moneylinePending={isMultiplier && !game.hasMoneyline}
             onTeamClick={(teamId) => handleTeamClick(game.id, teamId)}
             onAssignConfidence={(pts) => assignConfidence(game.id, pts)}
           />

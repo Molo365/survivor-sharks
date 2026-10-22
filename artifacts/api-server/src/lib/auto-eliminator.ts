@@ -30,6 +30,7 @@ import {
   closeCrazyEightsPool,
   recordCrazyEightsPeriodAndAdvance,
 } from "./crazy-eights-recurring-settlement";
+import { crazyEightsCorrectPickPoints } from "./crazy-eights-scoring";
 import { applyChampionsLeagueClosure } from "./champions-league-closure";
 import {
   fetchGames,
@@ -5594,17 +5595,24 @@ export async function resolveCrazyEightsPeriod(
   const allPicks = await db
     .select({
       userId: pickemPicksTable.userId,
-      cp: (pickemPicksTable as any).confidencePoints,
+      cp: pickemPicksTable.confidencePoints,
+      lockedDecimalOdds: pickemPicksTable.lockedDecimalOdds,
       result: pickemPicksTable.result,
     })
     .from(pickemPicksTable)
     .where(and(eq(pickemPicksTable.poolId, pool.id), inArray(pickemPicksTable.gameDate, periodDates)));
 
   const scoreByUser = new Map<number, number>();
+  const poolType = pool.poolType as string;
   for (const pick of allPicks) {
     if (!scoreByUser.has(pick.userId)) scoreByUser.set(pick.userId, 0);
-    if (pick.result === "correct" && pick.cp != null) {
-      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + (pick.cp as number));
+    const pts = crazyEightsCorrectPickPoints(poolType, {
+      confidencePoints: pick.cp,
+      lockedDecimalOdds: pick.lockedDecimalOdds,
+      result: pick.result,
+    });
+    if (pts > 0) {
+      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + pts);
     }
   }
   if (scoreByUser.size === 0) return;
@@ -5780,7 +5788,10 @@ export async function processCrazyEightsResults(): Promise<{
   const crazyPools = await db
     .select()
     .from(poolsTable)
-    .where(and(eq(poolsTable.poolType, "crazy_8s"), eq(poolsTable.isActive, true)));
+    .where(and(
+      inArray(poolsTable.poolType, ["crazy_8s", "fast_break_multiplier"]),
+      eq(poolsTable.isActive, true),
+    ));
 
   if (crazyPools.length === 0) return { picksGraded };
 

@@ -98,7 +98,60 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
   const isNbaSurvivorSeason = pool.sport === "nba" && pool.poolType === "season";
   const isNhlHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nhl";
   const isNbaHitTheIce = pool.poolType === "crazy_8s" && pool.sport === "nba";
+  const isNbaFastBreakMultiplier = pool.poolType === "fast_break_multiplier" && pool.sport === "nba";
   const isNbaAts = pool.sport === "nba" && pool.poolType === "nba_ats";
+
+  if (isNbaFastBreakMultiplier) {
+    return {
+      title: "Fast Break Multiplier Rules",
+      sections: [
+        {
+          heading: "How it works",
+          items: [
+            "Each weekend, pick the winners of up to 8 NBA games from Friday, Saturday, and Sunday when ESPN money lines are available.",
+            "Assign confidence points 1–8 (each used once). Straight-up winners only — no spreads.",
+          ],
+        },
+        {
+          heading: "Lines and picks",
+          items: [
+            "You can only pick games that already have an ESPN money line. The decimal odds for your side lock in when you submit.",
+            "Submit all picks together before the first picked game starts, or before the pool locks — whichever comes first.",
+            NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
+            "Once you submit, picks are locked. A second submission is refused.",
+          ],
+        },
+        {
+          heading: "Scoring",
+          items: [
+            "Each correct pick scores confidence × locked decimal money line (e.g. 6 × 1.91). Wrong picks score 0.",
+            "Highest weekend total wins.",
+            "A postponed game earns no points and does not hold up results.",
+          ],
+        },
+        {
+          heading: "Tiebreakers",
+          items: [
+            "Enter combined total points for the last game of the weekend when you submit.",
+            "If players tie on points, the closest guess wins. Equally close splits the prize.",
+            NBA_WEEKEND_REVEAL_SENTENCE,
+          ],
+        },
+        {
+          heading: "Every weekend",
+          items: [
+            "This pool repeats every weekend. Each weekend is scored on its own.",
+            "Tiebreaker guesses reset each weekend.",
+            "The commissioner can stop the pool with End Recurring Pool after the current weekend finishes.",
+          ],
+        },
+        {
+          heading: "Prizes",
+          items: [...prizeItems(pool), "Prizes are worked out for each weekend."],
+        },
+      ],
+    };
+  }
 
   if (isNhlHitTheIce || isNbaHitTheIce) {
     const sportName = isNhlHitTheIce ? "NHL" : "NBA";

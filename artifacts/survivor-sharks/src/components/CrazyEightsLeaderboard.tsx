@@ -10,6 +10,7 @@ import {
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
 import type { TiebreakerMatchupGame } from "@/components/TiebreakerGuessDialogUi";
+import { crazyEightsCorrectPickPoints } from "@/lib/crazyEightsScoring";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ interface PlayerPick {
   pickedTeamName: string;
   pickedTeamLogoUrl: string | null;
   confidencePoints: number | null;
+  lockedDecimalOdds?: number | null;
   result: string | null;
 }
 
@@ -272,6 +274,7 @@ function CrazyEightsDayPanel({ poolId, userId, date }: { poolId: number; userId:
 export function CrazyEightsLeaderboard({
   poolId,
   sport = "mlb",
+  poolType = "crazy_8s",
   sandboxMode = false,
   defaultToPreviousWeek = false,
   poolIsActive = true,
@@ -280,6 +283,7 @@ export function CrazyEightsLeaderboard({
 }: {
   poolId: number;
   sport?: string;
+  poolType?: string;
   sandboxMode?: boolean;
   defaultToPreviousWeek?: boolean;
   poolIsActive?: boolean;
@@ -401,8 +405,19 @@ export function CrazyEightsLeaderboard({
         const won = picks.filter((pk) => pk.result === "correct");
         const pending = picks.filter((pk) => pk.result == null || pk.result === "pending");
         const lost = picks.filter((pk) => pk.result === "incorrect");
-        const pointsEarned = won.reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
-        const pointsPossible = picks.reduce((s, pk) => s + (pk.confidencePoints ?? 0), 0);
+        const pointsEarned = picks.reduce(
+          (s, pk) => s + crazyEightsCorrectPickPoints(poolType, pk),
+          0,
+        );
+        const pointsPossible = picks.reduce((s, pk) => {
+          const cp = pk.confidencePoints ?? 0;
+          if (poolType === "fast_break_multiplier") {
+            const dec = pk.lockedDecimalOdds;
+            if (dec != null && Number.isFinite(dec) && dec >= 1) return s + cp * dec;
+            return s + cp;
+          }
+          return s + cp;
+        }, 0);
         return { ...p, won: won.length, lost: lost.length, pending: pending.length, total: picks.length, pointsEarned, pointsPossible };
       })
       .sort((a, b) => b.pointsEarned - a.pointsEarned || b.pointsPossible - a.pointsPossible);
