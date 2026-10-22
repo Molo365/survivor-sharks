@@ -99,7 +99,7 @@ type SportPoolStatus = "open" | "coming_soon" | "paused" | "season_over";
 const SPORT_POOL_TYPES: Record<string, string[]> = {
   [PoolInputSport.mlb]: ["crazy_8s", "mlb_bracket"],
   [PoolInputSport.nfl]: ["season", "nfl_division_predictor", "nfl_confidence", "nfl_confidence_weekly", "pickem_season"],
-  [PoolInputSport.nba]: ["season", "nba_ats", "crazy_8s"],
+  [PoolInputSport.nba]: ["season", "nba_ats", "crazy_8s", "fast_break_multiplier"],
   [PoolInputSport.nhl]: ["season", "pickem", "crazy_8s", "nhl_division_predictor"],
   [PoolInputSport.worldcup]: ["pickem"],
   mls: ["pickem"],
@@ -150,6 +150,17 @@ const POOL_TYPES = [
     badge: "ATS",
     badgeClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     cardClass: "border-orange-500/60 bg-[linear-gradient(145deg,rgba(234,88,12,0.08)_0%,transparent_100%)]",
+  },
+  {
+    id: "fast_break_multiplier" as const,
+    label: "Fast Break Multiplier",
+    icon: Dice5,
+    tagline: "Confidence × Odds",
+    description:
+      "Same as Fast Break: pick 8 NBA weekend games, rank confidence 1–8. Correct picks score confidence × locked decimal moneyline (ESPN). Highest total wins.",
+    badge: "× Odds",
+    badgeClass: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/35",
+    cardClass: "border-fuchsia-500/60 bg-[linear-gradient(145deg,rgba(217,70,239,0.08)_0%,transparent_100%)]",
   },
   {
     id: "pickem" as const,
@@ -310,7 +321,7 @@ function StepHeader({
 const formSchema = z.object({
   name: z.string().min(3, "Pool name must be at least 3 characters").max(50),
   sport: z.nativeEnum(PoolInputSport),
-  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "nhl_division_predictor", "dirty_dozen", "crazy_8s", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "mlb_bracket", "nba_ats"]).default("season"),
+  poolType: z.enum(["season", "weekly", "pickem", "group_stage_predictor", "nfl_division_predictor", "nhl_division_predictor", "dirty_dozen", "crazy_8s", "fast_break_multiplier", "nfl_confidence", "nfl_confidence_weekly", "pickem_season", "wc_bracket", "mlb_bracket", "nba_ats"]).default("season"),
   pickFrequency: z.enum(["weekly", "daily"]).default("weekly"),
   doubleElimination: z.boolean().default(false),
   isRecurring: z.boolean().optional(),
@@ -794,7 +805,10 @@ export default function CreatePool() {
       selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season"
     )) return true;
     if (selectedSport === PoolInputSport.nhl && (selectedType === "pickem" || selectedType === "crazy_8s")) return true;
-    if (selectedSport === PoolInputSport.nba && (selectedType === "nba_ats" || selectedType === "crazy_8s")) return true;
+    if (
+      selectedSport === PoolInputSport.nba
+      && (selectedType === "nba_ats" || selectedType === "crazy_8s" || selectedType === "fast_break_multiplier")
+    ) return true;
     if (selectedSport === PoolInputSport.mls && selectedType === "pickem") return true;
     if (selectedSport === PoolInputSport.superleague && selectedType === "pickem") return true;
     if (selectedSport === PoolInputSport.championsleague && selectedType === "pickem") return true;
@@ -985,6 +999,7 @@ export default function CreatePool() {
     }
     if (selectedType === "pickem" && selectedSport === PoolInputSport.nhl) return "NHL Pick-Ems";
     if (selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl) return "Hit the Ice!";
+    if (selectedType === "fast_break_multiplier" && selectedSport === PoolInputSport.nba) return "Fast Break Multiplier";
     if (selectedType === "crazy_8s" && selectedSport === PoolInputSport.nba) return "Fast Break";
     return POOL_TYPES.find((t) => t.id === selectedType)?.label ?? String(selectedType);
   })();
@@ -1034,7 +1049,7 @@ export default function CreatePool() {
       ? "MLB HIGH HEAT"
       : selectedSport === PoolInputSport.nhl && selectedType === "crazy_8s"
       ? "HIT THE ICE!"
-      : selectedSport === PoolInputSport.nba && selectedType === "crazy_8s"
+      : selectedSport === PoolInputSport.nba && (selectedType === "crazy_8s" || selectedType === "fast_break_multiplier")
       ? "NBA FAST BREAK"
       : selectedSport === PoolInputSport.mlb && selectedType === "mlb_bracket"
       ? "MLB POSTSEASON BRACKET"
@@ -1047,6 +1062,8 @@ export default function CreatePool() {
       ? "12 curated games per week. Assign confidence points 1–12."
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl
       ? "Pick up to 8 games from the weekend NHL slate. Assign confidence points by confidence level."
+      : selectedType === "fast_break_multiplier" && selectedSport === PoolInputSport.nba
+      ? "Pick 8 games with posted ESPN moneylines. Rank confidence 1–8. Score = confidence × decimal odds on each correct pick."
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nba
       ? "Pick up to 8 games from the weekend NBA slate (Fri–Sun). Assign confidence points by confidence level."
       : selectedType === "crazy_8s"
@@ -1137,7 +1154,7 @@ export default function CreatePool() {
             values.poolType === "mlb_bracket" ||
             (values.sport === PoolInputSport.nhl && values.poolType === "season") ||
             (values.sport === PoolInputSport.nba && values.poolType === "season") ||
-            (values.sport === PoolInputSport.nba && values.poolType === "crazy_8s")) && { sandboxMode: values.sandboxMode }),
+            (values.sport === PoolInputSport.nba && (values.poolType === "crazy_8s" || values.poolType === "fast_break_multiplier"))) && { sandboxMode: values.sandboxMode }),
           ...(showsRecurringToggle && values.isRecurring !== undefined && { isRecurring: values.isRecurring }),
           ...(isNflStartWeekPool && values.startWeek != null && { startWeek: values.startWeek }),
           ...(isStartPeriodPool && { initialPeriodStart: values.initialPeriodStart ?? thisPeriod.start }),

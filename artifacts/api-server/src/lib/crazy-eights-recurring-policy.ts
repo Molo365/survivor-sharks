@@ -6,8 +6,11 @@ type CrazyEightsPoolScope = {
 };
 
 export function isRecurringNhlOrNbaCrazyEights(pool: CrazyEightsPoolScope): boolean {
-  return (
+  const family =
     pool.poolType === "crazy_8s"
+    || (pool.poolType === "fast_break_multiplier" && pool.sport === "nba");
+  return (
+    family
     && pool.isRecurring
     && !pool.sandboxMode
     && (pool.sport === "nhl" || pool.sport === "nba")

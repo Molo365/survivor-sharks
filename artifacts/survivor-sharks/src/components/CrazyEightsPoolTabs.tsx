@@ -24,6 +24,7 @@ function authedFetch<T>(url: string): Promise<T> {
 type PoolSlice = {
   id: number;
   sport: string;
+  poolType?: string;
   name: string;
   isActive: boolean;
   isRecurring: boolean;
@@ -149,6 +150,7 @@ export function CrazyEightsPoolTabs({
             <CrazyEightsView
               poolId={pool.id}
               sport={pool.sport}
+              poolType={pool.poolType}
               pickFrequency={pool.pickFrequency ?? "daily"}
               poolName={pool.name}
               isActive={pool.isActive}
@@ -160,6 +162,7 @@ export function CrazyEightsPoolTabs({
             <CrazyEightsLeaderboard
               poolId={pool.id}
               sport={pool.sport}
+              poolType={pool.poolType}
               sandboxMode={sandboxMode}
               defaultToPreviousWeek={!pool.isActive}
               poolIsActive={pool.isActive}
@@ -180,6 +183,7 @@ export function CrazyEightsPoolTabs({
             <CrazyEightsLiveBoard
               poolId={pool.id}
               sport={pool.sport}
+              poolType={pool.poolType}
               sandboxMode={sandboxMode}
               periodStart={isPeriodHistory ? activePeriodStart : undefined}
               usePeriodSelector={isPeriodHistory}

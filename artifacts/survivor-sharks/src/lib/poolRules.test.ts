@@ -127,6 +127,7 @@ test("returns no empty sections for every supported pool type", () => {
     { poolType: "crazy_8s", sport: "nhl" },
     { poolType: "season", sport: "nhl" },
     { poolType: "crazy_8s", sport: "nba" },
+    { poolType: "fast_break_multiplier", sport: "nba" },
   ];
 
   for (const pool of supportedPools) {

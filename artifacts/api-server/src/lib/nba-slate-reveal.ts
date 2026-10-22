@@ -8,7 +8,7 @@ export function isNbaWeekendOfficePool(pool: {
 }): boolean {
   if (pool.sport !== "nba") return false;
   if (pool.poolType === "nba_ats") return true;
-  return pool.poolType === "crazy_8s";
+  return pool.poolType === "crazy_8s" || pool.poolType === "fast_break_multiplier";
 }
 
 export function nbaSaturdaySixPmLockInstant(

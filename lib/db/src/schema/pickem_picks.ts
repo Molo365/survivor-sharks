@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, pgEnum, unique, smallint } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, pgEnum, unique, smallint, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -19,6 +19,8 @@ export const pickemPicksTable = pgTable(
     pickedTeamName: text("picked_team_name").notNull(),
     result: pickemResultEnum("result").notNull().default("pending"),
     confidencePoints: smallint("confidence_points"),
+    /** Decimal moneyline frozen at submit (Fast Break Multiplier). */
+    lockedDecimalOdds: real("locked_decimal_odds"),
     awayScore: integer("away_score"),
     homeScore: integer("home_score"),
     winnerTeamId: text("winner_team_id"),

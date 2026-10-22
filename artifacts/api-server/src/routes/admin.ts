@@ -57,7 +57,9 @@ router.patch("/pools/:poolId/sandbox-mode", requireAuth, requireAdmin, async (re
   const isCrazyEightsMlb = (pool.poolType as string) === "crazy_8s" && pool.sport === "mlb";
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
   const isCrazyEightsNba = (pool.poolType as string) === "crazy_8s" && pool.sport === "nba";
-  if (!sandboxCapable.includes(pool.poolType as string) && !isCrazyEightsMlb && !isCrazyEightsNhl && !isCrazyEightsNba) {
+  const isFastBreakMultiplierNba =
+    (pool.poolType as string) === "fast_break_multiplier" && pool.sport === "nba";
+  if (!sandboxCapable.includes(pool.poolType as string) && !isCrazyEightsMlb && !isCrazyEightsNhl && !isCrazyEightsNba && !isFastBreakMultiplierNba) {
     res.status(400).json({ error: "Sandbox mode is not available for this pool type" });
     return;
   }

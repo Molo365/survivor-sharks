@@ -63,7 +63,7 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
     });
   }
 
-  if (pt === "crazy_8s" || pt === "crazy_eights") {
+  if (pt === "crazy_8s" || pt === "crazy_eights" || pt === "fast_break_multiplier") {
     if (sport === "mlb") {
       const today = getTodayEtDate().replace(/-/g, "");
       return fetchGamesForDate("mlb", today);

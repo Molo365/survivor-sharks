@@ -6,7 +6,7 @@ export function isRecurringConfigurablePool(pool: {
   poolType: string;
 }): boolean {
   const pt = pool.poolType;
-  if (pt === "crazy_8s" || pt === "nfl_confidence_weekly" || pt === "nba_ats") {
+  if (pt === "crazy_8s" || pt === "fast_break_multiplier" || pt === "nfl_confidence_weekly" || pt === "nba_ats") {
     return true;
   }
   if (pt === "pickem" && ["mlb", "nhl", "mls", "superleague"].includes(pool.sport)) {
@@ -19,7 +19,7 @@ export function resolveIsRecurringOnCreate(
   poolType: string,
   isRecurring: boolean | undefined,
 ): boolean {
-  if (poolType === "crazy_8s") return true;
+  if (poolType === "crazy_8s" || poolType === "fast_break_multiplier") return true;
   if (ONE_SHOT_BRACKET_POOL_TYPES.has(poolType)) return false;
   if (typeof isRecurring === "boolean") return isRecurring;
   return true;

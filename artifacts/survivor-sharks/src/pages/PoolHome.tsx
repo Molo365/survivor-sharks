@@ -101,7 +101,9 @@ export default function PoolHome() {
   const isGsp = (pool?.poolType as string) === "group_stage_predictor";
   const isNdp = (pool?.poolType as string) === "nfl_division_predictor";
   const isNhlNdp = (pool?.poolType as string) === "nhl_division_predictor";
-  const isCrazyEights = (pool?.poolType as string) === "crazy_8s";
+  const isCrazyEights =
+    (pool?.poolType as string) === "crazy_8s"
+    || (pool?.poolType as string) === "fast_break_multiplier";
   const isNflConfidence = (pool?.poolType as string) === "nfl_confidence";
   const isNflConfidenceWeekly = (pool?.poolType as string) === "nfl_confidence_weekly";
   const isPickEmSeason = (pool?.poolType as string) === "pickem_season";
@@ -566,6 +568,7 @@ export default function PoolHome() {
                 pool={{
                   id: pool.id,
                   sport: pool.sport,
+                  poolType: pool.poolType as string,
                   name: pool.name,
                   isActive: pool.isActive,
                   isRecurring: pool.isRecurring,

@@ -204,11 +204,12 @@ export type CrazyEightsLiveBoardProps = {
 export function CrazyEightsLiveBoard({
   poolId,
   sport,
+  poolType = "crazy_8s",
   sandboxMode = false,
   periodStart,
   usePeriodSelector = false,
   currentUserId,
-}: CrazyEightsLiveBoardProps) {
+}: CrazyEightsLiveBoardProps & { poolType?: string }) {
   const { user } = useAuth();
   const isNhl = sport === "nhl";
   const isNba = sport === "nba";
@@ -276,7 +277,7 @@ export function CrazyEightsLiveBoard({
         userId: p.userId,
         name: p.displayName || p.username,
         picks: p.picks,
-        periodPoints: computeCrazyEightsLivePeriodPoints(p.picks, gamesById),
+        periodPoints: computeCrazyEightsLivePeriodPoints(p.picks, gamesById, poolType ?? "crazy_8s"),
       }))
       .sort((x, y) => y.periodPoints - x.periodPoints);
     return ranked.map((r, i) => ({ ...r, rank: i + 1 }));

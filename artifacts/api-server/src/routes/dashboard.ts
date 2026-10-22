@@ -167,7 +167,7 @@ function scoreNdpDivision(
 }
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season"]);
-const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket", "crazy_8s", "nba_ats"];
+const SUPPORTED_TYPES = ["pickem", "season", "weekly", "mid_season", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket", "crazy_8s", "fast_break_multiplier", "nba_ats"];
 
 function computeRank<T extends { score: number }>(rows: T[], userId: number): number {
   if (rows.length === 0) return 0;
@@ -1019,9 +1019,14 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         return { poolId: pool.id, poolType, lastWinners: null, myStanding: { rank: computeRank(rows, userId), isTied: computeIsTied(rows, userId), correct: mine?.correct ?? 0, picked: mine?.picked ?? 0, hasPicks: Boolean(mine?.picked), status: !hasAllPicks && locked ? "closed" : null, eliminatedWeek: null, score: mine?.score ?? null, maxScore: MLB_MAX_SCORE }, poolName: pool.name, sport: pool.sport as string, totalPlayers: memberCountMap.get(pool.id) ?? 0 };
       }
 
-      // ── Crazy 8's (weekly scoring, MLB + NHL Hit The Ice) ───────────────────
-      if (poolType === "crazy_8s") {
-        const c8WeeklyPointsSql = sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`;
+      // ── Crazy 8's / Fast Break Multiplier (weekly scoring) ───────────────────
+      if (poolType === "crazy_8s" || poolType === "fast_break_multiplier") {
+        const c8WeeklyPointsSql = poolType === "fast_break_multiplier"
+          ? sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) * COALESCE(pickem_picks.locked_decimal_odds::real, 0) ELSE 0 END), 0)`
+          : sql<string>`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0)`;
+        const c8WeeklyPointsOrderSql = poolType === "fast_break_multiplier"
+          ? sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) * COALESCE(pickem_picks.locked_decimal_odds::real, 0) ELSE 0 END), 0) DESC`
+          : sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`;
 
         // ── NHL Hit The Ice: mirror the grid endpoint's exact date filter ──────
         // Picks store `gameDate = game.date.slice(0, 10)` (raw UTC timestamp).
@@ -1060,7 +1065,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               .from(pickemPicksTable)
               .where(and(eq(pickemPicksTable.poolId, pool.id), nhlDateFilter))
               .groupBy(pickemPicksTable.userId)
-              .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+              .orderBy(c8WeeklyPointsOrderSql),
             nhlPrevDateFilter
               ? db
                   .select({
@@ -1074,7 +1079,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                   .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
                   .where(and(eq(pickemPicksTable.poolId, pool.id), nhlPrevDateFilter))
                   .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-                  .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`)
+                  .orderBy(c8WeeklyPointsOrderSql)
               : Promise.resolve([] as { userId: number; username: string; displayName: string | null; weeklyPoints: string; picked: string }[]),
           ]);
 
@@ -1117,7 +1122,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                   inArray(pickemPicksTable.gameDate, [fbSat, fbSun]),
                 ))
                 .groupBy(pickemPicksTable.userId)
-                .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+                .orderBy(c8WeeklyPointsOrderSql);
             }
           }
 
@@ -1183,7 +1188,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               eq(pickemPicksTable.week, pool.currentWeek),
             ))
             .groupBy(pickemPicksTable.userId)
-            .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`),
+            .orderBy(c8WeeklyPointsOrderSql),
           prevWeekNum >= 1
             ? db
                 .select({
@@ -1200,7 +1205,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                   eq(pickemPicksTable.week, prevWeekNum),
                 ))
                 .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
-                .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`)
+                .orderBy(c8WeeklyPointsOrderSql)
             : Promise.resolve([] as { userId: number; username: string; displayName: string | null; weeklyPoints: string; picked: string }[]),
         ]);
 
@@ -1232,7 +1237,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
                 eq(pickemPicksTable.week, latestWeekRow.week),
               ))
               .groupBy(pickemPicksTable.userId)
-              .orderBy(sql`COALESCE(SUM(CASE WHEN pickem_picks.result = 'correct' THEN COALESCE(pickem_picks.confidence_points::integer, 0) ELSE 0 END), 0) DESC`);
+              .orderBy(c8WeeklyPointsOrderSql);
           }
         }
 

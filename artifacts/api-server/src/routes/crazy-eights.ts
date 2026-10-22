@@ -28,6 +28,9 @@ import {
   nbaSaturdaySixPmLockInstant,
   nbaWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nba-slate-reveal";
+import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "../lib/fast-break-pool";
+import { decimalOddsForTeam, loadNbaMoneylines } from "../lib/nba-ml-odds";
+import { crazyEightsCorrectPickPoints } from "../lib/crazy-eights-scoring";
 
 const router = Router({ mergeParams: true });
 
@@ -338,6 +341,7 @@ router.get("/slate", requireAuth, async (req, res) => {
 
   if (pool.sport === "nba") {
     const isSandbox = (pool as any).sandboxMode as boolean;
+    const isMultiplier = isFastBreakMultiplierPool(pool);
     const { games, friDate, satDate, sunDate } = await getNbaWeekendSlate(pool, slateWeek);
 
     // Load sandbox scores so graded cards display final results
@@ -347,6 +351,21 @@ router.get("/slate", requireAuth, async (req, res) => {
         .where(and(eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, slateWeek)));
       for (const r of rows) sandboxScores.set(r.gameId, { homeScore: r.homeScore ?? 0, awayScore: r.awayScore ?? 0 });
     }
+
+    const moneylines = isMultiplier
+      ? await loadNbaMoneylines({
+          poolId,
+          week: slateWeek,
+          games: games.map((g) => ({
+            id: g.id,
+            homeTeamId: g.homeTeam.id,
+            awayTeamId: g.awayTeam.id,
+          })),
+        })
+      : null;
+    const linesReadyCount = isMultiplier
+      ? games.filter((g) => moneylines?.has(g.id)).length
+      : undefined;
 
     const [fy, fm, fd] = friDate.split("-").map(Number);
     const [ny, nm, nd] = sunDate.split("-").map(Number);
@@ -366,13 +385,24 @@ router.get("/slate", requireAuth, async (req, res) => {
       viewingPastPeriod,
       deadline: poolLockAt?.toISOString() ?? null,
       deadlinePassed: poolLockAt ? Date.now() >= poolLockAt.getTime() : false,
+      ...(isMultiplier ? { linesReadyCount, maxPicks: 8 } : {}),
       games: games.map(g => {
         const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
+        const ml = moneylines?.get(g.id);
         return {
           ...toSlateShape(g),
           homeScore: isSandbox ? (sbScore?.homeScore ?? null) : (g.homeScore ?? null),
           awayScore: isSandbox ? (sbScore?.awayScore ?? null) : (g.awayScore ?? null),
           status: isSandbox ? (sbScore ? "final" : "scheduled") : g.status,
+          ...(ml
+            ? {
+                homeDecimalOdds: ml.homeDecimalOdds,
+                awayDecimalOdds: ml.awayDecimalOdds,
+                hasMoneyline: true,
+              }
+            : isMultiplier
+              ? { hasMoneyline: false }
+              : {}),
         };
       }),
     });
@@ -582,7 +612,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         const sogGuess = tbByUser.get(u.userId)?.tiebreakerShotsOnGoal ?? null;
         const pimGuess = tbByUser.get(u.userId)?.tiebreakerPenaltyMinutes ?? null;
         const tbRevealed = nhlWeekendPoolTiebreakerGuessRevealed({
-          pool: { sport: "nhl", poolType: "crazy_8s", pickFrequency: "weekly", sandboxMode: pool.sandboxMode, isActive: pool.isActive },
+          pool: { sport: "nhl", poolType: pool.poolType as string, pickFrequency: pool.pickFrequency ?? "weekly", sandboxMode: pool.sandboxMode, isActive: pool.isActive },
           requesterUserId: userId,
           rowUserId: u.userId,
           slateGameStartIsos: nhlWeekendSlateIsos,
@@ -603,6 +633,7 @@ router.get("/grid", requireAuth, async (req, res) => {
   }
 
   if (pool.sport === "nba") {
+    const isMultiplier = isFastBreakMultiplierPool(pool);
     // date = Friday anchor; derive Saturday = +1, Sunday = +2
     const [fy, fm, fd] = date.split("-").map(Number);
     const friDt = new Date(Date.UTC(fy, fm - 1, fd));
@@ -623,6 +654,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         pickedTeamId: pickemPicksTable.pickedTeamId,
         pickedTeamName: pickemPicksTable.pickedTeamName,
         confidencePoints: (pickemPicksTable as any).confidencePoints,
+        lockedDecimalOdds: pickemPicksTable.lockedDecimalOdds,
         result: pickemPicksTable.result,
       })
         .from(pickemPicksTable)
@@ -645,7 +677,7 @@ router.get("/grid", requireAuth, async (req, res) => {
 
     const userMap = new Map<number, {
       userId: number; username: string; displayName: string | null;
-      picks: Map<string, { pickedTeamId: string | null; pickedTeamName: string | null; pickedTeamLogoUrl: string | null; confidencePoints: number | null; result: string | null }>;
+      picks: Map<string, { pickedTeamId: string | null; pickedTeamName: string | null; pickedTeamLogoUrl: string | null; confidencePoints: number | null; lockedDecimalOdds: number | null; result: string | null }>;
     }>();
 
     for (const pick of allPicks) {
@@ -667,6 +699,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         pickedTeamName: revealed ? pick.pickedTeamName : null,
         pickedTeamLogoUrl: revealed && game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
         confidencePoints: (pick as any).confidencePoints ?? null,
+        lockedDecimalOdds: isMultiplier ? (pick as { lockedDecimalOdds?: number | null }).lockedDecimalOdds ?? null : null,
         result: pick.result ?? null,
       });
     }
@@ -701,6 +734,7 @@ router.get("/grid", requireAuth, async (req, res) => {
       date,
       dateLabel,
       viewingPastPeriod,
+      poolType: pool.poolType,
       tiebreakerColumnHeader,
       tiebreakerActualPoints,
       tiebreakerMatchup: lastGame ? toTiebreakerMatchupPayload(lastGame) : undefined,
@@ -716,7 +750,7 @@ router.get("/grid", requireAuth, async (req, res) => {
       players: Array.from(userMap.values()).map(u => {
         const ptsGuess = tbByUser.get(u.userId)?.tiebreakerPoints ?? null;
         const tbRevealed = nbaWeekendPoolTiebreakerGuessRevealed({
-          pool: { sport: "nba", poolType: "crazy_8s", sandboxMode: pool.sandboxMode, isActive: pool.isActive },
+          pool: { sport: "nba", poolType: pool.poolType as string, sandboxMode: pool.sandboxMode, isActive: pool.isActive },
           requesterUserId: userId,
           rowUserId: u.userId,
           slateGameStartIsos: nbaWeekendSlateIsos,
@@ -930,6 +964,7 @@ router.get("/picks", requireAuth, async (req, res) => {
           ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null
           : null,
         confidencePoints: (pick as any).confidencePoints ?? null,
+        lockedDecimalOdds: (pick as { lockedDecimalOdds?: number | null }).lockedDecimalOdds ?? null,
         result: pick.result,
         homeTeam: game
           ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
@@ -1051,7 +1086,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Pool not found" });
     return;
   }
-  if ((pool.poolType as string) !== "crazy_8s") {
+  if (!isCrazyEightsFamilyPoolType(pool.poolType as string)) {
     res.status(400).json({ error: "This pool is not a Crazy 8's pool" });
     return;
   }
@@ -1194,8 +1229,20 @@ router.post("/picks", requireAuth, async (req, res) => {
 
   if (pool.sport === "nba") {
     const isSandbox = (pool as any).sandboxMode as boolean;
+    const isMultiplier = isFastBreakMultiplierPool(pool);
     const { games, gameDates, friDate, satDate } = await getNbaWeekendSlate(pool);
     const gameMap = new Map(games.map(g => [g.id, g]));
+    const moneylines = isMultiplier
+      ? await loadNbaMoneylines({
+          poolId,
+          week: pool.currentWeek,
+          games: games.map((g) => ({
+            id: g.id,
+            homeTeamId: g.homeTeam.id,
+            awayTeamId: g.awayTeam.id,
+          })),
+        })
+      : null;
 
     for (const pick of picks) {
       if (!gameMap.has(pick.gameId)) {
@@ -1205,15 +1252,16 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
 
     const nowMs = Date.now();
-    const availableCount = Math.min(
-      isSandbox
-        ? games.length
-        : games.filter(g => {
-            const startMs = new Date(g.date).getTime();
-            return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
-          }).length,
-      8
-    );
+    const openGames = isSandbox
+      ? games
+      : games.filter(g => {
+          const startMs = new Date(g.date).getTime();
+          return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
+        });
+    const pickableGames = isMultiplier
+      ? openGames.filter((g) => moneylines?.has(g.id))
+      : openGames;
+    const availableCount = Math.min(pickableGames.length, 8);
     if (availableCount === 0) {
       res.status(400).json({ error: "No games available to pick — all games have started" });
       return;
@@ -1246,9 +1294,27 @@ router.post("/picks", requireAuth, async (req, res) => {
         && typeof tiebreakerPoints !== "number"
       ) {
         res.status(400).json({
-          error: "Fast Break requires a tiebreaker guess (combined points for the last game of the weekend).",
+          error: isMultiplier
+            ? "Fast Break Multiplier requires a tiebreaker guess (combined points for the last game of the weekend)."
+            : "Fast Break requires a tiebreaker guess (combined points for the last game of the weekend).",
         });
         return;
+      }
+    }
+
+    if (isMultiplier) {
+      const noLineIds = picks.filter((p) => !moneylines?.has(p.gameId)).map((p) => p.gameId);
+      if (noLineIds.length > 0) {
+        res.status(409).json({ error: `Line not out yet for: ${noLineIds.join(", ")}` });
+        return;
+      }
+      for (const pick of picks) {
+        const ml = moneylines!.get(pick.gameId)!;
+        const teamLabel = pick.pickedTeam ?? "";
+        if (decimalOddsForTeam(ml, teamLabel) == null) {
+          res.status(400).json({ error: `Invalid team for moneyline: ${pick.gameId}` });
+          return;
+        }
       }
     }
 
@@ -1275,11 +1341,11 @@ router.post("/picks", requireAuth, async (req, res) => {
       let saved = 0;
       for (const pick of picks) {
         const game = gameMap.get(pick.gameId)!;
-        // Bucket by the ET slate day (Fri/Sat/Sun) — a UTC slice of game.date would
-        // push Sunday-evening ET games onto Monday and exclude them from all
-        // weekend-window queries (picks/grid/grading/resolution).
         const gameDate = gameDates.get(pick.gameId) ?? friDate;
         const teamLabel = pick.pickedTeam ?? "";
+        const lockedDecimalOdds = isMultiplier
+          ? decimalOddsForTeam(moneylines!.get(pick.gameId)!, teamLabel)
+          : null;
         await tx
           .insert(pickemPicksTable)
           .values({
@@ -1291,17 +1357,19 @@ router.post("/picks", requireAuth, async (req, res) => {
             pickedTeamId: teamLabel,
             pickedTeamName: pick.pickedTeamName || teamLabel,
             confidencePoints: pick.confidencePoints,
+            lockedDecimalOdds,
             result: "pending",
-          } as any)
+          })
           .onConflictDoUpdate({
             target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
             set: {
               pickedTeamId: teamLabel,
               pickedTeamName: pick.pickedTeamName || teamLabel,
               confidencePoints: pick.confidencePoints,
+              lockedDecimalOdds,
               result: "pending",
               updatedAt: new Date(),
-            } as any,
+            },
           });
         saved++;
       }
@@ -1451,7 +1519,12 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
   };
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool || (pool.poolType as string) !== "crazy_8s" || (pool.sport !== "nhl" && pool.sport !== "nba")) {
+  if (
+    !pool
+    || !isCrazyEightsFamilyPoolType(pool.poolType as string)
+    || (pool.sport !== "nhl" && pool.sport !== "nba")
+    || (pool.poolType === "fast_break_multiplier" && pool.sport !== "nba")
+  ) {
     res.status(404).json({ error: "Pool not found or not a weekend Crazy 8's pool" });
     return;
   }
@@ -1575,6 +1648,76 @@ router.get("/yesterday-winner", requireAuth, async (req, res) => {
         return dates;
       })()
     : [date];
+
+  const poolType = pool.poolType as string;
+  const useMultiplierScoring = isFastBreakMultiplierPool(pool);
+
+  if (useMultiplierScoring) {
+    const pickRows = await db
+      .select({
+        userId: pickemPicksTable.userId,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        confidencePoints: pickemPicksTable.confidencePoints,
+        lockedDecimalOdds: pickemPicksTable.lockedDecimalOdds,
+        result: pickemPicksTable.result,
+      })
+      .from(pickemPicksTable)
+      .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+      .where(and(eq(pickemPicksTable.poolId, poolId), inArray(pickemPicksTable.gameDate, datesToQuery)));
+
+    type Agg = {
+      userId: number;
+      username: string;
+      displayName: string | null;
+      score: number;
+      total: number;
+      graded: number;
+    };
+    const byUser = new Map<number, Agg>();
+    for (const pick of pickRows) {
+      if (!byUser.has(pick.userId)) {
+        byUser.set(pick.userId, {
+          userId: pick.userId,
+          username: pick.username,
+          displayName: pick.displayName ?? null,
+          score: 0,
+          total: 0,
+          graded: 0,
+        });
+      }
+      const row = byUser.get(pick.userId)!;
+      row.total += 1;
+      if (pick.result != null && pick.result !== "pending") row.graded += 1;
+      row.score += crazyEightsCorrectPickPoints(poolType, {
+        confidencePoints: pick.confidencePoints,
+        lockedDecimalOdds: pick.lockedDecimalOdds,
+        result: pick.result,
+      });
+    }
+    const rows = [...byUser.values()].sort((a, b) => b.score - a.score);
+    const hasResults = rows.some((r) => r.graded > 0);
+    if (!hasResults) {
+      res.json({ date, hasResults: false, winners: [] });
+      return;
+    }
+    const allGraded = rows.every((r) => r.graded === r.total);
+    if (!allGraded) {
+      res.json({ date, hasResults: false, winners: [] });
+      return;
+    }
+    const maxPts = Math.max(...rows.map((r) => r.score));
+    const winners = rows
+      .filter((r) => r.score === maxPts)
+      .map((r) => ({
+        userId: r.userId,
+        username: r.username,
+        displayName: r.displayName,
+        confidencePoints: r.score,
+      }));
+    res.json({ date, hasResults: true, winners });
+    return;
+  }
 
   const rows = await db
     .select({
@@ -1872,7 +2015,10 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
 
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
-  if ((pool.poolType as string) !== "crazy_8s") { res.status(400).json({ error: "Not a crazy_8s pool" }); return; }
+  if (!isCrazyEightsFamilyPoolType(pool.poolType as string)) {
+    res.status(400).json({ error: "Not a crazy_8s pool" });
+    return;
+  }
 
   const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable)
     .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId))).limit(1);
@@ -1903,6 +2049,7 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
     db.select({
       userId: pickemPicksTable.userId,
       confidencePoints: pickemPicksTable.confidencePoints,
+      lockedDecimalOdds: pickemPicksTable.lockedDecimalOdds,
       result: pickemPicksTable.result,
       gameDate: pickemPicksTable.gameDate,
     }).from(pickemPicksTable).where(eq(pickemPicksTable.poolId, poolId)),
@@ -1913,11 +2060,17 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
   // 2. Compute per-user confidence-point totals and collect period dates
   const scoreByUser = new Map<number, number>();
   const periodDates = new Set<string>();
+  const poolType = pool.poolType as string;
   for (const pick of allPicks) {
     periodDates.add(pick.gameDate);
     if (!scoreByUser.has(pick.userId)) scoreByUser.set(pick.userId, 0);
-    if (pick.result === "correct" && pick.confidencePoints != null) {
-      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + Number(pick.confidencePoints));
+    const pts = crazyEightsCorrectPickPoints(poolType, {
+      confidencePoints: pick.confidencePoints,
+      lockedDecimalOdds: pick.lockedDecimalOdds,
+      result: pick.result,
+    });
+    if (pts > 0) {
+      scoreByUser.set(pick.userId, scoreByUser.get(pick.userId)! + pts);
     }
   }
 
