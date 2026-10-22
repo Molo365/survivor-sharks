@@ -51,13 +51,32 @@ export function groupSortedDatesIntoChampionsLeaguePeriods(sortedUniqueDates: st
   return periods;
 }
 
-function toPoolPeriod(dates: string[]): ChampionsLeaguePoolPeriod {
+export function toPoolPeriod(dates: string[]): ChampionsLeaguePoolPeriod {
   const sorted = [...dates].sort();
   return {
     dates: sorted,
     weekStart: sorted[0]!,
     weekEnd: sorted[sorted.length - 1]!,
   };
+}
+
+/** Merge pick-history periods with the live ESPN slate so new pools see the open matchday. */
+export function mergeChampionsLeaguePeriodsWithLiveSlate(
+  fromPicks: ChampionsLeaguePoolPeriod[],
+  slateDates: string[],
+): ChampionsLeaguePoolPeriod[] {
+  const periods = [...fromPicks];
+  if (slateDates.length === 0) {
+    return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+  }
+  const slatePeriod = toPoolPeriod(slateDates);
+  const overlapsSlate = periods.some(
+    (period) =>
+      period.weekStart === slatePeriod.weekStart
+      || period.dates.some((date) => slatePeriod.dates.includes(date)),
+  );
+  if (!overlapsSlate) periods.push(slatePeriod);
+  return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 }
 
 export async function listChampionsLeaguePickPeriods(poolId: number): Promise<ChampionsLeaguePoolPeriod[]> {
@@ -171,7 +190,9 @@ export async function resolveChampionsLeaguePeriodContext(
   poolId: number,
   now = new Date(),
 ): Promise<ChampionsLeaguePeriodContext> {
-  const periods = await listChampionsLeaguePickPeriods(poolId);
+  const fromPicks = await listChampionsLeaguePickPeriods(poolId);
+  const slate = await fetchCurrentChampionsLeagueSlate(now);
+  const periods = mergeChampionsLeaguePeriodsWithLiveSlate(fromPicks, slate?.dates ?? []);
   if (periods.length === 0) {
     return { current: null, previous: null };
   }
@@ -183,7 +204,6 @@ export async function resolveChampionsLeaguePeriodContext(
     }
   }
 
-  const slate = await fetchCurrentChampionsLeagueSlate(now);
   const { current: currentIdx, previous: previousIdx } = pickChampionsLeaguePeriodIndices(
     periods,
     gradedWeekStarts,

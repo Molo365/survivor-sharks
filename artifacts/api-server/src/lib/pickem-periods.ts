@@ -5,6 +5,7 @@ import {
   enrichPhaseLabel,
   fetchChampionsLeagueGamesForPeriodDates,
   listChampionsLeaguePickPeriods,
+  mergeChampionsLeaguePeriodsWithLiveSlate,
   resolveChampionsLeaguePeriodContext,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
@@ -58,8 +59,11 @@ export async function listChampionsLeaguePickEmPeriods(
   const liveSlate = await fetchCurrentChampionsLeagueSlate(now);
 
   const byStart = new Map<string, ChampionsLeaguePoolPeriod>();
-  for (const period of fromPicks) byStart.set(period.weekStart, period);
+  for (const period of mergeChampionsLeaguePeriodsWithLiveSlate(fromPicks, liveSlate?.dates ?? [])) {
+    byStart.set(period.weekStart, period);
+  }
   if (ctx.current) byStart.set(ctx.current.weekStart, ctx.current);
+  if (ctx.previous) byStart.set(ctx.previous.weekStart, ctx.previous);
 
   const sorted = [...byStart.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   const hasVisibleLiveSlate =

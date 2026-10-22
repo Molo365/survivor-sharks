@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   groupSortedDatesIntoChampionsLeaguePeriods,
+  mergeChampionsLeaguePeriodsWithLiveSlate,
   pickChampionsLeaguePeriodIndices,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
@@ -14,6 +15,16 @@ function period(dates: string[]): ChampionsLeaguePoolPeriod {
   const sorted = [...dates].sort();
   return { dates: sorted, weekStart: sorted[0]!, weekEnd: sorted[sorted.length - 1]! };
 }
+
+test("adds the live ESPN slate when the pool has no pick history yet", () => {
+  const merged = mergeChampionsLeaguePeriodsWithLiveSlate([], ["2026-10-21", "2026-10-22"]);
+  assert.equal(merged.length, 1);
+  assert.deepEqual(merged[0]!.dates, ["2026-10-21", "2026-10-22"]);
+  assert.equal(
+    pickChampionsLeaguePeriodIndices(merged, [], ["2026-10-21", "2026-10-22"]).current,
+    0,
+  );
+});
 
 test("groups UEFA matchday dates and splits on long gaps", () => {
   const periods = groupSortedDatesIntoChampionsLeaguePeriods([
