@@ -3533,11 +3533,14 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
 
   const isCrazyEightsNhl = (pool.poolType as string) === "crazy_8s" && pool.sport === "nhl";
-  const isCrazyEightsNba = (pool.poolType as string) === "crazy_8s" && pool.sport === "nba";
+  const isNbaWeekendFastBreak = pool.sport === "nba" && (
+    (pool.poolType as string) === "crazy_8s"
+    || (pool.poolType as string) === "fast_break_multiplier"
+  );
   const isPickemNhlWeekly = pool.poolType === "pickem" && pool.sport === "nhl" && pool.pickFrequency === "weekly";
   const isNbaAts = (pool.poolType as string) === "nba_ats";
-  if (!isCrazyEightsNhl && !isCrazyEightsNba && !isPickemNhlWeekly && !isNbaAts) {
-    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly), NHL Hit the Ice, NBA ATS, and NBA Fast Break pools in sandbox mode" }); return;
+  if (!isCrazyEightsNhl && !isNbaWeekendFastBreak && !isPickemNhlWeekly && !isNbaAts) {
+    res.status(400).json({ error: "Simulate grading is only available for NHL Pick'em (weekly), NHL Hit the Ice, NBA ATS, NBA Fast Break, and Fast Break Multiplier pools in sandbox mode" }); return;
   }
   if (!pool.sandboxMode) {
     res.status(400).json({ error: "Sandbox mode is not enabled for this pool" }); return;
@@ -3545,8 +3548,8 @@ router.post("/simulate-grading", requireAuth, requireAdmin, async (req, res) => 
 
   const week = pool.currentWeek;
 
-  // ── NBA Fast Break sandbox simulate-grading ─────────────────────────────────
-  if (isCrazyEightsNba) {
+  // ── NBA Fast Break / Multiplier sandbox simulate-grading ────────────────────
+  if (isNbaWeekendFastBreak) {
     // Fetch the full Fri/Sat/Sun weekend slate for this anchor week.
     const { espnDates } = getNbaWeekendBounds(NBA_SANDBOX_ANCHOR, week);
     const weekendGames = (await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)))).flat();
