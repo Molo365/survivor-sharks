@@ -5,6 +5,7 @@ import { eq, and, sql, isNotNull, inArray, count } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, replayRowToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { fetchNflGamesByWeek } from "../lib/espn";
+import { fetchNflGamesForPoolWeek } from "../lib/nfl-espn-slate";
 import {
   findLastNflGameByKickoff,
   resolveWeeklyTiebreaker,
@@ -122,8 +123,7 @@ router.get("/games", requireAuth, async (req, res) => {
   }
 
   // Live mode: fetch from ESPN
-  const nflSeasonType = pool.isPreseason ? 1 : 2;
-  const espnGames = await fetchNflGamesByWeek(week, pool.season, nflSeasonType);
+  const { games: espnGames, scheduleUnavailable } = await fetchNflGamesForPoolWeek(pool, week);
   const games = espnGames.map((g) => ({
     id: g.id,
     startTime: g.date,
@@ -144,7 +144,12 @@ router.get("/games", requireAuth, async (req, res) => {
     awayScore: g.awayScore ?? null,
     homeScore: g.homeScore ?? null,
   }));
-  res.json({ week, games, sandboxMode: false });
+  res.json({
+    week,
+    games,
+    sandboxMode: false,
+    ...(scheduleUnavailable && { scheduleUnavailable: true }),
+  });
 });
 
 // GET /api/pools/:poolId/nfl-confidence/picks

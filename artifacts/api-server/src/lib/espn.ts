@@ -384,10 +384,14 @@ async function fetchGames(sport: string, week?: number, season?: number, seasonT
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[espn] ${sport} scoreboard HTTP ${res.status}: ${url}`);
+      return [];
+    }
     const data = await res.json() as { events?: EspnEvent[] };
     return (data.events ?? []).map(parseGame);
-  } catch {
+  } catch (err) {
+    console.warn(`[espn] ${sport} scoreboard fetch failed: ${url}`, err);
     return [];
   }
 }

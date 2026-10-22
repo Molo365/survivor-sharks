@@ -4,6 +4,7 @@ import { pickemPicksTable, poolsTable, usersTable, entriesTable, nflConfidenceRe
 import { eq, and, sql, inArray, isNotNull, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchNflGamesByWeek, fetchNflWeek18TiebreakerStats } from "../lib/espn";
+import { fetchNflGamesForPoolWeek } from "../lib/nfl-espn-slate";
 import { computeLiveCorrect, getLiveGamesCached } from "../lib/nfl-live-picks";
 import { getSandboxGamesForWeek, sandboxGameToPickEmShape, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { applyPickEmSeasonClosure, NFL_TOTAL_WEEKS } from "../lib/pickem-season-closure";
@@ -136,7 +137,7 @@ async function resolveWeeklyTiebreakerGame(
       }));
     }
   } else {
-    const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    const { games } = await fetchNflGamesForPoolWeek(pool, week);
     scheduledGames = games.map((game) => ({ id: game.id, startTime: game.date }));
   }
 
@@ -395,7 +396,7 @@ router.get("/games", requireAuth, async (req, res) => {
     return;
   }
 
-  const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+  const { games, scheduleUnavailable } = await fetchNflGamesForPoolWeek(pool, week);
   games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const slateGameStartIsos = games.map((g) => g.date);
 
@@ -471,6 +472,7 @@ router.get("/games", requireAuth, async (req, res) => {
     currentWeek: pool.currentWeek,
     pickemScoringMode: pickemScoringModeForPool(pool),
     games: gamesWithSpreads,
+    ...(scheduleUnavailable && { scheduleUnavailable: true }),
     ...(tiebreakerGameId !== null && { tiebreakerGameId }),
     ...(pool.weeklyBonusEnabled && {
       weeklyTiebreaker: {
