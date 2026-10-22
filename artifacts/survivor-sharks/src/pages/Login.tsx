@@ -26,6 +26,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
+import { appendReturnToQuery, resolvePostAuthDestination } from "@/lib/post-auth-redirect";
+import { useSiteMaintenance } from "@/hooks/useSiteMaintenance";
 
 const formSchema = z.object({
   email: z.string().trim().min(1, "Email is required"),
@@ -56,14 +58,17 @@ export default function Login() {
     defaultValues: { email: "" },
   });
 
+  const maintenance = useSiteMaintenance();
   const pendingCode = getPendingInviteCode(location);
   const normalizedLocation = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
   const isSuperAdminLogin =
     normalizedLocation === "/super-admin" ||
     normalizedLocation.endsWith("/super-admin");
+  const maintenanceBlocksSession =
+    maintenance?.enabled === true && user?.role !== "admin";
 
-  if (!isLoading && user && !pendingCode && !isSuperAdminLogin) {
-    return <Redirect to="/dashboard" replace />;
+  if (!isLoading && user && !pendingCode && !isSuperAdminLogin && !maintenanceBlocksSession) {
+    return <Redirect to={resolvePostAuthDestination(location, false)} replace />;
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -81,7 +86,7 @@ export default function Login() {
           if (pendingCode) {
             setLocation(continuationPath(pendingCode));
           } else {
-            setLocation("/dashboard", { replace: true });
+            setLocation(resolvePostAuthDestination(location, false), { replace: true });
           }
         },
         onError: (error: any) => {
@@ -177,7 +182,7 @@ export default function Login() {
           <CardFooter className="flex justify-center border-t border-border/50 pt-6">
             <p className="text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <Link href={pendingCode ? `/register?invite=${encodeURIComponent(pendingCode)}` : "/register"} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-register">
+              <Link href={appendReturnToQuery("/register", location, pendingCode)} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-register">
                 Join the frenzy
               </Link>
             </p>

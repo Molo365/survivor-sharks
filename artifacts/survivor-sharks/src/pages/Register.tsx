@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { continuationPath, getPendingInviteCode } from "@/lib/pending-invite";
+import { appendReturnToQuery, resolvePostAuthDestination } from "@/lib/post-auth-redirect";
 
 const formSchema = z.object({
   realName: z
@@ -53,7 +54,7 @@ export default function Register() {
   const pendingCode = getPendingInviteCode(location);
 
   if (!isLoading && user && !pendingCode) {
-    return <Redirect to="/dashboard" replace />;
+    return <Redirect to={resolvePostAuthDestination(location, false)} replace />;
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -80,7 +81,7 @@ export default function Register() {
           if (pendingCode) {
             setLocation(continuationPath(pendingCode));
           } else {
-            setLocation("/dashboard", { replace: true });
+            setLocation(resolvePostAuthDestination(location, false), { replace: true });
           }
         },
         onError: (error: any) => {
@@ -205,7 +206,7 @@ export default function Register() {
         <CardFooter className="flex justify-center border-t border-border/50 pt-6">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href={pendingCode ? `/login?invite=${encodeURIComponent(pendingCode)}` : "/login"} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-login">
+            <Link href={appendReturnToQuery("/login", location, pendingCode)} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-login">
               Sign in
             </Link>
           </p>
