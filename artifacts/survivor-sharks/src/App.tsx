@@ -31,6 +31,7 @@ import Profile from "@/pages/Profile";
 import PastPools from "@/pages/PastPools";
 import Feedback from "@/pages/Feedback";
 import AuthInviteContinuation from "@/pages/AuthInviteContinuation";
+import { loginPathWithReturn } from "@/lib/post-auth-redirect";
 import { MaintenanceGate } from "@/components/MaintenanceGate";
 import { BetaBanner } from "@/components/BetaBanner";
 import LegalDocument from "@/pages/LegalDocument";
@@ -53,6 +54,7 @@ const queryClient = new QueryClient({
 
 const ProtectedRoute = ({ component: Component }: { component: any }) => {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -60,7 +62,13 @@ const ProtectedRoute = ({ component: Component }: { component: any }) => {
       </div>
     );
   }
-  if (!user) return <Redirect to="/login" />;
+  if (!user) {
+    const path =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : location;
+    return <Redirect to={loginPathWithReturn(path)} />;
+  }
   return <Component />;
 };
 

@@ -374,7 +374,13 @@ export async function customFetch<T = unknown>(
         PUBLIC_EXACT.has(pathname) ||
         PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
       if (!isPublicPath) {
-        window.location.href = "/login";
+        const returnPath = `${pathname}${window.location.search || ""}`;
+        const params = new URLSearchParams();
+        if (returnPath.startsWith("/") && !returnPath.startsWith("//") && !returnPath.includes("..")) {
+          params.set("returnTo", returnPath);
+        }
+        const qs = params.toString();
+        window.location.href = qs ? `/login?${qs}` : "/login";
       }
     }
     const errorData = await parseErrorBody(response, method);
