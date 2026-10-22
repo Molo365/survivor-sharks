@@ -40,3 +40,4 @@
 - [Railway database inspection](railway-database-inspection.md) — MCP OAuth exposes variable names, not SQL access; development queries cannot establish production data safety.
 - [NFL beta audit](nfl-beta-audit.md) — all five NFL create-wizard pool types, smoke checklist, NDP create guard.
 - [Per-sport creation policy](sport-pool-creation-policy.md) — availability controls new non-admin pool creation only; existing pools and the global creation flag remain independent.
+- [MLB weekly tiebreaker parity (shelved)](mlb-weekly-tiebreaker-parity.md) — backlog to match live NHL weekly (#97) before next MLB season; do not delete existing MLB runs tiebreaker.
