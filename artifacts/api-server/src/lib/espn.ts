@@ -384,14 +384,10 @@ async function fetchGames(sport: string, week?: number, season?: number, seasonT
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) {
-      console.warn(`[espn] ${sport} scoreboard HTTP ${res.status}: ${url}`);
-      return [];
-    }
+    if (!res.ok) return [];
     const data = await res.json() as { events?: EspnEvent[] };
     return (data.events ?? []).map(parseGame);
-  } catch (err) {
-    console.warn(`[espn] ${sport} scoreboard fetch failed: ${url}`, err);
+  } catch {
     return [];
   }
 }
@@ -1217,8 +1213,6 @@ export interface ChampionsLeagueSlate {
 }
 
 const CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS = 60;
-/** Include recently finished matchdays (post-matchday grace + gaps between UEFA slates). */
-export const CHAMPIONS_LEAGUE_LOOKBACK_DAYS = 14;
 const CHAMPIONS_LEAGUE_PERIOD_MAX_GAP_DAYS = 3;
 const CHAMPIONS_LEAGUE_SEASON_FEED_LIMIT = 1000;
 /** Pick-Em pools expose a matchday/leg only within this window before first kickoff. */
@@ -1284,51 +1278,6 @@ function groupChampionsLeaguePeriods(games: EspnGame[]): EspnGame[][] {
   return periods;
 }
 
-function championsLeagueSlateFromPeriodGames(gamesInPeriod: EspnGame[]): ChampionsLeagueSlate {
-  const seed = gamesInPeriod.find((game) => game.matchday != null || game.legNumber != null)
-    ?? gamesInPeriod[0]!;
-  const periodDates = [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))];
-  if (seed.phaseSlug === "league-phase" && periodDates.length === 1 && gamesInPeriod.length <= 2) {
-    console.warn(
-      `[Champions League] Suspiciously small league-phase period: ` +
-      `${gamesInPeriod.length} game(s) on ${periodDates[0]}. ` +
-      "The ESPN response may be truncated.",
-    );
-  }
-  return {
-    phaseSlug: seed.phaseSlug!,
-    phaseLabel: seed.phaseLabel ?? CHAMPIONS_LEAGUE_PHASE_LABELS[seed.phaseSlug!],
-    ...(seed.matchday != null ? { matchday: seed.matchday } : {}),
-    ...(seed.legNumber != null ? { legNumber: seed.legNumber, legLabel: seed.legLabel } : {}),
-    dates: periodDates,
-    games: gamesInPeriod,
-  };
-}
-
-function isChampionsLeaguePeriodCompleted(period: EspnGame[], now: Date): boolean {
-  return period.every((game) => new Date(game.date).getTime() <= now.getTime());
-}
-
-/** Latest UEFA date cluster whose fixtures have all kicked off (for post-matchday grace UI). */
-export function resolveLastCompletedChampionsLeagueSlate(
-  games: EspnGame[],
-  now = new Date(),
-): ChampionsLeagueSlate | null {
-  const eligible = games
-    .filter((game) => game.phaseSlug)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  if (eligible.length === 0) return null;
-
-  const periods = groupChampionsLeaguePeriods(eligible);
-  let lastCompleted: EspnGame[] | null = null;
-  for (const period of periods) {
-    if (isChampionsLeaguePeriodCompleted(period, now)) {
-      lastCompleted = period;
-    }
-  }
-  return lastCompleted ? championsLeagueSlateFromPeriodGames(lastCompleted) : null;
-}
-
 export function resolveCurrentChampionsLeagueSlate(
   games: EspnGame[],
   now = new Date(),
@@ -1350,6 +1299,16 @@ export function resolveCurrentChampionsLeagueSlate(
     )
   );
   const gamesInPeriod = currentOrUpcoming ?? periods[periods.length - 1]!;
+  const seed = gamesInPeriod.find((game) => game.matchday != null || game.legNumber != null)
+    ?? gamesInPeriod[0]!;
+  const periodDates = [...new Set(gamesInPeriod.map((game) => eventEtDate(game.date)))];
+  if (seed.phaseSlug === "league-phase" && periodDates.length === 1 && gamesInPeriod.length <= 2) {
+    console.warn(
+      `[Champions League] Suspiciously small league-phase period: ` +
+      `${gamesInPeriod.length} game(s) on ${periodDates[0]}. ` +
+      "The ESPN response may be truncated.",
+    );
+  }
 
   if (
     enforcePickemVisibilityWindow
@@ -1358,29 +1317,37 @@ export function resolveCurrentChampionsLeagueSlate(
     return null;
   }
 
-  return championsLeagueSlateFromPeriodGames(gamesInPeriod);
+  return {
+    phaseSlug: seed.phaseSlug!,
+    phaseLabel: seed.phaseLabel ?? CHAMPIONS_LEAGUE_PHASE_LABELS[seed.phaseSlug!],
+    ...(seed.matchday != null ? { matchday: seed.matchday } : {}),
+    ...(seed.legNumber != null ? { legNumber: seed.legNumber, legLabel: seed.legLabel } : {}),
+    dates: periodDates,
+    games: gamesInPeriod,
+  };
 }
 
-export type ChampionsLeaguePickemSlates = {
-  /** Open for picks — inside the 1-week pre-kickoff window. */
-  visible: ChampionsLeagueSlate | null;
-  /** Next competition period on the calendar (may be too far out to pick yet). */
-  upcoming: ChampionsLeagueSlate | null;
-  /** Most recent matchday that has fully kicked off. */
-  lastCompleted: ChampionsLeagueSlate | null;
-};
-
-export async function fetchChampionsLeagueGamesInPickemWindow(now = new Date()): Promise<EspnGame[]> {
+/**
+ * Resolve one Champions League competition period rather than using an
+ * arbitrary calendar week. The window is wide enough to cross UEFA's long
+ * gaps, while the resolver returns only the next compact date cluster.
+ */
+export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
   const dateAtOffset = (days: number) => {
     const d = new Date(now.getTime() + days * 86_400_000);
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
     }).format(d).replace(/-/g, "");
   };
-  const rangeStart = dateAtOffset(-CHAMPIONS_LEAGUE_LOOKBACK_DAYS);
+  const rangeStart = dateAtOffset(-2);
   const rangeEnd = dateAtOffset(CHAMPIONS_LEAGUE_LOOKAHEAD_DAYS);
   let games = await fetchGamesForDate("championsleague", `${rangeStart}-${rangeEnd}`, 2);
 
+  // ESPN's Champions League scoreboard accepts a single date but currently
+  // returns HTTP 400 for date ranges. Retry through the season feed and retain
+  // only events inside the same display window. Use a high limit because the
+  // default 100-event response can end at the first fixture of the next
+  // matchday, silently truncating the period.
   if (games.length === 0) {
     const seasonGames = await fetchGamesForDateChecked(
       "championsleague",
@@ -1394,25 +1361,7 @@ export async function fetchChampionsLeagueGamesInPickemWindow(now = new Date()):
       return eventDate >= rangeStart && eventDate <= rangeEnd;
     });
   }
-  return games;
-}
 
-export async function fetchChampionsLeaguePickemSlates(now = new Date()): Promise<ChampionsLeaguePickemSlates> {
-  const games = await fetchChampionsLeagueGamesInPickemWindow(now);
-  return {
-    visible: resolveCurrentChampionsLeagueSlate(games, now, { enforcePickemVisibilityWindow: true }),
-    upcoming: resolveCurrentChampionsLeagueSlate(games, now, { enforcePickemVisibilityWindow: false }),
-    lastCompleted: resolveLastCompletedChampionsLeagueSlate(games, now),
-  };
-}
-
-/**
- * Resolve one Champions League competition period rather than using an
- * arbitrary calendar week. The window is wide enough to cross UEFA's long
- * gaps, while the resolver returns only the next compact date cluster.
- */
-export async function fetchCurrentChampionsLeagueSlate(now = new Date()): Promise<ChampionsLeagueSlate | null> {
-  const games = await fetchChampionsLeagueGamesInPickemWindow(now);
   return resolveCurrentChampionsLeagueSlate(games, now);
 }
 

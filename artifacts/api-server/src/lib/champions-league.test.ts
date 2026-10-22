@@ -252,7 +252,7 @@ describe("Champions League ESPN normalization", () => {
 
     try {
       const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
-      assert.match(requestedUrls[0]!, /dates=20260830-20261112/);
+      assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
       assert.equal(slate, null);
     } finally {
       globalThis.fetch = originalFetch;
@@ -289,7 +289,7 @@ describe("Champions League ESPN normalization", () => {
 
     try {
       const slate = await fetchCurrentChampionsLeagueSlate(new Date("2026-09-13T16:00:00Z"));
-      assert.match(requestedUrls[0]!, /dates=20260830-20261112/);
+      assert.match(requestedUrls[0]!, /dates=20260911-20261112/);
       assert.match(requestedUrls[1]!, /dates=2026/);
       assert.equal(slate, null);
     } finally {

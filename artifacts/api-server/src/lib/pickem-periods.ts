@@ -5,7 +5,6 @@ import {
   enrichPhaseLabel,
   fetchChampionsLeagueGamesForPeriodDates,
   listChampionsLeaguePickPeriods,
-  mergeChampionsLeaguePeriodsWithLiveSlate,
   resolveChampionsLeaguePeriodContext,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
@@ -13,7 +12,6 @@ import { resolveChampionsLeagueDefaultPeriodKey } from "./champions-league-defau
 import { getMlsConfiguredPeriod } from "./mls-weekly-period";
 import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
 import {
-  fetchChampionsLeaguePickemSlates,
   fetchCurrentChampionsLeagueSlate,
   getNhlWeekBounds,
   getSuperLeagueWeekBoundsEt,
@@ -58,19 +56,10 @@ export async function listChampionsLeaguePickEmPeriods(
   const fromPicks = await listChampionsLeaguePickPeriods(poolId);
   const ctx = await resolveChampionsLeaguePeriodContext(poolId, now);
   const liveSlate = await fetchCurrentChampionsLeagueSlate(now);
-  const pickemSlates = await fetchChampionsLeaguePickemSlates(now);
-  const espnDates = [
-    ...(pickemSlates.visible?.dates ?? []),
-    ...(pickemSlates.upcoming?.dates ?? []),
-    ...(pickemSlates.lastCompleted?.dates ?? []),
-  ];
 
   const byStart = new Map<string, ChampionsLeaguePoolPeriod>();
-  for (const period of mergeChampionsLeaguePeriodsWithLiveSlate(fromPicks, espnDates)) {
-    byStart.set(period.weekStart, period);
-  }
+  for (const period of fromPicks) byStart.set(period.weekStart, period);
   if (ctx.current) byStart.set(ctx.current.weekStart, ctx.current);
-  if (ctx.previous) byStart.set(ctx.previous.weekStart, ctx.previous);
 
   const sorted = [...byStart.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   const hasVisibleLiveSlate =
@@ -104,16 +93,9 @@ export async function resolveChampionsLeaguePeriodByKey(
   now = new Date(),
 ): Promise<ChampionsLeaguePoolPeriod | null> {
   const fromPicks = await listChampionsLeaguePickPeriods(poolId);
-  const pickemSlates = await fetchChampionsLeaguePickemSlates(now);
-  const espnDates = [
-    ...(pickemSlates.visible?.dates ?? []),
-    ...(pickemSlates.upcoming?.dates ?? []),
-    ...(pickemSlates.lastCompleted?.dates ?? []),
-  ];
-  const merged = mergeChampionsLeaguePeriodsWithLiveSlate(fromPicks, espnDates);
   const ctx = await resolveChampionsLeaguePeriodContext(poolId, now);
   const raw =
-    merged.find((p) => p.weekStart === periodStart)
+    fromPicks.find((p) => p.weekStart === periodStart)
     ?? (ctx.current?.weekStart === periodStart ? ctx.current : null)
     ?? (ctx.previous?.weekStart === periodStart ? ctx.previous : null);
   if (!raw) return null;
