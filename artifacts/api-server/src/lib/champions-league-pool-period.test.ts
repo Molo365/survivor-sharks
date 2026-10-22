@@ -4,8 +4,10 @@ import {
   groupSortedDatesIntoChampionsLeaguePeriods,
   mergeChampionsLeaguePeriodsWithLiveSlate,
   pickChampionsLeaguePeriodIndices,
+  toPoolPeriod,
   type ChampionsLeaguePoolPeriod,
 } from "./champions-league-pool-period";
+import { resolveChampionsLeagueDefaultPeriodKey } from "./champions-league-default-period";
 import {
   CHAMPIONS_LEAGUE_POST_MATCHDAY_GRACE_MS,
   resolveChampionsLeagueDefaultPeriodKey,
@@ -15,6 +17,17 @@ function period(dates: string[]): ChampionsLeaguePoolPeriod {
   const sorted = [...dates].sort();
   return { dates: sorted, weekStart: sorted[0]!, weekEnd: sorted[sorted.length - 1]! };
 }
+
+test("defaults to the last completed matchday during the post-matchday grace gap", () => {
+  const previous = toPoolPeriod(["2026-10-20", "2026-10-21"]);
+  const current = toPoolPeriod(["2026-11-03", "2026-11-04"]);
+  const ctx = { current, previous };
+  const dayAfter = new Date("2026-10-22T19:00:00-04:00");
+  assert.equal(
+    resolveChampionsLeagueDefaultPeriodKey(ctx, false, dayAfter),
+    previous.weekStart,
+  );
+});
 
 test("adds the live ESPN slate when the pool has no pick history yet", () => {
   const merged = mergeChampionsLeaguePeriodsWithLiveSlate([], ["2026-10-21", "2026-10-22"]);
