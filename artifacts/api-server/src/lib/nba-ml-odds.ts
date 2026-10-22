@@ -28,12 +28,19 @@ export type NbaGameMoneylineLookup = Map<
   { homeDecimalOdds: number; awayDecimalOdds: number; homeTeamId: string; awayTeamId: string }
 >;
 
+/** Placeholder lines so sandbox Fast Break Multiplier pools can be tested without ESPN pickcenter. */
+export const NBA_SANDBOX_PLACEHOLDER_MONEYLINE: NbaMoneylinePair = {
+  homeDecimalOdds: 1.91,
+  awayDecimalOdds: 2.1,
+};
+
 export async function loadNbaMoneylines(opts: {
   poolId: number;
   week: number;
   games: Array<{ id: string; homeTeamId: string; awayTeamId: string }>;
+  sandboxMode?: boolean;
 }): Promise<NbaGameMoneylineLookup> {
-  const { poolId, week, games } = opts;
+  const { poolId, week, games, sandboxMode = false } = opts;
   const existing = await db
     .select()
     .from(pickemGameMoneylinesTable)
@@ -65,10 +72,15 @@ export async function loadNbaMoneylines(opts: {
   );
 
   for (const { gameId, homeTeamId, awayTeamId, line } of fetched) {
-    if (!line) continue;
+    const resolved =
+      line
+      ?? (sandboxMode
+        ? NBA_SANDBOX_PLACEHOLDER_MONEYLINE
+        : null);
+    if (!resolved) continue;
     byGame.set(gameId, {
-      homeDecimalOdds: line.homeDecimalOdds,
-      awayDecimalOdds: line.awayDecimalOdds,
+      homeDecimalOdds: resolved.homeDecimalOdds,
+      awayDecimalOdds: resolved.awayDecimalOdds,
       homeTeamId,
       awayTeamId,
     });
@@ -81,8 +93,8 @@ export async function loadNbaMoneylines(opts: {
           week,
           homeTeamId,
           awayTeamId,
-          homeDecimalOdds: line.homeDecimalOdds,
-          awayDecimalOdds: line.awayDecimalOdds,
+          homeDecimalOdds: resolved.homeDecimalOdds,
+          awayDecimalOdds: resolved.awayDecimalOdds,
         })
         .onConflictDoNothing();
     } catch {

@@ -939,7 +939,7 @@ export default function CreatePool() {
     (user?.role === "admin" && (selectedType === "nfl_confidence" ||
       selectedType === "nba_ats" ||
       (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
-      (selectedSport === PoolInputSport.nba && selectedType === "season"))) ||
+      (selectedSport === PoolInputSport.nba && (selectedType === "season" || selectedType === "fast_break_multiplier")))) ||
     showsRecurringToggle
   );
 
@@ -1967,7 +1967,7 @@ export default function CreatePool() {
                       {isAdmin && ((selectedType === "nfl_confidence" || selectedType === "nfl_confidence_weekly" || selectedType === "pickem_season" || selectedType === "nba_ats" || selectedType === "mlb_bracket") ||
                         (selectedSport === PoolInputSport.nhl && selectedType === "season") ||
                         (selectedSport === PoolInputSport.nba && selectedType === "season") ||
-                        (selectedSport === PoolInputSport.nba && selectedType === "crazy_8s")) && (
+                        (selectedSport === PoolInputSport.nba && (selectedType === "crazy_8s" || selectedType === "fast_break_multiplier"))) && (
                         <FormField
                           control={form.control}
                           name="sandboxMode"

@@ -32,6 +32,7 @@ const SUPPORTED_BROADCAST_POOL_TYPES = new Map<string, boolean>([
   ["nhl:crazy_8s", true],
   ["mlb:crazy_8s", true],
   ["nba:crazy_8s", true],
+  ["nba:fast_break_multiplier", true],
 ]);
 
 function broadcastPoolKey(sport: string | null | undefined, poolType: string | null | undefined): string | null {

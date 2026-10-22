@@ -5,7 +5,7 @@ export function isRecurringBadgeApplicable(pool: {
   poolType: string;
 }): boolean {
   const pt = pool.poolType;
-  if (pt === "crazy_8s" || pt === "nfl_confidence_weekly" || pt === "nba_ats") {
+  if (pt === "crazy_8s" || pt === "fast_break_multiplier" || pt === "nfl_confidence_weekly" || pt === "nba_ats") {
     return true;
   }
   if (pt === "pickem" && ["mlb", "nhl", "mls", "superleague"].includes(pool.sport)) {

@@ -46,12 +46,25 @@ const POOL_TYPE_LABELS: Record<string, string> = {
   mlb_bracket: "MLB Postseason Bracket",
   dirty_dozen: "Dirty Dozen",
   crazy_8s: "High Heat",
+  fast_break_multiplier: "Fast Break Multiplier",
+  nba_ats: "Weekend Pick-Ems",
 };
+
+function poolTypeBadgeLabel(pool: Pool): string | null {
+  const pt = pool.poolType as string;
+  if (pt === "pickem") {
+    return pool.pickFrequency === "weekly" ? "Weekly Pick-Ems" : "Daily Pick-Ems";
+  }
+  if (pt === "crazy_8s" && pool.sport === "nhl") return "Hit the Ice";
+  if (pt === "crazy_8s" && pool.sport === "nba") return "Fast Break";
+  return POOL_TYPE_LABELS[pt] ?? null;
+}
 
 export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const isWeekly = pool.pickFrequency === "weekly";
   const periodLabel = isWeekly ? "this week" : "today";
   const pt = pool.poolType as string;
+  const typeBadgeLabel = poolTypeBadgeLabel(pool);
   const myIsTied = pickEmStat ? !!(pickEmStat.myStanding as any).isTied : false;
   const hasPartialPickStatus =
     pt === "pickem_season"
@@ -94,13 +107,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
             <SportLogo sport={pool.sport} className="h-5 w-5 rounded-sm" />
             <span>{SPORT_LABELS[pool.sport] ?? pool.sport} • Season {pool.season}</span>
           </div>
-          {POOL_TYPE_LABELS[pt] && (
+          {typeBadgeLabel && (
             <span className="inline-flex items-center text-[10px] font-bold tracking-widest uppercase bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded w-fit mt-0.5">
-              {pt === "pickem"
-                ? (isWeekly ? "Weekly Pick-Ems" : "Daily Pick-Ems")
-                : pt === "crazy_8s" && pool.sport === "nhl"
-                ? "Hit the Ice"
-                : POOL_TYPE_LABELS[pt]}
+              {typeBadgeLabel}
             </span>
           )}
         </CardHeader>
@@ -278,7 +287,7 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                     <span>Picks needed</span>
                   </div>
                 )
-              ) : pt === "nfl_confidence_weekly" || pt === "crazy_8s" ? (
+              ) : pt === "nfl_confidence_weekly" || pt === "crazy_8s" || pt === "fast_break_multiplier" ? (
                 pickEmStat.myStanding.hasPicks && pickEmStat.myStanding.rank >= 1 ? (
                   !pool.isActive ? (
                     <div className={cn("flex items-center gap-1.5 text-xs", pickEmStat.myStanding.rank <= 3 ? "text-amber-400" : "text-muted-foreground")}>

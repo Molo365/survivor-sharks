@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { americanMoneylineToDecimal, parseEspnNbaMoneylines } from "./nba-ml-odds-parse";
+import { NBA_SANDBOX_PLACEHOLDER_MONEYLINE } from "./nba-ml-odds";
 
 test("americanMoneylineToDecimal", () => {
   assert.equal(americanMoneylineToDecimal(140), 2.4);
@@ -21,4 +22,9 @@ test("parseEspnNbaMoneylines reads pickcenter", () => {
   assert.ok(pair);
   assert.ok(pair!.homeDecimalOdds > 1 && pair!.homeDecimalOdds < 2);
   assert.ok(pair!.awayDecimalOdds > 2);
+});
+
+test("NBA sandbox placeholder moneylines are valid decimals", () => {
+  assert.ok(NBA_SANDBOX_PLACEHOLDER_MONEYLINE.homeDecimalOdds >= 1);
+  assert.ok(NBA_SANDBOX_PLACEHOLDER_MONEYLINE.awayDecimalOdds >= 1);
 });
