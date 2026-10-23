@@ -199,9 +199,9 @@ function PickCell({
       </span>
       {pick.confidencePoints != null && (
         <span className={cn(
-          "text-[9px] font-bold px-1 rounded leading-none font-mono",
+          "text-[9px] font-extrabold px-1 rounded leading-none font-mono",
           isWin ? "text-green-300" : isLoss ? "text-red-300" : "text-purple-300",
-          poolType === "fast_break_multiplier" && !isWin && !isLoss && "text-amber-300/90",
+          poolType === "fast_break_multiplier" && !isWin && !isLoss && "text-amber-300",
         )}>
           {crazyEightsGridCellPointsLabel(poolType, pick) ?? `${pick.confidencePoints}pt`}
         </span>
