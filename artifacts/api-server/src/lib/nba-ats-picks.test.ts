@@ -5,6 +5,7 @@ import {
   nbaAtsExceedsPickLimit,
   nbaAtsPeriodPickStatus,
   nbaAtsPickCountAfterMerge,
+  nbaAtsRequiredPickCount,
 } from "./nba-ats-picks";
 
 describe("nba-ats-picks", () => {
@@ -29,5 +30,10 @@ describe("nba-ats-picks", () => {
   it("marks a partial card incomplete when more open games remain under the cap", () => {
     const open = Array.from({ length: 20 }, (_, i) => `g${i}`);
     assert.equal(nbaAtsPeriodPickStatus(open, open.slice(0, 5)), "incomplete");
+  });
+
+  it("reminder completion uses the 12-pick cap on a larger slate", () => {
+    assert.equal(nbaAtsRequiredPickCount(27), 12);
+    assert.equal(nbaAtsRequiredPickCount(8), 8);
   });
 });

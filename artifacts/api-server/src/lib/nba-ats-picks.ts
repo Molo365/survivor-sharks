@@ -10,6 +10,11 @@ export function nbaAtsPeriodPickStatus(
   return cardCapPickStatus(openGameIds, pickedGameIds, NBA_ATS_MAX_PICKS);
 }
 
+/** Pick reminders / completion: dirty-dozen cap, not full weekend slate size. */
+export function nbaAtsRequiredPickCount(slateGameCount: number): number {
+  return Math.min(NBA_ATS_MAX_PICKS, slateGameCount);
+}
+
 export function nbaAtsPickCountAfterMerge(
   existingGameIds: Iterable<string>,
   submittedGameIds: Iterable<string>,

@@ -7,6 +7,7 @@ import { logger } from "./logger";
 export { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames, shouldClaimReminder } from "./pick-reminder-windows";
 import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, nextUnpickedGameReminderTiming, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
 import { fetchNbaSurvivorGamesByWeek } from "./nba-survivor-slate";
+import { nbaAtsRequiredPickCount } from "./nba-ats-picks";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -93,7 +94,12 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     gameIds,
     pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly",
   );
-  const completed = new Set(members.filter((member) => (submitted.get(member.id) ?? 0) >= gameIds.size).map((member) => member.id));
+  const requiredPickCount = pool.poolType === "nba_ats"
+    ? nbaAtsRequiredPickCount(gameIds.size)
+    : gameIds.size;
+  const completed = new Set(
+    members.filter((member) => (submitted.get(member.id) ?? 0) >= requiredPickCount).map((member) => member.id),
+  );
   const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), completed, false);
   const confidenceRequired = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly";
   const submittedByUser = new Map<number, Set<string>>();
