@@ -117,7 +117,7 @@ export default function JoinInvite() {
     if (authLoading || isJoinBlocked) return;
 
     if (!user) {
-      setLocation(authPath("/register", inviteCode));
+      setLocation(authPath("/login", inviteCode));
       return;
     }
 
@@ -458,20 +458,23 @@ export default function JoinInvite() {
                   </Button>
                 ) : (
                   <>
+                    <p className="text-sm text-muted-foreground text-center px-1">
+                      Sign in with your existing account, then you&apos;ll join this pool automatically.
+                    </p>
                     <Button
                       className="w-full h-14 font-bebas text-2xl tracking-widest shadow-[0_0_24px_rgba(30,144,255,0.25)] hover:shadow-[0_0_32px_rgba(30,144,255,0.4)] transition-all"
-                      onClick={handleJoin}
+                      onClick={() => setLocation(authPath("/login", inviteCode))}
                     >
-                      Join This Pool
+                      Sign In to Join
                     </Button>
-                    <button
-                      className="w-full text-sm text-muted-foreground hover:text-foreground text-center transition-colors"
-                      onClick={() => {
-                        setLocation(authPath("/login", inviteCode));
-                      }}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-12 font-bebas text-lg tracking-widest border-primary/30"
+                      onClick={() => setLocation(authPath("/register", inviteCode))}
                     >
-                      Sign in instead
-                    </button>
+                      New Here? Create Account
+                    </Button>
                   </>
                 )}
               </div>
