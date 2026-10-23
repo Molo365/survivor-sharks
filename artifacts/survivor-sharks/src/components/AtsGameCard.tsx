@@ -5,7 +5,7 @@
  *   [away logo | away name + spread]  [centre: @/time/score/lock]  [home name + spread | home logo]
  *
  * The spread is shown inline on the same line as the team name (not stacked below).
- * Spread colouring: favourite = orange (-6.5), underdog = blue (+6.5).
+ * Spread colouring: favourite = orange (-6.5), underdog = green (+6.5).
  *
  * Extra fields attached by the server on ATS game objects:
  *   spread: number | null          — absolute spread value, e.g. 6.5
@@ -169,7 +169,7 @@ export function AtsGameCard({ game, pickedTeamId, onPick, selectionBlocked }: At
             {line != null ? (
               <span className={cn(
                 "font-mono text-sm font-semibold ml-1",
-                isFavTeam ? "text-orange-400" : "text-blue-400",
+                isFavTeam ? "text-orange-400" : "text-green-400",
               )}>
                 {line}
               </span>
