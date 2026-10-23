@@ -294,7 +294,7 @@ function LockedPickRow({
           {team.name}
         </span>
         {isMultiplier && isPicked && lockedOdds != null && Number.isFinite(lockedOdds) && (
-          <span className="text-[10px] sm:text-[11px] text-amber-400/90 font-mono mt-0.5">
+          <span className="text-[10px] sm:text-[11px] text-amber-400 font-mono font-bold mt-0.5">
             {formatDecimalOdds(lockedOdds)}
           </span>
         )}
@@ -392,7 +392,7 @@ function LockedPickRow({
           <div className="border-t border-border/30 bg-muted/10 px-3 py-2 text-center text-[10px] sm:text-[11px] leading-snug">
             {lockedOdds != null && Number.isFinite(lockedOdds) ? (
               <>
-                <span className="text-amber-400/90 font-mono">
+                <span className="text-amber-400 font-mono font-bold">
                   {pick.confidencePoints} × {formatDecimalOdds(lockedOdds)}
                 </span>
                 {pick.result === "correct" && earnedPts != null && (
@@ -700,7 +700,7 @@ function GameCard({
                 {isHome ? "Home" : "Away"}
               </div>
               {showMoneylines && decimal != null && (
-                <div className="text-[10px] md:text-[11px] text-amber-400/90 font-mono mt-0.5">
+                <div className="text-[11px] md:text-xs text-amber-400 font-mono font-bold mt-0.5">
                   {formatDecimalOdds(decimal)}
                 </div>
               )}
@@ -785,8 +785,10 @@ function GameCard({
               const dec = pickedTeam === game.homeTeam.id ? game.homeDecimalOdds : game.awayDecimalOdds;
               if (dec == null) return null;
               return (
-                <span className="normal-case font-normal text-amber-400/80">
-                  {" "}· if correct: {confidence} × {formatDecimalOdds(dec)} = {(confidence * dec).toFixed(2)} pts
+                <span className="normal-case text-amber-400/90">
+                  {" "}· if correct: {confidence} ×{" "}
+                  <span className="font-mono font-bold text-amber-300">{formatDecimalOdds(dec)}</span>
+                  {" "}= {(confidence * dec).toFixed(2)} pts
                 </span>
               );
             })()}

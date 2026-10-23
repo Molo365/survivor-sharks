@@ -134,7 +134,7 @@ function ConfidencePickCell({
   return (
     <span
       className={cn(
-        "inline-flex flex-col items-center justify-center gap-0 min-w-[44px] rounded px-0.5 py-0.5 font-mono text-[9px] font-bold tracking-tight border leading-tight",
+        "inline-flex flex-col items-center justify-center gap-0 min-w-[44px] rounded px-0.5 py-0.5 font-mono text-[9px] font-extrabold tracking-tight border leading-tight",
         styles[state],
       )}
     >
