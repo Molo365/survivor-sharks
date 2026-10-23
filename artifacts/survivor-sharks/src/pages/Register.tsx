@@ -104,10 +104,30 @@ export default function Register() {
           </div>
           <CardTitle className="font-bebas text-4xl text-primary tracking-widest">JOIN THE SHARKS</CardTitle>
           <CardDescription className="text-muted-foreground uppercase tracking-wider font-medium text-xs">
-            Create your account
+            {pendingCode ? "Create an account to join the pool" : "Create your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {pendingCode && (
+            <div className="mb-5 rounded-lg border border-primary/35 bg-primary/10 p-4 text-center space-y-3">
+              <p className="text-sm text-foreground leading-snug">
+                Invited to a pool? If you <span className="font-semibold">already have an account</span>, sign in — you don&apos;t need to register again.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full h-11 font-bebas text-lg tracking-widest"
+                asChild
+              >
+                <Link
+                  href={appendReturnToQuery("/login", location, pendingCode)}
+                  data-testid="invite-banner-sign-in"
+                >
+                  Sign In Instead
+                </Link>
+              </Button>
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

@@ -132,10 +132,17 @@ export default function Login() {
             </div>
             <CardTitle className="font-bebas text-4xl text-primary tracking-widest">SURVIVOR SHARKS</CardTitle>
             <CardDescription className="text-muted-foreground uppercase tracking-wider font-medium text-xs">
-              Enter the waters
+              {pendingCode ? "Sign in to join your pool" : "Enter the waters"}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {pendingCode && (
+              <div className="mb-5 rounded-lg border border-primary/35 bg-primary/10 p-3 text-center">
+                <p className="text-sm text-foreground leading-snug">
+                  After you sign in, we&apos;ll take you back to finish joining the pool.
+                </p>
+              </div>
+            )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
@@ -179,10 +186,22 @@ export default function Login() {
               </form>
             </Form>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-border/50 pt-6">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link href={appendReturnToQuery("/register", location, pendingCode)} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-register">
+          <CardFooter className="flex flex-col gap-3 border-t border-border/50 pt-6">
+            {pendingCode ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 font-bebas text-lg tracking-widest border-primary/30"
+                asChild
+              >
+                <Link href={appendReturnToQuery("/register", location, pendingCode)} data-testid="link-to-register">
+                  New Here? Create Account
+                </Link>
+              </Button>
+            ) : null}
+            <p className="text-sm text-muted-foreground text-center">
+              Don&apos;t have an account?{" "}
+              <Link href={appendReturnToQuery("/register", location, pendingCode)} className="text-primary hover:underline hover:text-primary/80 font-medium" data-testid="link-to-register-inline">
                 Join the frenzy
               </Link>
             </p>
