@@ -26,6 +26,7 @@ import { resolveChampionsLeagueOpenPickState } from "../lib/champions-league-poo
 import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { getNbaAtsSlateBoundsForPool, isNbaAtsPreStart } from "../lib/nba-ats-period";
+import { NBA_ATS_MAX_PICKS } from "../lib/nba-ats-picks";
 import {
   getSandboxGamesForWeek,
   replayRowToPickEmShape,
@@ -432,13 +433,17 @@ router.get("/", requireAuth, async (req, res) => {
     .where(and(eq(pickemPicksTable.poolId, poolId), pickCondition));
 
   const openGameIds = openSelectableGameIds(period.games);
-  const requiredGameIds = openGameIds.size > 0 ? openGameIds : new Set<string>();
+  const requiredGameIds = openGameIds.size > 0 ? openGameIds : period.gameIds;
+  const isNbaAts = (pool.poolType as string) === "nba_ats";
+  const requiredCount = isNbaAts
+    ? Math.min(NBA_ATS_MAX_PICKS, requiredGameIds.size)
+    : requiredGameIds.size;
   res.json(buildStatuses(
     members,
-    requiredGameIds.size,
+    requiredCount,
     countSubmittedPickemGames(
       pickRows,
-      requiredGameIds.size > 0 ? requiredGameIds : period.gameIds,
+      requiredGameIds,
       period.confidenceRequired,
     ),
   ));

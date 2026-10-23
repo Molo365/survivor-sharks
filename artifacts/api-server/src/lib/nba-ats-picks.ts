@@ -1,5 +1,14 @@
+import { cardCapPickStatus, type CardCapPickStatus } from "./card-cap-pick-status";
+
 /** Max spread picks per NBA ATS weekend ("dirty dozen"). */
 export const NBA_ATS_MAX_PICKS = 12;
+
+export function nbaAtsPeriodPickStatus(
+  openGameIds: string[],
+  pickedGameIds: string[],
+): CardCapPickStatus {
+  return cardCapPickStatus(openGameIds, pickedGameIds, NBA_ATS_MAX_PICKS);
+}
 
 export function nbaAtsPickCountAfterMerge(
   existingGameIds: Iterable<string>,
