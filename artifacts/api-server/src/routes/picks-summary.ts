@@ -43,6 +43,7 @@ import {
   openSlateGames,
   poolSlateHasLiveGames,
 } from "../lib/pool-slate-live";
+import { NBA_ATS_MAX_PICKS, nbaAtsPeriodPickStatus } from "../lib/nba-ats-picks";
 
 const router = Router();
 
@@ -324,6 +325,10 @@ router.get("/summary", requireAuth, async (req, res) => {
         let total: number | null = null;
         let pickedGameIds = new Set<string>();
 
+        if (poolType === "nba_ats") {
+          total = NBA_ATS_MAX_PICKS;
+        }
+
         if (poolType === "pickem_season") {
           const [gameCountRow] = await db
             .select({ gameCount: pickemSeasonWeekGameCountsTable.gameCount })
@@ -399,6 +404,13 @@ router.get("/summary", requireAuth, async (req, res) => {
             const pickedSet = new Set(pickRows.map((row) => row.gameId));
             pickStatus = openGameIds.some((id) => !pickedSet.has(id)) ? "incomplete" : "submitted";
           }
+        } else if (pool.poolType === "nba_ats") {
+          const games = await getPartialPeriodGames(pool);
+          const openGames = openSlateGames(games);
+          pickStatus = nbaAtsPeriodPickStatus(
+            openGames.map((game) => game.id),
+            [...pickedGameIds],
+          );
         } else if (allowsPartialPeriodStatus(pool)) {
           const games = await getPartialPeriodGames(pool);
           const openGames = openSlateGames(games);

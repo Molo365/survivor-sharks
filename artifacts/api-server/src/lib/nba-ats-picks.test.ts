@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   NBA_ATS_MAX_PICKS,
   nbaAtsExceedsPickLimit,
+  nbaAtsPeriodPickStatus,
   nbaAtsPickCountAfterMerge,
 } from "./nba-ats-picks";
 
@@ -17,5 +18,16 @@ describe("nba-ats-picks", () => {
 
   it("counts updates to the same game once", () => {
     assert.equal(nbaAtsPickCountAfterMerge(["g1", "g2"], ["g2", "g3"]), 3);
+  });
+
+  it("marks a full dirty-dozen card submitted even when the slate is larger", () => {
+    const open = Array.from({ length: 27 }, (_, i) => `g${i}`);
+    const picked = open.slice(0, 12);
+    assert.equal(nbaAtsPeriodPickStatus(open, picked), "submitted");
+  });
+
+  it("marks a partial card incomplete when more open games remain under the cap", () => {
+    const open = Array.from({ length: 20 }, (_, i) => `g${i}`);
+    assert.equal(nbaAtsPeriodPickStatus(open, open.slice(0, 5)), "incomplete");
   });
 });

@@ -41,6 +41,7 @@ import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-poo
 import { getMlbBracketPickPoints, MLB_BRACKET_SLOTS, MLB_MAX_SCORE } from "../lib/mlb-bracket";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
 import { getMlbHighHeatDailyStatus } from "../lib/mlb-high-heat-status";
+import { nbaAtsPeriodPickStatus } from "../lib/nba-ats-picks";
 import { scoreNhlDivisionPositions } from "../lib/nhl-scoring";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
@@ -1341,7 +1342,25 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               ))
           : [];
         const pickStatus = pool.isActive
-          ? await getDashboardPickStatus(pool, currentPeriodPickRows.map((row) => row.gameId))
+          ? await (async () => {
+              const games = await fetchPoolSlateGames({
+                id: pool.id,
+                sport: pool.sport as string,
+                poolType: pool.poolType as string,
+                pickFrequency: pool.pickFrequency as string,
+                currentWeek: pool.currentWeek,
+                season: pool.season ?? new Date().getFullYear(),
+                isPreseason: pool.isPreseason,
+                sandboxMode: pool.sandboxMode,
+                isActive: pool.isActive,
+                createdAt: pool.createdAt,
+                initialPeriodStart: pool.initialPeriodStart,
+              });
+              return nbaAtsPeriodPickStatus(
+                openSlateGames(games).map((game) => game.id),
+                currentPeriodPickRows.map((row) => row.gameId),
+              );
+            })()
           : undefined;
 
         // lastWinners: finalWinner flag when pool ended; previous-week top scorer(s) while active
