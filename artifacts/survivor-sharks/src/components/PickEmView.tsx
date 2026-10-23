@@ -4321,6 +4321,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                                 {" "}· {nbaAtsLinesReadyCount} line{nbaAtsLinesReadyCount !== 1 ? "s" : ""} ready
                               </span>
                             )}
+                            {nbaAtsWaitingDaysGrouped.length > 0 && localPicks.size < NBA_ATS_MAX_PICKS && (
+                              <span className="block text-xs text-muted-foreground/65 mt-1 max-w-md leading-snug">
+                                Save anytime — you don&apos;t need all {NBA_ATS_MAX_PICKS} on one day. More games unlock when ESPN posts lines (see below).
+                              </span>
+                            )}
                           </span>
                         )}
                       </p>
@@ -4333,6 +4338,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                           <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
                         ) : showNbaAtsTiebreakerPrompt && openGames.length === 0 ? (
                           "Save Tiebreaker"
+                        ) : nbaAtsWaitingDaysGrouped.length > 0 && localPicks.size < NBA_ATS_MAX_PICKS ? (
+                          "Save Picks"
                         ) : (
                           "Submit Picks"
                         )}
