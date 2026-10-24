@@ -53,6 +53,9 @@ const POOL_TYPE_LABELS: Record<string, string> = {
 function poolTypeBadgeLabel(pool: Pool): string | null {
   const pt = pool.poolType as string;
   if (pt === "pickem") {
+    if (pool.sport === "championsleague" && pool.pickFrequency === "weekly") {
+      return "Season Pick-Ems";
+    }
     return pool.pickFrequency === "weekly" ? "Weekly Pick-Ems" : "Daily Pick-Ems";
   }
   if (pt === "crazy_8s" && pool.sport === "nhl") return "Hit the Ice";
@@ -62,6 +65,7 @@ function poolTypeBadgeLabel(pool: Pool): string | null {
 
 export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
   const isWeekly = pool.pickFrequency === "weekly";
+  const isChampionsLeaguePickEm = pool.sport === "championsleague" && (pool.poolType as string) === "pickem";
   const periodLabel = isWeekly ? "this week" : "today";
   const pt = pool.poolType as string;
   const typeBadgeLabel = poolTypeBadgeLabel(pool);
@@ -140,7 +144,9 @@ export function PoolCard({ pool, pickEmStat }: PoolCardProps) {
                 >
                   <span aria-hidden>🏆</span>
                   <span className="group-hover/winner:underline underline-offset-2">
-                    <span className="shrink-0 whitespace-nowrap">Last week&apos;s winners:</span>{" "}
+                    <span className="shrink-0 whitespace-nowrap">
+                      {isChampionsLeaguePickEm ? "Last matchday leader:" : "Last week\u2019s winners:"}
+                    </span>{" "}
                     <span className="text-foreground/70 font-medium">
                       {pickEmStat.lastWinners.map(w => w.displayName || w.username).join(" & ")}
                     </span>
