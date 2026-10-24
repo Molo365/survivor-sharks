@@ -4,6 +4,7 @@ import { pickemPicksTable, poolsTable, entriesTable, usersTable, sandboxGameScor
 import { eq, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchGamesForDate, getTodayEtDate, getNhlWeekBounds, fetchNhlGamesByWeek, NHL_SANDBOX_ANCHOR, getNbaWeekendBounds, NBA_SANDBOX_ANCHOR, EspnGame } from "../lib/espn";
+import { getNbaAtsSlateBoundsForPool } from "../lib/nba-ats-period";
 import { fetchNhlTiebreakerStats } from "../lib/nhl-stats";
 import { fetchNbaTiebreakerStats } from "../lib/nba-stats";
 import { fetchSingleGameStrikeouts } from "../lib/mlb-stats";
@@ -210,11 +211,18 @@ async function getNbaWeekendSlate(
   sunDate: string;
   gameDates: Map<string, string>;
 }> {
-  // Sandbox mode: use the fixed NBA_SANDBOX_ANCHOR so Week N always maps to the
-  // 2025-26 season regardless of when the pool was actually created.
   const isSandbox = (pool as any).sandboxMode as boolean;
-  const anchor = isSandbox ? NBA_SANDBOX_ANCHOR : pool.createdAt;
-  const { espnDates, days } = getNbaWeekendBounds(anchor, weekNumber);
+  const { espnDates, days } = getNbaAtsSlateBoundsForPool(
+    {
+      sport: pool.sport as string,
+      poolType: pool.poolType as string,
+      initialPeriodStart: pool.initialPeriodStart,
+      createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+      sandboxMode: isSandbox,
+      currentWeek: pool.currentWeek,
+    },
+    weekNumber,
+  );
   const [friDate, satDate, sunDate] = days;
   const results = await Promise.all(espnDates.map((d) => fetchGamesForDate("nba", d)));
   const seen = new Set<string>();
@@ -1580,7 +1588,17 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     );
     const periodDeadline = pool.sport === "nhl"
       ? null
-      : getNbaWeekendBounds(anchor, pool.currentWeek).weekEnd;
+      : getNbaAtsSlateBoundsForPool(
+          {
+            sport: pool.sport as string,
+            poolType: pool.poolType as string,
+            initialPeriodStart: pool.initialPeriodStart,
+            createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+            sandboxMode: pool.sandboxMode,
+            currentWeek: pool.currentWeek,
+          },
+          pool.currentWeek,
+        ).weekEnd;
     if (
       isCrazyEightsGameStarted(tiebreakerGame, nowMs) ||
       nhlLocked ||

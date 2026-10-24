@@ -397,7 +397,11 @@ router.post("/", requireAuth, async (req, res) => {
         ? resolveMlsWeeklyStartDate(initialPeriodStart)
       : sport === "superleague" && resolvedPoolType === "pickem" && resolvedPickFrequency === "weekly"
         ? resolveSuperLeagueStartDate(initialPeriodStart)
-      : sport === "nba" && (resolvedPoolType === "nba_ats" || resolvedPoolType === "fast_break_multiplier")
+      : sport === "nba" && (
+        resolvedPoolType === "nba_ats"
+        || resolvedPoolType === "fast_break_multiplier"
+        || resolvedPoolType === "crazy_8s"
+      )
         ? resolveNbaAtsStartDate(initialPeriodStart)
       : null;
 

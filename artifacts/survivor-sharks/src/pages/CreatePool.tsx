@@ -581,15 +581,20 @@ export default function CreatePool() {
   const isMlsWeeklyPickem = selectedSport === PoolInputSport.mls && selectedType === "pickem" && watchedFreq === "weekly";
   const isSuperLeagueWeeklyPickem = selectedSport === PoolInputSport.superleague && selectedType === "pickem" && watchedFreq === "weekly";
   const isNbaAtsPool = selectedSport === PoolInputSport.nba && selectedType === "nba_ats";
+  const isNbaWeekendOfficePool = selectedSport === PoolInputSport.nba && (
+    selectedType === "nba_ats"
+    || selectedType === "crazy_8s"
+    || selectedType === "fast_break_multiplier"
+  );
   const nbaAtsThisWeekend = useMemo(() => getNbaAtsWeekendOption(0), []);
   const nbaAtsNextWeekend = useMemo(() => getNbaAtsWeekendOption(1), []);
-  const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem || isNbaAtsPool;
-  const thisPeriod = isNbaAtsPool
+  const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem || isNbaWeekendOfficePool;
+  const thisPeriod = isNbaWeekendOfficePool
     ? nbaAtsThisWeekend
     : isSuperLeagueWeeklyPickem
       ? superLeagueThisPeriod
       : mlbThisWeek;
-  const nextPeriod = isNbaAtsPool
+  const nextPeriod = isNbaWeekendOfficePool
     ? nbaAtsNextWeekend
     : isSuperLeagueWeeklyPickem
       ? superLeagueNextPeriod

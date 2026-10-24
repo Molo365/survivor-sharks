@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { crazyEightsPeriodResultsTable, pickemPicksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getNbaWeekendBounds, getNhlWeekBounds } from "./espn";
+import { getNhlWeekBounds } from "./espn";
+import { getNbaAtsSlateBoundsForPool } from "./nba-ats-period";
 import type { PickEmPeriodListItem } from "./pickem-periods";
 
 export type CrazyEightsPeriodPool = {
@@ -18,8 +19,22 @@ function periodKeyNhl(pool: CrazyEightsPeriodPool, weekNumber: number): string {
   return getNhlWeekBounds(pool.createdAt, weekNumber, pool.initialPeriodStart).days[0]!;
 }
 
+function nbaWeekBounds(pool: CrazyEightsPeriodPool, weekNumber: number) {
+  return getNbaAtsSlateBoundsForPool(
+    {
+      sport: pool.sport,
+      poolType: pool.poolType,
+      initialPeriodStart: pool.initialPeriodStart,
+      createdAt: pool.createdAt,
+      sandboxMode: pool.sandboxMode,
+      currentWeek: pool.currentWeek,
+    },
+    weekNumber,
+  );
+}
+
 function periodKeyNba(pool: CrazyEightsPeriodPool, weekNumber: number): string {
-  return getNbaWeekendBounds(pool.createdAt, weekNumber).days[0]!;
+  return nbaWeekBounds(pool, weekNumber).days[0]!;
 }
 
 async function distinctWeeksFromPicks(poolId: number): Promise<number[]> {
@@ -53,7 +68,7 @@ export async function listCrazyEightsPeriods(
   const periods: PickEmPeriodListItem[] = [...weeks].sort((a, b) => a - b).map((weekNumber) => {
     const bounds = isNhl
       ? getNhlWeekBounds(pool.createdAt, weekNumber, pool.initialPeriodStart)
-      : getNbaWeekendBounds(pool.createdAt, weekNumber);
+      : nbaWeekBounds(pool, weekNumber);
     const weekStart = bounds.days[0]!;
     const weekEnd = bounds.days.at(-1)!;
     const isCurrent = weekNumber === pool.currentWeek;
@@ -90,7 +105,7 @@ export function resolveCrazyEightsPeriod(
   const resolveWeek = (weekNumber: number) => {
     const bounds = pool.sport === "nhl"
       ? getNhlWeekBounds(pool.createdAt, weekNumber, pool.initialPeriodStart)
-      : getNbaWeekendBounds(pool.createdAt, weekNumber);
+      : nbaWeekBounds(pool, weekNumber);
     return {
       weekNumber,
       anchorDate: bounds.days[0]!,
