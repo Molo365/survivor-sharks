@@ -13,6 +13,22 @@ const pool = {
   initialPeriodStart: null,
 };
 
+const nbaPool = {
+  sport: "nba",
+  poolType: "fast_break_multiplier",
+  isRecurring: true,
+  sandboxMode: false,
+  createdAt: new Date("2026-10-23T16:00:00Z"),
+  currentWeek: 1,
+  initialPeriodStart: "2026-10-24",
+};
+
+test("NBA Fast Break uses initialPeriodStart for week 1, not createdAt Monday anchor", () => {
+  const current = resolveCrazyEightsPeriod(nbaPool, undefined);
+  assert.equal(current?.weekStart, "2026-10-24");
+  assert.equal(current?.weekEnd, "2026-10-26");
+});
+
 test("resolveCrazyEightsPeriod marks earlier weeks as past", () => {
   const current = resolveCrazyEightsPeriod(pool, undefined);
   assert.equal(current?.weekNumber, 3);
