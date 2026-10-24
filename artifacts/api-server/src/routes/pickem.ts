@@ -44,6 +44,10 @@ import {
   getNbaAtsSlateBoundsForPool,
   isNbaAtsPreStart,
 } from "../lib/nba-ats-period";
+import {
+  isNbaAtsPrevWeekSettled,
+  resolveDefaultPrevPickemWeek,
+} from "../lib/pickem-prev-week";
 import { NBA_ATS_MAX_PICKS, nbaAtsExceedsPickLimit } from "../lib/nba-ats-picks";
 import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
 import {
@@ -2085,6 +2089,19 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
+  const defaultPrevWeek = resolveDefaultPrevPickemWeek(pool.currentWeek);
+  const resolvedPrevWeek = requestedWeek ?? defaultPrevWeek;
+  if ((isNbaAts || isNhlPickemWeekly) && resolvedPrevWeek === null) {
+    res.json({
+      hasResults: false,
+      weekStart: "",
+      weekEnd: "",
+      weekNumber: 0,
+      entries: [],
+    });
+    return;
+  }
+
   const todayEt = getTodayEtDate();
   const championsLeaguePrevious = isChampionsLeagueWeekly
     ? (await resolveChampionsLeaguePeriodContext(poolId)).previous
@@ -2111,12 +2128,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       weekEnd: championsLeaguePrevious.weekEnd,
     };
   } else if (isNbaAts) {
-    const weekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
+    const weekNum = resolvedPrevWeek!;
     const { days } = getNbaAtsSlateBoundsForPool(pool, weekNum);
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (isNhlPickemWeekly) {
     const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
-    const prevWeekNum = requestedWeek ?? Math.max(1, pool.currentWeek - 1);
+    const prevWeekNum = resolvedPrevWeek!;
     const { days } = getNhlWeekBounds(
       anchor,
       prevWeekNum,
@@ -2156,14 +2173,18 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
 
-  const prevNhlWeekNum = isNhlPickemWeekly
-    ? (requestedWeek ?? Math.max(1, pool.currentWeek - 1))
-    : null;
+  const prevNhlWeekNum = isNhlPickemWeekly ? resolvedPrevWeek : null;
+  const prevNbaAtsWeekNum = isNbaAts ? resolvedPrevWeek : null;
 
   const picksWhere = isChampionsLeagueWeekly && championsLeaguePrevious
     ? and(
       eq(pickemPicksTable.poolId, poolId),
       inArray(pickemPicksTable.gameDate, championsLeaguePrevious.dates),
+    )
+    : prevNbaAtsWeekNum !== null
+    ? and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.week, prevNbaAtsWeekNum),
     )
     : prevNhlWeekNum !== null
     ? and(
@@ -2229,7 +2250,16 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     db.select({ value: count() }).from(entriesTable).where(eq(entriesTable.poolId, poolId)),
   ]);
 
-  const hasResults = aggregates.some((r) => Number(r.graded) > 0);
+  const nbaAtsPrevWeekSettled = !isNbaAts || !prevNbaAtsWeekNum
+    ? true
+    : isNbaAtsPrevWeekSettled(
+      prevWeekBounds.weekEnd,
+      todayEt,
+      pool.currentWeek,
+      prevNbaAtsWeekNum,
+    );
+  const hasResults = nbaAtsPrevWeekSettled
+    && aggregates.some((r) => Number(r.graded) > 0);
 
   const dailyByUser = new Map<number, { date: string; correct: number; picked: number }[]>();
   for (const row of dailyAggregates) {
@@ -2398,7 +2428,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   const isNhlRecurringWeeklyBonus =
     isNhlPickemWeekly && pool.isRecurring === true && pool.weeklyBonusEnabled === true;
-  const prevWeekNumberForBonus = prevNhlWeekNum ?? (requestedWeek ?? Math.max(1, pool.currentWeek - 1));
+  const prevWeekNumberForBonus = prevNhlWeekNum
+    ?? prevNbaAtsWeekNum
+    ?? (requestedWeek ?? defaultPrevWeek ?? Math.max(1, pool.currentWeek - 1));
   const enrolledPlayerCount = Number(memberCountRow[0]?.value ?? 0);
   const prevWeekResolvedForBonus =
     !pool.isActive || prevWeekNumberForBonus < pool.currentWeek || allGraded;
@@ -2518,7 +2550,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     hasResults,
     weekStart: prevWeekBounds.weekStart,
     weekEnd: prevWeekBounds.weekEnd,
-    weekNumber: isChampionsLeagueWeekly ? 0 : (requestedWeek ?? Math.max(1, pool.currentWeek - 1)),
+    weekNumber: isChampionsLeagueWeekly
+      ? 0
+      : (resolvedPrevWeek ?? (requestedWeek ?? Math.max(1, pool.currentWeek - 1))),
     ...(isChampionsLeagueWeekly && championsLeaguePrevious?.phaseLabel
       ? { periodLabel: championsLeaguePrevious.phaseLabel }
       : {}),
