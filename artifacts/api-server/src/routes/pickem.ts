@@ -2353,8 +2353,9 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   // This mirrors auto-eliminator's closure logic so all paid positions (1st, 2nd, 3rd…)
   // are returned correctly — including for pools that are still active and haven't been
   // written to entries.prize_amount yet.
+  // Champions League settles once after the Final on cumulative picks — matchday results are leaders only.
   const prizeWonByUser = new Map<number, number>();
-  if (allGraded && aggregates.length > 0) {
+  if (allGraded && aggregates.length > 0 && !isChampionsLeagueWeekly) {
     const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 

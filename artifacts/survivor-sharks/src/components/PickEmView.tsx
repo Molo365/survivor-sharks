@@ -161,7 +161,7 @@ function PrevWeekWinnerBanner({
   if (groups.length === 0) return null;
 
   const periodTitle = periodLabel
-    ? (groups.length > 1 ? "Last period winners" : "Last period winner")
+    ? (groups.length > 1 ? "Last matchday leaders" : "Last matchday leader")
     : (groups.length > 1 ? "Last Week's Winners:" : "Last Week's Winner:");
 
   return (
@@ -1792,6 +1792,8 @@ function PrevWeekResultsModal({
   showTiebreakerColumn,
   tiebreakerSport = "nhl",
   tiebreakerActualPoints: defaultTbPoints,
+  periodLabel,
+  hidePrizeColumn = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1812,6 +1814,10 @@ function PrevWeekResultsModal({
   showTiebreakerColumn?: boolean;
   tiebreakerSport?: "nhl" | "nba";
   tiebreakerActualPoints?: number | null;
+  /** Champions League matchday label (e.g. League Phase). */
+  periodLabel?: string | null;
+  /** Hide per-period prize column — season pot pays out after the Final. */
+  hidePrizeColumn?: boolean;
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
@@ -1873,7 +1879,10 @@ function PrevWeekResultsModal({
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-  const minWidth = Math.max(420, 150 + days.length * 44 + 80 + 72 + (tbCol ? 92 : 0));
+  const minWidth = Math.max(
+    420,
+    150 + days.length * 44 + 80 + 72 + (hidePrizeColumn ? 0 : 72) + (tbCol ? 92 : 0),
+  );
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -1882,7 +1891,9 @@ function PrevWeekResultsModal({
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
               <Trophy className="w-5 h-5 text-yellow-400" />
-              Week of {fmtDate(weekStart)} – {fmtDate(weekEnd)} · Final Results
+              {hidePrizeColumn
+                ? `${periodLabel ? `${periodLabel} · ` : ""}${fmtDate(weekStart)} – ${fmtDate(weekEnd)} · Matchday Results`
+                : `Week of ${fmtDate(weekStart)} – ${fmtDate(weekEnd)} · Final Results`}
             </DialogTitle>
             {maxWeek > 1 && (
               <div className="flex items-center gap-1 shrink-0">
@@ -1919,7 +1930,11 @@ function PrevWeekResultsModal({
             )}
           </div>
           <DialogDescription>
-            {isLoadingAlt ? "Loading…" : `${entries.length} player${entries.length !== 1 ? "s" : ""} · Final standings`}
+            {isLoadingAlt
+              ? "Loading…"
+              : hidePrizeColumn
+                ? `${entries.length} player${entries.length !== 1 ? "s" : ""} · Matchday standings (season prize pays out after the Final)`
+                : `${entries.length} player${entries.length !== 1 ? "s" : ""} · Final standings`}
           </DialogDescription>
         </DialogHeader>
 
@@ -1956,9 +1971,11 @@ function PrevWeekResultsModal({
                       <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
                         Total
                       </th>
-                      <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
-                        Prize
-                      </th>
+                      {!hidePrizeColumn && (
+                        <th className="px-3 py-2 text-right border-b border-border/30 font-bold text-[9px] uppercase tracking-wider text-muted-foreground/40 whitespace-nowrap" style={{ width: 72 }}>
+                          Prize
+                        </th>
+                      )}
                       {tbCol && tiebreakerColumnHeader && (
                         <th
                           className="px-2 py-2 border-b border-border/30 whitespace-nowrap align-bottom"
@@ -2061,13 +2078,15 @@ function PrevWeekResultsModal({
                               <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
                               {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
                             </td>
-                            <td className={cn("px-3 py-2.5 text-right", rowBg)}>
-                              {(entry as any).prizeWon != null ? (
-                                <span className="font-bebas text-lg text-yellow-300">${(entry as any).prizeWon}</span>
-                              ) : (
-                                <span className="text-muted-foreground/25 text-xs">—</span>
-                              )}
-                            </td>
+                            {!hidePrizeColumn && (
+                              <td className={cn("px-3 py-2.5 text-right", rowBg)}>
+                                {(entry as any).prizeWon != null ? (
+                                  <span className="font-bebas text-lg text-yellow-300">${(entry as any).prizeWon}</span>
+                                ) : (
+                                  <span className="text-muted-foreground/25 text-xs">—</span>
+                                )}
+                              </td>
+                            )}
                             {tbCol && (
                               <td className={cn("px-2 py-2.5", rowBg)}>
                                 <TiebreakerStandingsColumnGuess guess={tbGuess(entry)} />
@@ -2077,7 +2096,7 @@ function PrevWeekResultsModal({
 
                           {isPanelOpen && openCell && (
                             <tr className="border-b border-border/10">
-                              <td colSpan={days.length + 3 + (tbCol ? 1 : 0)} className="p-0">
+                              <td colSpan={days.length + 2 + (hidePrizeColumn ? 0 : 1) + (tbCol ? 1 : 0)} className="p-0">
                                 <DailyPickPanel poolId={poolId} userId={entry.userId} date={openCell.date} isNbaAts={isNbaAts} />
                               </td>
                             </tr>
@@ -3217,6 +3236,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         showTiebreakerColumn={(isNhl && isWeekly) || isNbaAts}
         tiebreakerSport={isNbaAts ? "nba" : "nhl"}
         tiebreakerActualPoints={(prevWeekResults as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? null}
+        periodLabel={prevPeriodLabel}
+        hidePrizeColumn={sport === "championsleague"}
       />
     )}
     {/* MLB Tiebreaker Dialog */}
@@ -3570,7 +3591,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               <p>
                 {is3way
                   ? sport === "championsleague"
-                    ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each competition period, from league phase matchdays through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. The player with the most correct picks for the period wins the prize pot. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
+                    ? "Welcome to Champions League Pick-Ems! Pick Home Win, Draw, or Away Win for every match in each matchday, from league phase through the knockout rounds. Each match locks at kickoff, and every knockout leg is picked separately. Matchday standings show who led that slate; the season prize pot is awarded after the Final based on total correct picks across the tournament. Tied players split equally. Postponed matches are voided. Good luck! ⚽"
                     : sport === "mls"
                     ? "Pick the winner of every MLS match — Home Win, Draw, or Away Win. Most correct picks by end of week wins the prize pot. Each match locks at kickoff. Good luck! ⚽"
                     : sport === "superleague"

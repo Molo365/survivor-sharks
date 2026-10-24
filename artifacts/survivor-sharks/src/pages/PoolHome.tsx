@@ -349,7 +349,13 @@ export default function PoolHome() {
                       <span className="hidden md:inline">
                         {isNbaAts
                           ? "ATS · Weekly"
-                          : `Pick-Ems${(pool.poolType as string) === "pickem_season" ? " · Season" : (pool as any).pickFrequency ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}` : ""}`}
+                          : `Pick-Ems${
+                            (pool.poolType as string) === "pickem_season" || pool.sport === "championsleague"
+                              ? " · Season"
+                              : (pool as any).pickFrequency
+                                ? ` · ${(pool as any).pickFrequency === "daily" ? "Daily" : "Weekly"}`
+                                : ""
+                          }`}
                       </span>
                     </span>
                   )}

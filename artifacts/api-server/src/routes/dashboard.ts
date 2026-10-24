@@ -1850,7 +1850,9 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
               displayName: r.displayName ?? null,
               correct: Number(r.correct),
               picked: Number(r.picked),
-              prizeWon: computeSplitPrize(pool, tiedPrevRows.length, memberCountMap.get(pool.id) ?? 0),
+              prizeWon: isChampionsLeagueWeekly
+                ? null
+                : computeSplitPrize(pool, tiedPrevRows.length, memberCountMap.get(pool.id) ?? 0),
             }))
           : null;
 
