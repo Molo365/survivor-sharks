@@ -31,6 +31,7 @@ import {
   weeklyPayoutFromPercent,
 } from "@/lib/weeklyBonusWizard";
 import { NflWeeklyBonusPercentPreview } from "@/components/NflWeeklyBonusPercentPreview";
+import { getNbaWeekendCreateOption, todayEtYmd } from "@/lib/nbaWeekendCreatePool";
 
 // ── Sport cards ────────────────────────────────────────────────────────────────
 
@@ -430,26 +431,6 @@ function getMlbWeekOption(offsetWeeks: number) {
   };
 }
 
-function getNbaAtsWeekendOption(offsetWeekends: number) {
-  const todayEt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const today = new Date(`${todayEt}T12:00:00Z`);
-  const daysSinceFriday = (today.getUTCDay() + 2) % 7;
-  const daysToFriday = daysSinceFriday <= 3 ? -daysSinceFriday : 7 - daysSinceFriday;
-  const start = new Date(today);
-  start.setUTCDate(start.getUTCDate() + daysToFriday + offsetWeekends * 7);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 2);
-  const label = (date: Date) => new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC", weekday: "short", month: "short", day: "numeric",
-  }).format(date);
-  return { start: start.toISOString().slice(0, 10), label: `${label(start)}–${label(end)}` };
-}
-
 function nbaAtsPicksOpenTuesday(fridayYmd: string): string {
   const friday = new Date(`${fridayYmd}T12:00:00Z`);
   const dow = friday.getUTCDay();
@@ -586,26 +567,29 @@ export default function CreatePool() {
     || selectedType === "crazy_8s"
     || selectedType === "fast_break_multiplier"
   );
-  const nbaAtsThisWeekend = useMemo(() => getNbaAtsWeekendOption(0), []);
-  const nbaAtsNextWeekend = useMemo(() => getNbaAtsWeekendOption(1), []);
+  const nbaWeekendTodayEt = todayEtYmd();
+  const nbaUpcomingWeekend = useMemo(
+    () => getNbaWeekendCreateOption(nbaWeekendTodayEt, 0),
+    [nbaWeekendTodayEt],
+  );
   const isStartPeriodPool = isMlbWeeklyStartable || isMlsWeeklyPickem || isSuperLeagueWeeklyPickem || isNbaWeekendOfficePool;
   const thisPeriod = isNbaWeekendOfficePool
-    ? nbaAtsThisWeekend
+    ? nbaUpcomingWeekend
     : isSuperLeagueWeeklyPickem
       ? superLeagueThisPeriod
       : mlbThisWeek;
-  const nextPeriod = isNbaWeekendOfficePool
-    ? nbaAtsNextWeekend
-    : isSuperLeagueWeeklyPickem
-      ? superLeagueNextPeriod
-      : mlbNextWeek;
+  const nextPeriod = isSuperLeagueWeeklyPickem
+    ? superLeagueNextPeriod
+    : mlbNextWeek;
 
   useEffect(() => {
-    if (isStartPeriodPool && !form.getValues("initialPeriodStart")) {
+    if (isNbaWeekendOfficePool) {
+      form.setValue("initialPeriodStart", thisPeriod.start);
+    } else if (isStartPeriodPool && !form.getValues("initialPeriodStart")) {
       form.setValue("initialPeriodStart", thisPeriod.start);
     }
     if (!isStartPeriodPool) form.setValue("initialPeriodStart", undefined);
-  }, [isStartPeriodPool, thisPeriod.start]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isStartPeriodPool, isNbaWeekendOfficePool, thisPeriod.start]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isWeeklyBonusEligible && form.getValues("weeklyBonusEnabled")) {
@@ -1750,52 +1734,57 @@ export default function CreatePool() {
                                 <div className="flex-1">
                                   <FormLabel className="font-bebas text-lg tracking-wide">Starting Period</FormLabel>
                                   <FormDescription className="text-xs mt-0.5">
-                                    {isNbaAtsPool
-                                      ? "Choose the first Fri–Sun scoring weekend. The pick sheet opens that Tuesday at 6:00 AM ET (when spread lines typically post) and stays locked through the weekend."
+                                    {isNbaWeekendOfficePool
+                                      ? isNbaAtsPool
+                                        ? "Your pool starts on the upcoming Fri–Sun scoring weekend. The pick sheet opens that Tuesday at 6:00 AM ET (when spread lines typically post)."
+                                        : "Your pool starts on the upcoming Fri–Sun NBA weekend. Picks open Tuesday 6:00 AM ET for that slate."
                                       : isSuperLeagueWeeklyPickem
                                         ? "Choose the first Friday–Monday period players can pick."
                                         : "Choose the first Monday–Sunday scoring period players can pick."}
                                   </FormDescription>
                                   <FormControl>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                      {[
-                                         {
-                                           value: thisPeriod.start,
-                                           title: isNbaAtsPool
-                                             ? "Start this weekend"
-                                             : isSuperLeagueWeeklyPickem
-                                               ? "Start this period"
-                                               : "Start this week",
-                                           range: thisPeriod.label,
-                                         },
-                                         {
-                                           value: nextPeriod.start,
-                                           title: isNbaAtsPool
-                                             ? "Start next weekend"
-                                             : isSuperLeagueWeeklyPickem
-                                               ? "Start next period"
-                                               : "Start next week",
-                                           range: nextPeriod.label,
-                                         },
-                                      ].map((option) => (
-                                        <button
-                                          key={option.value}
-                                          type="button"
-                                          onClick={() => field.onChange(option.value)}
-                                          className={cn(
-                                            "rounded-lg border-2 p-3 text-left transition-all",
-                                            field.value === option.value
-                                              ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30"
-                                              : "border-border/40 bg-card/50 hover:border-primary/30",
-                                          )}
-                                        >
-                                          <span className="block font-bebas text-base tracking-wide">{option.title}</span>
-                                          <span className="text-xs text-muted-foreground">{option.range}</span>
-                                        </button>
-                                      ))}
-                                    </div>
+                                    {isNbaWeekendOfficePool ? (
+                                      <div className="mt-3 rounded-lg border-2 border-primary/60 bg-primary/10 ring-2 ring-primary/30 p-3 text-left">
+                                        <span className="block font-bebas text-base tracking-wide">Upcoming weekend</span>
+                                        <span className="text-xs text-muted-foreground">{thisPeriod.label}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                        {[
+                                          {
+                                            value: thisPeriod.start,
+                                            title: isSuperLeagueWeeklyPickem
+                                              ? "Start this period"
+                                              : "Start this week",
+                                            range: thisPeriod.label,
+                                          },
+                                          {
+                                            value: nextPeriod.start,
+                                            title: isSuperLeagueWeeklyPickem
+                                              ? "Start next period"
+                                              : "Start next week",
+                                            range: nextPeriod.label,
+                                          },
+                                        ].map((option) => (
+                                          <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => field.onChange(option.value)}
+                                            className={cn(
+                                              "rounded-lg border-2 p-3 text-left transition-all",
+                                              field.value === option.value
+                                                ? "border-primary/60 bg-primary/10 ring-2 ring-primary/30"
+                                                : "border-border/40 bg-card/50 hover:border-primary/30",
+                                            )}
+                                          >
+                                            <span className="block font-bebas text-base tracking-wide">{option.title}</span>
+                                            <span className="text-xs text-muted-foreground">{option.range}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </FormControl>
-                                  {isNbaAtsPool && field.value && nbaAtsPicksOpenTuesday(field.value) > new Intl.DateTimeFormat("en-CA", {
+                                  {isNbaWeekendOfficePool && field.value && nbaAtsPicksOpenTuesday(field.value) > new Intl.DateTimeFormat("en-CA", {
                                     timeZone: "America/New_York",
                                     year: "numeric",
                                     month: "2-digit",
