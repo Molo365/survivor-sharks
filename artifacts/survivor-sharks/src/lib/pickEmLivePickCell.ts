@@ -10,16 +10,12 @@ export type PickEmLiveGame = {
   homeScore?: number | null;
   awayTeam: { id: string; abbreviation: string };
   homeTeam: { id: string; abbreviation: string };
+  /** ATS pools — line frozen at pick time (from slate / games API) */
+  spread?: number | null;
+  favoriteTeamId?: string | null;
 };
 
-export type PickEmLiveCellState =
-  | "hidden"
-  | "correct"
-  | "incorrect"
-  | "push"
-  | "pending"
-  | "live_winning"
-  | "live_losing";
+export type PickEmLiveScoringMode = "straight" | "ats";
 
 function gradeStraightPick(params: {
   pickedTeamId: string;
@@ -33,6 +29,38 @@ function gradeStraightPick(params: {
   const winnerTeamId = homeScore > awayScore ? homeTeamId : awayTeamId;
   return pickedTeamId === winnerTeamId ? "correct" : "incorrect";
 }
+
+function gradeAtsPick(params: {
+  pickedTeamId: string;
+  favoriteTeamId: string;
+  spread: number;
+  homeScore: number;
+  awayScore: number;
+  homeTeamId: string;
+}): "correct" | "incorrect" | "push" {
+  const { pickedTeamId, favoriteTeamId, spread, homeScore, awayScore, homeTeamId } = params;
+  const favoriteIsHome = favoriteTeamId === homeTeamId;
+  const homeMargin = homeScore - awayScore;
+  const favoriteMargin = favoriteIsHome ? homeMargin : -homeMargin;
+  if (favoriteMargin === spread) return "push";
+  const pickedFavorite = pickedTeamId === favoriteTeamId;
+  return pickedFavorite
+    ? favoriteMargin > spread
+      ? "correct"
+      : "incorrect"
+    : favoriteMargin < spread
+      ? "correct"
+      : "incorrect";
+}
+
+export type PickEmLiveCellState =
+  | "hidden"
+  | "correct"
+  | "incorrect"
+  | "push"
+  | "pending"
+  | "live_winning"
+  | "live_losing";
 
 function pickAbbr(pick: PickEmPlayerPick, game: PickEmLiveGame): string {
   if (pick.pickedTeamId === game.homeTeam.id) return game.homeTeam.abbreviation;
@@ -63,8 +91,13 @@ export function formatPickEmLiveGameStatusLabel(game: PickEmLiveGame): string {
 export function resolvePickEmLivePickCell(
   pick: PickEmPlayerPick | undefined,
   game: PickEmLiveGame,
-  opts: { entryUserId: number; currentUserId: number | null },
+  opts: {
+    entryUserId: number;
+    currentUserId: number | null;
+    scoringMode?: PickEmLiveScoringMode;
+  },
 ): { state: PickEmLiveCellState; abbr: string | null } {
+  const scoringMode = opts.scoringMode ?? "straight";
   const visible = getVisiblePickEmPick(pick, {
     entryUserId: opts.entryUserId,
     currentUserId: opts.currentUserId,
@@ -95,13 +128,29 @@ export function resolvePickEmLivePickCell(
     return { state: "pending", abbr };
   }
 
-  const grade = gradeStraightPick({
-    pickedTeamId: visible.pickedTeamId,
-    homeScore: game.homeScore,
-    awayScore: game.awayScore,
-    homeTeamId: game.homeTeam.id,
-    awayTeamId: game.awayTeam.id,
-  });
+  let grade: "correct" | "incorrect" | "push";
+  if (
+    scoringMode === "ats" &&
+    game.spread != null &&
+    game.favoriteTeamId
+  ) {
+    grade = gradeAtsPick({
+      pickedTeamId: visible.pickedTeamId,
+      favoriteTeamId: game.favoriteTeamId,
+      spread: game.spread,
+      homeScore: game.homeScore,
+      awayScore: game.awayScore,
+      homeTeamId: game.homeTeam.id,
+    });
+  } else {
+    grade = gradeStraightPick({
+      pickedTeamId: visible.pickedTeamId,
+      homeScore: game.homeScore,
+      awayScore: game.awayScore,
+      homeTeamId: game.homeTeam.id,
+      awayTeamId: game.awayTeam.id,
+    });
+  }
 
   if (grade === "push") return { state: "pending", abbr };
   if (grade === "correct") return { state: "live_winning", abbr };

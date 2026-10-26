@@ -2617,6 +2617,36 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     });
   }, [isNhlWeekly, leaderboard?.games, nhlWeeklyAllGames]);
 
+  const nbaAtsLiveBoardGames = useMemo((): PickEmLiveGame[] => {
+    if (!isNbaAts || !leaderboard?.games?.length) return [];
+    const pickedGameIds = new Set<string>();
+    for (const entry of leaderboard.entries) {
+      for (const pick of entry.picks) {
+        if (pick.pickedTeamId) pickedGameIds.add(pick.gameId);
+      }
+    }
+    if (pickedGameIds.size === 0) return [];
+    const detailById = new Map((slate?.games ?? []).map((g) => [g.id, g]));
+    return leaderboard.games
+      .filter((lg) => pickedGameIds.has(lg.id))
+      .map((lg) => {
+        const d = detailById.get(lg.id);
+        const spreadGame = d as { spread?: number | null; favoriteTeamId?: string | null } | undefined;
+        return {
+          id: lg.id,
+          startTime: lg.startTime,
+          status: d?.status ?? lg.status,
+          liveDetail: d?.liveDetail ?? null,
+          awayScore: d?.awayScore ?? null,
+          homeScore: d?.homeScore ?? null,
+          awayTeam: { id: lg.awayTeam.id, abbreviation: lg.awayTeam.abbreviation },
+          homeTeam: { id: lg.homeTeam.id, abbreviation: lg.homeTeam.abbreviation },
+          spread: spreadGame?.spread ?? null,
+          favoriteTeamId: spreadGame?.favoriteTeamId ?? null,
+        };
+      });
+  }, [isNbaAts, leaderboard?.games, leaderboard?.entries, slate?.games]);
+
   // MLS weekly combined view — derive typed day/game arrays from the week-games response.
   const mlsWeeklyDays: MlsWeekGames["days"] = isMlsWeekly ? (mlsWeekData?.days ?? []) : [];
   const mlsWeeklyAllGames = mlsWeeklyDays.flatMap((d) => d.games);
@@ -4876,6 +4906,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 isLoading={lbLoading}
                 dataUpdatedAt={lbDataUpdatedAt}
                 isFetching={lbFetching}
+              />
+            ) : isNbaAts ? (
+              <PickEmLiveBoard
+                periodLabel={nbaAtsRangeLabel || "Weekend"}
+                games={nbaAtsLiveBoardGames}
+                entries={leaderboard?.entries ?? []}
+                currentUserId={user?.id ?? null}
+                scoringMode="ats"
+                gamesScopeLabel="Submitted picks"
+                isLoading={lbLoading || gamesLoading}
+                dataUpdatedAt={lbDataUpdatedAt}
+                isFetching={lbFetching || gamesFetching}
               />
             ) : (
               <PoolLivePlaceholder gridTabLabel={pickEmGridTabLabel} />
