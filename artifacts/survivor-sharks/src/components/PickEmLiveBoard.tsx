@@ -7,6 +7,7 @@ import {
   resolvePickEmLivePickCell,
   type PickEmLiveCellState,
   type PickEmLiveGame,
+  type PickEmLiveScoringMode,
 } from "@/lib/pickEmLivePickCell";
 import { formatSecondsAgo } from "@/lib/nflPickEmLivePickCell";
 
@@ -132,6 +133,9 @@ export type PickEmLiveBoardProps = {
   entries: PickEmLeaderboardEntry[];
   currentUserId: number | null;
   accent?: Accent;
+  scoringMode?: PickEmLiveScoringMode;
+  /** Hint under the header (e.g. full slate vs picked games only). */
+  gamesScopeLabel?: string;
   isLoading?: boolean;
   dataUpdatedAt?: number;
   isFetching?: boolean;
@@ -143,6 +147,8 @@ export function PickEmLiveBoard({
   entries,
   currentUserId,
   accent = "default",
+  scoringMode = "straight",
+  gamesScopeLabel = "Full slate",
   isLoading = false,
   dataUpdatedAt = Date.now(),
   isFetching = false,
@@ -265,7 +271,7 @@ export function PickEmLiveBoard({
 
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] bg-[#0c1014]/80">
         <p className="text-[10px] text-white/45">
-          Full slate · scroll games{" "}
+          {gamesScopeLabel} · scroll games{" "}
           <ChevronRight className="inline w-3 h-3 text-white/30" aria-hidden />
         </p>
         {currentUserId != null && (
@@ -367,6 +373,7 @@ export function PickEmLiveBoard({
                     const { state, abbr } = resolvePickEmLivePickCell(pick, game, {
                       entryUserId: entry.userId,
                       currentUserId,
+                      scoringMode,
                     });
                     return (
                       <td key={game.id} className="py-1.5 px-0.5 text-center align-middle">
