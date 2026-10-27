@@ -46,6 +46,8 @@ type CommissionerWeeklyPickEmPayoutsProps = {
   weekEnd: string;
   periodLabel?: string | null;
   hasResults: boolean;
+  /** True when the pool period dropdown is on a past weekend/week (not the live period). */
+  viewingSelectedPeriod?: boolean;
   onViewResults: () => void;
 };
 
@@ -55,6 +57,7 @@ export function CommissionerWeeklyPickEmPayouts({
   weekEnd,
   periodLabel,
   hasResults,
+  viewingSelectedPeriod = false,
   onViewResults,
 }: CommissionerWeeklyPickEmPayoutsProps) {
   const payoutRows = groups.flatMap((group) =>
@@ -69,7 +72,13 @@ export function CommissionerWeeklyPickEmPayouts({
   );
 
   const totalOwed = payoutRows.reduce((sum, row) => sum + row.prizeWon, 0);
-  const periodTitle = periodLabel ? `Last period (${periodLabel})` : "Last period payouts";
+  const periodTitle = viewingSelectedPeriod
+    ? periodLabel
+      ? `Payouts (${periodLabel})`
+      : "Payouts for selected period"
+    : periodLabel
+      ? `Last period (${periodLabel})`
+      : "Last period payouts";
 
   return (
     <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/[0.06] to-card/60 overflow-hidden">

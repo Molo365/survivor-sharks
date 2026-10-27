@@ -1042,6 +1042,14 @@ function offsetDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+function daysBetweenYmd(startYmd: string, endYmd: string): number {
+  const [y1, m1, d1] = startYmd.split("-").map(Number);
+  const [y2, m2, d2] = endYmd.split("-").map(Number);
+  const a = Date.UTC(y1, m1 - 1, d1);
+  const b = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((b - a) / 86_400_000);
+}
+
 
 // ── Weekly Leaderboard ────────────────────────────────────────────────────────
 
@@ -1795,6 +1803,7 @@ function PrevWeekResultsModal({
   tiebreakerActualPoints: defaultTbPoints,
   periodLabel,
   hidePrizeColumn = false,
+  initialWeek,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1819,15 +1828,20 @@ function PrevWeekResultsModal({
   periodLabel?: string | null;
   /** Hide per-period prize column — season pot pays out after the Final. */
   hidePrizeColumn?: boolean;
+  /** When set, modal opens on this completed week instead of the latest. */
+  initialWeek?: number;
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
   const [selectedWeek, setSelectedWeek] = useState(maxWeek);
 
-  // Reset to the most recent week whenever the modal is opened.
+  // Reset whenever the modal is opened (honor commissioner / deep-link week when provided).
   useEffect(() => {
-    if (open) setSelectedWeek(maxWeek);
-  }, [open, maxWeek]);
+    if (!open) return;
+    const week =
+      initialWeek != null && initialWeek >= 1 && initialWeek <= maxWeek ? initialWeek : maxWeek;
+    setSelectedWeek(week);
+  }, [open, maxWeek, initialWeek]);
 
   const isDefaultWeek = selectedWeek === maxWeek;
 
@@ -2366,6 +2380,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const yesterdayDate = useMemo(() => offsetDate(todayEt, -1), [todayEt]);
   const [resultsModalDate, setResultsModalDate] = useState<string | null>(null);
   const [weekResultsOpen, setWeekResultsOpen] = useState(false);
+  const [weekResultsInitialWeek, setWeekResultsInitialWeek] = useState<number | undefined>(
+    undefined,
+  );
 
   // Auto-open the Final Results modal when the page is loaded with ?results=true
   // (e.g. by clicking the "Last winner" line on the dashboard PoolCard).
@@ -2505,6 +2522,89 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     : isNhlWeeklyRecurring
       ? activeNhlWeekNumber < (poolDetail?.currentWeek ?? 1)
       : false;
+
+  const poolCurrentWeek = poolDetail?.currentWeek ?? 1;
+
+  /** Completed pick-em week whose prizes the commissioner card should list. */
+  const commissionerPayoutWeekNumber = useMemo(() => {
+    if (!isRecurringWeeklyPickEm || sport === "championsleague") return null;
+    if (poolCurrentWeek <= 1) return null;
+
+    if (isNhlWeeklyRecurring && pickEmPeriods?.periods.length) {
+      if (viewingPastPeriod) return activeNhlWeekNumber;
+      return poolCurrentWeek - 1;
+    }
+
+    if (isMlsWeekly && pickEmPeriods?.periods.length && activePeriodStart) {
+      if (!viewingPastPeriod) return poolCurrentWeek - 1;
+      const currentKey =
+        pickEmPeriods.defaultKey
+        ?? pickEmPeriods.periods.find((p) => p.status === "current")?.key;
+      const currentPeriod = pickEmPeriods.periods.find((p) => p.key === currentKey);
+      const currentWeekStart = currentPeriod?.weekStart ?? currentKey;
+      if (!currentWeekStart) return poolCurrentWeek - 1;
+      const weeksBack = Math.round(daysBetweenYmd(activePeriodStart, currentWeekStart) / 7);
+      const weekNum = poolCurrentWeek - weeksBack;
+      return weekNum >= 1 && weekNum < poolCurrentWeek ? weekNum : null;
+    }
+
+    return poolCurrentWeek - 1;
+  }, [
+    isRecurringWeeklyPickEm,
+    sport,
+    poolCurrentWeek,
+    isNhlWeeklyRecurring,
+    pickEmPeriods,
+    viewingPastPeriod,
+    activeNhlWeekNumber,
+    isMlsWeekly,
+    activePeriodStart,
+  ]);
+
+  const commissionerPayoutWeekParams =
+    commissionerPayoutWeekNumber != null ? { week: commissionerPayoutWeekNumber } : undefined;
+  const defaultPrevWeekNumber = Math.max(1, poolCurrentWeek - 1);
+  const commissionerUsesDefaultPrevWeek =
+    commissionerPayoutWeekNumber != null
+    && commissionerPayoutWeekNumber === defaultPrevWeekNumber
+    && commissionerPayoutWeekNumber < poolCurrentWeek;
+
+  const { data: commissionerPayoutWeekFetched } = useGetPickEmPrevWeekResults(
+    poolId,
+    commissionerPayoutWeekParams,
+    {
+      query: {
+        queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, commissionerPayoutWeekParams),
+        enabled:
+          isCommissioner
+          && isRecurringWeeklyPickEm
+          && sport !== "championsleague"
+          && commissionerPayoutWeekNumber != null
+          && commissionerPayoutWeekNumber >= 1
+          && commissionerPayoutWeekNumber < poolCurrentWeek
+          && !commissionerUsesDefaultPrevWeek,
+        staleTime: 10 * 60 * 1000,
+      },
+    },
+  );
+
+  const commissionerPayoutResults =
+    sport === "championsleague"
+      ? prevWeekResults ?? null
+      : commissionerPayoutWeekNumber == null
+        || commissionerPayoutWeekNumber < 1
+        || commissionerPayoutWeekNumber >= poolCurrentWeek
+        ? null
+        : commissionerUsesDefaultPrevWeek
+          ? prevWeekResults
+          : commissionerPayoutWeekFetched;
+
+  const commissionerPayoutWinnerGroups = commissionerPayoutResults?.hasResults
+    ? groupPrevWeekWinners(commissionerPayoutResults.entries)
+    : [];
+  const commissionerPayoutPeriodLabel = (
+    commissionerPayoutResults as { periodLabel?: string } | undefined
+  )?.periodLabel;
 
   // For NHL weekly: fetch the full weekend schedule (both Sat + Sun) so we can
   // show all games on one combined page and derive day labels.
@@ -3253,9 +3353,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       <PrevWeekResultsModal
         open={weekResultsOpen}
         isNbaAts={isNbaAts}
-        onClose={() => setWeekResultsOpen(false)}
+        onClose={() => {
+          setWeekResultsOpen(false);
+          setWeekResultsInitialWeek(undefined);
+        }}
         poolId={poolId}
         currentWeek={poolDetail?.currentWeek ?? 1}
+        initialWeek={weekResultsInitialWeek}
         weekStart={prevWeekResults.weekStart}
         weekEnd={prevWeekResults.weekEnd}
         entries={prevWeekResults.entries}
@@ -4933,14 +5037,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             <div className="max-w-lg space-y-6">
               <PoolSetupSummary poolId={poolId} />
 
-              {isRecurringWeeklyPickEm && prevWeekResults && (
+              {isRecurringWeeklyPickEm && commissionerPayoutResults && (
                 <CommissionerWeeklyPickEmPayouts
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
-                  periodLabel={prevPeriodLabel}
-                  hasResults={prevWeekResults.hasResults}
-                  onViewResults={() => setWeekResultsOpen(true)}
+                  groups={commissionerPayoutWinnerGroups}
+                  weekStart={commissionerPayoutResults.weekStart}
+                  weekEnd={commissionerPayoutResults.weekEnd}
+                  periodLabel={commissionerPayoutPeriodLabel}
+                  hasResults={commissionerPayoutResults.hasResults}
+                  viewingSelectedPeriod={viewingPastPeriod}
+                  onViewResults={() => {
+                    setWeekResultsInitialWeek(commissionerPayoutWeekNumber ?? undefined);
+                    setWeekResultsOpen(true);
+                  }}
                 />
               )}
 
