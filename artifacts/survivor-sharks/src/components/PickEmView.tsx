@@ -65,6 +65,7 @@ import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
+import { CommissionerWeeklyPickEmPayouts } from "@/components/CommissionerWeeklyPickEmPayouts";
 import type { PickEmLiveGame } from "@/lib/pickEmLivePickCell";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import {
@@ -2316,6 +2317,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
   const isMlsWeekly = (sport === "mls" || sport === "superleague" || sport === "championsleague") && pickFrequency === "weekly";
+  const isRecurringWeeklyPickEm =
+    pickFrequency === "weekly" && isRecurring && (isWeekly || isMlsWeekly) && !isWc;
   const isNhlWeeklyRecurring = isNhlWeekly && isRecurring;
   const isWeeklyPeriodHistory = isMlsWeekly || isNhlWeeklyRecurring;
   const weeklyPeriodLabel =
@@ -4929,6 +4932,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">
             <div className="max-w-lg space-y-6">
               <PoolSetupSummary poolId={poolId} />
+
+              {isRecurringWeeklyPickEm && prevWeekResults && (
+                <CommissionerWeeklyPickEmPayouts
+                  groups={prevWeekWinnerGroups}
+                  weekStart={prevWeekResults.weekStart}
+                  weekEnd={prevWeekResults.weekEnd}
+                  periodLabel={prevPeriodLabel}
+                  hasResults={prevWeekResults.hasResults}
+                  onViewResults={() => setWeekResultsOpen(true)}
+                />
+              )}
 
               <div>
                 <h3 className="font-bebas text-2xl tracking-wide mb-1">Commissioner Tools</h3>
