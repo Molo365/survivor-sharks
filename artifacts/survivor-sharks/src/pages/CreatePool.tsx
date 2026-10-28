@@ -30,6 +30,7 @@ import { poolSupportsDoubleElimination } from "@/lib/poolSurvivor";
 import {
   WEEKLY_BONUS_RESERVE_WEEKS,
   deriveWeeklyBonusMinPlayers,
+  resolveSeasonPrizePot,
   weeklyPayoutFromPercent,
 } from "@/lib/weeklyBonusWizard";
 import {
@@ -360,53 +361,102 @@ function formNumber(value: unknown): number | null {
 
 type CreatePoolFormValues = z.infer<typeof formSchema>;
 
-function NhlWeeklyBonusPreview({ control }: { control: Control<CreatePoolFormValues> }) {
+function NhlWeeklyBonusPreview({
+  control,
+  examplePlayerCount,
+  unlimitedMaxEntries,
+}: {
+  control: Control<CreatePoolFormValues>;
+  examplePlayerCount: number;
+  unlimitedMaxEntries: boolean;
+}) {
   const entryFeeRaw = useWatch({ control, name: "entryFee" });
   const amountRaw = useWatch({ control, name: "weeklyBonusAmount" });
   const minPlayersRaw = useWatch({ control, name: "weeklyBonusMinPlayers" });
   const entryFee = formNumber(entryFeeRaw) ?? 0;
   const amount = formNumber(amountRaw);
   const minPlayers = formNumber(minPlayersRaw);
+  const fee = Math.round(entryFee);
   const reserved = amount != null && amount > 0 ? amount * WEEKLY_BONUS_RESERVE_WEEKS : null;
-  const thresholdPot =
-    entryFee > 0 && minPlayers != null && minPlayers > 0 ? entryFee * minPlayers : null;
-  const seasonEndRemaining =
-    thresholdPot != null && reserved != null ? thresholdPot - reserved : null;
+  const minCount = minPlayers != null && minPlayers > 0 ? minPlayers : 0;
+  const exampleCount = Math.max(minCount, examplePlayerCount);
+
+  const seasonAtMin =
+    fee > 0 && amount != null && amount > 0 && minCount > 0
+      ? resolveSeasonPrizePot({
+          entryFee: fee,
+          memberCount: minCount,
+          weeklyBonusEnabled: true,
+          weeklyBonusAmount: amount,
+          weeklyThresholdMet: true,
+        })
+      : null;
+  const seasonAtExample =
+    fee > 0 && amount != null && amount > 0 && exampleCount > minCount
+      ? resolveSeasonPrizePot({
+          entryFee: fee,
+          memberCount: exampleCount,
+          weeklyBonusEnabled: true,
+          weeklyBonusAmount: amount,
+          weeklyThresholdMet: true,
+        })
+      : null;
 
   return (
     <div className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2" data-testid="weekly-bonus-preview">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly bonus preview</p>
-      {entryFee > 0 && amount != null && amount > 0 && minPlayers != null && minPlayers > 0 ? (
+      {fee > 0 && amount != null && amount > 0 && minCount > 0 && reserved != null && seasonAtMin ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            Each closed week pays up to{" "}
-            <span className="font-semibold text-foreground">${amount.toFixed(2)}</span>
-            {" "}split among winners when at least{" "}
-            <span className="font-semibold text-foreground">{minPlayers}</span>
-            {" "}players have joined.
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Each week pays up to{" "}
+            <span className="font-semibold text-foreground">${amount.toFixed(2)}</span> to winners once at least{" "}
+            <span className="font-semibold text-foreground">{minCount}</span> players have joined. That weekly amount
+            stays the same even if more people join later.
           </p>
           <div className="space-y-1.5 text-sm border-t border-border/30 pt-2">
             <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Players required (auto)</span>
-              <span className="font-semibold text-foreground">{minPlayers}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Reserved for {WEEKLY_BONUS_RESERVE_WEEKS} weeks × ${amount.toFixed(2)}</span>
-              <span className="font-semibold text-foreground">${reserved!.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Pot at threshold ({minPlayers} × ${entryFee})</span>
-              <span className="font-semibold text-foreground">${thresholdPot!.toFixed(2)}</span>
+              <span className="text-muted-foreground">Set aside for {WEEKLY_BONUS_RESERVE_WEEKS} weekly prizes</span>
+              <span className="font-semibold text-foreground">${reserved.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-1.5">
-              <span className="text-muted-foreground">Left for season-end prizes (guidance)</span>
-              <span className={cn("font-semibold", seasonEndRemaining != null && seasonEndRemaining < 0 ? "text-destructive" : "text-green-400")}>
-                ${seasonEndRemaining!.toFixed(2)}
+              <span className="text-muted-foreground">
+                End-of-season pile at minimum ({minCount} × ${fee})
+              </span>
+              <span
+                className={cn(
+                  "font-semibold",
+                  seasonAtMin.seasonPot < 0 ? "text-destructive" : "text-green-400",
+                )}
+              >
+                ${seasonAtMin.seasonPot.toFixed(2)}
               </span>
             </div>
+            {(unlimitedMaxEntries || seasonAtExample) && exampleCount > minCount && seasonAtExample && (
+              <div className="flex items-center justify-between gap-4 rounded-md bg-muted/20 px-2 py-1.5 -mx-2">
+                <span className="text-muted-foreground">
+                  {unlimitedMaxEntries ? `Example if ${exampleCount} join` : `If ${exampleCount} join`} ({exampleCount}{" "}
+                  × ${fee})
+                </span>
+                <span
+                  className={cn(
+                    "font-semibold",
+                    seasonAtExample.seasonPot < 0 ? "text-destructive" : "text-green-400",
+                  )}
+                >
+                  ${seasonAtExample.seasonPot.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
+          {unlimitedMaxEntries && exampleCount > minCount && (
+            <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+              Max entries is unlimited—every extra player adds ${fee} to the end-of-season pile (weekly prizes stay $
+              {amount.toFixed(2)} per week).
+            </p>
+          )}
           <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-            Minimum players = ceil(({WEEKLY_BONUS_RESERVE_WEEKS} × weekly prize) ÷ entry fee). Higher weekly prizes require more joined players at the same entry fee.
+            Minimum players = ceil(({WEEKLY_BONUS_RESERVE_WEEKS} × weekly prize) ÷ entry fee). Bigger weekly prizes
+            need more people before weekly payouts turn on.
           </p>
         </>
       ) : (
@@ -2545,7 +2595,13 @@ export default function CreatePool() {
                                       )}
                                     />
                                   </div>
-                                  <NhlWeeklyBonusPreview control={form.control} />
+                                  <NhlWeeklyBonusPreview
+                                    control={form.control}
+                                    examplePlayerCount={
+                                      watchedMaxEntries && watchedMaxEntries > 0 ? watchedMaxEntries : 10
+                                    }
+                                    unlimitedMaxEntries={!watchedMaxEntries || watchedMaxEntries <= 0}
+                                  />
                                 </div>
                               )}
                             </div>

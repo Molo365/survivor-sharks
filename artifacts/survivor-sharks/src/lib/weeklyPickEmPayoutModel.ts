@@ -117,7 +117,10 @@ export function prizeExamplePot(opts: {
       return {
         dollars: seasonPot,
         label: "Season-end pot",
-        sublabel: "After reserving weekly prizes from the season buy-in",
+        sublabel:
+          count > opts.weeklyBonusMinPlayers
+            ? `After weekly set-aside — grows when more players join (${count} in this example)`
+            : "After reserving weekly prizes from the season buy-in",
       };
     }
     return {
