@@ -98,7 +98,7 @@ describe("prizeExamplePot", () => {
       weeklyBonusMinPlayers: 1,
     });
     expect(r.dollars).toBe(400);
-    expect(r.label).toContain("period");
+    expect(r.label).toContain("week");
   });
 
   it("uses season leftover when season budget and threshold met", () => {

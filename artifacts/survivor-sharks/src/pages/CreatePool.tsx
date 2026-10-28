@@ -426,30 +426,47 @@ function PeriodPotPreview({
   examplePlayerCount: number;
 }) {
   const fee = Math.round(entryFee);
-  const pot = periodPotDollars(fee, examplePlayerCount);
+  const pot = fee > 0 ? periodPotDollars(fee, examplePlayerCount) : null;
+  const demoFee = 10;
+  const demoPlayers = 5;
+  const demoPot = periodPotDollars(demoFee, demoPlayers);
   return (
     <div
-      className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-2"
+      className="rounded-lg border border-border/40 bg-background/40 p-4 space-y-3"
       data-testid="period-pot-preview"
     >
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        This period&apos;s pot (preview)
+        Example: this week&apos;s money
       </p>
-      {fee > 0 ? (
+      <div className="rounded-md bg-muted/20 border border-border/30 px-3 py-2.5 space-y-1">
+        <p className="text-sm text-foreground leading-relaxed">
+          <span className="font-semibold">Quick example:</span>{" "}
+          {demoPlayers} friends each pay{" "}
+          <span className="font-semibold text-primary">${demoFee}</span>. That week there is{" "}
+          <span className="font-semibold text-green-400">${demoPot}</span> to split with winners.
+        </p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          When the week ends, pay the winners from that ${demoPot}. Next week everyone pays again and you get a
+          new pile—yesterday&apos;s money is already handled.
+        </p>
+      </div>
+      {fee > 0 && pot != null ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            When this period closes, the prize pot is roughly{" "}
-            <span className="font-semibold text-foreground">${fee}</span> ×{" "}
-            <span className="font-semibold text-foreground">{examplePlayerCount}</span> players ={" "}
-            <span className="font-semibold text-green-400">${pot}</span> before your commissioner cut.
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground">Your pool:</span>{" "}
+            <span className="font-semibold text-foreground">{examplePlayerCount}</span> players ×{" "}
+            <span className="font-semibold text-foreground">${fee}</span> each ={" "}
+            <span className="font-semibold text-green-400">${pot}</span> for this week (before your organizer
+            share on the next steps).
           </p>
           <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-            Recurring pools start a fresh period pot each week. Prize percentages on the next step apply to
-            that period&apos;s pot, not a single season buy-in.
+            The prize % you pick next only applies to this week&apos;s pile—not money from other weeks.
           </p>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">Enter an entry fee to preview this period&apos;s pot.</p>
+        <p className="text-sm text-muted-foreground">
+          Enter an entry fee above and we&apos;ll show the same math with your numbers.
+        </p>
       )}
     </div>
   );
@@ -2266,10 +2283,10 @@ export default function CreatePool() {
                               data-testid="weekly-pickem-payout-model"
                             >
                               <div className="space-y-1">
-                                <div className="font-bebas text-lg tracking-wide">How should payouts work?</div>
+                                <div className="font-bebas text-lg tracking-wide">How do winners get paid?</div>
                                 <p className="text-xs leading-relaxed text-muted-foreground">
-                                  Choose whether each period has its own pot, or one season buy-in funds weekly and
-                                  season-end prizes together.
+                                  Pick what fits your league. Most weekly pools use a fresh pot every week—we explain
+                                  both ways below.
                                 </p>
                               </div>
                               <FormField
@@ -2309,9 +2326,10 @@ export default function CreatePool() {
                                 )}
                               />
                               {effectiveWeeklyPickEmPayoutModel === "season_budget" && (
-                                <p className="text-[11px] text-muted-foreground/90 border-t border-border/30 pt-3">
-                                  Fixed weekly prizes (NHL) and season-end % splits share one season buy-in. Prize
-                                  percentages on step 3 apply to the season-end slice, not the full gross pot.
+                                <p className="text-[11px] text-muted-foreground/90 border-t border-border/30 pt-3 leading-relaxed">
+                                  Weekly prizes and end-of-season prizes both come from the same season payments. On
+                                  step 3, the % you set is for what&apos;s left at the end—not for every dollar
+                                  people paid in.
                                 </p>
                               )}
                             </div>
