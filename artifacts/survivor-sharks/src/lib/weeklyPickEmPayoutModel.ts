@@ -65,6 +65,7 @@ export function inferWeeklyPickEmPayoutModelFromPool(pool: {
   pickFrequency?: string | null;
   isRecurring?: boolean | null;
   weeklyBonusEnabled?: boolean | null;
+  weeklyPickEmPayoutModel?: string | null;
 }): WeeklyPickEmPayoutModel | null {
   if (
     !isWeeklyPickEmPayoutModelChoiceEligible({
@@ -75,6 +76,9 @@ export function inferWeeklyPickEmPayoutModelFromPool(pool: {
     })
   ) {
     return null;
+  }
+  if (pool.weeklyPickEmPayoutModel === "period_pot" || pool.weeklyPickEmPayoutModel === "season_budget") {
+    return pool.weeklyPickEmPayoutModel;
   }
   return pool.weeklyBonusEnabled === true ? "season_budget" : "period_pot";
 }

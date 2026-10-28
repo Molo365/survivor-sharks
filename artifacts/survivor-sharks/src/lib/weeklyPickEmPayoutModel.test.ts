@@ -85,6 +85,19 @@ describe("inferWeeklyPickEmPayoutModelFromPool", () => {
       }),
     ).toBe("period_pot");
   });
+
+  it("prefers stored weeklyPickEmPayoutModel over weeklyBonusEnabled", () => {
+    expect(
+      inferWeeklyPickEmPayoutModelFromPool({
+        sport: "nhl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        weeklyBonusEnabled: true,
+        weeklyPickEmPayoutModel: "period_pot",
+      }),
+    ).toBe("period_pot");
+  });
 });
 
 describe("prizeExamplePot", () => {

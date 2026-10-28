@@ -124,6 +124,7 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
     pickFrequency: pool.pickFrequency,
     isRecurring: pool.isRecurring,
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
+    weeklyPickEmPayoutModel: pool.weeklyPickEmPayoutModel ?? null,
   });
   const payoutModelLabel =
     inferredPayoutModel != null

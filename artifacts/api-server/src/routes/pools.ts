@@ -32,6 +32,7 @@ import { resolveNhlPoolInitialPeriodStart, shouldResolveNhlPoolInitialPeriod } f
 import { sportPoolStatusTable } from "@workspace/db";
 import { loadSandboxLivePoolIds, poolSlateHasLiveGames } from "../lib/pool-slate-live";
 import { resolveStoredDoubleElimination } from "../lib/pool-double-elimination";
+import { normalizeWeeklyPickEmPayoutModelForCreate, resolveWeeklyPickEmPayoutModel } from "../lib/weekly-pickem-payout-model";
 
 const router = Router();
 const SEASON_LONG_POOL_TYPES = new Set(["season", "pickem_season", "nfl_confidence"]);
@@ -308,6 +309,18 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   const resolvedPoolType = (poolType as typeof poolsTable.$inferInsert["poolType"]) ?? "season";
+  const earlyPickFrequency =
+    pickFrequency === "daily" && ["mlb", "intl"].includes(sport) ? "daily" : "weekly";
+  const earlyIsRecurring = resolveIsRecurringOnCreate(resolvedPoolType, isRecurring);
+  const weeklyPickEmPayoutModel = normalizeWeeklyPickEmPayoutModelForCreate({
+    sport,
+    poolType: resolvedPoolType,
+    pickFrequency: earlyPickFrequency,
+    isRecurring: earlyIsRecurring,
+    requested: req.body.weeklyPickEmPayoutModel,
+  });
+  const effectiveWeeklyBonusRequested =
+    weeklyPickEmPayoutModel === "period_pot" ? false : requestedWeeklyBonusEnabled === true;
   const [sportPoolStatus] = await db.select({ status: sportPoolStatusTable.status })
     .from(sportPoolStatusTable)
     .where(eq(sportPoolStatusTable.sport, sport))
@@ -349,7 +362,7 @@ router.post("/", requireAuth, async (req, res) => {
     isRecurring: isRecurring === true,
   });
   const hasWeeklyBonusSettings =
-    requestedWeeklyBonusEnabled === true ||
+    effectiveWeeklyBonusRequested ||
     requestedWeeklyBonusAmount !== undefined && requestedWeeklyBonusAmount !== null && requestedWeeklyBonusAmount !== "" ||
     requestedWeeklyBonusMinPlayers !== undefined && requestedWeeklyBonusMinPlayers !== null && requestedWeeklyBonusMinPlayers !== "";
   if (!weeklyBonusEligible && hasWeeklyBonusSettings) {
@@ -357,7 +370,7 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
-  const weeklyBonusEnabled = weeklyBonusEligible && requestedWeeklyBonusEnabled === true;
+  const weeklyBonusEnabled = weeklyBonusEligible && effectiveWeeklyBonusRequested;
   const weeklyBonusAmount = Number(requestedWeeklyBonusAmount);
   const weeklyBonusMinPlayers = Number(requestedWeeklyBonusMinPlayers);
   if (weeklyBonusEnabled && (!Number.isFinite(weeklyBonusAmount) || weeklyBonusAmount <= 0)) {
@@ -531,6 +544,7 @@ router.post("/", requireAuth, async (req, res) => {
     weeklyBonusEnabled,
     weeklyBonusAmount: weeklyBonusEnabled ? weeklyBonusAmount.toFixed(2) : null,
     weeklyBonusMinPlayers: weeklyBonusEnabled ? weeklyBonusMinPlayers : null,
+    weeklyPickEmPayoutModel,
     pickemScoringMode:
       resolvedPoolType === "pickem_season"
         ? ((req.body.pickemScoringMode === "ats" ? "ats" : "straight") as "straight" | "ats")
@@ -866,6 +880,14 @@ router.get("/:poolId", requireAuth, async (req, res) => {
     weeklyBonusAmount: pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null,
     weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers ?? null,
     weeklyBonusLockedActive,
+    weeklyPickEmPayoutModel: resolveWeeklyPickEmPayoutModel({
+      sport: pool.sport,
+      poolType: pool.poolType,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring,
+      weeklyPickEmPayoutModel: pool.weeklyPickEmPayoutModel,
+      weeklyBonusEnabled: pool.weeklyBonusEnabled,
+    }),
     totalMembers: members.length,
     activeCount: members.filter(m => m.status === "alive").length,
     members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),

@@ -24,7 +24,8 @@
     "test:mls-weekly-period": "esbuild src/lib/mls-weekly-period.test.ts --bundle --platform=node --format=esm --outfile=/tmp/mls-weekly-period.test.mjs && node --test /tmp/mls-weekly-period.test.mjs",
     "test:nfl-weekly-tiebreaker": "esbuild src/lib/nfl-weekly-tiebreaker-resolution.test.ts --bundle --platform=node --format=esm --outfile=/tmp/nfl-weekly-tiebreaker-resolution.test.mjs && node --test /tmp/nfl-weekly-tiebreaker-resolution.test.mjs",
     "test:crazy-eights-recurring": "esbuild src/lib/crazy-eights-recurring-policy.test.ts --bundle --platform=node --format=esm --outfile=/tmp/crazy-eights-recurring-policy.test.mjs && node --test /tmp/crazy-eights-recurring-policy.test.mjs",
-    "test:crazy-eights-recurring-integration": "esbuild src/lib/crazy-eights-recurring.integration.test.ts --bundle --platform=node --format=cjs --external:pino --external:pino-pretty --outfile=.crazy-eights-recurring.integration.test.cjs || exit $?; node --test .crazy-eights-recurring.integration.test.cjs; status=$?; rm -f .crazy-eights-recurring.integration.test.cjs; exit $status"
+    "test:crazy-eights-recurring-integration": "esbuild src/lib/crazy-eights-recurring.integration.test.ts --bundle --platform=node --format=cjs --external:pino --external:pino-pretty --outfile=.crazy-eights-recurring.integration.test.cjs || exit $?; node --test .crazy-eights-recurring.integration.test.cjs; status=$?; rm -f .crazy-eights-recurring.integration.test.cjs; exit $status",
+    "test:weekly-pickem-payout-model": "esbuild src/lib/weekly-pickem-payout-model.test.ts --bundle --platform=node --format=esm --outfile=/tmp/weekly-pickem-payout-model.test.mjs && node --test /tmp/weekly-pickem-payout-model.test.mjs"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",

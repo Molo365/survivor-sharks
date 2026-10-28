@@ -181,6 +181,17 @@ export const PoolInputPrizeMode = {
 } as const;
 
 /**
+ * Recurring weekly pick-em only — this week's pot vs one season buy-in
+ */
+export type PoolInputWeeklyPickEmPayoutModel = typeof PoolInputWeeklyPickEmPayoutModel[keyof typeof PoolInputWeeklyPickEmPayoutModel];
+
+
+export const PoolInputWeeklyPickEmPayoutModel = {
+  period_pot: 'period_pot',
+  season_budget: 'season_budget',
+} as const;
+
+/**
  * NFL Pick-Ems Season only — straight-up winners vs against the spread
  */
 export type PoolInputPickemScoringMode = typeof PoolInputPickemScoringMode[keyof typeof PoolInputPickemScoringMode];
@@ -207,7 +218,7 @@ export interface PoolInput {
   prizePot?: number;
   currentWeek?: number;
   season?: number;
-  /** MLB only: first loss gives a mulligan strike; second loss eliminates permanently */
+  /** NFL/MLB survivor pools only (season, weekly, mid_season, dirty_dozen): first loss is a warning strike; second loss eliminates. Ignored for pick'em and other pool types. */
   doubleElimination?: boolean;
   /** MLB only: weekly = one pick per week; daily = one pick per day from that day's slate */
   pickFrequency?: PoolInputPickFrequency;
@@ -229,6 +240,8 @@ export interface PoolInput {
      * @nullable
      */
   weeklyBonusMinPlayers?: number | null;
+  /** Recurring weekly pick-em only — this week's pot vs one season buy-in */
+  weeklyPickEmPayoutModel?: PoolInputWeeklyPickEmPayoutModel;
   /** NFL Pick-Ems Season only — straight-up winners vs against the spread */
   pickemScoringMode?: PoolInputPickemScoringMode;
 }
@@ -547,6 +560,18 @@ export const PoolDetailPickemScoringMode = {
   ats: 'ats',
 } as const;
 
+/**
+ * Recurring weekly pick-em payout model when applicable
+ * @nullable
+ */
+export type PoolDetailWeeklyPickEmPayoutModel = typeof PoolDetailWeeklyPickEmPayoutModel[keyof typeof PoolDetailWeeklyPickEmPayoutModel] | null;
+
+
+export const PoolDetailWeeklyPickEmPayoutModel = {
+  period_pot: 'period_pot',
+  season_budget: 'season_budget',
+} as const;
+
 export type PoolMemberStatus = typeof PoolMemberStatus[keyof typeof PoolMemberStatus];
 
 
@@ -646,6 +671,11 @@ export interface PoolDetail {
      * @nullable
      */
   weeklyBonusLockedActive?: boolean | null;
+  /**
+     * Recurring weekly pick-em payout model when applicable
+     * @nullable
+     */
+  weeklyPickEmPayoutModel?: PoolDetailWeeklyPickEmPayoutModel;
 }
 
 export type PastPoolPoolType = typeof PastPoolPoolType[keyof typeof PastPoolPoolType];
@@ -749,13 +779,18 @@ export interface Pick {
   submittedAt?: string;
 }
 
+/**
+ * Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22)
+ */
+export type SurvivorGridWeekLabels = {[key: string]: string};
+
 export interface SurvivorGrid {
   poolId: number;
   /** Lives in this pool (1 single elim, 2 double elim, 3 NHL/NBA season survivor) */
   maxLives?: number;
   weeks: number[];
-  /** Week number → display label (NHL survivor Saturday dates) */
-  weekLabels?: { [key: string]: string };
+  /** Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22) */
+  weekLabels?: SurvivorGridWeekLabels;
   members: PoolMember[];
   picks: Pick[];
 }
@@ -1572,12 +1607,12 @@ export interface PickEmLeaderboard {
      */
   tiebreakerActualStrikeouts?: number | null;
   /**
-     * Combined shots on goal in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)
+     * Combined shots on goal in the tiebreaker game once underway or final (NHL weekly pools only; null if not applicable or stats unavailable)
      * @nullable
      */
   tiebreakerActualShotsOnGoal?: number | null;
   /**
-     * Combined penalty minutes in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)
+     * Combined penalty minutes in the tiebreaker game (legacy secondary stat; NHL weekly resolution uses shots on goal only)
      * @nullable
      */
   tiebreakerActualPenaltyMinutes?: number | null;
@@ -1586,6 +1621,11 @@ export interface PickEmLeaderboard {
      * @nullable
      */
   tiebreakerActualPoints?: number | null;
+  /**
+     * True when the tiebreaker game (last kickoff of the weekend) has started (NHL weekly and NBA Pick'em pools)
+     * @nullable
+     */
+  tiebreakerGameStarted?: boolean | null;
 }
 
 export type PickEmDailyResultsGameAwayTeam = {
@@ -1657,6 +1697,17 @@ export interface PickEmDayWinnerEntry {
 }
 
 /**
+ * Present for recurring weekly pick-em pools using the payout model
+ */
+export type PickEmPrevWeekResultsWeeklyPickEmPayoutModel = typeof PickEmPrevWeekResultsWeeklyPickEmPayoutModel[keyof typeof PickEmPrevWeekResultsWeeklyPickEmPayoutModel];
+
+
+export const PickEmPrevWeekResultsWeeklyPickEmPayoutModel = {
+  period_pot: 'period_pot',
+  season_budget: 'season_budget',
+} as const;
+
+/**
  * Present for NHL recurring weekly pick-em pools with weekly bonus enabled
  */
 export type PickEmPrevWeekResultsWeeklyBonus = {
@@ -1681,6 +1732,8 @@ export interface PickEmPrevWeekResults {
   weekEnd: string;
   /** The 1-indexed week number whose results are returned */
   weekNumber?: number;
+  /** Present for recurring weekly pick-em pools using the payout model */
+  weeklyPickEmPayoutModel?: PickEmPrevWeekResultsWeeklyPickEmPayoutModel;
   entries: PickEmLeaderboardEntry[];
   /** Present for NHL recurring weekly pick-em pools with weekly bonus enabled */
   weeklyBonus?: PickEmPrevWeekResultsWeeklyBonus;
