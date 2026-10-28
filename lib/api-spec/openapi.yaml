@@ -3094,6 +3094,10 @@ components:
           type: ["integer", "null"]
           minimum: 1
           description: "Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true"
+        weeklyPickEmPayoutModel:
+          type: string
+          enum: [period_pot, season_budget]
+          description: "Recurring weekly pick-em only — this week's pot vs one season buy-in"
         pickemScoringMode:
           type: string
           enum: [straight, ats]
@@ -3456,6 +3460,10 @@ components:
         weeklyBonusLockedActive:
           type: ["boolean", "null"]
           description: "Null before season kickoff; permanently true or false after the weekly bonus threshold is evaluated at season lock"
+        weeklyPickEmPayoutModel:
+          type: ["string", "null"]
+          enum: [period_pot, season_budget, null]
+          description: "Recurring weekly pick-em payout model when applicable"
 
     PastPool:
       type: object
@@ -4694,6 +4702,10 @@ components:
         weekNumber:
           type: integer
           description: The 1-indexed week number whose results are returned
+        weeklyPickEmPayoutModel:
+          type: string
+          enum: [period_pot, season_budget]
+          description: Present for recurring weekly pick-em pools using the payout model
         entries:
           type: array
           items:

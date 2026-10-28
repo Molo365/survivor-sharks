@@ -39,6 +39,8 @@ export const poolsTable = pgTable("pools", {
   weeklyBonusAmount: numeric("weekly_bonus_amount", { precision: 10, scale: 2 }),
   weeklyBonusMinPlayers: integer("weekly_bonus_min_players"),
   weeklyBonusLockedActive: boolean("weekly_bonus_locked_active"),
+  /** Recurring weekly pick-em: period_pot (default) or season_budget. */
+  weeklyPickEmPayoutModel: text("weekly_pick_em_payout_model").$type<"period_pot" | "season_budget" | null>(),
   /** NFL Pick-Ems Season: straight-up winners vs against-the-spread. */
   pickemScoringMode: pickemScoringModeEnum("pickem_scoring_mode").notNull().default("straight"),
   ndpTb1GameId: text("ndp_tb1_game_id"),

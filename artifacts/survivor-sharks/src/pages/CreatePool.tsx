@@ -1289,6 +1289,9 @@ export default function CreatePool() {
           commissionerCut,
           showCommissionerCut,
           ...(cleanEntryFee !== undefined && { entryFee: cleanEntryFee }),
+          ...(isPayoutModelChoiceEligible && {
+            weeklyPickEmPayoutModel: effectiveWeeklyPickEmPayoutModel,
+          }),
           ...(isWeeklyBonusEligible && {
             weeklyBonusEnabled: weeklyBonusIsEnabled,
             weeklyBonusAmount: weeklyBonusIsEnabled ? cleanWeeklyBonusAmount : null,

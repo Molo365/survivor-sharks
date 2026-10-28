@@ -3,6 +3,11 @@ import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable, pickemGameSpreadsTable, crazyEightsPeriodResultsTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, count, desc } from "drizzle-orm";
 import { calcPrize } from "../lib/prizeCalc";
+import {
+  resolveWeeklyPickEmPayoutModel,
+  shouldUsePeriodPotWeeklyPrizes,
+  shouldUseSeasonBudgetFixedWeeklyPayout,
+} from "../lib/weekly-pickem-payout-model";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
@@ -2384,8 +2389,28 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   // are returned correctly — including for pools that are still active and haven't been
   // written to entries.prize_amount yet.
   // Champions League settles once after the Final on cumulative picks — matchday results are leaders only.
+  const weeklyPickEmPayoutModel = resolveWeeklyPickEmPayoutModel({
+    sport,
+    poolType: pool.poolType,
+    pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring,
+    weeklyPickEmPayoutModel: pool.weeklyPickEmPayoutModel,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled,
+  });
   const prizeWonByUser = new Map<number, number>();
-  if (allGraded && aggregates.length > 0 && !isChampionsLeagueWeekly) {
+  if (
+    allGraded &&
+    aggregates.length > 0 &&
+    !isChampionsLeagueWeekly &&
+    shouldUsePeriodPotWeeklyPrizes({
+      sport,
+      poolType: pool.poolType,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring,
+      weeklyPickEmPayoutModel: pool.weeklyPickEmPayoutModel,
+      weeklyBonusEnabled: pool.weeklyBonusEnabled,
+    })
+  ) {
     const totalEntries = memberCountRow[0]?.value ?? aggregates.length;
     const ps = pool.prizeStructure as Array<{ place: number; amount: number }> | null;
 
@@ -2426,8 +2451,14 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     }
   }
 
-  const isNhlRecurringWeeklyBonus =
-    isNhlPickemWeekly && pool.isRecurring === true && pool.weeklyBonusEnabled === true;
+  const useFixedWeeklyBonusPayout = shouldUseSeasonBudgetFixedWeeklyPayout({
+    sport,
+    poolType: pool.poolType,
+    pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring,
+    weeklyPickEmPayoutModel: pool.weeklyPickEmPayoutModel,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled,
+  });
   const prevWeekNumberForBonus = prevNhlWeekNum
     ?? prevNbaAtsWeekNum
     ?? (requestedWeek ?? defaultPrevWeek ?? Math.max(1, pool.currentWeek - 1));
@@ -2442,7 +2473,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     minPlayers: number | null;
     confirmedPlayerCount: number | null;
   } | undefined;
-  if (isNhlRecurringWeeklyBonus) {
+  if (useFixedWeeklyBonusPayout) {
     const weeklyBonusAmount =
       pool.weeklyBonusAmount != null ? Number(pool.weeklyBonusAmount) : null;
     const weeklyBonusMinPlayers = pool.weeklyBonusMinPlayers ?? null;
@@ -2563,6 +2594,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     tiebreakerActualPenaltyMinutes: isNhl ? tiebreakerActualPenaltyMinutes : undefined,
     tiebreakerColumnHeader,
     tiebreakerMatchup,
+    ...(weeklyPickEmPayoutModel ? { weeklyPickEmPayoutModel } : {}),
     ...(weeklyBonusPayload ? { weeklyBonus: weeklyBonusPayload } : {}),
   });
 });

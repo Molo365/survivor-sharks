@@ -325,7 +325,7 @@ export const CreatePoolBody = zod.object({
   "prizePot": zod.number().optional(),
   "currentWeek": zod.number().optional(),
   "season": zod.number().optional(),
-  "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('MLB only: first loss gives a mulligan strike; second loss eliminates permanently'),
+  "doubleElimination": zod.boolean().default(createPoolBodyDoubleEliminationDefault).describe('NFL\/MLB survivor pools only (season, weekly, mid_season, dirty_dozen): first loss is a warning strike; second loss eliminates. Ignored for pick\'em and other pool types.'),
   "pickFrequency": zod.enum(['weekly', 'daily']).default(createPoolBodyPickFrequencyDefault).describe('MLB only: weekly = one pick per week; daily = one pick per day from that day\'s slate'),
   "isRecurring": zod.boolean().default(createPoolBodyIsRecurringDefault).describe('MLB Daily only: if false the pool runs exactly one day then stops (isActive → false); if true it auto-advances indefinitely'),
   "prizeMode": zod.enum(['fixed', 'pct']).default(createPoolBodyPrizeModeDefault),
@@ -336,6 +336,7 @@ export const CreatePoolBody = zod.object({
   "weeklyBonusEnabled": zod.boolean().default(createPoolBodyWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: reserve a flat weekly bonus prize'),
   "weeklyBonusAmount": zod.number().nullish().describe('NFL season weekly bonus amount in dollars; only used when weeklyBonusEnabled is true'),
   "weeklyBonusMinPlayers": zod.number().min(1).nullish().describe('Minimum player count for a weekly bonus to be paid; only used when weeklyBonusEnabled is true'),
+  "weeklyPickEmPayoutModel": zod.enum(['period_pot', 'season_budget']).optional().describe('Recurring weekly pick-em only — this week\'s pot vs one season buy-in'),
   "pickemScoringMode": zod.enum(['straight', 'ats']).default(createPoolBodyPickemScoringModeDefault).describe('NFL Pick-Ems Season only — straight-up winners vs against the spread')
 })
 
@@ -498,7 +499,8 @@ export const GetPoolResponse = zod.object({
   "weeklyBonusEnabled": zod.boolean().default(getPoolResponseWeeklyBonusEnabledDefault).describe('NFL Pick-Em Season and NFL Confidence Season only: whether weekly bonus features are enabled'),
   "weeklyBonusAmount": zod.number().nullish(),
   "weeklyBonusMinPlayers": zod.number().nullish(),
-  "weeklyBonusLockedActive": zod.boolean().nullish().describe('Null before season kickoff; permanently true or false after the weekly bonus threshold is evaluated at season lock')
+  "weeklyBonusLockedActive": zod.boolean().nullish().describe('Null before season kickoff; permanently true or false after the weekly bonus threshold is evaluated at season lock'),
+  "weeklyPickEmPayoutModel": zod.union([zod.literal('period_pot'),zod.literal('season_budget'),zod.literal(null)]).nullish().describe('Recurring weekly pick-em payout model when applicable')
 })
 
 
@@ -858,6 +860,7 @@ export const GetSurvivorGridResponse = zod.object({
   "poolId": zod.number(),
   "maxLives": zod.number().optional().describe('Lives in this pool (1 single elim, 2 double elim, 3 NHL\/NBA season survivor)'),
   "weeks": zod.array(zod.number()),
+  "weekLabels": zod.record(zod.string(), zod.string()).optional().describe('Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22)'),
   "members": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
@@ -1598,6 +1601,7 @@ export const SubmitPickEmPicksBody = zod.object({
   "tiebreakerStrikeouts": zod.number().optional().describe('MLB tiebreaker — total strikeouts guess for the tiebreaker game (last game on the slate)'),
   "tiebreakerShotsOnGoal": zod.number().optional().describe('NHL weekly tiebreaker — combined shots on goal guess for the last game of the week'),
   "tiebreakerPenaltyMinutes": zod.number().optional().describe('NHL weekly tiebreaker — combined penalty minutes guess for the last game of the week'),
+  "tiebreakerPoints": zod.number().optional().describe('NBA Pick\'em tiebreaker — combined points guess for the last game of the Fri–Sun weekend'),
   "date": zod.string().optional().describe('The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day\'s games'),
   "sendConfirmation": zod.boolean().optional().describe('Request one pick confirmation email after the final request of a live NHL weekly submission')
 })
@@ -1668,12 +1672,16 @@ export const GetPickEmLeaderboardResponse = zod.object({
   "tiebreakerShotsOnGoalGuess": zod.number().nullish().describe('Player\'s tiebreaker shots on goal guess (NHL weekly pools only)'),
   "tiebreakerPenaltyMinutesGuess": zod.number().nullish().describe('Player\'s tiebreaker penalty minutes guess (NHL weekly pools only)'),
   "tiebreakerNhlDiff": zod.number().nullish().describe('Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)'),
+  "tiebreakerPointsGuess": zod.number().nullish().describe('Player\'s tiebreaker combined points guess (NBA Pick\'em pools only)'),
+  "tiebreakerPointsDiff": zod.number().nullish().describe('Absolute difference between points guess and actual (null if no actual yet)'),
   "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 })),
   "tiebreakerActualRuns": zod.number().nullish().describe('Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)'),
   "tiebreakerActualStrikeouts": zod.number().nullish().describe('Strikeouts in the tiebreaker game (last game on the slate) via MLB Stats API (MLB pools only; null if not applicable, game unmatched, or fetch failed)'),
-  "tiebreakerActualShotsOnGoal": zod.number().nullish().describe('Combined shots on goal in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)'),
-  "tiebreakerActualPenaltyMinutes": zod.number().nullish().describe('Combined penalty minutes in the tiebreaker game once final (NHL weekly pools only; null if not applicable or game not yet final)')
+  "tiebreakerActualShotsOnGoal": zod.number().nullish().describe('Combined shots on goal in the tiebreaker game once underway or final (NHL weekly pools only; null if not applicable or stats unavailable)'),
+  "tiebreakerActualPenaltyMinutes": zod.number().nullish().describe('Combined penalty minutes in the tiebreaker game (legacy secondary stat; NHL weekly resolution uses shots on goal only)'),
+  "tiebreakerActualPoints": zod.number().nullish().describe('Combined points in the tiebreaker game once final (NBA Pick\'em pools only; null if not applicable or game not yet final)'),
+  "tiebreakerGameStarted": zod.boolean().nullish().describe('True when the tiebreaker game (last kickoff of the weekend) has started (NHL weekly and NBA Pick\'em pools)')
 })
 
 
@@ -1820,6 +1828,7 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "weekStart": zod.string().describe('Previous week Monday (YYYY-MM-DD)'),
   "weekEnd": zod.string().describe('Previous week Sunday (YYYY-MM-DD)'),
   "weekNumber": zod.number().optional().describe('The 1-indexed week number whose results are returned'),
+  "weeklyPickEmPayoutModel": zod.enum(['period_pot', 'season_budget']).optional().describe('Present for recurring weekly pick-em pools using the payout model'),
   "entries": zod.array(zod.object({
   "rank": zod.number(),
   "userId": zod.number(),
@@ -1844,6 +1853,8 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
   "tiebreakerShotsOnGoalGuess": zod.number().nullish().describe('Player\'s tiebreaker shots on goal guess (NHL weekly pools only)'),
   "tiebreakerPenaltyMinutesGuess": zod.number().nullish().describe('Player\'s tiebreaker penalty minutes guess (NHL weekly pools only)'),
   "tiebreakerNhlDiff": zod.number().nullish().describe('Combined absolute error |shotsGuess - actualShots| + |pimGuess - actualPim| (null if no actual yet)'),
+  "tiebreakerPointsGuess": zod.number().nullish().describe('Player\'s tiebreaker combined points guess (NBA Pick\'em pools only)'),
+  "tiebreakerPointsDiff": zod.number().nullish().describe('Absolute difference between points guess and actual (null if no actual yet)'),
   "prizeWon": zod.number().nullish().describe('Prize amount won; populated on winning entries once the period is fully graded; null otherwise')
 })),
   "weeklyBonus": zod.object({
