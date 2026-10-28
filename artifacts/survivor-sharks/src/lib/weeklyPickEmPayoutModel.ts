@@ -9,15 +9,15 @@ export const WEEKLY_PICK_EM_PAYOUT_MODEL_OPTIONS: {
 }[] = [
   {
     value: "period_pot",
-    title: "This period's pot",
+    title: "This week's pot",
     description:
-      "Each week or period pays from that period's entries (entry fee × players). Best default for most weekly pick'em pools.",
+      "Everyone pays for that week only. Add up what they paid—that's the money you split with winners. Example: 5 people × $10 = $50 for that week. Next week starts fresh.",
   },
   {
     value: "season_budget",
-    title: "Season buy-in, one pot",
+    title: "One pay-in for the whole season",
     description:
-      "One season entry fee per player. Optional fixed weekly prizes come from the same pot; season-end prizes use what's left.",
+      "Each player pays once at the start. You can pay weekly winners from that same pile and save the rest for end-of-season prizes.",
   },
 ];
 
@@ -137,7 +137,7 @@ export function prizeExamplePot(opts: {
 
   return {
     dollars: collected,
-    label: "This period's pot",
-    sublabel: "Entry fee × players for this period",
+    label: "This week's pot",
+    sublabel: "Add up what everyone paid in for this week—that's the pile you split",
   };
 }

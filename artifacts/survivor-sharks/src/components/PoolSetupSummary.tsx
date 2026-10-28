@@ -222,8 +222,8 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
               <div className="font-medium text-foreground">{payoutModelLabel}</div>
               {inferredPayoutModel === "period_pot" && entryFeeNum > 0 && (
                 <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                  Each period pays from that week&apos;s entries — roughly ${entryFeeNum} × {periodPotExampleCount}{" "}
-                  players ≈ ${periodPotExample} per period before commissioner cut.
+                  Fresh pot each week: about {periodPotExampleCount} players × ${entryFeeNum} = ${periodPotExample}{" "}
+                  to split that week (before organizer share).
                 </p>
               )}
             </div>
@@ -317,7 +317,7 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">
                 Weekly bonus
               </div>
-              <div className="font-medium text-muted-foreground">Off — each period uses its own pot</div>
+              <div className="font-medium text-muted-foreground">Off — new money pile each week</div>
             </div>
           )}
 
