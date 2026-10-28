@@ -8,6 +8,11 @@ import {
   resolveSeasonPrizePot,
   weeklyPercentFromAmount,
 } from "@/lib/weeklyBonusWizard";
+import {
+  inferWeeklyPickEmPayoutModelFromPool,
+  periodPotDollars,
+  WEEKLY_PICK_EM_PAYOUT_MODEL_OPTIONS,
+} from "@/lib/weeklyPickEmPayoutModel";
 
 function getOrdinal(n: number) {
   const s = ["th", "st", "nd", "rd"];
@@ -113,6 +118,20 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
     weeklyThresholdMet: false,
   });
 
+  const inferredPayoutModel = inferWeeklyPickEmPayoutModelFromPool({
+    sport,
+    poolType: poolType as string,
+    pickFrequency: pool.pickFrequency,
+    isRecurring: pool.isRecurring,
+    weeklyBonusEnabled: pool.weeklyBonusEnabled,
+  });
+  const payoutModelLabel =
+    inferredPayoutModel != null
+      ? WEEKLY_PICK_EM_PAYOUT_MODEL_OPTIONS.find((o) => o.value === inferredPayoutModel)?.title
+      : null;
+  const periodPotExampleCount = pool.maxEntries && pool.maxEntries > 0 ? pool.maxEntries : Math.max(enrolled, 4);
+  const periodPotExample = periodPotDollars(entryFeeNum, periodPotExampleCount);
+
   return (
     <Card className="border-border/50 bg-card/40">
       <CardHeader className="pb-3">
@@ -192,6 +211,21 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {inferredPayoutModel != null && payoutModelLabel && (
+            <div className="col-span-2 md:col-span-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">
+                Payout model
+              </div>
+              <div className="font-medium text-foreground">{payoutModelLabel}</div>
+              {inferredPayoutModel === "period_pot" && entryFeeNum > 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                  Each period pays from that week&apos;s entries — roughly ${entryFeeNum} × {periodPotExampleCount}{" "}
+                  players ≈ ${periodPotExample} per period before commissioner cut.
+                </p>
+              )}
             </div>
           )}
 
@@ -278,7 +312,16 @@ export function PoolSetupSummary({ poolId }: { poolId: number }) {
             </div>
           )}
 
-          {isWeeklyBonusApplicable && !pool.weeklyBonusEnabled && (
+          {isWeeklyBonusApplicable && !pool.weeklyBonusEnabled && inferredPayoutModel === "period_pot" && (
+            <div className="col-span-2 md:col-span-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">
+                Weekly bonus
+              </div>
+              <div className="font-medium text-muted-foreground">Off — each period uses its own pot</div>
+            </div>
+          )}
+
+          {isWeeklyBonusApplicable && !pool.weeklyBonusEnabled && inferredPayoutModel !== "period_pot" && (
             <div className="col-span-2 md:col-span-3">
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Weekly bonus</div>
               <div className="font-medium text-muted-foreground">Not enabled for this pool</div>
