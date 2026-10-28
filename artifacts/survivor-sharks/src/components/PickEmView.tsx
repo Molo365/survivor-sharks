@@ -66,6 +66,7 @@ import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
 import { CommissionerWeeklyPickEmPayouts } from "@/components/CommissionerWeeklyPickEmPayouts";
+import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
 import type { PickEmLiveGame } from "@/lib/pickEmLivePickCell";
 import { SoccerLineupSheet } from "@/components/SoccerLineupSheet";
 import {
@@ -5051,6 +5052,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   }}
                 />
               )}
+
+              {isRecurringWeeklyPickEm &&
+                poolDetail?.entryFee != null &&
+                poolDetail.entryFee > 0 &&
+                poolDetail.poolType === "pickem" && (
+                  <CommissionerWeeklyPickEmBalances poolId={poolId} />
+                )}
 
               <div>
                 <h3 className="font-bebas text-2xl tracking-wide mb-1">Commissioner Tools</h3>

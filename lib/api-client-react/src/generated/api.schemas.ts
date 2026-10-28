@@ -1739,6 +1739,63 @@ export interface PickEmPrevWeekResults {
   weeklyBonus?: PickEmPrevWeekResultsWeeklyBonus;
 }
 
+/**
+ * @nullable
+ */
+export type WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel = typeof WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel[keyof typeof WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel] | null;
+
+
+export const WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel = {
+  period_pot: 'period_pot',
+  season_budget: 'season_budget',
+} as const;
+
+export type WeeklyPickEmCommissionerBalanceSheetSummary = {
+  totalEntryExpected: number;
+  totalWeeklyOwed: number;
+  netToCommissioner: number;
+};
+
+export type WeeklyPickEmCommissionerBalanceSheetPeriodsItem = {
+  periodKey: string;
+  label: string;
+  weekStart: string;
+  weekEnd: string;
+  totalOwed: number;
+};
+
+export type WeeklyPickEmCommissionerBalanceSheetPlayersItemPeriodWinsItem = {
+  periodKey: string;
+  label: string;
+  amount: number;
+};
+
+export type WeeklyPickEmCommissionerBalanceSheetPlayersItem = {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  entryFeeOwed: number;
+  weeklyWon: number;
+  totalWon: number;
+  netBalance: number;
+  periodWins: WeeklyPickEmCommissionerBalanceSheetPlayersItemPeriodWinsItem[];
+};
+
+export interface WeeklyPickEmCommissionerBalanceSheet {
+  poolId: number;
+  poolName: string;
+  entryFee: number;
+  memberCount: number;
+  /** @nullable */
+  weeklyPickEmPayoutModel?: WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel;
+  weeklyBonusEnabled?: boolean;
+  poolIsActive?: boolean;
+  summary: WeeklyPickEmCommissionerBalanceSheetSummary;
+  periods: WeeklyPickEmCommissionerBalanceSheetPeriodsItem[];
+  players: WeeklyPickEmCommissionerBalanceSheetPlayersItem[];
+}
+
 export interface PickEmYesterdayWinner {
   /** YYYY-MM-DD date queried */
   date: string;
