@@ -149,7 +149,8 @@ import type {
   WcBracketRoundAllPicks,
   WcBracketRoundResponse,
   WcSchedule,
-  WeekResult
+  WeekResult,
+  WeeklyPickEmCommissionerBalanceSheet
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -4546,6 +4547,83 @@ export function useGetPickEmPrevWeekResults<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPickEmPrevWeekResultsQueryOptions(poolId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPickEmCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/commissioner-balances`
+}
+
+/**
+ * @summary Commissioner balance sheet for recurring weekly pick-em (paid pools)
+ */
+export const getPickEmCommissionerBalances = async (poolId: number, options?: RequestInit): Promise<WeeklyPickEmCommissionerBalanceSheet> => {
+
+  return customFetch<WeeklyPickEmCommissionerBalanceSheet>(getGetPickEmCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickEmCommissionerBalancesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem/commissioner-balances`
+    ] as const;
+    }
+
+
+export const getGetPickEmCommissionerBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getPickEmCommissionerBalances>>, TError = ErrorType<unknown>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickEmCommissionerBalancesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickEmCommissionerBalances>>> = ({ signal }) => getPickEmCommissionerBalances(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickEmCommissionerBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickEmCommissionerBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof getPickEmCommissionerBalances>>>
+export type GetPickEmCommissionerBalancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Commissioner balance sheet for recurring weekly pick-em (paid pools)
+ */
+
+export function useGetPickEmCommissionerBalances<TData = Awaited<ReturnType<typeof getPickEmCommissionerBalances>>, TError = ErrorType<unknown>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickEmCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickEmCommissionerBalancesQueryOptions(poolId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

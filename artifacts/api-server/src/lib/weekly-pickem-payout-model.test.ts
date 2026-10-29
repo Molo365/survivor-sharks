@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  isWeeklyPickEmCommissionerBalancesPool,
   isWeeklyPickEmPayoutModelPool,
   resolveWeeklyPickEmPayoutModel,
   shouldUsePeriodPotWeeklyPrizes,
@@ -74,5 +75,38 @@ describe("weekly-pickem-payout-model", () => {
     } as const;
     assert.equal(shouldUsePeriodPotWeeklyPrizes(mlbPeriod), true);
     assert.equal(shouldUseSeasonBudgetFixedWeeklyPayout(mlbPeriod), false);
+  });
+
+  it("commissioner balances require paid recurring weekly pickem", () => {
+    assert.equal(
+      isWeeklyPickEmCommissionerBalancesPool({
+        sport: "nhl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 10,
+      }),
+      true,
+    );
+    assert.equal(
+      isWeeklyPickEmCommissionerBalancesPool({
+        sport: "nhl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 0,
+      }),
+      false,
+    );
+    assert.equal(
+      isWeeklyPickEmCommissionerBalancesPool({
+        sport: "nfl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 10,
+      }),
+      false,
+    );
   });
 });

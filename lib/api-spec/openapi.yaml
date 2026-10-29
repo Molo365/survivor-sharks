@@ -1432,6 +1432,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/PickEmPrevWeekResults"
 
+  /pools/{poolId}/pickem/commissioner-balances:
+    get:
+      operationId: getPickEmCommissionerBalances
+      tags: [pickem]
+      summary: Commissioner balance sheet for recurring weekly pick-em (paid pools)
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry vs weekly payouts across completed periods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPickEmCommissionerBalanceSheet"
+
   # ── Group Stage Predictor ─────────────────────────────────────────────────
   /pools/{poolId}/gsp/groups:
     get:
@@ -4726,6 +4745,60 @@ components:
               type: ["integer", "null"]
             confirmedPlayerCount:
               type: ["integer", "null"]
+
+    WeeklyPickEmCommissionerBalanceSheet:
+      type: object
+      required: [poolId, poolName, entryFee, memberCount, summary, periods, players]
+      properties:
+        poolId: { type: integer }
+        poolName: { type: string }
+        entryFee: { type: number }
+        memberCount: { type: integer }
+        weeklyPickEmPayoutModel:
+          type: ["string", "null"]
+          enum: [period_pot, season_budget, null]
+        weeklyBonusEnabled: { type: boolean }
+        poolIsActive: { type: boolean }
+        summary:
+          type: object
+          required: [totalEntryExpected, totalWeeklyOwed, netToCommissioner]
+          properties:
+            totalEntryExpected: { type: number }
+            totalWeeklyOwed: { type: number }
+            netToCommissioner: { type: number }
+        periods:
+          type: array
+          items:
+            type: object
+            required: [periodKey, label, weekStart, weekEnd, totalOwed]
+            properties:
+              periodKey: { type: string }
+              label: { type: string }
+              weekStart: { type: string }
+              weekEnd: { type: string }
+              totalOwed: { type: number }
+        players:
+          type: array
+          items:
+            type: object
+            required: [userId, username, entryFeeOwed, weeklyWon, totalWon, netBalance, periodWins]
+            properties:
+              userId: { type: integer }
+              username: { type: string }
+              displayName: { type: ["string", "null"] }
+              entryFeeOwed: { type: number }
+              weeklyWon: { type: number }
+              totalWon: { type: number }
+              netBalance: { type: number }
+              periodWins:
+                type: array
+                items:
+                  type: object
+                  required: [periodKey, label, amount]
+                  properties:
+                    periodKey: { type: string }
+                    label: { type: string }
+                    amount: { type: number }
 
     PickEmYesterdayWinner:
       type: object

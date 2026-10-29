@@ -8,6 +8,10 @@ import {
   shouldUsePeriodPotWeeklyPrizes,
   shouldUseSeasonBudgetFixedWeeklyPayout,
 } from "../lib/weekly-pickem-payout-model";
+import {
+  buildWeeklyPickEmCommissionerBalanceSheet,
+  isWeeklyPickEmCommissionerBalancesPool,
+} from "../lib/weekly-pickem-commissioner-balances";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
@@ -2597,6 +2601,44 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     ...(weeklyPickEmPayoutModel ? { weeklyPickEmPayoutModel } : {}),
     ...(weeklyBonusPayload ? { weeklyBonus: weeklyBonusPayload } : {}),
   });
+});
+
+// GET /api/pools/:poolId/pickem/commissioner-balances
+router.get("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (
+    !isWeeklyPickEmCommissionerBalancesPool({
+      sport: pool.sport,
+      poolType: pool.poolType,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring,
+      entryFee: pool.entryFee,
+    })
+  ) {
+    res.status(400).json({ error: "Commissioner balances are only for paid recurring weekly pick-em pools" });
+    return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const sheet = await buildWeeklyPickEmCommissionerBalanceSheet(pool, poolId);
+  res.json(sheet);
 });
 
 // GET /api/pools/:poolId/pickem/leaderboard

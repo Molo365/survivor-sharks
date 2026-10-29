@@ -1869,6 +1869,50 @@ export const GetPickEmPrevWeekResultsResponse = zod.object({
 
 
 /**
+ * @summary Commissioner balance sheet for recurring weekly pick-em (paid pools)
+ */
+export const GetPickEmCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickEmCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyPickEmPayoutModel": zod.union([zod.literal('period_pot'),zod.literal('season_budget'),zod.literal(null)]).nullish(),
+  "weeklyBonusEnabled": zod.boolean().optional(),
+  "poolIsActive": zod.boolean().optional(),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "periods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "weekStart": zod.string(),
+  "weekEnd": zod.string(),
+  "totalOwed": zod.number()
+})),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "weeklyWon": zod.number(),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "periodWins": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "amount": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary Get WC 2026 group definitions with team info and the user's existing picks
  */
 export const GetGspGroupsParams = zod.object({

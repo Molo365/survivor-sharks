@@ -63,3 +63,15 @@ export function normalizeWeeklyPickEmPayoutModelForCreate(opts: {
   }
   return opts.requested === "season_budget" ? "season_budget" : "period_pot";
 }
+
+export function isWeeklyPickEmCommissionerBalancesPool(pool: {
+  sport: string;
+  poolType: string;
+  pickFrequency: string;
+  isRecurring: boolean;
+  entryFee: number | null;
+}): boolean {
+  if (!pool.isRecurring || pool.pickFrequency !== "weekly" || pool.poolType !== "pickem") return false;
+  if (pool.entryFee == null || pool.entryFee <= 0) return false;
+  return isWeeklyPickEmPayoutModelPool(pool);
+}
