@@ -12,6 +12,7 @@ import {
   buildWeeklyPickEmCommissionerBalanceSheet,
   isWeeklyPickEmCommissionerBalancesPool,
 } from "../lib/weekly-pickem-commissioner-balances";
+import { applyWeeklyPickEmCommissionerLedgerPatch } from "../lib/weekly-pickem-commissioner-ledger";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
 import { NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
@@ -2634,6 +2635,70 @@ router.get("/commissioner-balances", requireAuth, async (req, res) => {
     .limit(1);
   if (!isCommissioner && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const sheet = await buildWeeklyPickEmCommissionerBalanceSheet(pool, poolId);
+  res.json(sheet);
+});
+
+// PATCH /api/pools/:poolId/pickem/commissioner-balances
+router.patch("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if (
+    !isWeeklyPickEmCommissionerBalancesPool({
+      sport: pool.sport,
+      poolType: pool.poolType,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring,
+      entryFee: pool.entryFee,
+    })
+  ) {
+    res.status(400).json({ error: "Commissioner balances are only for paid recurring weekly pick-em pools" });
+    return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const body = req.body as {
+    entryPaid?: { userId: number; paid: boolean };
+    periodPaid?: { periodKey: string; paid: boolean };
+    mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
+  };
+
+  const hasPatch =
+    body?.entryPaid != null ||
+    body?.periodPaid != null ||
+    (body?.mergeDeviceState != null &&
+      ((body.mergeDeviceState.entryUserIds?.length ?? 0) > 0 ||
+        (body.mergeDeviceState.periodKeys?.length ?? 0) > 0));
+
+  if (!hasPatch) {
+    res.status(400).json({ error: "No ledger update provided" });
+    return;
+  }
+
+  try {
+    await applyWeeklyPickEmCommissionerLedgerPatch(poolId, body);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid ledger update";
+    res.status(400).json({ error: message });
     return;
   }
 

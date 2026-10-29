@@ -14,6 +14,7 @@ import {
   resolveWeeklyPickEmPayoutModel,
   isWeeklyPickEmCommissionerBalancesPool,
 } from "./weekly-pickem-payout-model";
+import { loadWeeklyPickEmCommissionerPaidFlags } from "./weekly-pickem-commissioner-ledger";
 
 export { isWeeklyPickEmCommissionerBalancesPool };
 
@@ -25,8 +26,10 @@ export type WeeklyPickEmBalancePlayer = {
   displayName: string | null;
   entryFeeOwed: number;
   weeklyWon: number;
+  seasonPrizeWon: number;
   totalWon: number;
   netBalance: number;
+  entryPaid: boolean;
   periodWins: WeeklyPeriodWinLine[];
 };
 
@@ -36,6 +39,7 @@ export type WeeklyPickEmPeriodSummary = {
   weekStart: string;
   weekEnd: string;
   totalOwed: number;
+  periodPaid: boolean;
 };
 
 export type WeeklyPickEmCommissionerBalanceSheet = {
@@ -49,6 +53,8 @@ export type WeeklyPickEmCommissionerBalanceSheet = {
   summary: {
     totalEntryExpected: number;
     totalWeeklyOwed: number;
+    totalSeasonOwed: number;
+    totalOwedToPlayers: number;
     netToCommissioner: number;
   };
   periods: WeeklyPickEmPeriodSummary[];
@@ -159,11 +165,14 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
 ): Promise<WeeklyPickEmCommissionerBalanceSheet> {
+  const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
+
   const members = await db
     .select({
       userId: entriesTable.userId,
       username: usersTable.username,
       displayName: usersTable.displayName,
+      prizeAmount: entriesTable.prizeAmount,
     })
     .from(entriesTable)
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
@@ -196,6 +205,7 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
         weekStart: spec.weekStart,
         weekEnd: spec.weekEnd,
         totalOwed,
+        periodPaid: paidFlags.periodPaidKeys.has(spec.periodKey),
       });
     }
   }
@@ -203,8 +213,10 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
   const players: WeeklyPickEmBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
     const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
+    const seasonPrizeWon =
+      m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
     const entryFeeOwed = entryFee;
-    const totalWon = weeklyWon;
+    const totalWon = weeklyWon + seasonPrizeWon;
     const netBalance = entryFeeOwed - totalWon;
     return {
       userId: m.userId,
@@ -212,14 +224,18 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
       displayName: m.displayName,
       entryFeeOwed,
       weeklyWon,
+      seasonPrizeWon,
       totalWon,
       netBalance,
+      entryPaid: paidFlags.entryPaidUserIds.has(m.userId),
       periodWins,
     };
   });
 
   const totalEntryExpected = entryFee * members.length;
   const totalWeeklyOwed = players.reduce((s, p) => s + p.weeklyWon, 0);
+  const totalSeasonOwed = players.reduce((s, p) => s + p.seasonPrizeWon, 0);
+  const totalOwedToPlayers = totalWeeklyOwed + totalSeasonOwed;
 
   return {
     poolId,
@@ -232,7 +248,9 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
     summary: {
       totalEntryExpected,
       totalWeeklyOwed,
-      netToCommissioner: totalEntryExpected - totalWeeklyOwed,
+      totalSeasonOwed,
+      totalOwedToPlayers,
+      netToCommissioner: totalEntryExpected - totalOwedToPlayers,
     },
     periods,
     players,
