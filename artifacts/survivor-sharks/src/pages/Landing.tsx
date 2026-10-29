@@ -1,33 +1,10 @@
 import { Link, Redirect } from "wouter";
-import { Shield, Trophy, Users, Grid3x3, Star, BarChart3, Timer } from "lucide-react";
+import { Shield, Trophy, Users, Grid3x3, Star, BarChart3 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LegalSiteFooter } from "@/components/LegalSiteFooter";
-import { useEffect, useState } from "react";
-
-function useCountdown(target: Date) {
-  const [diff, setDiff] = useState(() => Math.max(0, target.getTime() - Date.now()));
-  useEffect(() => {
-    const id = setInterval(() => setDiff(Math.max(0, target.getTime() - Date.now())), 1000);
-    return () => clearInterval(id);
-  }, [target]);
-  return {
-    days:  Math.floor(diff / 86_400_000),
-    hours: Math.floor((diff % 86_400_000) / 3_600_000),
-    mins:  Math.floor((diff % 3_600_000)  / 60_000),
-    secs:  Math.floor((diff % 60_000)     / 1_000),
-    expired: diff === 0,
-  };
-}
-
-// Manual event configuration: update these values together for the next featured event.
-// First 2026-27 NBA tip: BOS @ DET, Oct 20, 3:00pm ET (ESPN).
-const FEATURED_EVENT_TARGET = new Date("2026-10-20T15:00:00-04:00");
-const FEATURED_EVENT_LABEL = "NBA Season Tip-Off · October 20, 2026";
-const FEATURED_EVENT_PASSED_MESSAGE = "🏀 NBA TIP-OFF!";
 
 export default function Landing() {
   const { user, isLoading } = useAuth();
-  const countdown = useCountdown(FEATURED_EVENT_TARGET);
 
   if (!isLoading && user) return <Redirect to="/dashboard" replace />;
 
@@ -40,9 +17,7 @@ export default function Landing() {
 
       <main className="flex-1 flex flex-col">
 
-        {/* ── 1. Hero — image + tagline ──────────────────────────── */}
-        {/* ── 2. GET STARTED / SIGN IN buttons ──────────────────── */}
-        {/* ── 3. NFL countdown timer ────────────────────────────── */}
+        {/* ── Hero — image + tagline + CTAs ─────────────────────── */}
         <section className="flex flex-col items-center text-center px-4 pt-5 pb-2">
           <div className="relative w-full max-w-[820px] mb-1">
             <img src="/hero-banner-clean.jpg" alt="Survivor Sharks" className="w-full object-contain block" style={{ maxHeight: "min(200px, 28vh)" }} />
@@ -67,45 +42,9 @@ export default function Landing() {
               Sign In
             </Link>
           </div>
-
-          {/* ── Featured-event countdown (NBA tip-off Oct 20) ── */}
-          <div className="w-full max-w-sm rounded-xl px-4 py-3 border flex flex-col items-center backdrop-blur-sm"
-            style={{ background: "rgba(0,0,0,0.28)", borderColor: "rgba(255,255,255,0.07)" }}>
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <Timer className="w-3 h-3 text-primary" />
-              <span
-                className={countdown.expired
-                  ? "text-sm font-black tracking-[0.18em] text-primary uppercase"
-                  : "text-[9px] font-bold tracking-[0.25em] text-primary uppercase"}
-              >
-                {countdown.expired ? FEATURED_EVENT_PASSED_MESSAGE : FEATURED_EVENT_LABEL}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              {[
-                { val: countdown.days,  label: "Days" },
-                { val: countdown.hours, label: "Hrs" },
-                { val: countdown.mins,  label: "Min" },
-                { val: countdown.secs,  label: "Sec" },
-              ].map(({ val, label }, i) => (
-                <div key={label} className="flex items-center gap-2">
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-lg flex items-center justify-center border"
-                      style={{ background: "rgba(30,144,255,0.09)", borderColor: "rgba(30,144,255,0.20)" }}>
-                      <span className="font-bebas text-xl tracking-wider text-primary leading-none">
-                        {String(val).padStart(2, "0")}
-                      </span>
-                    </div>
-                    <span className="text-[9px] tracking-[0.15em] text-muted-foreground/40 uppercase mt-1">{label}</span>
-                  </div>
-                  {i < 3 && <span className="font-bebas text-lg text-primary/30 mb-4">:</span>}
-                </div>
-              ))}
-            </div>
-          </div>
         </section>
 
-        {/* ── 4. Sport logos ────────────────────────────────────── */}
+        {/* ── Sport logos ────────────────────────────────────── */}
         <div className="px-6 pb-3">
           {/* Sport logos row */}
           <div className="flex items-center justify-center gap-6 mb-3">
@@ -133,7 +72,7 @@ export default function Landing() {
           */}
         </div>
 
-        {/* ── 5. Pool Types ─────────────────────────────────────── */}
+        {/* ── Pool Types ─────────────────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
             <h2 className="font-bebas text-xl md:text-2xl tracking-widest text-center text-foreground mb-2">POOL TYPES</h2>
@@ -158,11 +97,10 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* ── 6. No Entry Fees. Ever. ───────────────────────────── */}
+        {/* ── No Entry Fees. Ever. ───────────────────────────── */}
         <section className="px-6 py-3 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
 
-            {/* Free to play — full width now that countdown moved to hero */}
             <div className="rounded-xl px-4 py-4 border relative overflow-hidden flex flex-col items-center text-center backdrop-blur-sm"
               style={{ background: "linear-gradient(135deg, rgba(30,144,255,0.10), rgba(20,60,160,0.06))", borderColor: "rgba(30,144,255,0.18)" }}>
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-40 h-20 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
@@ -186,12 +124,10 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* NFL COUNTDOWN REMOVED FROM HERE — moved to hero section above */}
-
           </div>
         </section>
 
-        {/* ── 7. Automated Results / Multi-Sport / Private & Secure ─ */}
+        {/* ── Automated Results / Multi-Sport / Private & Secure ─ */}
         <section className="px-6 py-3 border-t border-white/5">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-2">
             {[
