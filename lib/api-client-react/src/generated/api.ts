@@ -150,7 +150,8 @@ import type {
   WcBracketRoundResponse,
   WcSchedule,
   WeekResult,
-  WeeklyPickEmCommissionerBalanceSheet
+  WeeklyPickEmCommissionerBalanceSheet,
+  WeeklyPickEmCommissionerLedgerPatch
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -4635,6 +4636,78 @@ export function useGetPickEmCommissionerBalances<TData = Awaited<ReturnType<type
 
 
 
+
+export const getPatchPickEmCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem/commissioner-balances`
+}
+
+/**
+ * @summary Update commissioner paid flags for recurring weekly pick-em
+ */
+export const patchPickEmCommissionerBalances = async (poolId: number,
+    weeklyPickEmCommissionerLedgerPatch: WeeklyPickEmCommissionerLedgerPatch, options?: RequestInit): Promise<WeeklyPickEmCommissionerBalanceSheet> => {
+
+  return customFetch<WeeklyPickEmCommissionerBalanceSheet>(getPatchPickEmCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      weeklyPickEmCommissionerLedgerPatch,)
+  }
+);}
+
+
+
+
+export const getPatchPickEmCommissionerBalancesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>, TError,{poolId: number;data: BodyType<WeeklyPickEmCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>, TError,{poolId: number;data: BodyType<WeeklyPickEmCommissionerLedgerPatch>}, TContext> => {
+
+const mutationKey = ['patchPickEmCommissionerBalances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>, {poolId: number;data: BodyType<WeeklyPickEmCommissionerLedgerPatch>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  patchPickEmCommissionerBalances(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchPickEmCommissionerBalancesMutationResult = NonNullable<Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>>
+    export type PatchPickEmCommissionerBalancesMutationBody = BodyType<WeeklyPickEmCommissionerLedgerPatch>
+    export type PatchPickEmCommissionerBalancesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update commissioner paid flags for recurring weekly pick-em
+ */
+export const usePatchPickEmCommissionerBalances = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>, TError,{poolId: number;data: BodyType<WeeklyPickEmCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchPickEmCommissionerBalances>>,
+        TError,
+        {poolId: number;data: BodyType<WeeklyPickEmCommissionerLedgerPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchPickEmCommissionerBalancesMutationOptions(options));
+    }
 
 export const getGetGspGroupsUrl = (poolId: number,) => {
 

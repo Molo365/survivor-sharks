@@ -1450,6 +1450,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WeeklyPickEmCommissionerBalanceSheet"
+    patch:
+      operationId: patchPickEmCommissionerBalances
+      tags: [pickem]
+      summary: Update commissioner paid flags for recurring weekly pick-em
+      parameters:
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyPickEmCommissionerLedgerPatch"
+      responses:
+        "200":
+          description: Updated balance sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPickEmCommissionerBalanceSheet"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ── Group Stage Predictor ─────────────────────────────────────────────────
   /pools/{poolId}/gsp/groups:
@@ -4761,35 +4796,52 @@ components:
         poolIsActive: { type: boolean }
         summary:
           type: object
-          required: [totalEntryExpected, totalWeeklyOwed, netToCommissioner]
+          required:
+            [totalEntryExpected, totalWeeklyOwed, totalSeasonOwed, totalOwedToPlayers, netToCommissioner]
           properties:
             totalEntryExpected: { type: number }
             totalWeeklyOwed: { type: number }
+            totalSeasonOwed: { type: number }
+            totalOwedToPlayers: { type: number }
             netToCommissioner: { type: number }
         periods:
           type: array
           items:
             type: object
-            required: [periodKey, label, weekStart, weekEnd, totalOwed]
+            required: [periodKey, label, weekStart, weekEnd, totalOwed, periodPaid]
             properties:
               periodKey: { type: string }
               label: { type: string }
               weekStart: { type: string }
               weekEnd: { type: string }
               totalOwed: { type: number }
+              periodPaid: { type: boolean }
         players:
           type: array
           items:
             type: object
-            required: [userId, username, entryFeeOwed, weeklyWon, totalWon, netBalance, periodWins]
+            required:
+              [
+                userId,
+                username,
+                entryFeeOwed,
+                weeklyWon,
+                seasonPrizeWon,
+                totalWon,
+                netBalance,
+                entryPaid,
+                periodWins,
+              ]
             properties:
               userId: { type: integer }
               username: { type: string }
               displayName: { type: ["string", "null"] }
               entryFeeOwed: { type: number }
               weeklyWon: { type: number }
+              seasonPrizeWon: { type: number }
               totalWon: { type: number }
               netBalance: { type: number }
+              entryPaid: { type: boolean }
               periodWins:
                 type: array
                 items:
@@ -4799,6 +4851,31 @@ components:
                     periodKey: { type: string }
                     label: { type: string }
                     amount: { type: number }
+
+    WeeklyPickEmCommissionerLedgerPatch:
+      type: object
+      properties:
+        entryPaid:
+          type: object
+          required: [userId, paid]
+          properties:
+            userId: { type: integer }
+            paid: { type: boolean }
+        periodPaid:
+          type: object
+          required: [periodKey, paid]
+          properties:
+            periodKey: { type: string }
+            paid: { type: boolean }
+        mergeDeviceState:
+          type: object
+          properties:
+            entryUserIds:
+              type: array
+              items: { type: integer }
+            periodKeys:
+              type: array
+              items: { type: string }
 
     PickEmYesterdayWinner:
       type: object

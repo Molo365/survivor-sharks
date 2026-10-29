@@ -1886,6 +1886,8 @@ export const GetPickEmCommissionerBalancesResponse = zod.object({
   "summary": zod.object({
   "totalEntryExpected": zod.number(),
   "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
   "netToCommissioner": zod.number()
 }),
   "periods": zod.array(zod.object({
@@ -1893,7 +1895,8 @@ export const GetPickEmCommissionerBalancesResponse = zod.object({
   "label": zod.string(),
   "weekStart": zod.string(),
   "weekEnd": zod.string(),
-  "totalOwed": zod.number()
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
 })),
   "players": zod.array(zod.object({
   "userId": zod.number(),
@@ -1901,8 +1904,74 @@ export const GetPickEmCommissionerBalancesResponse = zod.object({
   "displayName": zod.string().nullish(),
   "entryFeeOwed": zod.number(),
   "weeklyWon": zod.number(),
+  "seasonPrizeWon": zod.number(),
   "totalWon": zod.number(),
   "netBalance": zod.number(),
+  "entryPaid": zod.boolean(),
+  "periodWins": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "amount": zod.number()
+}))
+}))
+})
+
+
+/**
+ * @summary Update commissioner paid flags for recurring weekly pick-em
+ */
+export const PatchPickEmCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const PatchPickEmCommissionerBalancesBody = zod.object({
+  "entryPaid": zod.object({
+  "userId": zod.number(),
+  "paid": zod.boolean()
+}).optional(),
+  "periodPaid": zod.object({
+  "periodKey": zod.string(),
+  "paid": zod.boolean()
+}).optional(),
+  "mergeDeviceState": zod.object({
+  "entryUserIds": zod.array(zod.number()).optional(),
+  "periodKeys": zod.array(zod.string()).optional()
+}).optional()
+})
+
+export const PatchPickEmCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyPickEmPayoutModel": zod.union([zod.literal('period_pot'),zod.literal('season_budget'),zod.literal(null)]).nullish(),
+  "weeklyBonusEnabled": zod.boolean().optional(),
+  "poolIsActive": zod.boolean().optional(),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "periods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "weekStart": zod.string(),
+  "weekEnd": zod.string(),
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
+})),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "weeklyWon": zod.number(),
+  "seasonPrizeWon": zod.number(),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "entryPaid": zod.boolean(),
   "periodWins": zod.array(zod.object({
   "periodKey": zod.string(),
   "label": zod.string(),

@@ -1753,6 +1753,8 @@ export const WeeklyPickEmCommissionerBalanceSheetWeeklyPickEmPayoutModel = {
 export type WeeklyPickEmCommissionerBalanceSheetSummary = {
   totalEntryExpected: number;
   totalWeeklyOwed: number;
+  totalSeasonOwed: number;
+  totalOwedToPlayers: number;
   netToCommissioner: number;
 };
 
@@ -1762,6 +1764,7 @@ export type WeeklyPickEmCommissionerBalanceSheetPeriodsItem = {
   weekStart: string;
   weekEnd: string;
   totalOwed: number;
+  periodPaid: boolean;
 };
 
 export type WeeklyPickEmCommissionerBalanceSheetPlayersItemPeriodWinsItem = {
@@ -1777,8 +1780,10 @@ export type WeeklyPickEmCommissionerBalanceSheetPlayersItem = {
   displayName?: string | null;
   entryFeeOwed: number;
   weeklyWon: number;
+  seasonPrizeWon: number;
   totalWon: number;
   netBalance: number;
+  entryPaid: boolean;
   periodWins: WeeklyPickEmCommissionerBalanceSheetPlayersItemPeriodWinsItem[];
 };
 
@@ -1794,6 +1799,27 @@ export interface WeeklyPickEmCommissionerBalanceSheet {
   summary: WeeklyPickEmCommissionerBalanceSheetSummary;
   periods: WeeklyPickEmCommissionerBalanceSheetPeriodsItem[];
   players: WeeklyPickEmCommissionerBalanceSheetPlayersItem[];
+}
+
+export type WeeklyPickEmCommissionerLedgerPatchEntryPaid = {
+  userId: number;
+  paid: boolean;
+};
+
+export type WeeklyPickEmCommissionerLedgerPatchPeriodPaid = {
+  periodKey: string;
+  paid: boolean;
+};
+
+export type WeeklyPickEmCommissionerLedgerPatchMergeDeviceState = {
+  entryUserIds?: number[];
+  periodKeys?: string[];
+};
+
+export interface WeeklyPickEmCommissionerLedgerPatch {
+  entryPaid?: WeeklyPickEmCommissionerLedgerPatchEntryPaid;
+  periodPaid?: WeeklyPickEmCommissionerLedgerPatchPeriodPaid;
+  mergeDeviceState?: WeeklyPickEmCommissionerLedgerPatchMergeDeviceState;
 }
 
 export interface PickEmYesterdayWinner {
