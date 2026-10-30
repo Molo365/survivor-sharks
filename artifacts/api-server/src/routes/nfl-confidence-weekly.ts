@@ -19,8 +19,41 @@ import {
   visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
 import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
+import {
+  buildNflConfidenceWeeklyCommissionerBalanceSheet,
+  isNflConfidenceWeeklyCommissionerBalancesPool,
+  patchNflConfidenceWeeklyCommissionerLedger,
+} from "../lib/nfl-confidence-weekly-commissioner-balances";
 
 const router = Router({ mergeParams: true });
+
+async function assertNflConfidenceWeeklyCommissioner(
+  poolId: number,
+  userId: number,
+): Promise<
+  | { ok: true; pool: typeof poolsTable.$inferSelect }
+  | { ok: false; status: number; error: string }
+> {
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) return { ok: false, status: 404, error: "Pool not found" };
+  if (!isNflConfidenceWeeklyCommissionerBalancesPool(pool)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Commissioner balances are only for paid recurring NFL Confidence Weekly pools",
+    };
+  }
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    return { ok: false, status: 403, error: "Commissioner or admin only" };
+  }
+  return { ok: true, pool };
+}
 
 type WeeklyTiebreakerGameShape = {
   id: string;
@@ -1107,6 +1140,39 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     actualRushingYards: null,
     ...(weeklyTiebreaker && { weeklyTiebreaker }),
   });
+});
+
+// GET /api/pools/:poolId/nfl-confidence-weekly/commissioner-balances
+router.get("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const auth = await assertNflConfidenceWeeklyCommissioner(poolId, req.user!.id);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const sheet = await buildNflConfidenceWeeklyCommissionerBalanceSheet(auth.pool, poolId);
+  res.json(sheet);
+});
+
+// PATCH /api/pools/:poolId/nfl-confidence-weekly/commissioner-balances
+router.patch("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const auth = await assertNflConfidenceWeeklyCommissioner(poolId, req.user!.id);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const body = req.body as {
+    entryPaid?: { userId: number; paid: boolean };
+    periodPaid?: { periodKey: string; paid: boolean };
+    mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
+  };
+  try {
+    const sheet = await patchNflConfidenceWeeklyCommissionerLedger(poolId, body);
+    res.json(sheet);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 export default router;
