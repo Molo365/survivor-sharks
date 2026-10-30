@@ -51,6 +51,7 @@ import { getPoolRules } from "@/lib/poolRules";
 import { useAndroidPoolBackToDashboard } from "@/hooks/useAndroidPoolBackToDashboard";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE } from "@/lib/poolTabStyles";
 import { cn } from "@/lib/utils";
+import { PoolNonMemberNotice } from "@/components/PoolNonMemberNotice";
 
 export default function PoolHome() {
   const { poolId: poolIdStr } = useParams();
@@ -225,6 +226,23 @@ export default function PoolHome() {
     refetchInterval: 30_000,
     staleTime: 25_000,
   });
+
+  const isPoolMember = Boolean(
+    pool && user && pool.members.some((m) => m.userId === user.id),
+  );
+  const signedInLabel =
+    user?.displayName?.trim() || user?.username?.trim() || "your current account";
+
+  if (pool && user && !isPoolMember) {
+    return (
+      <PoolNonMemberNotice
+        poolId={pool.id}
+        poolName={pool.name}
+        inviteCode={pool.inviteCode}
+        signedInLabel={signedInLabel}
+      />
+    );
+  }
 
   // Redirect pickem pools from /pools/:poolId → /pools/:poolId/pickem
   if (pool && ((pool.poolType as string) === "pickem" || isNbaAts) && !location.endsWith("/pickem")) {
