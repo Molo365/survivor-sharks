@@ -30,6 +30,8 @@ import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Set
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
+import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
+import { useGetPool } from "@workspace/api-client-react";
 
 // ── Winner Banner (exported for use at pool page level) ───────────────────────
 
@@ -584,6 +586,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
   isSuperAdmin,
   isActive,
 }: NflConfidenceWeeklyCommissionerPanelProps) {
+  const { data: poolDetail } = useGetPool(poolId, { query: { enabled: poolId > 0 } });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const token = localStorage.getItem("auth_token");
@@ -726,6 +729,13 @@ export function NflConfidenceWeeklyCommissionerPanel({
   return (
     <div className="space-y-6">
       <PoolSetupSummary poolId={poolId} />
+      {poolDetail?.entryFee != null && poolDetail.entryFee > 0 && poolDetail.isRecurring === true && (
+        <CommissionerWeeklyPickEmBalances
+          poolId={poolId}
+          apiSegment="nfl-confidence-weekly"
+          title="Weekly balance sheet"
+        />
+      )}
       <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="nfl_confidence_weekly" />
 
       <Card className="border-border/40">

@@ -97,8 +97,13 @@ function clearDevicePaidState(poolId: number) {
   localStorage.removeItem(`commissioner-weekly-period-paid-${poolId}`);
 }
 
-async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
-  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem/commissioner-balances`, {
+type CommissionerBalancesApiSegment = "pickem" | "nfl-confidence-weekly";
+
+async function fetchBalanceSheet(
+  poolId: number,
+  apiSegment: CommissionerBalancesApiSegment,
+): Promise<BalanceSheet> {
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/${apiSegment}/commissioner-balances`, {
     credentials: "include",
     headers: authHeaders(),
   });
@@ -109,8 +114,12 @@ async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
   return res.json();
 }
 
-async function patchBalanceSheet(poolId: number, patch: LedgerPatch): Promise<BalanceSheet> {
-  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem/commissioner-balances`, {
+async function patchBalanceSheet(
+  poolId: number,
+  apiSegment: CommissionerBalancesApiSegment,
+  patch: LedgerPatch,
+): Promise<BalanceSheet> {
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/${apiSegment}/commissioner-balances`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -123,19 +132,33 @@ async function patchBalanceSheet(poolId: number, patch: LedgerPatch): Promise<Ba
   return res.json();
 }
 
-export function CommissionerWeeklyPickEmBalances({ poolId }: { poolId: number }) {
+export function CommissionerWeeklyPickEmBalances({
+  poolId,
+  apiSegment = "pickem",
+  title = "Season balance sheet",
+  description,
+}: {
+  poolId: number;
+  apiSegment?: CommissionerBalancesApiSegment;
+  title?: string;
+  description?: string;
+}) {
   const queryClient = useQueryClient();
-  const queryKey = ["weekly-pickem-commissioner-balances", poolId] as const;
+  const queryKey = [`${apiSegment}-commissioner-balances`, poolId] as const;
+  const defaultDescription =
+    apiSegment === "nfl-confidence-weekly"
+      ? "Track entry buy-ins and weekly winner payouts. Paid flags are saved for this pool."
+      : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => fetchBalanceSheet(poolId),
+    queryFn: () => fetchBalanceSheet(poolId, apiSegment),
     enabled: poolId > 0,
   });
 
   const ledgerMutation = useMutation({
-    mutationFn: (patch: LedgerPatch) => patchBalanceSheet(poolId, patch),
+    mutationFn: (patch: LedgerPatch) => patchBalanceSheet(poolId, apiSegment, patch),
     onSuccess: (sheet) => {
       queryClient.setQueryData(queryKey, sheet);
     },
@@ -190,7 +213,7 @@ export function CommissionerWeeklyPickEmBalances({ poolId }: { poolId: number })
       : data.weeklyPickEmPayoutModel === "period_pot"
         ? "This week's pot"
         : null;
-  const showSeasonOwed = summary.totalSeasonOwed > 0;
+  const showSeasonOwed = summary.totalSeasonOwed > 0 && apiSegment === "pickem";
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/60 overflow-hidden">
@@ -198,11 +221,10 @@ export function CommissionerWeeklyPickEmBalances({ poolId }: { poolId: number })
         <div className="flex items-start gap-3">
           <Wallet className="w-6 h-6 text-primary shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-bebas text-2xl tracking-wide">Season balance sheet</h4>
+            <h4 className="font-bebas text-2xl tracking-wide">{title}</h4>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Who paid entry, who you owe for completed periods
-              {showSeasonOwed || !data.poolIsActive ? " and season prizes" : ""}
-              {modelLabel ? ` (${modelLabel})` : ""}. Paid flags are saved for this pool.
+              {description ?? defaultDescription}
+              {apiSegment === "pickem" && modelLabel ? ` (${modelLabel})` : ""}
             </p>
           </div>
         </div>
@@ -240,7 +262,7 @@ export function CommissionerWeeklyPickEmBalances({ poolId }: { poolId: number })
         {periods.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Completed periods
+              {apiSegment === "nfl-confidence-weekly" ? "Completed weeks" : "Completed periods"}
             </p>
             <div className="flex flex-wrap gap-2">
               {periods.map((p) => (
