@@ -3248,6 +3248,44 @@ export async function processPickEmResults(): Promise<{
           }
         }
 
+        for (const game of games.filter(
+          (g) =>
+            isUnambiguousFinalNflGame(g) &&
+            g.homeScore != null &&
+            g.awayScore != null &&
+            g.homeScore === g.awayScore,
+        )) {
+          // Tied game: push — no confidence points; mirrors pickem_season straight grading.
+          const tiedPicks = await db
+            .select({ id: pickemPicksTable.id })
+            .from(pickemPicksTable)
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.id),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            );
+          if (tiedPicks.length === 0) continue;
+          await db
+            .update(pickemPicksTable)
+            .set({ result: "push", updatedAt: new Date() })
+            .where(
+              and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.id),
+                eq(pickemPicksTable.week, pool.currentWeek),
+                eq(pickemPicksTable.result, "pending"),
+              ),
+            );
+          picksGraded += tiedPicks.length;
+          logger.info(
+            { poolId: pool.id, gameId: game.id, week: pool.currentWeek, pushCount: tiedPicks.length },
+            "Auto-graded NFL confidence pick (tie = push)",
+          );
+        }
+
         try {
           await recordNflConfidenceWeekTiebreakerActualsIfReady(
             pool.id,
@@ -3365,6 +3403,47 @@ export async function processPickEmResults(): Promise<{
 
       for (const game of finalGames) {
         if (game.homeScore == null || game.awayScore == null || !game.homeTeam || !game.awayTeam) continue;
+
+        if (game.homeScore === game.awayScore) {
+          if (pool.poolType === "pickem_season" && isNflPickemSeasonAts(pool)) {
+            const homeAbbr = game.homeTeam;
+            const awayAbbr = game.awayTeam;
+            const homeTeamId = NFL_TEAM_INFO[homeAbbr]?.id ?? homeAbbr;
+            const awayTeamId = NFL_TEAM_INFO[awayAbbr]?.id ?? awayAbbr;
+            const [spreadRow] = await db
+              .select()
+              .from(pickemGameSpreadsTable)
+              .where(and(
+                eq(pickemGameSpreadsTable.poolId, pool.id),
+                eq(pickemGameSpreadsTable.gameId, game.gameId),
+                eq(pickemGameSpreadsTable.week, game.week),
+              ))
+              .limit(1);
+            if (spreadRow) {
+              await gradePickemSeasonPendingPicksForFinalGame({
+                poolId: pool.id,
+                gameId: game.gameId,
+                homeTeamId,
+                awayTeamId,
+                homeScore: game.homeScore,
+                awayScore: game.awayScore,
+                scoringMode: (pool.pickemScoringMode ?? "straight") as PickemScoringMode,
+                spreadLine: { spread: spreadRow.spread, favoriteTeamId: spreadRow.favoriteTeamId },
+              });
+            }
+          } else {
+            await db
+              .update(pickemPicksTable)
+              .set({ result: "push" })
+              .where(and(
+                eq(pickemPicksTable.poolId, pool.id),
+                eq(pickemPicksTable.gameId, game.gameId),
+                eq(pickemPicksTable.result, "pending"),
+              ));
+          }
+          continue;
+        }
+
         const winnerAbbr = game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam;
         const winnerTeamId = NFL_TEAM_INFO[winnerAbbr]?.id ?? winnerAbbr;
 
