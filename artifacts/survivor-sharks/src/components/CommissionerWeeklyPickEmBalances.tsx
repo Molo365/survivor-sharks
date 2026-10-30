@@ -66,6 +66,16 @@ function fmt(n: number) {
   }).format(n);
 }
 
+/** Cash still in play after commissioner marks entry collected (paid toggle). */
+function playerOutstandingNet(p: {
+  entryPaid: boolean;
+  entryFeeOwed: number;
+  totalWon: number;
+}): number {
+  const entryStillDue = p.entryPaid ? 0 : p.entryFeeOwed;
+  return entryStillDue - p.totalWon;
+}
+
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("auth_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -181,6 +191,20 @@ export function CommissionerWeeklyPickEmBalances({
     return data.players.filter((p) => p.entryPaid).length;
   }, [data]);
 
+  const entryCollected = useMemo(() => {
+    if (!data) return 0;
+    return data.players
+      .filter((p) => p.entryPaid)
+      .reduce((s, p) => s + p.entryFeeOwed, 0);
+  }, [data]);
+
+  const entryStillDue = useMemo(() => {
+    if (!data) return 0;
+    return data.players
+      .filter((p) => !p.entryPaid)
+      .reduce((s, p) => s + p.entryFeeOwed, 0);
+  }, [data]);
+
   function toggleEntryPaid(userId: number, paid: boolean) {
     patchLedger({ entryPaid: { userId, paid: !paid } });
   }
@@ -235,6 +259,14 @@ export function CommissionerWeeklyPickEmBalances({
             <div className="font-semibold tabular-nums">{fmt(summary.totalEntryExpected)}</div>
             <div className="text-xs text-muted-foreground">
               {paidCount}/{players.length} marked paid
+              {entryCollected > 0 && (
+                <span className="block tabular-nums text-emerald-400/90">
+                  {fmt(entryCollected)} collected
+                </span>
+              )}
+              {entryStillDue > 0 && (
+                <span className="block tabular-nums">{fmt(entryStillDue)} still due</span>
+              )}
             </div>
           </div>
           <div className="rounded-lg bg-muted/40 px-3 py-2">
@@ -255,6 +287,9 @@ export function CommissionerWeeklyPickEmBalances({
               }`}
             >
               {fmt(summary.netToCommissioner)}
+            </div>
+            <div className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+              Pool math if all entries in and winners paid
             </div>
           </div>
         </div>
@@ -298,13 +333,14 @@ export function CommissionerWeeklyPickEmBalances({
             {showSeasonOwed && (
               <TableHead className="text-xs uppercase tracking-wider text-right">Season</TableHead>
             )}
-            <TableHead className="text-xs uppercase tracking-wider text-right">Net</TableHead>
+            <TableHead className="text-xs uppercase tracking-wider text-right">Outstanding</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {players.map((p) => {
+            const outstanding = playerOutstandingNet(p);
             const netLabel =
-              p.netBalance > 0 ? "owes you" : p.netBalance < 0 ? "you owe" : "even";
+              outstanding > 0 ? "owes you" : outstanding < 0 ? "you owe" : p.entryPaid ? "paid in" : "even";
             return (
               <TableRow key={p.userId} className="border-border/30">
                 <TableCell>
@@ -347,14 +383,20 @@ export function CommissionerWeeklyPickEmBalances({
                 <TableCell className="text-right">
                   <div
                     className={`text-sm tabular-nums font-medium ${
-                      p.netBalance > 0
+                      outstanding > 0
                         ? "text-amber-400"
-                        : p.netBalance < 0
+                        : outstanding < 0
                           ? "text-emerald-400"
                           : "text-muted-foreground"
                     }`}
                   >
-                    {p.entryFeeOwed > 0 || p.totalWon > 0 ? fmt(Math.abs(p.netBalance)) : "—"}
+                    {outstanding !== 0
+                      ? fmt(Math.abs(outstanding))
+                      : p.entryPaid && p.entryFeeOwed > 0
+                        ? "—"
+                        : p.entryFeeOwed > 0 || p.totalWon > 0
+                          ? fmt(0)
+                          : "—"}
                   </div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{netLabel}</div>
                 </TableCell>
