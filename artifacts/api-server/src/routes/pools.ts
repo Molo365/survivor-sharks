@@ -84,7 +84,24 @@ async function getPoolStartState(pool: PoolRow) {
         Number(groupResult.n) > 0 || Number(confidenceResult.n) > 0 ||
         Number(divisionResult.n) > 0 || Number(nhlDivisionResult.n) > 0 ||
         Number(entryEvidence.n) > 0 ||
-        candidate.currentWeek > (candidate.startWeek ?? 1);
+        (candidate.poolType !== "nfl_confidence_weekly"
+          && candidate.currentWeek > (candidate.startWeek ?? 1));
+    },
+    nflConfidenceWeeklyEvidence: async (candidate) => {
+      const [[gradedPickem], [confidenceResults]] = await Promise.all([
+        db
+          .select({ n: count() })
+          .from(pickemPicksTable)
+          .where(and(eq(pickemPicksTable.poolId, candidate.id), ne(pickemPicksTable.result, "pending"))),
+        db
+          .select({ n: count() })
+          .from(nflConfidenceResultsTable)
+          .where(eq(nflConfidenceResultsTable.poolId, candidate.id)),
+      ]);
+      return {
+        hasGradedPickemPicks: Number(gradedPickem.n) > 0,
+        hasConfidenceWeekResults: Number(confidenceResults.n) > 0,
+      };
     },
     sandboxStarted: async (candidate) => {
       const [row] = await db.select({ n: count() }).from(sandboxGameScoresTable).where(and(

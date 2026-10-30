@@ -1,3 +1,5 @@
+import { nflOfficePoolWeekSubmissionLocked } from "./nfl-slate-reveal";
+
 /**
  * Centralized, side-effect-free join/start policy. Route code supplies database
  * evidence and schedule providers, which keeps the policy deterministic in tests
@@ -28,6 +30,10 @@ export type PoolStartDependencies = {
   sandboxStarted: (pool: PoolStartPool) => Promise<boolean>;
   /** A persisted pick/result/progression proves a pool has begun during outages. */
   persistedStarted: (pool: PoolStartPool) => Promise<boolean>;
+  /** Graded picks / stored week results for NFL Confidence Weekly join policy. */
+  nflConfidenceWeeklyEvidence?: (
+    pool: PoolStartPool,
+  ) => Promise<NflConfidenceWeeklyStartEvidence>;
   /** Division-predictor lock resolver; null means no applicable deadline. */
   ndpStarted?: (pool: PoolStartPool) => Promise<boolean | null>;
   mlbWeeklyDeadline?: (pool: PoolStartPool) => Date;
@@ -115,12 +121,62 @@ function gameHasStarted(games: StartGame[] | null, now: Date): boolean {
   return games?.some((game) => game.hasStarted || new Date(game.date).getTime() <= now.getTime()) ?? false;
 }
 
+export type NflConfidenceWeeklyStartEvidence = {
+  hasGradedPickemPicks: boolean;
+  hasConfidenceWeekResults: boolean;
+};
+
+/**
+ * Join disadvantage for NFL Confidence Weekly is tied to this pool's week cycle,
+ * not the NFL calendar (e.g. a Thursday kickoff before the pool's first Sunday lock).
+ */
+export function resolveNflConfidenceWeeklyPoolStart(
+  pool: PoolStartPool,
+  evidence: NflConfidenceWeeklyStartEvidence,
+  games: StartGame[] | null,
+  now: Date,
+): PoolStartState {
+  const startWeek = pool.startWeek ?? pool.currentWeek;
+
+  if (pool.currentWeek > startWeek) {
+    return { hasStarted: true, joinBlockedReason: null };
+  }
+  if (evidence.hasGradedPickemPicks || evidence.hasConfidenceWeekResults) {
+    return { hasStarted: true, joinBlockedReason: null };
+  }
+  if (!games?.length) {
+    return { hasStarted: false, joinBlockedReason: null };
+  }
+  const slateGameStartIsos = games.map((g) => g.date);
+  if (nflOfficePoolWeekSubmissionLocked(pool, slateGameStartIsos, now.getTime())) {
+    return { hasStarted: true, joinBlockedReason: null };
+  }
+  return { hasStarted: false, joinBlockedReason: null };
+}
+
 /** Resolve informational start state for every pool type. Provider failure alone
  * never blocks a brand-new pool; persisted progression always wins. */
 export async function resolvePoolStart(
   pool: PoolStartPool,
   deps: PoolStartDependencies,
 ): Promise<PoolStartState> {
+  if (pool.poolType === "nfl_confidence_weekly") {
+    if (pool.sandboxMode) {
+      const hasStarted = await deps.sandboxStarted(pool);
+      return { hasStarted, joinBlockedReason: null };
+    }
+    if (deps.nflConfidenceWeeklyEvidence) {
+      const evidence = await deps.nflConfidenceWeeklyEvidence(pool);
+      let games: StartGame[] | null = null;
+      try {
+        games = await deps.gamesFor(pool, "nfl");
+      } catch {
+        /* provider outage — treat as no slate */
+      }
+      return resolveNflConfidenceWeeklyPoolStart(pool, evidence, games, deps.now());
+    }
+  }
+
   let hasStarted = await deps.persistedStarted(pool);
 
   if (!hasStarted && pool.sandboxMode) {

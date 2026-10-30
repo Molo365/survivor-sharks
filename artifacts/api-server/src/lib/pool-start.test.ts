@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isFinalizedPickResult, joinBlockedByStart, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "./pool-start";
+import { isFinalizedPickResult, joinBlockedByStart, resolveNflConfidenceWeeklyPoolStart, resolvePoolStart, resolveWeeklyBonusThreshold, type PoolStartPool } from "./pool-start";
 
 const base: PoolStartPool = { id: 1, sport: "nfl", poolType: "season", currentWeek: 1, startWeek: null, season: 2026, isPreseason: false, pickFrequency: "weekly", sandboxMode: false, createdAt: new Date("2026-09-01T00:00:00Z"), initialPeriodStart: null };
 const game = (date: string, hasStarted = false) => ({ date, hasStarted });
@@ -133,4 +133,39 @@ test("nhl recurring weekly pick-em uses enrollment for closed weeks", () => {
   };
   assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 4 }), false);
   assert.equal(resolveWeeklyBonusThreshold({ ...input, playerCount: 5 }), true);
+});
+
+test("nfl_confidence_weekly: mid-season calendar games do not start a brand-new pool week", () => {
+  const pool: PoolStartPool = {
+    ...base,
+    poolType: "nfl_confidence_weekly",
+    startWeek: 8,
+    currentWeek: 8,
+  };
+  const thursdayFinal = game("2026-10-23T00:15:00Z", true);
+  const sundayGame = game("2026-10-26T17:00:00Z", false);
+  const state = resolveNflConfidenceWeeklyPoolStart(
+    pool,
+    { hasGradedPickemPicks: false, hasConfidenceWeekResults: false },
+    [thursdayFinal, sundayGame],
+    new Date("2026-10-24T16:00:00Z"),
+  );
+  assert.equal(state.hasStarted, false);
+  assert.equal(state.joinBlockedReason, null);
+});
+
+test("nfl_confidence_weekly: later pool week shows join disadvantage", () => {
+  const pool: PoolStartPool = {
+    ...base,
+    poolType: "nfl_confidence_weekly",
+    startWeek: 8,
+    currentWeek: 9,
+  };
+  const state = resolveNflConfidenceWeeklyPoolStart(
+    pool,
+    { hasGradedPickemPicks: false, hasConfidenceWeekResults: false },
+    [game("2026-11-02T18:00:00Z", false)],
+    new Date("2026-11-01T12:00:00Z"),
+  );
+  assert.equal(state.hasStarted, true);
 });
