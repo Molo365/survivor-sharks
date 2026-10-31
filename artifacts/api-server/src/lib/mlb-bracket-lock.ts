@@ -55,3 +55,21 @@ export async function isMlbBracketLocked(
   }
   return state === "started";
 }
+
+/** First Wild Card pitch for live bracket pools; null when playoffs already started or schedule unknown. */
+export async function resolveMlbBracketLockAt(
+  season: number,
+  series?: MlbPostseasonFetchResult,
+): Promise<Date | null> {
+  let slate: MlbPostseasonFetchResult;
+  try {
+    slate = series ?? await fetchMlbPostseasonSeries(season);
+  } catch {
+    return null;
+  }
+  if (slate.failedMonths.length > 0) return null;
+  const firstPitch = firstMlbWildCardPitchMs(slate);
+  if (firstPitch === undefined) return null;
+  if (Date.now() >= firstPitch) return null;
+  return new Date(firstPitch);
+}

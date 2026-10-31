@@ -1,4 +1,4 @@
-import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable } from "@workspace/db";
+import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable, groupStagePredictorPicksTable, wcBracketPicksTable, mlbBracketPicksTable } from "@workspace/db";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { getDailyPickDeadline, getMlbWeekBounds, getTodayEtDate, fetchGamesForDate, fetchNbaGamesByWeek, fetchNflGamesByWeek, fetchNhlGamesByWeek, NBA_SANDBOX_ANCHOR, NHL_SANDBOX_ANCHOR, type EspnGame } from "./espn";
 import { sendPickReminderEmail } from "./mailer";
@@ -28,6 +28,11 @@ import {
   requiredDivisionPickCount,
   resolveDivisionPredictorReminderDeadline,
 } from "./division-predictor-reminder";
+import {
+  isOneShotPoolReminderType,
+  requiredOneShotPickCount,
+  resolveOneShotPoolReminderDeadline,
+} from "./one-shot-pool-reminders";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -79,6 +84,7 @@ export type ReminderEligibilityContext = {
   nflGameIds?: Set<string>;
   perGame?: PerGameReminderContext;
   weekendFirstKickoff?: Date;
+  wcRoundEventIds?: string[];
 };
 
 function usesWeekendFirstKickoffReminderStage(pool: typeof poolsTable.$inferSelect): boolean {
@@ -105,6 +111,53 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     .where(and(eq(entriesTable.poolId, pool.id), onlyUserId === undefined ? undefined : eq(usersTable.id, onlyUserId)));
   const memberById = new Map(members.map((member) => [member.id, member]));
   if (members.length === 0) return [];
+  if (isOneShotPoolReminderType(pool.poolType)) {
+    const required = requiredOneShotPickCount(pool.poolType, context.wcRoundEventIds?.length ?? 0);
+    if (pool.poolType === "wc_bracket" && required === 0) return [];
+
+    let pickCountByUser = new Map<number, number>();
+    if (pool.poolType === "group_stage_predictor") {
+      const rows = await db
+        .select({ userId: groupStagePredictorPicksTable.userId })
+        .from(groupStagePredictorPicksTable)
+        .where(eq(groupStagePredictorPicksTable.poolId, pool.id));
+      for (const row of rows) {
+        pickCountByUser.set(row.userId, (pickCountByUser.get(row.userId) ?? 0) + 1);
+      }
+    } else if (pool.poolType === "mlb_bracket") {
+      const rows = await db
+        .select({ userId: mlbBracketPicksTable.userId })
+        .from(mlbBracketPicksTable)
+        .where(eq(mlbBracketPicksTable.poolId, pool.id));
+      for (const row of rows) {
+        pickCountByUser.set(row.userId, (pickCountByUser.get(row.userId) ?? 0) + 1);
+      }
+    } else {
+      const eventIds = context.wcRoundEventIds ?? [];
+      const rows = await db
+        .select({ userId: wcBracketPicksTable.userId })
+        .from(wcBracketPicksTable)
+        .where(and(
+          eq(wcBracketPicksTable.poolId, pool.id),
+          inArray(wcBracketPicksTable.espnEventId, eventIds),
+        ));
+      for (const row of rows) {
+        pickCountByUser.set(row.userId, (pickCountByUser.get(row.userId) ?? 0) + 1);
+      }
+    }
+
+    const completed = new Set(
+      members.filter((member) => (pickCountByUser.get(member.id) ?? 0) >= required).map((member) => member.id),
+    );
+    const ids = incompleteEligibleUserIds(
+      members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })),
+      completed,
+      false,
+    );
+    return ids
+      .filter((id) => onlyUserId === undefined || id === onlyUserId)
+      .map((id) => ({ id, email: memberById.get(id)!.email, submittedGameIds: new Set<string>() }));
+  }
   if (isDivisionPredictorPool(pool.poolType)) {
     const required = requiredDivisionPickCount(pool.poolType);
     const pickTable = pool.poolType === "nfl_division_predictor"
@@ -219,6 +272,16 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     const timing = await resolveDivisionPredictorReminderDeadline(pool);
     return timing && { ...timing, context: {} };
   }
+  if (isOneShotPoolReminderType(pool.poolType)) {
+    const timing = await resolveOneShotPoolReminderDeadline(pool);
+    return timing && {
+      deadline: timing.deadline,
+      periodKey: timing.periodKey,
+      context: {
+        ...(timing.wcRoundEventIds ? { wcRoundEventIds: timing.wcRoundEventIds } : {}),
+      },
+    };
+  }
   if (pool.poolType === "pickem_season") {
     const games = await resolveNflSelectableGames(pool);
     const timing = reminderTimingFromGames({ kind: "pickem", season: pool.season, week: pool.currentWeek, games });
@@ -327,7 +390,7 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     eq(poolsTable.isActive, true),
     or(
       eq(poolsTable.isRecurring, true),
-      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats", "nfl_division_predictor", "nhl_division_predictor"])),
+      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket"])),
     ),
     options.poolIds ? inArray(poolsTable.id, options.poolIds) : undefined,
   ));
