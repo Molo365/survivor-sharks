@@ -8,6 +8,13 @@ export { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool
 import { canStartReminderPass, incompleteEligibleUserIds, isReminderEligiblePool, nextUnpickedGameReminderTiming, reminderDeliveryState, reminderPeriodKey, reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
 import { fetchNbaSurvivorGamesByWeek } from "./nba-survivor-slate";
 import { nbaAtsRequiredPickCount } from "./nba-ats-picks";
+import {
+  crazyEightsConfidenceRequired,
+  crazyEightsRequiredPickCount,
+  resolveCrazyEightsPickemPeriod,
+  resolveCrazyEightsReminderDeadline,
+} from "./crazy-eights-reminder";
+import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -83,7 +90,11 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), new Set(rows.map((row) => row.userId)), true);
     return ids.map((id) => ({ id, email: memberById.get(id)!.email, submittedGameIds: new Set<string>() }));
   }
-  const period = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly" ? null : context.period ?? await resolvePickemPeriod(pool);
+  const period = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly"
+    ? null
+    : context.period ?? (isCrazyEightsFamilyPoolType(pool.poolType)
+      ? await resolveCrazyEightsPickemPeriod(pool)
+      : await resolvePickemPeriod(pool));
   const gameIds = period?.gameIds ?? context.nflGameIds ?? await resolveNflGameIds(pool);
   const resolvedContext = period === context.period ? context : { ...context, period: period ?? undefined };
   const condition = pickemPeriodCondition(pool, resolvedContext);
@@ -92,16 +103,20 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
   const submitted = countSubmittedPickemGames(
     rows,
     gameIds,
-    pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly",
+    pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly" || crazyEightsConfidenceRequired(pool),
   );
   const requiredPickCount = pool.poolType === "nba_ats"
     ? nbaAtsRequiredPickCount(gameIds.size)
-    : gameIds.size;
+    : isCrazyEightsFamilyPoolType(pool.poolType)
+      ? crazyEightsRequiredPickCount(pool, resolvedContext.period, gameIds)
+      : gameIds.size;
   const completed = new Set(
     members.filter((member) => (submitted.get(member.id) ?? 0) >= requiredPickCount).map((member) => member.id),
   );
   const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), completed, false);
-  const confidenceRequired = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly";
+  const confidenceRequired = pool.poolType === "nfl_confidence"
+    || pool.poolType === "nfl_confidence_weekly"
+    || crazyEightsConfidenceRequired(pool);
   const submittedByUser = new Map<number, Set<string>>();
   for (const row of rows) {
     if (!gameIds.has(row.gameId) || (confidenceRequired && row.confidencePoints == null)) continue;
@@ -172,6 +187,14 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     const first = Math.min(...games.map((game) => new Date(game.date).getTime()));
     const timing = reminderTimingFromGames({ kind: "survivor", season: pool.season, week: pool.currentWeek, games });
     return timing && { ...timing, context: {} };
+  }
+  if (isCrazyEightsFamilyPoolType(pool.poolType)) {
+    const resolved = await resolveCrazyEightsReminderDeadline(pool);
+    return resolved && {
+      deadline: resolved.deadline,
+      periodKey: resolved.periodKey,
+      context: { period: resolved.period },
+    };
   }
   const period = await resolvePickemPeriod(pool);
   if (!period) return null;

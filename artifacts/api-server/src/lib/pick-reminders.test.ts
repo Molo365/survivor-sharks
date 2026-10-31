@@ -102,7 +102,7 @@ test("next-unpicked timing returns null when every still-open game is already pi
 test("only scoped active recurring pools and incomplete eligible members are selected", () => {
   // These cover daily/weekly Pick-Em, survivor, both confidence variants, and NBA ATS;
   // sandbox mode does not change scope or eligibility decisions.
-  for (const poolType of ["pickem", "pickem_season", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "nba_ats"]) {
+  for (const poolType of ["pickem", "pickem_season", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "nba_ats", "crazy_8s", "fast_break_multiplier"]) {
     assert.equal(isReminderEligiblePool({ poolType, isActive: true, isRecurring: true, sandboxMode: false }), true);
   }
   assert.equal(isReminderEligiblePool({ poolType: "pickem", isActive: true, isRecurring: false, sandboxMode: false }), true);

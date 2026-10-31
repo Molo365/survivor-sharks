@@ -62,7 +62,7 @@ export function isReminderEligiblePool(
     && (pool.isRecurring || (!pool.isRecurring && allowsNonRecurring))
     && (includeSandbox || !pool.sandboxMode)
     && new Set([
-    "pickem", "pickem_season", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly",
+    "pickem", "pickem_season", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "crazy_8s", "fast_break_multiplier",
     ]).has(pool.poolType);
 }
 
