@@ -449,8 +449,10 @@ export default function Profile() {
               <div>
                 <p className="font-medium text-sm">Name (People list)</p>
                 <p className="text-xs text-muted-foreground">
-                  Separate from the pool name above. Shown when someone taps your name or opens{" "}
-                  <span className="text-foreground/80">People</span> in a pool.
+                  Optional override for the{" "}
+                  <span className="text-foreground/80">People</span> list (separate from your pool
+                  name). If you leave this blank, others see your account username (
+                  <span className="text-foreground/80">@{user?.username}</span>).
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -483,7 +485,7 @@ export default function Profile() {
                             title: "Name saved",
                             description: realName
                               ? "Reopen People in your pool to see it."
-                              : "Cleared — People list will show a dash again.",
+                              : "Cleared — People list will show your username again.",
                           });
                         },
                         onError: (error) => {
@@ -496,9 +498,14 @@ export default function Profile() {
                   Save real name
                 </Button>
               </div>
-              {user?.realName?.trim() && (
+              {user?.realName?.trim() ? (
                 <p className="text-xs text-green-400/90">
                   Saved as: <span className="font-medium">{user.realName}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  People list shows:{" "}
+                  <span className="font-medium text-foreground/90">{user?.username}</span>
                 </p>
               )}
               {realNameError && (
