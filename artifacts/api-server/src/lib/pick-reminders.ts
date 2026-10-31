@@ -33,6 +33,12 @@ import {
   requiredOneShotPickCount,
   resolveOneShotPoolReminderDeadline,
 } from "./one-shot-pool-reminders";
+import {
+  isNflOfficeWeeklyReminderPool,
+  reminderStageBeforeNflSundayOfficeLock,
+  resolveNflOfficeWeekOpenReminder,
+  resolveNflSundayOfficeLockReminder,
+} from "./nfl-office-pick-reminders";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -85,6 +91,9 @@ export type ReminderEligibilityContext = {
   perGame?: PerGameReminderContext;
   weekendFirstKickoff?: Date;
   wcRoundEventIds?: string[];
+  nflWeekOpenReminder?: boolean;
+  nflFirstGameId?: string;
+  nflSundayOfficeLock?: boolean;
 };
 
 function usesWeekendFirstKickoffReminderStage(pool: typeof poolsTable.$inferSelect): boolean {
@@ -189,6 +198,43 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), new Set(rows.map((row) => row.userId)), true);
     return ids.map((id) => ({ id, email: memberById.get(id)!.email, submittedGameIds: new Set<string>() }));
   }
+  if (context.nflWeekOpenReminder && context.nflFirstGameId) {
+    const firstId = context.nflFirstGameId;
+    const confidenceRequired = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly";
+    const rows = await db
+      .select({
+        userId: pickemPicksTable.userId,
+        gameId: pickemPicksTable.gameId,
+        confidencePoints: pickemPicksTable.confidencePoints,
+      })
+      .from(pickemPicksTable)
+      .where(and(eq(pickemPicksTable.poolId, pool.id), eq(pickemPicksTable.week, pool.currentWeek)));
+    const completed = new Set(
+      members.filter((member) => {
+        const pick = rows.find((row) => row.userId === member.id && row.gameId === firstId);
+        if (!pick) return false;
+        return !(confidenceRequired && pick.confidencePoints == null);
+      }).map((member) => member.id),
+    );
+    const ids = incompleteEligibleUserIds(
+      members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })),
+      completed,
+      false,
+    );
+    const submittedByUser = new Map<number, Set<string>>();
+    for (const row of rows) {
+      if (row.gameId !== firstId || (confidenceRequired && row.confidencePoints == null)) continue;
+      if (!submittedByUser.has(row.userId)) submittedByUser.set(row.userId, new Set());
+      submittedByUser.get(row.userId)!.add(row.gameId);
+    }
+    return ids
+      .filter((id) => onlyUserId === undefined || id === onlyUserId)
+      .map((id) => ({
+        id,
+        email: memberById.get(id)!.email,
+        submittedGameIds: submittedByUser.get(id) ?? new Set<string>(),
+      }));
+  }
   const period = pool.poolType === "nfl_confidence" || pool.poolType === "nfl_confidence_weekly"
     ? null
     : context.period ?? (isCrazyEightsFamilyPoolType(pool.poolType)
@@ -234,6 +280,9 @@ function effectiveReminderTiming(
   user: IncompleteReminderUser,
   now: Date,
 ): { deadline: Date; periodKey: string } | null {
+  if (resolved.context.nflSundayOfficeLock || resolved.context.nflWeekOpenReminder) {
+    return { deadline: resolved.deadline, periodKey: resolved.periodKey };
+  }
   if (!resolved.context.perGame) {
     return { deadline: resolved.deadline, periodKey: resolved.periodKey };
   }
@@ -260,7 +309,11 @@ function reminderStageForResolvedPool(
   now: Date,
   deadline: Date,
   weekendFirstKickoff?: Date,
+  nflSundayOfficeLock?: boolean,
 ): "24h" | "final" | null {
+  if (nflSundayOfficeLock) {
+    return reminderStageBeforeNflSundayOfficeLock(now, deadline);
+  }
   if (weekendFirstKickoff && usesWeekendFirstKickoffReminderStage(pool)) {
     return reminderStageBeforeFirstTip(now, weekendFirstKickoff);
   }
@@ -281,6 +334,9 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
         ...(timing.wcRoundEventIds ? { wcRoundEventIds: timing.wcRoundEventIds } : {}),
       },
     };
+  }
+  if (isNflOfficeWeeklyReminderPool(pool)) {
+    return resolveNflOfficeWeekOpenReminder(pool);
   }
   if (pool.poolType === "pickem_season") {
     const games = await resolveNflSelectableGames(pool);
@@ -390,6 +446,20 @@ export async function runPickReminders(options: { now?: Date; sender?: typeof se
   }
 }
 
+async function poolReminderResolutions(
+  pool: typeof poolsTable.$inferSelect,
+  now: Date,
+  resolver?: (pool: typeof poolsTable.$inferSelect) => Promise<ReminderResolution | null>,
+): Promise<ReminderResolution[]> {
+  const primary = await (resolver ?? resolveReminderDeadline)(pool);
+  const resolutions = primary ? [primary] : [];
+  if (isNflOfficeWeeklyReminderPool(pool)) {
+    const sunday = await resolveNflSundayOfficeLockReminder(pool, now);
+    if (sunday) resolutions.push(sunday);
+  }
+  return resolutions;
+}
+
 async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sendPickReminderEmail; appUrl?: string; poolIds?: number[]; includeSandbox?: boolean; resolver?: (pool: typeof poolsTable.$inferSelect) => Promise<ReminderResolution | null> }): Promise<{ claimed: number; sent: number; failed: number }> {
   const now = options.now ?? new Date();
   const sender = options.sender ?? sendPickReminderEmail;
@@ -409,41 +479,44 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     // email them by default; only explicit development/test callers may opt in.
     if (!isReminderEligiblePool(pool, options.includeSandbox ?? false)) continue;
     try {
-      const resolved = await (options.resolver ?? resolveReminderDeadline)(pool);
-      if (!resolved) continue;
+      const resolutions = await poolReminderResolutions(pool, now, options.resolver);
+      if (resolutions.length === 0) continue;
       if (!(await nbaWeekendPickRemindersUnblocked(pool, now))) continue;
-      for (const user of await incompleteUsers(pool, resolved.context)) {
-        try {
-          const initialTiming = effectiveReminderTiming(resolved, user, now);
-          if (!initialTiming || !reminderStageForResolvedPool(
-            pool,
-            now,
-            initialTiming.deadline,
-            resolved.context.weekendFirstKickoff,
-          )) continue;
-          // Re-read immediately before claim: status/picks may have changed after initial resolution.
-          const currentTiming = await currentReminderTiming(pool, user.id, resolved, now);
-          if (!currentTiming) continue;
-          const stage = reminderStageForResolvedPool(
-            pool,
-            now,
-            currentTiming.deadline,
-            resolved.context.weekendFirstKickoff,
-          );
-          if (!stage) continue;
-          const [claim] = await db.insert(pickRemindersTable).values({ userId: user.id, poolId: pool.id, periodKey: currentTiming.periodKey, reminderStage: stage }).onConflictDoNothing().returning({ id: pickRemindersTable.id });
-          if (!claim) continue;
-          claimed++;
+      for (const resolved of resolutions) {
+        for (const user of await incompleteUsers(pool, resolved.context)) {
           try {
-            const providerMessageId = await sender(user.email, pool.name, `${appUrl}/pools/${pool.id}`, stage);
-            await db.update(pickRemindersTable).set({ status: "sent", sentAt: now, providerMessageId }).where(eq(pickRemindersTable.id, claim.id));
-            sent++;
-          } catch (error) {
-            const state = reminderDeliveryState(error);
-            await db.update(pickRemindersTable).set(state).where(eq(pickRemindersTable.id, claim.id));
-            failed++;
-          }
-        } catch (error) { logger.error({ err: error, poolId: pool.id }, "Pick reminder member processing failed"); }
+            const initialTiming = effectiveReminderTiming(resolved, user, now);
+            if (!initialTiming || !reminderStageForResolvedPool(
+              pool,
+              now,
+              initialTiming.deadline,
+              resolved.context.weekendFirstKickoff,
+              resolved.context.nflSundayOfficeLock,
+            )) continue;
+            const currentTiming = await currentReminderTiming(pool, user.id, resolved, now);
+            if (!currentTiming) continue;
+            const stage = reminderStageForResolvedPool(
+              pool,
+              now,
+              currentTiming.deadline,
+              resolved.context.weekendFirstKickoff,
+              resolved.context.nflSundayOfficeLock,
+            );
+            if (!stage) continue;
+            const [claim] = await db.insert(pickRemindersTable).values({ userId: user.id, poolId: pool.id, periodKey: currentTiming.periodKey, reminderStage: stage }).onConflictDoNothing().returning({ id: pickRemindersTable.id });
+            if (!claim) continue;
+            claimed++;
+            try {
+              const providerMessageId = await sender(user.email, pool.name, `${appUrl}/pools/${pool.id}`, stage);
+              await db.update(pickRemindersTable).set({ status: "sent", sentAt: now, providerMessageId }).where(eq(pickRemindersTable.id, claim.id));
+              sent++;
+            } catch (error) {
+              const state = reminderDeliveryState(error);
+              await db.update(pickRemindersTable).set(state).where(eq(pickRemindersTable.id, claim.id));
+              failed++;
+            }
+          } catch (error) { logger.error({ err: error, poolId: pool.id }, "Pick reminder member processing failed"); }
+        }
       }
     } catch (error) { logger.error({ err: error, poolId: pool.id }, "Pick reminder pool processing failed"); }
   }
