@@ -25,7 +25,7 @@ import { resolveTeam } from "../lib/teams-data";
 import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 import { fetchNbaSurvivorGamesByWeek, weekendGamesEt } from "../lib/nba-survivor-slate";
-import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation } from "../lib/pick-confirmation";
+import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation, resolveSurvivorConfirmationGame } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -181,6 +181,31 @@ router.post("/", requireAuth, async (req, res) => {
         result: "pending",
       }).returning();
       pick = inserted;
+    }
+
+    if (!pool.sandboxMode) {
+      const survivorGame = await resolveSurvivorConfirmationGame(pool, dayNum, teamId, todayEt);
+      if (survivorGame) {
+        const confirmation = makePickConfirmation({
+          toEmail: req.user!.email,
+          username: req.user!.username,
+          poolName: pool.name,
+          picks: buildTeamPickConfirmationItems(
+            [{ gameId: survivorGame.id, pickedTeamId: teamId, pickedTeamName: teamName }],
+            [survivorGame],
+          ),
+        });
+        await db.transaction(async (tx) => {
+          await insertPickConfirmation(tx, confirmation, {
+            userId,
+            poolId,
+            poolType: String(pool.poolType),
+            sport: String(pool.sport),
+            periodKey: `date:${todayEt}`,
+          });
+        });
+        deliverPickConfirmation(confirmation, { poolId, userId, sport: pool.sport });
+      }
     }
 
     res.status(201).json(formatPick(pick, req.user!.username));
@@ -374,41 +399,22 @@ router.post("/", requireAuth, async (req, res) => {
 
   // Resolve the exact schedule source before opening the write transaction so
   // the immutable receipt retains matchup and kickoff details.
-  let survivorGames: Array<{ id: string; date: string; homeTeam: { id: string; displayName: string }; awayTeam: { id: string; displayName: string } }> = [];
-  if (pool.sport === "nfl" && pool.poolType === "season") {
-    if (pool.sandboxMode) {
-      const replayRows = await db.select().from(sandboxGameScoresTable).where(and(
-        eq(sandboxGameScoresTable.poolId, poolId), eq(sandboxGameScoresTable.week, week), isNotNull(sandboxGameScoresTable.gameStatus),
-      ));
-      survivorGames = replayRows.length
-        ? replayRows.map((row) => ({
-            id: row.gameId, date: row.replayKickoff?.toISOString() ?? "",
-            awayTeam: { id: row.awayTeam ?? "", displayName: NFL_TEAM_INFO[row.awayTeam ?? ""]?.displayName ?? row.awayTeam ?? "Away team" },
-            homeTeam: { id: row.homeTeam ?? "", displayName: NFL_TEAM_INFO[row.homeTeam ?? ""]?.displayName ?? row.homeTeam ?? "Home team" },
-          }))
-        : getSandboxGamesForWeek(week).map((game) => ({
-            id: game.id, date: game.gameTime,
-            awayTeam: { id: game.awayTeamId, displayName: NFL_TEAM_INFO[game.awayAbbr]?.displayName ?? game.awayAbbr },
-            homeTeam: { id: game.homeTeamId, displayName: NFL_TEAM_INFO[game.homeAbbr]?.displayName ?? game.homeAbbr },
-          }));
-    } else {
-      survivorGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
-    }
-  }
-  const survivorGame = survivorGames.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId);
-  // Capture this receipt before the write; it is deliberately not reconstructed
-  // from mutable pick rows after commit.
-  const survivorConfirmation = pool.sport === "nfl" && pool.poolType === "season"
-    ? makePickConfirmation({
+  const survivorPoolTypes = new Set(["season", "weekly", "mid_season"]);
+  let survivorConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+  if (!pool.sandboxMode && survivorPoolTypes.has(String(pool.poolType))) {
+    const survivorGame = await resolveSurvivorConfirmationGame(pool, week, teamId);
+    if (survivorGame) {
+      survivorConfirmation = makePickConfirmation({
         toEmail: req.user!.email,
         username: req.user!.username,
         poolName: pool.name,
         picks: buildTeamPickConfirmationItems(
-          [{ gameId: survivorGame?.id ?? "", pickedTeamId: teamId, pickedTeamName: teamName }],
-          survivorGame ? [survivorGame] : [],
+          [{ gameId: survivorGame.id, pickedTeamId: teamId, pickedTeamName: teamName }],
+          [survivorGame],
         ),
-      })
-    : null;
+      });
+    }
+  }
 
   // Upsert pick and append its receipt atomically.
   let pick!: typeof picksTable.$inferSelect;

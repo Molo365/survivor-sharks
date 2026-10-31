@@ -23,6 +23,7 @@ import {
   fetchIntlGamesForDate,
   fetchNhlGamesByWeek,
   fetchNbaGamesByWeek,
+  fetchNflGamesByWeek,
   getNhlWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
@@ -106,7 +107,10 @@ import {
   deliverPickConfirmation,
   insertPickConfirmation,
   isSharedPickConfirmationSport,
+  isThreeWayPickConfirmationSport,
   makePickConfirmation,
+  persistTeamPickemWeekConfirmation,
+  persistThreeWayPickemConfirmation,
 } from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
@@ -1147,11 +1151,17 @@ router.post("/picks", requireAuth, async (req, res) => {
     // For WC: use cached full schedule for validation (avoids re-fetching today only)
     const schedule = await fetchWcSchedule();
     for (const day of schedule) {
-      for (const g of day.games) gameMap.set(g.id, { date: g.date });
+      for (const g of day.games) {
+        gameMap.set(g.id, { date: g.date });
+        if (!pool.sandboxMode) confirmationGameMap.set(g.id, g as EspnGame);
+      }
     }
   } else if (isIntl) {
     const games = await fetchIntlGamesForDate(todayEspn);
-    for (const g of games) gameMap.set(g.id, { date: g.date });
+    for (const g of games) {
+      gameMap.set(g.id, { date: g.date });
+      if (!pool.sandboxMode) confirmationGameMap.set(g.id, g);
+    }
   } else if (isChampionsLeague) {
     const slate = await fetchCurrentChampionsLeagueSlate();
     for (const g of slate?.games ?? []) {
@@ -1181,6 +1191,16 @@ router.post("/picks", requireAuth, async (req, res) => {
       pool.initialPeriodStart,
     );
     for (const g of liveNhlGames) {
+      gameMap.set(g.id, { date: g.date });
+      confirmationGameMap.set(g.id, g);
+    }
+  } else if (!pool.sandboxMode && pool.poolType === "pickem" && sport === "nfl") {
+    const nflGames = await fetchNflGamesByWeek(
+      pool.currentWeek,
+      pool.season,
+      pool.isPreseason ? 1 : 2,
+    );
+    for (const g of nflGames) {
       gameMap.set(g.id, { date: g.date });
       confirmationGameMap.set(g.id, g);
     }
@@ -1235,6 +1255,12 @@ router.post("/picks", requireAuth, async (req, res) => {
         confirmationGameMap.set(g.id, g);
       }
     }
+  } else if (!pool.sandboxMode && pool.poolType === "pickem" && sport === "nba" && pool.pickFrequency === "weekly" && !isAts) {
+    const nbaGames = await fetchNbaGamesByWeek(pool.createdAt, pool.currentWeek);
+    for (const g of nbaGames) {
+      gameMap.set(g.id, { date: g.date });
+      confirmationGameMap.set(g.id, g);
+    }
   } else {
     // Fallback for daily (non-weekly) picks and any unmatched branch.
     // Super League has no ESPN_ENDPOINTS key — use its dedicated fetcher.
@@ -1243,7 +1269,12 @@ router.post("/picks", requireAuth, async (req, res) => {
       : await fetchGamesForDate(sport, todayEspn);
     for (const g of games) {
       gameMap.set(g.id, { date: g.date });
-      if (isSharedPickConfirmationSport(sport)) confirmationGameMap.set(g.id, g);
+      if (
+        isSharedPickConfirmationSport(sport)
+        || (pool.poolType === "pickem" && !isAts && !pool.sandboxMode && !isThreeWayPickConfirmationSport(sport))
+      ) {
+        confirmationGameMap.set(g.id, g);
+      }
     }
   }
 
@@ -1473,27 +1504,6 @@ router.post("/picks", requireAuth, async (req, res) => {
         : (submittedDate ?? picks[0]?.gameDate ?? todayEt),
     });
   }
-  if (isLiveNhlWeekly && sendConfirmation === true) {
-    const currentPicks = await tx.select({
-      gameId: pickemPicksTable.gameId,
-      pickedTeamId: pickemPicksTable.pickedTeamId,
-      pickedTeamName: pickemPicksTable.pickedTeamName,
-    }).from(pickemPicksTable).where(and(
-      eq(pickemPicksTable.poolId, poolId),
-      eq(pickemPicksTable.userId, userId),
-      eq(pickemPicksTable.week, pool.currentWeek),
-    ));
-    sharedConfirmation = makePickConfirmation({
-      toEmail: req.user!.email,
-      username: req.user!.username,
-      poolName: pool.name,
-      picks: buildTeamPickConfirmationItems(currentPicks, [...confirmationGameMap.values()]),
-    });
-    await insertPickConfirmation(tx, sharedConfirmation, {
-      userId, poolId, poolType: String(pool.poolType), sport,
-      periodKey: `nhl-week-${pool.currentWeek}`,
-    });
-  }
   if (isLiveNbaAts) {
     const currentPicks = await tx.select({
       gameId: pickemPicksTable.gameId,
@@ -1519,6 +1529,39 @@ router.post("/picks", requireAuth, async (req, res) => {
       sport,
       periodKey: `${atsBounds.days[0]}/${atsBounds.days.at(-1)}`,
     });
+  }
+  if (!sharedConfirmation && !pool.sandboxMode && pool.poolType === "pickem") {
+    const confirmationGames = [...confirmationGameMap.values()];
+    const scopedGameIds = confirmationGameMap.size > 0 ? new Set(confirmationGameMap.keys()) : undefined;
+    if (isThreeWayPickConfirmationSport(sport) && confirmationGames.length > 0) {
+      sharedConfirmation = await persistThreeWayPickemConfirmation(tx, pool, req.user!, {
+        week: pool.currentWeek,
+        games: confirmationGames,
+        periodKey: submittedDate ?? picks[0]?.gameDate ?? todayEt,
+        gameIds: scopedGameIds,
+      });
+    } else if (
+      !isAts
+      && !isSharedPickConfirmationSport(sport)
+      && confirmationGames.length > 0
+    ) {
+      let periodKey = submittedDate ?? picks[0]?.gameDate ?? todayEt;
+      if (sport === "nfl") {
+        periodKey = `week:${pool.currentWeek}`;
+      } else if (isLiveNhlWeekly) {
+        periodKey = `nhl-week-${pool.currentWeek}`;
+      } else if (sport === "nba" && pool.pickFrequency === "weekly") {
+        const bounds = getNbaWeekendBounds(pool.createdAt, pool.currentWeek);
+        periodKey = `${bounds.days[0]}/${bounds.days.at(-1)}`;
+      }
+      sharedConfirmation = await persistTeamPickemWeekConfirmation(tx, pool, req.user!, {
+        week: pool.currentWeek,
+        games: confirmationGames,
+        periodKey,
+        gameIds: scopedGameIds,
+        normalizeNflTeamIds: sport === "nfl",
+      });
+    }
   }
   });
   if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });

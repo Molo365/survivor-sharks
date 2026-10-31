@@ -1170,6 +1170,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       return;
     }
 
+    let nhlPickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
     const submission = await db.transaction(async (tx) => {
       await tx
         .select({ id: entriesTable.id })
@@ -1231,11 +1232,50 @@ router.post("/picks", requireAuth, async (req, res) => {
         } as any)
         .where(eq(entriesTable.id, entry.id));
 
+      if (!isSandbox) {
+        const currentPicks = await tx
+          .select({
+            gameId: pickemPicksTable.gameId,
+            pickedTeamId: pickemPicksTable.pickedTeamId,
+            pickedTeamName: pickemPicksTable.pickedTeamName,
+            confidencePoints: pickemPicksTable.confidencePoints,
+          })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.userId, userId),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ));
+        const confirmationGames = games.map((game) => ({
+          id: game.id,
+          date: game.date,
+          homeTeam: { id: game.homeTeam.id, displayName: game.homeTeam.displayName },
+          awayTeam: { id: game.awayTeam.id, displayName: game.awayTeam.displayName },
+        }));
+        nhlPickConfirmation = makePickConfirmation({
+          toEmail: req.user!.email,
+          username: req.user!.username,
+          poolName: pool.name,
+          picks: buildConfidenceTeamPickConfirmationItems(currentPicks, confirmationGames),
+        });
+        await insertPickConfirmation(tx, nhlPickConfirmation, {
+          userId,
+          poolId,
+          poolType: String(pool.poolType),
+          sport: String(pool.sport),
+          periodKey: `nhl-weekend-${pool.currentWeek}`,
+        });
+      }
+
       return { alreadySubmitted: false as const, saved };
     });
     if (submission.alreadySubmitted) {
       res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
       return;
+    }
+
+    if (nhlPickConfirmation) {
+      deliverPickConfirmation(nhlPickConfirmation, { poolId, userId, sport: pool.sport });
     }
 
     res.status(201).json({ ok: true, saved: submission.saved, message: "Hit the Ice! picks submitted successfully" });
@@ -1492,6 +1532,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     return;
   }
 
+  let mlbPickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
   const submission = await db.transaction(async (tx) => {
     await tx
       .select({ id: entriesTable.id })
@@ -1549,11 +1590,50 @@ router.post("/picks", requireAuth, async (req, res) => {
       } as any)
       .where(eq(entriesTable.id, entry.id));
 
+    if (!isSandbox) {
+      const currentPicks = await tx
+        .select({
+          gameId: pickemPicksTable.gameId,
+          pickedTeamId: pickemPicksTable.pickedTeamId,
+          pickedTeamName: pickemPicksTable.pickedTeamName,
+          confidencePoints: pickemPicksTable.confidencePoints,
+        })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.gameDate, todayEt),
+        ));
+      const confirmationGames = games.map((game) => ({
+        id: game.id,
+        date: game.date,
+        homeTeam: { id: game.homeTeam.id, displayName: game.homeTeam.displayName },
+        awayTeam: { id: game.awayTeam.id, displayName: game.awayTeam.displayName },
+      }));
+      mlbPickConfirmation = makePickConfirmation({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: pool.name,
+        picks: buildConfidenceTeamPickConfirmationItems(currentPicks, confirmationGames),
+      });
+      await insertPickConfirmation(tx, mlbPickConfirmation, {
+        userId,
+        poolId,
+        poolType: String(pool.poolType),
+        sport: String(pool.sport),
+        periodKey: `mlb-day-${todayEt}`,
+      });
+    }
+
     return { alreadySubmitted: false as const, saved };
   });
   if (submission.alreadySubmitted) {
     res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
     return;
+  }
+
+  if (mlbPickConfirmation) {
+    deliverPickConfirmation(mlbPickConfirmation, { poolId, userId, sport: pool.sport });
   }
 
   res.status(201).json({ ok: true, saved: submission.saved, message: "Crazy 8's picks submitted successfully" });

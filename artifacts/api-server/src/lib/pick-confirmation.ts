@@ -4,9 +4,18 @@ import {
   type PickConfirmationItem,
   type PicksConfirmationEmailInput,
 } from "./mailer";
-import { db, pickConfirmationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, pickConfirmationsTable, pickemPicksTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { NFL_TEAM_INFO } from "./nfl2025Schedule";
+import {
+  fetchGamesForDate,
+  fetchNflGamesByWeek,
+  fetchNhlGamesByWeek,
+  fetchNbaGamesByWeek,
+  getMlbWeekBounds,
+} from "./espn";
+import { fetchNbaSurvivorGamesByWeek, weekendGamesEt } from "./nba-survivor-slate";
 
 export type PickConfirmationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -117,6 +126,10 @@ export function isSharedPickConfirmationSport(sport: string): boolean {
   return sport === "mls" || sport === "superleague" || sport === "championsleague";
 }
 
+export function isThreeWayPickConfirmationSport(sport: string): boolean {
+  return sport === "worldcup" || sport === "intl";
+}
+
 export function buildTeamPickConfirmationItems(
   picks: SubmittedConfirmationPick[],
   games: ConfirmationGame[],
@@ -201,6 +214,178 @@ export function buildThreeWayPickConfirmationItems(
       gameTime: game?.date ?? null,
     };
   });
+}
+
+type PickemConfirmationPool = {
+  id: number;
+  name: string;
+  poolType: string;
+  sport: string;
+  currentWeek: number;
+};
+
+type PickemConfirmationUser = { id: number; email: string; username: string };
+
+async function currentPickemWeekPicks(
+  tx: PickConfirmationTransaction,
+  poolId: number,
+  userId: number,
+  week: number,
+) {
+  return tx.select({
+    gameId: pickemPicksTable.gameId,
+    pickedTeamId: pickemPicksTable.pickedTeamId,
+    pickedTeamName: pickemPicksTable.pickedTeamName,
+    confidencePoints: pickemPicksTable.confidencePoints,
+  }).from(pickemPicksTable).where(and(
+    eq(pickemPicksTable.poolId, poolId),
+    eq(pickemPicksTable.userId, userId),
+    eq(pickemPicksTable.week, week),
+  ));
+}
+
+/** Full-period team pick'em receipt after upserts (NFL office, daily MLB, etc.). */
+export async function persistTeamPickemWeekConfirmation(
+  tx: PickConfirmationTransaction,
+  pool: PickemConfirmationPool,
+  user: PickemConfirmationUser,
+  input: {
+    week: number;
+    games: ConfirmationGame[];
+    periodKey: string;
+    gameIds?: Set<string>;
+    normalizeNflTeamIds?: boolean;
+  },
+): Promise<PersistedPickConfirmation> {
+  const currentPicks = await currentPickemWeekPicks(tx, pool.id, user.id, input.week);
+  const periodPicks = input.gameIds
+    ? currentPicks.filter((pick) => input.gameIds!.has(pick.gameId))
+    : currentPicks;
+  const submittedPicks = periodPicks.map((pick) => ({
+    gameId: pick.gameId,
+    pickedTeamId: input.normalizeNflTeamIds
+      ? (NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId)
+      : pick.pickedTeamId,
+    pickedTeamName: pick.pickedTeamName,
+  }));
+  const confirmation = makePickConfirmation({
+    toEmail: user.email,
+    username: user.username,
+    poolName: pool.name,
+    picks: buildTeamPickConfirmationItems(submittedPicks, input.games),
+  });
+  await insertPickConfirmation(tx, confirmation, {
+    userId: user.id,
+    poolId: pool.id,
+    poolType: String(pool.poolType),
+    sport: String(pool.sport),
+    periodKey: input.periodKey,
+  });
+  return confirmation;
+}
+
+/** World Cup / intl 3-way pick'em receipt for the active pick period. */
+export async function persistThreeWayPickemConfirmation(
+  tx: PickConfirmationTransaction,
+  pool: PickemConfirmationPool,
+  user: PickemConfirmationUser,
+  input: { week: number; games: ConfirmationGame[]; periodKey: string; gameIds?: Set<string> },
+): Promise<PersistedPickConfirmation> {
+  const currentPicks = await currentPickemWeekPicks(tx, pool.id, user.id, input.week);
+  const periodPicks = input.gameIds
+    ? currentPicks.filter((pick) => input.gameIds!.has(pick.gameId))
+    : currentPicks;
+  const confirmation = makePickConfirmation({
+    toEmail: user.email,
+    username: user.username,
+    poolName: pool.name,
+    picks: buildThreeWayPickConfirmationItems(periodPicks, input.games),
+  });
+  await insertPickConfirmation(tx, confirmation, {
+    userId: user.id,
+    poolId: pool.id,
+    poolType: String(pool.poolType),
+    sport: String(pool.sport),
+    periodKey: input.periodKey,
+  });
+  return confirmation;
+}
+
+/** NFL confidence-style receipt with confidence points on each line. */
+export async function persistConfidencePickemWeekConfirmation(
+  tx: PickConfirmationTransaction,
+  pool: PickemConfirmationPool,
+  user: PickemConfirmationUser,
+  input: { week: number; games: ConfirmationGame[]; periodKey: string },
+): Promise<PersistedPickConfirmation> {
+  const currentPicks = await currentPickemWeekPicks(tx, pool.id, user.id, input.week);
+  const submittedPicks = currentPicks.map((pick) => ({
+    gameId: pick.gameId,
+    pickedTeamId: NFL_TEAM_INFO[pick.pickedTeamId]?.id ?? pick.pickedTeamId,
+    pickedTeamName: pick.pickedTeamName,
+    confidencePoints: pick.confidencePoints,
+  }));
+  const confirmation = makePickConfirmation({
+    toEmail: user.email,
+    username: user.username,
+    poolName: pool.name,
+    picks: buildConfidenceTeamPickConfirmationItems(submittedPicks, input.games),
+  });
+  await insertPickConfirmation(tx, confirmation, {
+    userId: user.id,
+    poolId: pool.id,
+    poolType: String(pool.poolType),
+    sport: String(pool.sport),
+    periodKey: input.periodKey,
+  });
+  return confirmation;
+}
+
+export async function resolveSurvivorConfirmationGame(
+  pool: {
+    sport: string;
+    poolType: string;
+    season: number;
+    isPreseason?: boolean | null;
+    createdAt: Date;
+    initialPeriodStart?: string | null;
+    pickFrequency?: string | null;
+  },
+  week: number,
+  teamId: string,
+  pickDate?: string | null,
+): Promise<ConfirmationGame | null> {
+  const sport = String(pool.sport);
+  if (sport === "nfl") {
+    const games = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
+    return games.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId) ?? null;
+  }
+  if (sport === "nba") {
+    const games = pool.poolType === "season"
+      ? weekendGamesEt(await fetchNbaSurvivorGamesByWeek(pool.createdAt, week))
+      : await fetchNbaGamesByWeek(pool.createdAt, week);
+    return games.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId) ?? null;
+  }
+  if (sport === "nhl") {
+    const games = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      week,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
+    return games.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId) ?? null;
+  }
+  if (sport === "mlb") {
+    if (pool.pickFrequency === "daily" && pickDate) {
+      const games = await fetchGamesForDate("mlb", pickDate.replace(/-/g, ""));
+      return games.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId) ?? null;
+    }
+    const { espnDates } = getMlbWeekBounds(pool.createdAt, week);
+    const dayGames = await Promise.all(espnDates.map((date) => fetchGamesForDate("mlb", date)));
+    const games = dayGames.flat();
+    return games.find((game) => game.homeTeam.id === teamId || game.awayTeam.id === teamId) ?? null;
+  }
+  return null;
 }
 
 export async function sendPicksConfirmationSafely(

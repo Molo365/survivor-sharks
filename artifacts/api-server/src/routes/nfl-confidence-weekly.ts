@@ -24,6 +24,11 @@ import {
   isNflConfidenceWeeklyCommissionerBalancesPool,
   patchNflConfidenceWeeklyCommissionerLedger,
 } from "../lib/nfl-confidence-weekly-commissioner-balances";
+import {
+  deliverPickConfirmation,
+  persistConfidencePickemWeekConfirmation,
+  type PersistedPickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -387,6 +392,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   ];
   const gameDate = weekSundayOffsets[week] ?? `2025-week-${week}`;
 
+  let pickConfirmation: PersistedPickConfirmation | null = null;
   const saveResult = await db.transaction(async (tx) => {
     if (!isSandbox) {
       await tx
@@ -491,11 +497,23 @@ router.post("/picks", requireAuth, async (req, res) => {
       } as any)
       .where(eq(entriesTable.id, entry.id));
 
+    if (!isSandbox) {
+      pickConfirmation = await persistConfidencePickemWeekConfirmation(tx, pool, req.user!, {
+        week,
+        games: liveGames,
+        periodKey: `week:${week}`,
+      });
+    }
+
     return { ok: true as const, saved };
   });
   if (!saveResult.ok) {
     res.status(saveResult.status).json({ error: saveResult.error });
     return;
+  }
+
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
   }
 
   req.log.info({ poolId, userId, week, saved: saveResult.saved }, "NFL Confidence Weekly picks submitted");

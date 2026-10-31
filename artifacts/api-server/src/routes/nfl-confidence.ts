@@ -24,6 +24,11 @@ import {
   visibleNflTiebreakerGuess,
 } from "../lib/nfl-slate-reveal";
 import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
+import {
+  deliverPickConfirmation,
+  persistConfidencePickemWeekConfirmation,
+  type PersistedPickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 type NflConfidenceTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -382,6 +387,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   let expectedCount = 0;
   let openGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
   let startedGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
+  let slateGames: Awaited<ReturnType<typeof fetchNflGamesByWeek>> = [];
   if (isSandbox) {
     const replayRows = await db
       .select({ gameId: sandboxGameScoresTable.gameId })
@@ -415,14 +421,14 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
 
   } else {
-    const liveGames = await fetchNflGamesByWeek(
+    slateGames = await fetchNflGamesByWeek(
       week,
       pool.season,
       pool.isPreseason ? 1 : 2,
     );
     const partitioned = partitionNflWeekGamesBySubmissionLock({
       pool,
-      games: liveGames,
+      games: slateGames,
       lockStyle: "five_minute",
     });
     openGames = partitioned.openGames;
@@ -456,6 +462,7 @@ router.post("/picks", requireAuth, async (req, res) => {
   ];
   const gameDate = weekSundayOffsets[week] ?? `2025-week-${week}`;
 
+  let pickConfirmation: PersistedPickConfirmation | null = null;
   const saveResult = await db.transaction(async (tx) => {
     if (!isSandbox) {
       await tx
@@ -568,11 +575,23 @@ router.post("/picks", requireAuth, async (req, res) => {
         .where(eq(entriesTable.id, entry.id));
     }
 
+    if (!isSandbox) {
+      pickConfirmation = await persistConfidencePickemWeekConfirmation(tx, pool, req.user!, {
+        week,
+        games: slateGames,
+        periodKey: `week:${week}`,
+      });
+    }
+
     return { ok: true as const, saved };
   });
   if (!saveResult.ok) {
     res.status(saveResult.status).json({ error: saveResult.error });
     return;
+  }
+
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
   }
 
   req.log.info({ poolId, userId, week, saved: saveResult.saved }, "NFL Confidence picks submitted");
