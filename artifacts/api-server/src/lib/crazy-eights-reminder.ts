@@ -15,7 +15,9 @@ import {
   type CrazyEightsPeriodPool,
 } from "./crazy-eights-periods";
 import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
-import { nbaSaturdaySixPmLockInstant } from "./nba-slate-reveal";
+import {
+  buildNbaWeekendPickReminderResolution,
+} from "./nba-weekend-pick-reminders";
 import { nhlSaturdayEtDateFromBounds, nhlSaturdaySevenPmLockInstant } from "./nhl-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 
@@ -183,18 +185,22 @@ export async function resolveCrazyEightsReminderDeadline(
   }
 
   if (period.kind === "range" || period.kind === "week") {
-    const slateIsos = period.games.map((game) => game.date);
     const periodMeta = resolveCrazyEightsPeriod(toCrazyEightsPeriodPool(pool), undefined);
     if (!periodMeta || periodMeta.viewingPastPeriod) return null;
 
-    const saturdayFallback = pool.sport === "nhl"
-      ? nhlSaturdayEtDateFromBounds(periodMeta.weekStart)
-      : periodMeta.weekStart;
+    if (pool.sport === "nba") {
+      return buildNbaWeekendPickReminderResolution(
+        pool,
+        period.games,
+        periodMeta.weekStart,
+        periodMeta.weekEnd,
+        period,
+      );
+    }
 
-    const deadline = pool.sport === "nba"
-      ? nbaSaturdaySixPmLockInstant(slateIsos, saturdayFallback)
-      : nhlSaturdaySevenPmLockInstant(slateIsos, saturdayFallback);
-
+    const slateIsos = period.games.map((game) => game.date);
+    const saturdayFallback = nhlSaturdayEtDateFromBounds(periodMeta.weekStart);
+    const deadline = nhlSaturdaySevenPmLockInstant(slateIsos, saturdayFallback);
     if (!deadline) return null;
 
     return {

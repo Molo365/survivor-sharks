@@ -1,31 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { nbaSaturdaySixPmLockInstant } from "./nba-slate-reveal";
-import { reminderStageForDeadline, reminderTimingFromGames } from "./pick-reminder-windows";
+import {
+  reminderStageBeforeFirstTip,
+  reminderStageForDeadline,
+} from "./pick-reminder-windows";
 import { getNbaAtsPicksOpenInstant } from "./nba-ats-period";
 
-test("NBA ATS reminders anchor to Saturday 6 PM ET, not the first kickoff", () => {
-  const thursdayKickoff = "2025-10-23T00:15:00.000Z";
-  const saturdayEt = "2025-10-25";
-  const slateIsos = [thursdayKickoff, "2025-10-26T02:00:00.000Z"];
-  const poolLock = nbaSaturdaySixPmLockInstant(slateIsos, saturdayEt);
-  const legacyFirstGame = reminderTimingFromGames({
-    kind: "pickem",
-    start: "2025-10-23",
-    end: "2025-10-26",
-    week: 1,
-    games: [{ date: thursdayKickoff }],
-  });
-  assert.ok(poolLock);
-  assert.ok(legacyFirstGame);
-  assert.notEqual(poolLock!.toISOString(), legacyFirstGame!.deadline.toISOString());
-  const wednesdayBeforeThursdayKick = new Date(new Date(thursdayKickoff).getTime() - 20 * 60 * 60 * 1000);
-  assert.equal(
-    reminderStageForDeadline(wednesdayBeforeThursdayKick, legacyFirstGame!.deadline),
-    "24h",
-  );
-  assert.equal(reminderStageForDeadline(wednesdayBeforeThursdayKick, poolLock!), null);
+test("NBA weekend pick reminder fires 3–5 hours before first tip, not on Saturday", () => {
+  const firstTip = new Date("2025-10-31T23:00:00.000Z"); // 7 PM ET (approx)
+  const fourHoursBefore = new Date(firstTip.getTime() - 4 * 60 * 60 * 1000);
+  const saturdayLock = new Date("2025-11-01T22:00:00.000Z");
+
+  assert.equal(reminderStageBeforeFirstTip(fourHoursBefore, firstTip), "24h");
+  assert.equal(reminderStageForDeadline(fourHoursBefore, saturdayLock), null);
+  assert.equal(reminderStageBeforeFirstTip(new Date(firstTip.getTime() - 2 * 60 * 60 * 1000), firstTip), null);
+  assert.equal(reminderStageBeforeFirstTip(new Date(firstTip.getTime() - 6 * 60 * 60 * 1000), firstTip), null);
 });
 
 test("NBA weekend pick sheet opens Tuesday 6 AM ET before the Friday slate", () => {
