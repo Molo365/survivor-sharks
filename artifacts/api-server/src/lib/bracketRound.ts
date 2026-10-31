@@ -76,3 +76,66 @@ export async function getCurrentBracketRoundEventIds(poolId: number): Promise<st
   // All available rounds are fully graded — return last round's IDs (graded_waiting)
   return lastGames.map((g) => g.espnEventId);
 }
+
+export type WcBracketRoundPhase = "open" | "in_progress" | "graded_waiting";
+
+/** Current bracket round metadata for pick reminders (open round only). */
+export async function resolveWcBracketOpenRound(
+  poolId: number,
+  now: Date = new Date(),
+): Promise<{
+  round: string;
+  status: WcBracketRoundPhase;
+  eventIds: string[];
+  firstKickoff: Date;
+} | null> {
+  const [allMatches, dbResults] = await Promise.all([
+    fetchWcBracketMatches(),
+    db
+      .select({ espnEventId: wcBracketResultsTable.espnEventId })
+      .from(wcBracketResultsTable)
+      .where(eq(wcBracketResultsTable.poolId, poolId)),
+  ]);
+
+  if (allMatches.length === 0) return null;
+
+  const gradedEventIds = new Set(dbResults.map((r) => r.espnEventId));
+  const byRound = new Map<string, typeof allMatches>();
+  for (const m of allMatches) {
+    if (!byRound.has(m.round)) byRound.set(m.round, []);
+    byRound.get(m.round)!.push(m);
+  }
+
+  for (const round of ROUND_ORDER) {
+    const games = (byRound.get(round) ?? []).filter(
+      (g) => !isTbdName(g.team1) && !isTbdName(g.team2),
+    );
+    if (games.length === 0) continue;
+
+    const hasUnlocked = games.some((g) => now.getTime() < new Date(g.matchDate).getTime());
+    if (hasUnlocked) {
+      const futureKickoffs = games
+        .map((g) => new Date(g.matchDate).getTime())
+        .filter((ms) => now.getTime() < ms);
+      if (futureKickoffs.length === 0) return null;
+      return {
+        round,
+        status: "open",
+        eventIds: games.map((g) => g.espnEventId),
+        firstKickoff: new Date(Math.min(...futureKickoffs)),
+      };
+    }
+
+    const allGraded = games.every((g) => gradedEventIds.has(g.espnEventId));
+    if (!allGraded) {
+      return {
+        round,
+        status: "in_progress",
+        eventIds: games.map((g) => g.espnEventId),
+        firstKickoff: new Date(Math.min(...games.map((g) => new Date(g.matchDate).getTime()))),
+      };
+    }
+  }
+
+  return null;
+}

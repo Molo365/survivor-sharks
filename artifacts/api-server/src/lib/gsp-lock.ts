@@ -16,6 +16,9 @@ export const GSP_LOCK_FALLBACKS: Readonly<Record<number, Date>> = {
   2026: new Date("2026-06-11T12:00:00.000Z"),
 };
 
+/** Fixed closure threshold for World Cup group stage predictor pools. */
+export const GSP_GROUP_COUNT = 12;
+
 export function resolveGspLock(season: number, options: { now?: Date } = {}): GspLockState {
   const lockAt = GSP_LOCK_FALLBACKS[season] ?? GSP_LOCK_FALLBACKS[2026];
   const now = options.now ?? new Date();

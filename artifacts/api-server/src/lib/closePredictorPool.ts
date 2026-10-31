@@ -4,17 +4,8 @@ import { eq, and, inArray, count } from "drizzle-orm";
 import type { Logger } from "pino";
 import { calcPrize } from "./prizeCalc";
 export { scoreNhlDivisionPositions } from "./nhl-scoring";
-
-/**
- * FIFA World Cup 2026 has 12 groups (A–L).
- * This is the fixed closure threshold for all GSP pools.
- *
- * Do NOT replace this with standings.length from a live ESPN call —
- * the standings endpoint returns different counts depending on tournament
- * phase, API availability, and caching. Using a live value means closure
- * never fires when the API is down or returns fewer groups mid-tournament.
- */
-export const GSP_GROUP_COUNT = 12;
+import { GSP_GROUP_COUNT } from "./gsp-lock";
+export { GSP_GROUP_COUNT };
 
 type PositionTuple = [string, string, string, string];
 
