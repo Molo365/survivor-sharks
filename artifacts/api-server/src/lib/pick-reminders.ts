@@ -15,6 +15,11 @@ import {
   resolveCrazyEightsReminderDeadline,
 } from "./crazy-eights-reminder";
 import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
+import { isNbaAtsPool } from "./nba-ats-period";
+import {
+  nbaWeekendPickRemindersUnblocked,
+  resolveNbaAtsReminderDeadline,
+} from "./nba-weekend-pick-reminders";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -196,6 +201,14 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
       context: { period: resolved.period },
     };
   }
+  if (isNbaAtsPool(pool)) {
+    const resolved = await resolveNbaAtsReminderDeadline(pool);
+    return resolved && {
+      deadline: resolved.deadline,
+      periodKey: resolved.periodKey,
+      context: { period: resolved.period },
+    };
+  }
   const period = await resolvePickemPeriod(pool);
   if (!period) return null;
   const weeklyDates = period.kind === "week"
@@ -261,6 +274,7 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     try {
       const resolved = await (options.resolver ?? resolveReminderDeadline)(pool);
       if (!resolved) continue;
+      if (!(await nbaWeekendPickRemindersUnblocked(pool, now))) continue;
       for (const user of await incompleteUsers(pool, resolved.context)) {
         try {
           const initialTiming = effectiveReminderTiming(resolved, user, now);
