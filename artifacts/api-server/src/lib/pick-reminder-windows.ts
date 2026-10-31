@@ -66,6 +66,9 @@ export function isReminderEligiblePool(
   includeSandbox = false,
 ): boolean {
   const allowsNonRecurring = pool.poolType === "pickem"
+    || pool.poolType === "pickem_season"
+    || pool.poolType === "nfl_confidence"
+    || pool.poolType === "nfl_confidence_weekly"
     || pool.poolType === "nba_ats"
     || pool.poolType === "nfl_division_predictor"
     || pool.poolType === "nhl_division_predictor"

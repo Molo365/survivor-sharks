@@ -341,7 +341,17 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
   const weeklyDates = period.kind === "week"
     ? period.games.map((game) => game.date.slice(0, 10)).sort()
     : [];
-  const timing = reminderTimingFromGames({ kind: "pickem", daily: period.kind === "date", date: period.kind === "date" ? period.date : undefined, start: period.kind === "range" ? period.start : weeklyDates[0], end: period.kind === "range" ? period.end : weeklyDates.at(-1), season: pool.season, week: pool.currentWeek, games: period.games });
+  const timing = reminderTimingFromGames({
+    kind: "pickem",
+    daily: period.kind === "date",
+    date: period.kind === "date" ? period.date : undefined,
+    start: period.kind === "range" ? period.start : weeklyDates[0],
+    end: period.kind === "range" ? period.end : weeklyDates.at(-1),
+    season: pool.season,
+    week: pool.currentWeek,
+    games: period.games,
+    dailyDeadline: period.kind === "date" ? getDailyPickDeadline(period.games) : undefined,
+  });
   return timing && {
     ...timing,
     context: {
@@ -390,7 +400,7 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     eq(poolsTable.isActive, true),
     or(
       eq(poolsTable.isRecurring, true),
-      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket"])),
+      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "pickem_season", "nfl_confidence", "nfl_confidence_weekly", "nba_ats", "nfl_division_predictor", "nhl_division_predictor", "group_stage_predictor", "wc_bracket", "mlb_bracket"])),
     ),
     options.poolIds ? inArray(poolsTable.id, options.poolIds) : undefined,
   ));

@@ -11,6 +11,7 @@ import { and, eq, gte, lte, isNotNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   fetchGamesForDate,
+  fetchIntlGamesForDate,
   fetchNbaGamesByWeek,
   fetchNhlGamesByWeek,
   fetchNflGamesByWeek,
@@ -112,7 +113,10 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
   if (isNbaAtsPreStart(pool)) return null;
 
   if (pool.pickFrequency === "daily") {
-    const games = await fetchGamesForDate("mlb", todayEt.replace(/-/g, ""));
+    const espnDate = todayEt.replace(/-/g, "");
+    const games = sport === "intl"
+      ? await fetchIntlGamesForDate(espnDate)
+      : await fetchGamesForDate(sport, espnDate);
     return {
       kind: "date",
       date: todayEt,
@@ -210,6 +214,28 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
       kind: "date",
       date: todayEt,
       games,
+      gameIds: selectableGameIds(games),
+      confidenceRequired: false,
+    };
+  }
+
+  if (sport === "intl") {
+    const games = await fetchIntlGamesForDate(todayEt.replace(/-/g, ""));
+    return {
+      kind: "date",
+      date: todayEt,
+      games: selectableGames(games),
+      gameIds: selectableGameIds(games),
+      confidenceRequired: false,
+    };
+  }
+
+  if (sport === "nfl") {
+    const seasonType = pool.isPreseason ? 1 : 2;
+    const games = await fetchNflGamesByWeek(pool.currentWeek, pool.season, seasonType);
+    return {
+      kind: "week",
+      games: selectableGames(games),
       gameIds: selectableGameIds(games),
       confidenceRequired: false,
     };
