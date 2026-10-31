@@ -19,7 +19,10 @@ import { isNbaAtsPool } from "./nba-ats-period";
 import {
   nbaWeekendPickRemindersUnblocked,
   resolveNbaAtsReminderDeadline,
+  firstWeekendKickoff,
 } from "./nba-weekend-pick-reminders";
+import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
+import { reminderStageBeforeFirstTip } from "./pick-reminder-windows";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -70,6 +73,7 @@ export type ReminderEligibilityContext = {
   period?: PickemPeriod;
   nflGameIds?: Set<string>;
   perGame?: PerGameReminderContext;
+  nbaFirstTipKickoff?: Date;
 };
 export type ReminderResolution = { deadline: Date; periodKey: string; context: ReminderEligibilityContext };
 
@@ -161,6 +165,18 @@ async function currentReminderTiming(
   return user ? effectiveReminderTiming(resolved, user, now) : null;
 }
 
+function reminderStageForResolvedPool(
+  pool: typeof poolsTable.$inferSelect,
+  now: Date,
+  deadline: Date,
+  nbaFirstTipKickoff?: Date,
+): "24h" | "final" | null {
+  if (nbaFirstTipKickoff && isNbaWeekendOfficePool(pool)) {
+    return reminderStageBeforeFirstTip(now, nbaFirstTipKickoff);
+  }
+  return reminderStageForDeadline(now, deadline);
+}
+
 export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution | null> {
   if (pool.poolType === "pickem_season") {
     const games = await resolveNflSelectableGames(pool);
@@ -195,10 +211,15 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
   }
   if (isCrazyEightsFamilyPoolType(pool.poolType)) {
     const resolved = await resolveCrazyEightsReminderDeadline(pool);
-    return resolved && {
+    if (!resolved) return null;
+    const firstTip = pool.sport === "nba" ? firstWeekendKickoff(resolved.period.games) : undefined;
+    return {
       deadline: resolved.deadline,
       periodKey: resolved.periodKey,
-      context: { period: resolved.period },
+      context: {
+        period: resolved.period,
+        ...(firstTip ? { nbaFirstTipKickoff: firstTip } : {}),
+      },
     };
   }
   if (isNbaAtsPool(pool)) {
@@ -206,7 +227,10 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     return resolved && {
       deadline: resolved.deadline,
       periodKey: resolved.periodKey,
-      context: { period: resolved.period },
+      context: {
+        period: resolved.period,
+        nbaFirstTipKickoff: resolved.nbaFirstTipKickoff,
+      },
     };
   }
   const period = await resolvePickemPeriod(pool);
@@ -278,11 +302,21 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
       for (const user of await incompleteUsers(pool, resolved.context)) {
         try {
           const initialTiming = effectiveReminderTiming(resolved, user, now);
-          if (!initialTiming || !reminderStageForDeadline(now, initialTiming.deadline)) continue;
+          if (!initialTiming || !reminderStageForResolvedPool(
+            pool,
+            now,
+            initialTiming.deadline,
+            resolved.context.nbaFirstTipKickoff,
+          )) continue;
           // Re-read immediately before claim: status/picks may have changed after initial resolution.
           const currentTiming = await currentReminderTiming(pool, user.id, resolved, now);
           if (!currentTiming) continue;
-          const stage = reminderStageForDeadline(now, currentTiming.deadline);
+          const stage = reminderStageForResolvedPool(
+            pool,
+            now,
+            currentTiming.deadline,
+            resolved.context.nbaFirstTipKickoff,
+          );
           if (!stage) continue;
           const [claim] = await db.insert(pickRemindersTable).values({ userId: user.id, poolId: pool.id, periodKey: currentTiming.periodKey, reminderStage: stage }).onConflictDoNothing().returning({ id: pickRemindersTable.id });
           if (!claim) continue;

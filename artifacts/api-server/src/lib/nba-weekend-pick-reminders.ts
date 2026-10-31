@@ -12,10 +12,7 @@ import {
 } from "./nba-ats-period";
 import { loadNbaAtsSpreads } from "./nba-ats-spreads";
 import { loadNbaMoneylines } from "./nba-ml-odds";
-import {
-  isNbaWeekendOfficePool,
-  nbaSaturdaySixPmLockInstant,
-} from "./nba-slate-reveal";
+import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 import { isFastBreakMultiplierPool } from "./fast-break-pool";
 import type { CrazyEightsPickemPeriod } from "./crazy-eights-reminder";
@@ -112,32 +109,67 @@ export async function nbaWeekendPickRemindersUnblocked(
   return true;
 }
 
+export function firstWeekendKickoff(games: EspnGame[]): Date | null {
+  const kickoffs = games
+    .map((game) => new Date(game.date).getTime())
+    .filter(Number.isFinite);
+  if (kickoffs.length === 0) return null;
+  return new Date(Math.min(...kickoffs));
+}
+
+function firstTipEtYmd(kickoff: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(kickoff);
+}
+
+export function buildNbaWeekendPickReminderResolution(
+  pool: typeof poolsTable.$inferSelect,
+  games: EspnGame[],
+  weekStart: string,
+  weekEnd: string,
+  period: CrazyEightsPickemPeriod,
+): {
+  deadline: Date;
+  periodKey: string;
+  period: CrazyEightsPickemPeriod;
+  nbaFirstTipKickoff: Date;
+} | null {
+  const firstTip = firstWeekendKickoff(games);
+  if (!firstTip) return null;
+  const baseKey = reminderPeriodKey({
+    start: weekStart,
+    end: weekEnd,
+    season: pool.season,
+    week: pool.currentWeek,
+  });
+  return {
+    deadline: firstTip,
+    periodKey: `${baseKey}|first-tip:${firstTipEtYmd(firstTip)}`,
+    period,
+    nbaFirstTipKickoff: firstTip,
+  };
+}
+
 export async function resolveNbaAtsReminderDeadline(
   pool: typeof poolsTable.$inferSelect,
-): Promise<{ deadline: Date; periodKey: string; period: CrazyEightsPickemPeriod } | null> {
+): Promise<{
+  deadline: Date;
+  periodKey: string;
+  period: CrazyEightsPickemPeriod;
+  nbaFirstTipKickoff: Date;
+} | null> {
   if (!isNbaAtsPool(pool)) return null;
 
-  const { games, satDate, weekStart, weekEnd } = await fetchNbaWeekendSlateGames(pool);
-  const deadline = nbaSaturdaySixPmLockInstant(
-    games.map((game) => game.date),
-    satDate,
-  );
-  if (!deadline) return null;
-
+  const { games, weekStart, weekEnd } = await fetchNbaWeekendSlateGames(pool);
   const gameIds = new Set(games.map((g) => g.id));
-  return {
-    deadline,
-    periodKey: reminderPeriodKey({
-      start: weekStart,
-      end: weekEnd,
-      season: pool.season,
-      week: pool.currentWeek,
-    }),
-    period: {
-      kind: "week",
-      games,
-      gameIds,
-      confidenceRequired: false,
-    },
-  };
+  return buildNbaWeekendPickReminderResolution(pool, games, weekStart, weekEnd, {
+    kind: "week",
+    games,
+    gameIds,
+    confidenceRequired: false,
+  });
 }

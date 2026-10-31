@@ -8,6 +8,14 @@ export function reminderStageForDeadline(now: Date, deadline: Date): "24h" | "fi
   return null;
 }
 
+/** NBA Fri–Sun pools: one email 3–5 hours before the slate's first tip-off (uses 24h stage). */
+export function reminderStageBeforeFirstTip(now: Date, firstKickoff: Date): "24h" | null {
+  const remaining = firstKickoff.getTime() - now.getTime();
+  const schedulerSlack = 5 * MINUTE;
+  if (remaining >= 3 * 60 * MINUTE && remaining <= 5 * 60 * MINUTE + schedulerSlack) return "24h";
+  return null;
+}
+
 export function reminderPeriodKey(input: { daily?: boolean; date?: string; start?: string; end?: string; season?: number; week: number }): string {
   if (input.daily && input.date) return input.date;
   if (input.start && input.end) return `${input.start}/${input.end}`;
