@@ -126,11 +126,15 @@ export function buildTeamPickConfirmationItems(
     const game = gameMap.get(pick.gameId);
     const pickedIsHome = game?.homeTeam.id === pick.pickedTeamId;
     const pickedIsAway = game?.awayTeam.id === pick.pickedTeamId;
-    const selection = pickedIsHome
+    const teamDisplay = pickedIsHome
       ? game.homeTeam.displayName
       : pickedIsAway
         ? game.awayTeam.displayName
         : pick.pickedTeamName;
+    const customLabel = pick.pickedTeamName?.trim();
+    const selection = customLabel && (pickedIsHome || pickedIsAway) && /[+-]\d/.test(customLabel)
+      ? customLabel
+      : teamDisplay;
     const opponent = pickedIsHome
       ? game?.awayTeam.displayName
       : pickedIsAway
@@ -142,6 +146,37 @@ export function buildTeamPickConfirmationItems(
       gameTime: game?.date ?? null,
     };
   });
+}
+
+export function buildConfidenceTeamPickConfirmationItems(
+  picks: Array<SubmittedConfirmationPick & { confidencePoints?: number | null }>,
+  games: ConfirmationGame[],
+): PickConfirmationItem[] {
+  return buildTeamPickConfirmationItems(picks, games).map((item, index) => {
+    const confidence = picks[index]?.confidencePoints;
+    if (confidence == null) return item;
+    return { ...item, selection: `${item.selection} (${confidence} pts)` };
+  });
+}
+
+export function buildStandingOrderPickConfirmationItems(
+  groups: Array<{ label: string; positions: string[] }>,
+): PickConfirmationItem[] {
+  return groups.map((group) => ({
+    selection: `${group.label}: ${group.positions.map((team, index) => `${index + 1}. ${team}`).join(", ")}`,
+    matchup: null,
+    gameTime: null,
+  }));
+}
+
+export function buildLabeledPickConfirmationItems(
+  items: Array<{ selection: string; matchup?: string | null; gameTime?: string | null }>,
+): PickConfirmationItem[] {
+  return items.map((item) => ({
+    selection: item.selection,
+    matchup: item.matchup ?? null,
+    gameTime: item.gameTime ?? null,
+  }));
 }
 
 export function buildThreeWayPickConfirmationItems(

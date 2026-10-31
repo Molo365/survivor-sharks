@@ -1494,6 +1494,32 @@ router.post("/picks", requireAuth, async (req, res) => {
       periodKey: `nhl-week-${pool.currentWeek}`,
     });
   }
+  if (isLiveNbaAts) {
+    const currentPicks = await tx.select({
+      gameId: pickemPicksTable.gameId,
+      pickedTeamId: pickemPicksTable.pickedTeamId,
+      pickedTeamName: pickemPicksTable.pickedTeamName,
+    }).from(pickemPicksTable).where(and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.userId, userId),
+      eq(pickemPicksTable.week, pool.currentWeek),
+    ));
+    const periodPicks = currentPicks.filter((pick) => confirmationGameMap.has(pick.gameId));
+    const atsBounds = getNbaAtsSlateBoundsForPool(pool, pool.currentWeek);
+    sharedConfirmation = makePickConfirmation({
+      toEmail: req.user!.email,
+      username: req.user!.username,
+      poolName: pool.name,
+      picks: buildTeamPickConfirmationItems(periodPicks, [...confirmationGameMap.values()]),
+    });
+    await insertPickConfirmation(tx, sharedConfirmation, {
+      userId,
+      poolId,
+      poolType: String(pool.poolType),
+      sport,
+      periodKey: `${atsBounds.days[0]}/${atsBounds.days.at(-1)}`,
+    });
+  }
   });
   if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
 

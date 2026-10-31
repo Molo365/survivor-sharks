@@ -29,6 +29,12 @@ import {
   nbaSaturdaySixPmLockInstant,
   nbaWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nba-slate-reveal";
+import {
+  buildConfidenceTeamPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "../lib/fast-break-pool";
 import { decimalOddsForTeam, loadNbaMoneylines } from "../lib/nba-ml-odds";
 import { crazyEightsCorrectPickPoints } from "../lib/crazy-eights-scoring";
@@ -1328,6 +1334,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       }
     }
 
+    let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
     const submission = await db.transaction(async (tx) => {
       await tx
         .select({ id: entriesTable.id })
@@ -1392,11 +1399,50 @@ router.post("/picks", requireAuth, async (req, res) => {
         } as any)
         .where(eq(entriesTable.id, entry.id));
 
+      if (!isSandbox) {
+        const currentPicks = await tx
+          .select({
+            gameId: pickemPicksTable.gameId,
+            pickedTeamId: pickemPicksTable.pickedTeamId,
+            pickedTeamName: pickemPicksTable.pickedTeamName,
+            confidencePoints: pickemPicksTable.confidencePoints,
+          })
+          .from(pickemPicksTable)
+          .where(and(
+            eq(pickemPicksTable.poolId, poolId),
+            eq(pickemPicksTable.userId, userId),
+            eq(pickemPicksTable.week, pool.currentWeek),
+          ));
+        const confirmationGames = games.map((game) => ({
+          id: game.id,
+          date: game.date,
+          homeTeam: { id: game.homeTeam.id, displayName: game.homeTeam.displayName },
+          awayTeam: { id: game.awayTeam.id, displayName: game.awayTeam.displayName },
+        }));
+        pickConfirmation = makePickConfirmation({
+          toEmail: req.user!.email,
+          username: req.user!.username,
+          poolName: pool.name,
+          picks: buildConfidenceTeamPickConfirmationItems(currentPicks, confirmationGames),
+        });
+        await insertPickConfirmation(tx, pickConfirmation, {
+          userId,
+          poolId,
+          poolType: String(pool.poolType),
+          sport: String(pool.sport),
+          periodKey: `nba-weekend-${pool.currentWeek}`,
+        });
+      }
+
       return { alreadySubmitted: false as const, saved };
     });
     if (submission.alreadySubmitted) {
       res.status(409).json({ error: "Your picks are already submitted and locked for this period.", alreadySubmitted: true });
       return;
+    }
+
+    if (pickConfirmation) {
+      deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
     }
 
     res.status(201).json({ ok: true, saved: submission.saved, message: "Fast Break picks submitted successfully" });
