@@ -1,4 +1,4 @@
-import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable } from "@workspace/db";
+import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable } from "@workspace/db";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { getDailyPickDeadline, getMlbWeekBounds, getTodayEtDate, fetchGamesForDate, fetchNbaGamesByWeek, fetchNflGamesByWeek, fetchNhlGamesByWeek, NBA_SANDBOX_ANCHOR, NHL_SANDBOX_ANCHOR, type EspnGame } from "./espn";
 import { sendPickReminderEmail } from "./mailer";
@@ -23,6 +23,11 @@ import {
 import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
 import { isNhlWeekendOfficePool } from "./nhl-slate-reveal";
 import { reminderStageBeforeFirstTip } from "./pick-reminder-windows";
+import {
+  isDivisionPredictorPool,
+  requiredDivisionPickCount,
+  resolveDivisionPredictorReminderDeadline,
+} from "./division-predictor-reminder";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
 const MINUTE = 60_000;
@@ -100,6 +105,32 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     .where(and(eq(entriesTable.poolId, pool.id), onlyUserId === undefined ? undefined : eq(usersTable.id, onlyUserId)));
   const memberById = new Map(members.map((member) => [member.id, member]));
   if (members.length === 0) return [];
+  if (isDivisionPredictorPool(pool.poolType)) {
+    const required = requiredDivisionPickCount(pool.poolType);
+    const pickTable = pool.poolType === "nfl_division_predictor"
+      ? nflDivisionPredictorPicksTable
+      : nhlDivisionPredictorPicksTable;
+    const rows = await db
+      .select({ userId: pickTable.userId, divisionName: pickTable.divisionName })
+      .from(pickTable)
+      .where(eq(pickTable.poolId, pool.id));
+    const divisionsByUser = new Map<number, Set<string>>();
+    for (const row of rows) {
+      if (!divisionsByUser.has(row.userId)) divisionsByUser.set(row.userId, new Set());
+      divisionsByUser.get(row.userId)!.add(row.divisionName);
+    }
+    const completed = new Set(
+      members.filter((member) => (divisionsByUser.get(member.id)?.size ?? 0) >= required).map((member) => member.id),
+    );
+    const ids = incompleteEligibleUserIds(
+      members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })),
+      completed,
+      false,
+    );
+    return ids
+      .filter((id) => onlyUserId === undefined || id === onlyUserId)
+      .map((id) => ({ id, email: memberById.get(id)!.email, submittedGameIds: new Set<string>() }));
+  }
   if (SURVIVOR_TYPES.has(pool.poolType)) {
     const rows = await db.select({ userId: picksTable.userId }).from(picksTable).where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, pool.currentWeek), pool.pickFrequency === "daily" ? eq(picksTable.pickDate, getTodayEtDate()) : undefined));
     const ids = incompleteEligibleUserIds(members.map((member) => ({ ...member, emailVerified: member.emailVerifiedAt !== null })), new Set(rows.map((row) => row.userId)), true);
@@ -184,6 +215,10 @@ function reminderStageForResolvedPool(
 }
 
 export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSelect): Promise<ReminderResolution | null> {
+  if (isDivisionPredictorPool(pool.poolType)) {
+    const timing = await resolveDivisionPredictorReminderDeadline(pool);
+    return timing && { ...timing, context: {} };
+  }
   if (pool.poolType === "pickem_season") {
     const games = await resolveNflSelectableGames(pool);
     const timing = reminderTimingFromGames({ kind: "pickem", season: pool.season, week: pool.currentWeek, games });
@@ -292,7 +327,7 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
     eq(poolsTable.isActive, true),
     or(
       eq(poolsTable.isRecurring, true),
-      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats"])),
+      and(eq(poolsTable.isRecurring, false), inArray(poolsTable.poolType, ["pickem", "nba_ats", "nfl_division_predictor", "nhl_division_predictor"])),
     ),
     options.poolIds ? inArray(poolsTable.id, options.poolIds) : undefined,
   ));

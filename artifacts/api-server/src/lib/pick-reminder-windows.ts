@@ -65,12 +65,15 @@ export function isReminderEligiblePool(
   pool: { isActive: boolean; isRecurring: boolean; sandboxMode?: boolean; poolType: string },
   includeSandbox = false,
 ): boolean {
-  const allowsNonRecurring = pool.poolType === "pickem" || pool.poolType === "nba_ats";
+  const allowsNonRecurring = pool.poolType === "pickem"
+    || pool.poolType === "nba_ats"
+    || pool.poolType === "nfl_division_predictor"
+    || pool.poolType === "nhl_division_predictor";
   return pool.isActive
     && (pool.isRecurring || (!pool.isRecurring && allowsNonRecurring))
     && (includeSandbox || !pool.sandboxMode)
     && new Set([
-    "pickem", "pickem_season", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "crazy_8s", "fast_break_multiplier",
+    "pickem", "pickem_season", "nba_ats", "season", "weekly", "mid_season", "dirty_dozen", "nfl_confidence", "nfl_confidence_weekly", "crazy_8s", "fast_break_multiplier", "nfl_division_predictor", "nhl_division_predictor",
     ]).has(pool.poolType);
 }
 
