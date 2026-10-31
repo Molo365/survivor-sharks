@@ -126,7 +126,8 @@ function firstTipEtYmd(kickoff: Date): string {
   }).format(kickoff);
 }
 
-export function buildNbaWeekendPickReminderResolution(
+/** NBA weekend office + NHL Crazy 8s: email 3–5 hours before the slate's first puck/tip. */
+export function buildWeekendFirstKickoffPickReminderResolution(
   pool: typeof poolsTable.$inferSelect,
   games: EspnGame[],
   weekStart: string,
@@ -136,10 +137,10 @@ export function buildNbaWeekendPickReminderResolution(
   deadline: Date;
   periodKey: string;
   period: CrazyEightsPickemPeriod;
-  nbaFirstTipKickoff: Date;
+  weekendFirstKickoff: Date;
 } | null {
-  const firstTip = firstWeekendKickoff(games);
-  if (!firstTip) return null;
+  const firstKickoff = firstWeekendKickoff(games);
+  if (!firstKickoff) return null;
   const baseKey = reminderPeriodKey({
     start: weekStart,
     end: weekEnd,
@@ -147,12 +148,15 @@ export function buildNbaWeekendPickReminderResolution(
     week: pool.currentWeek,
   });
   return {
-    deadline: firstTip,
-    periodKey: `${baseKey}|first-tip:${firstTipEtYmd(firstTip)}`,
+    deadline: firstKickoff,
+    periodKey: `${baseKey}|first-tip:${firstTipEtYmd(firstKickoff)}`,
     period,
-    nbaFirstTipKickoff: firstTip,
+    weekendFirstKickoff: firstKickoff,
   };
 }
+
+/** @deprecated Use buildWeekendFirstKickoffPickReminderResolution */
+export const buildNbaWeekendPickReminderResolution = buildWeekendFirstKickoffPickReminderResolution;
 
 export async function resolveNbaAtsReminderDeadline(
   pool: typeof poolsTable.$inferSelect,
@@ -160,13 +164,13 @@ export async function resolveNbaAtsReminderDeadline(
   deadline: Date;
   periodKey: string;
   period: CrazyEightsPickemPeriod;
-  nbaFirstTipKickoff: Date;
+  weekendFirstKickoff: Date;
 } | null> {
   if (!isNbaAtsPool(pool)) return null;
 
   const { games, weekStart, weekEnd } = await fetchNbaWeekendSlateGames(pool);
   const gameIds = new Set(games.map((g) => g.id));
-  return buildNbaWeekendPickReminderResolution(pool, games, weekStart, weekEnd, {
+  return buildWeekendFirstKickoffPickReminderResolution(pool, games, weekStart, weekEnd, {
     kind: "week",
     games,
     gameIds,

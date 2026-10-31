@@ -16,9 +16,8 @@ import {
 } from "./crazy-eights-periods";
 import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
 import {
-  buildNbaWeekendPickReminderResolution,
+  buildWeekendFirstKickoffPickReminderResolution,
 } from "./nba-weekend-pick-reminders";
-import { nhlSaturdayEtDateFromBounds, nhlSaturdaySevenPmLockInstant } from "./nhl-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 
 export type CrazyEightsPickemPeriod =
@@ -156,7 +155,12 @@ export async function resolveCrazyEightsPickemPeriod(
 
 export async function resolveCrazyEightsReminderDeadline(
   pool: typeof poolsTable.$inferSelect,
-): Promise<{ deadline: Date; periodKey: string; period: CrazyEightsPickemPeriod } | null> {
+): Promise<{
+  deadline: Date;
+  periodKey: string;
+  period: CrazyEightsPickemPeriod;
+  weekendFirstKickoff?: Date;
+} | null> {
   const period = await resolveCrazyEightsPickemPeriod(pool);
   if (!period) return null;
 
@@ -188,8 +192,8 @@ export async function resolveCrazyEightsReminderDeadline(
     const periodMeta = resolveCrazyEightsPeriod(toCrazyEightsPeriodPool(pool), undefined);
     if (!periodMeta || periodMeta.viewingPastPeriod) return null;
 
-    if (pool.sport === "nba") {
-      return buildNbaWeekendPickReminderResolution(
+    if (pool.sport === "nba" || pool.sport === "nhl") {
+      return buildWeekendFirstKickoffPickReminderResolution(
         pool,
         period.games,
         periodMeta.weekStart,
@@ -197,22 +201,6 @@ export async function resolveCrazyEightsReminderDeadline(
         period,
       );
     }
-
-    const slateIsos = period.games.map((game) => game.date);
-    const saturdayFallback = nhlSaturdayEtDateFromBounds(periodMeta.weekStart);
-    const deadline = nhlSaturdaySevenPmLockInstant(slateIsos, saturdayFallback);
-    if (!deadline) return null;
-
-    return {
-      deadline,
-      periodKey: reminderPeriodKey({
-        start: periodMeta.weekStart,
-        end: periodMeta.weekEnd,
-        season: pool.season,
-        week: pool.currentWeek,
-      }),
-      period,
-    };
   }
 
   return null;
