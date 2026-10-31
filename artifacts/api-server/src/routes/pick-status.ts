@@ -31,6 +31,7 @@ import {
   getSandboxGamesForWeek,
   replayRowToPickEmShape,
 } from "../lib/nfl2025Schedule";
+import { fetchWcGamesForDate, getWcPhase, wcGameToEspnGame } from "../lib/wc";
 
 const router = Router({ mergeParams: true });
 
@@ -197,6 +198,19 @@ export async function resolvePickemPeriod(pool: typeof poolsTable.$inferSelect):
       end: clOpen.openPeriod.weekEnd,
       games: periodGames,
       gameIds: openIds,
+      confidenceRequired: false,
+    };
+  }
+
+  if (sport === "worldcup") {
+    if (!getWcPhase(todayEt)) return null;
+    const wcGames = await fetchWcGamesForDate(todayEt);
+    const games = selectableGames(wcGames.map(wcGameToEspnGame));
+    return {
+      kind: "date",
+      date: todayEt,
+      games,
+      gameIds: selectableGameIds(games),
       confidenceRequired: false,
     };
   }
