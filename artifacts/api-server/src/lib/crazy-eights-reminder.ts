@@ -19,7 +19,7 @@ import { nbaSaturdaySixPmLockInstant } from "./nba-slate-reveal";
 import { nhlSaturdayEtDateFromBounds, nhlSaturdaySevenPmLockInstant } from "./nhl-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 
-type CrazyEightsPickemPeriod =
+export type CrazyEightsPickemPeriod =
   | { kind: "week"; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean }
   | { kind: "date"; date: string; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean }
   | { kind: "range"; start: string; end: string; games: EspnGame[]; gameIds: Set<string>; confidenceRequired: boolean };
