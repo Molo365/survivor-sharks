@@ -70,13 +70,15 @@ export function mergeChampionsLeaguePeriodsWithLiveSlate(
   if (slateDates.length === 0) {
     return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   }
-  const slatePeriod = toPoolPeriod(slateDates);
-  const overlapsSlate = periods.some(
-    (period) =>
-      period.weekStart === slatePeriod.weekStart
-      || period.dates.some((date) => slatePeriod.dates.includes(date)),
-  );
-  if (!overlapsSlate) periods.push(slatePeriod);
+  const slatePeriods = groupSortedDatesIntoChampionsLeaguePeriods(slateDates).map(toPoolPeriod);
+  for (const slatePeriod of slatePeriods) {
+    const overlapsSlate = periods.some(
+      (period) =>
+        period.weekStart === slatePeriod.weekStart
+        || period.dates.some((date) => slatePeriod.dates.includes(date)),
+    );
+    if (!overlapsSlate) periods.push(slatePeriod);
+  }
   return periods.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 }
 
