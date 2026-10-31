@@ -7,6 +7,12 @@ import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 import { fetchNhlDivisionStandings } from "../lib/espn";
 import { closePredictorPool, scoreNhlDivisionPositions } from "../lib/closePredictorPool";
 import { SubmitNhlNdpPicksBody, SubmitNhlNdpResultsBody } from "@workspace/api-zod";
+import {
+  buildStandingOrderPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 // The Montreal Canadiens' final regular-season points total is familiar to the
@@ -89,20 +95,50 @@ router.post("/picks", requireAuth, async (req, res): Promise<void> => {
   }
   for (const pick of picks) { const error = validateDivision(pick.divisionName, teams(pick)); if (error) { res.status(400).json({ error: `${pick.divisionName}: ${error}` }); return; } }
   const poolId = pool.id, userId = req.user!.id;
-  await db.insert(nhlDivisionPredictorPicksTable).values(picks.map((pick) => ({ poolId, userId, ...pick }))).onConflictDoUpdate({
-    target: [nhlDivisionPredictorPicksTable.poolId, nhlDivisionPredictorPicksTable.userId, nhlDivisionPredictorPicksTable.divisionName],
-    set: {
-      pos1Team: sql`excluded.pos1_team`, pos2Team: sql`excluded.pos2_team`,
-      pos3Team: sql`excluded.pos3_team`, pos4Team: sql`excluded.pos4_team`,
-      pos5Team: sql`excluded.pos5_team`, pos6Team: sql`excluded.pos6_team`,
-      pos7Team: sql`excluded.pos7_team`, pos8Team: sql`excluded.pos8_team`,
-      updatedAt: new Date(),
-    },
+  let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+  await db.transaction(async (tx) => {
+    await tx.insert(nhlDivisionPredictorPicksTable).values(picks.map((pick) => ({ poolId, userId, ...pick }))).onConflictDoUpdate({
+      target: [nhlDivisionPredictorPicksTable.poolId, nhlDivisionPredictorPicksTable.userId, nhlDivisionPredictorPicksTable.divisionName],
+      set: {
+        pos1Team: sql`excluded.pos1_team`, pos2Team: sql`excluded.pos2_team`,
+        pos3Team: sql`excluded.pos3_team`, pos4Team: sql`excluded.pos4_team`,
+        pos5Team: sql`excluded.pos5_team`, pos6Team: sql`excluded.pos6_team`,
+        pos7Team: sql`excluded.pos7_team`, pos8Team: sql`excluded.pos8_team`,
+        updatedAt: new Date(),
+      },
+    });
+    await tx.insert(nhlDivisionPredictorTiebreakersTable).values({ poolId, userId, tbGuess }).onConflictDoUpdate({
+      target: [nhlDivisionPredictorTiebreakersTable.poolId, nhlDivisionPredictorTiebreakersTable.userId],
+      set: { tbGuess, updatedAt: new Date() },
+    });
+
+    if (!pool.sandboxMode) {
+      const savedRows = await tx
+        .select()
+        .from(nhlDivisionPredictorPicksTable)
+        .where(and(eq(nhlDivisionPredictorPicksTable.poolId, poolId), eq(nhlDivisionPredictorPicksTable.userId, userId)));
+      savedRows.sort((a, b) => a.divisionName.localeCompare(b.divisionName));
+      pickConfirmation = makePickConfirmation({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: pool.name,
+        picks: buildStandingOrderPickConfirmationItems(savedRows.map((row) => ({
+          label: row.divisionName,
+          positions: [row.pos1Team, row.pos2Team, row.pos3Team, row.pos4Team, row.pos5Team, row.pos6Team, row.pos7Team, row.pos8Team],
+        }))),
+      });
+      await insertPickConfirmation(tx, pickConfirmation, {
+        userId,
+        poolId,
+        poolType: String(pool.poolType),
+        sport: String(pool.sport),
+        periodKey: `nhl-ndp-${pool.season}`,
+      });
+    }
   });
-  await db.insert(nhlDivisionPredictorTiebreakersTable).values({ poolId, userId, tbGuess }).onConflictDoUpdate({
-    target: [nhlDivisionPredictorTiebreakersTable.poolId, nhlDivisionPredictorTiebreakersTable.userId],
-    set: { tbGuess, updatedAt: new Date() },
-  });
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
+  }
   res.json(picks);
 });
 

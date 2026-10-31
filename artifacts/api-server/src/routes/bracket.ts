@@ -10,6 +10,12 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { fetchWcBracketMatches, getWcTeamInfo } from "../lib/wc";
+import {
+  buildLabeledPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -269,21 +275,62 @@ router.post("/picks", requireAuth, async (req, res) => {
   }
 
   if (toInsert.length > 0) {
-    await db
-      .insert(wcBracketPicksTable)
-      .values(toInsert)
-      .onConflictDoUpdate({
-        target: [
-          wcBracketPicksTable.poolId,
-          wcBracketPicksTable.userId,
-          wcBracketPicksTable.espnEventId,
-        ],
-        set: {
-          pickedTeam: sql`excluded.picked_team`,
-          isCorrect: null,
-          updatedAt: new Date(),
-        },
-      });
+    let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(wcBracketPicksTable)
+        .values(toInsert)
+        .onConflictDoUpdate({
+          target: [
+            wcBracketPicksTable.poolId,
+            wcBracketPicksTable.userId,
+            wcBracketPicksTable.espnEventId,
+          ],
+          set: {
+            pickedTeam: sql`excluded.picked_team`,
+            isCorrect: null,
+            updatedAt: new Date(),
+          },
+        });
+
+      if (!pool.sandboxMode) {
+        const roundPicks = await tx
+          .select()
+          .from(wcBracketPicksTable)
+          .where(and(
+            eq(wcBracketPicksTable.poolId, poolId),
+            eq(wcBracketPicksTable.userId, userId),
+            eq(wcBracketPicksTable.round, openRound),
+          ));
+        roundPicks.sort((a, b) => a.matchSlot - b.matchSlot || a.espnEventId.localeCompare(b.espnEventId));
+        pickConfirmation = makePickConfirmation({
+          toEmail: req.user!.email,
+          username: req.user!.username,
+          poolName: pool.name,
+          picks: buildLabeledPickConfirmationItems(roundPicks.map((pick) => {
+            const match = matchByEvent.get(pick.espnEventId);
+            const opponent = match && pick.pickedTeam === match.team1 ? match.team2 : match?.team1;
+            return {
+              selection: pick.pickedTeam,
+              matchup: match
+                ? `${ROUND_LABEL[openRound] ?? openRound}: vs. ${opponent ?? "TBD"}`
+                : ROUND_LABEL[openRound] ?? openRound,
+              gameTime: match?.matchDate ?? null,
+            };
+          })),
+        });
+        await insertPickConfirmation(tx, pickConfirmation, {
+          userId,
+          poolId,
+          poolType: String(pool.poolType),
+          sport: String(pool.sport),
+          periodKey: `${openRound}`,
+        });
+      }
+    });
+    if (pickConfirmation) {
+      deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
+    }
   }
 
   res.json({

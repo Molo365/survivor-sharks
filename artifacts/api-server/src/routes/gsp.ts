@@ -12,6 +12,12 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { fetchWcStandings } from "../lib/wc";
 import { closePredictorPool, GSP_GROUP_COUNT, scorePositions } from "../lib/closePredictorPool";
 import { getGspLockState } from "../lib/gsp-lock";
+import {
+  buildStandingOrderPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -163,23 +169,56 @@ router.post("/picks", requireAuth, async (req, res) => {
     pos4Team: p.pos4Team,
   }));
 
-  await db
-    .insert(groupStagePredictorPicksTable)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [
-        groupStagePredictorPicksTable.poolId,
-        groupStagePredictorPicksTable.userId,
-        groupStagePredictorPicksTable.groupName,
-      ],
-      set: {
-        pos1Team: sql`excluded.pos1_team`,
-        pos2Team: sql`excluded.pos2_team`,
-        pos3Team: sql`excluded.pos3_team`,
-        pos4Team: sql`excluded.pos4_team`,
-        updatedAt: new Date(),
-      },
-    });
+  let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(groupStagePredictorPicksTable)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [
+          groupStagePredictorPicksTable.poolId,
+          groupStagePredictorPicksTable.userId,
+          groupStagePredictorPicksTable.groupName,
+        ],
+        set: {
+          pos1Team: sql`excluded.pos1_team`,
+          pos2Team: sql`excluded.pos2_team`,
+          pos3Team: sql`excluded.pos3_team`,
+          pos4Team: sql`excluded.pos4_team`,
+          updatedAt: new Date(),
+        },
+      });
+
+    if (!pool.sandboxMode) {
+      const savedRows = await tx
+        .select()
+        .from(groupStagePredictorPicksTable)
+        .where(and(
+          eq(groupStagePredictorPicksTable.poolId, poolId),
+          eq(groupStagePredictorPicksTable.userId, userId),
+        ));
+      savedRows.sort((a, b) => a.groupName.localeCompare(b.groupName));
+      pickConfirmation = makePickConfirmation({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: pool.name,
+        picks: buildStandingOrderPickConfirmationItems(savedRows.map((row) => ({
+          label: `Group ${row.groupName}`,
+          positions: [row.pos1Team, row.pos2Team, row.pos3Team, row.pos4Team],
+        }))),
+      });
+      await insertPickConfirmation(tx, pickConfirmation, {
+        userId,
+        poolId,
+        poolType: String(pool.poolType),
+        sport: String(pool.sport),
+        periodKey: `gsp-${pool.season}`,
+      });
+    }
+  });
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
+  }
 
   const result = await db
     .select()

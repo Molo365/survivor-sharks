@@ -5,6 +5,12 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { processMlbBracketResults } from "../lib/auto-eliminator";
 import { fetchMlbPostseasonSeries, getMlbBracketPickPoints, getMlbTeamAbbreviation, getMlbTeamLogoUrl, MLB_BRACKET_SLOTS, MLB_LENGTH_BONUS_POINTS, MLB_ROUND_LENGTHS, MLB_ROUND_POINTS, resolveMlbBracketSlotTeams, SANDBOX_MLB_FIELD, type MlbSeries } from "../lib/mlb-bracket";
 import { isMlbBracketLocked } from "../lib/mlb-bracket-lock";
+import {
+  buildLabeledPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 const ROUND_LABELS: Record<string, string> = { wild_card: "Wild Card", division_series: "Division Series", league_championship: "League Championship", world_series: "World Series" };
@@ -122,10 +128,40 @@ async function submitPicks(req: any, res: any) {
       res.status(400).json({ error: "Each pick must use an eligible team and valid series length for a canonical slot" }); return;
     }
   }
-  await db.insert(mlbBracketPicksTable).values((picks as Array<any>).map(pick => {
-    const slot = slots.find(slot => slot.seriesSlot === pick.seriesId)!;
-    return { poolId: ctx.poolId, userId: req.user!.id, seriesId: slot.seriesSlot, round: slot.round, seriesSlot: slot.seriesSlot, predictedWinner: pick.predictedWinner, predictedLength: Number(pick.predictedLength) };
-  })).onConflictDoUpdate({ target: [mlbBracketPicksTable.poolId, mlbBracketPicksTable.userId, mlbBracketPicksTable.seriesId], set: { predictedWinner: sql`excluded.predicted_winner`, predictedLength: sql`excluded.predicted_length`, winnerCorrect: null, lengthCorrect: null, updatedAt: new Date() } });
+  let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+  await db.transaction(async (tx) => {
+    await tx.insert(mlbBracketPicksTable).values((picks as Array<any>).map(pick => {
+      const slot = slots.find(slot => slot.seriesSlot === pick.seriesId)!;
+      return { poolId: ctx.poolId, userId: req.user!.id, seriesId: slot.seriesSlot, round: slot.round, seriesSlot: slot.seriesSlot, predictedWinner: pick.predictedWinner, predictedLength: Number(pick.predictedLength) };
+    })).onConflictDoUpdate({ target: [mlbBracketPicksTable.poolId, mlbBracketPicksTable.userId, mlbBracketPicksTable.seriesId], set: { predictedWinner: sql`excluded.predicted_winner`, predictedLength: sql`excluded.predicted_length`, winnerCorrect: null, lengthCorrect: null, updatedAt: new Date() } });
+
+    if (!ctx.pool.sandboxMode) {
+      const savedRows = await tx
+        .select()
+        .from(mlbBracketPicksTable)
+        .where(and(eq(mlbBracketPicksTable.poolId, ctx.poolId), eq(mlbBracketPicksTable.userId, req.user!.id)));
+      savedRows.sort((a, b) => a.seriesSlot.localeCompare(b.seriesSlot));
+      pickConfirmation = makePickConfirmation({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: ctx.pool.name,
+        picks: buildLabeledPickConfirmationItems(savedRows.map((row) => ({
+          selection: `${row.predictedWinner} in ${row.predictedLength}`,
+          matchup: `${ROUND_LABELS[row.round] ?? row.round} (${row.seriesSlot})`,
+        }))),
+      });
+      await insertPickConfirmation(tx, pickConfirmation, {
+        userId: req.user!.id,
+        poolId: ctx.poolId,
+        poolType: String(ctx.pool.poolType),
+        sport: String(ctx.pool.sport),
+        periodKey: `mlb-bracket-${ctx.pool.season}`,
+      });
+    }
+  });
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId: ctx.poolId, userId: req.user!.id, sport: ctx.pool.sport });
+  }
   res.json({ saved: picks.length });
 }
 router.post("/", requireAuth, submitPicks);

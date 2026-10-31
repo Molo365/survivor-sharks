@@ -16,6 +16,12 @@ import { fetchNflDivisionStandings } from "../lib/espn";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { SubmitNdpPicksBody } from "@workspace/api-zod";
 import type { Logger } from "pino";
+import {
+  buildStandingOrderPickConfirmationItems,
+  deliverPickConfirmation,
+  insertPickConfirmation,
+  makePickConfirmation,
+} from "../lib/pick-confirmation";
 
 const router = Router({ mergeParams: true });
 
@@ -263,41 +269,73 @@ router.post("/picks", requireAuth, async (req, res) => {
     pos4Team: p.pos4Team,
   }));
 
-  await db
-    .insert(nflDivisionPredictorPicksTable)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [
-        nflDivisionPredictorPicksTable.poolId,
-        nflDivisionPredictorPicksTable.userId,
-        nflDivisionPredictorPicksTable.divisionName,
-      ],
-      set: {
-        pos1Team: sql`excluded.pos1_team`,
-        pos2Team: sql`excluded.pos2_team`,
-        pos3Team: sql`excluded.pos3_team`,
-        pos4Team: sql`excluded.pos4_team`,
-        updatedAt: new Date(),
-      },
-    });
-
-  // Upsert tiebreaker guesses if provided
-  if (typeof tb1Guess === "number" || typeof tb2Guess === "number") {
-    await db
-      .insert(nflDivisionPredictorTiebreakersTable)
-      .values({
-        poolId,
-        userId,
-        ...(typeof tb1Guess === "number" && { tb1Guess }),
-        ...(typeof tb2Guess === "number" && { tb2Guess }),
-      })
+  let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(nflDivisionPredictorPicksTable)
+      .values(values)
       .onConflictDoUpdate({
-        target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+        target: [
+          nflDivisionPredictorPicksTable.poolId,
+          nflDivisionPredictorPicksTable.userId,
+          nflDivisionPredictorPicksTable.divisionName,
+        ],
         set: {
-          ...(typeof tb1Guess === "number" && { tb1Guess }),
-          ...(typeof tb2Guess === "number" && { tb2Guess }),
+          pos1Team: sql`excluded.pos1_team`,
+          pos2Team: sql`excluded.pos2_team`,
+          pos3Team: sql`excluded.pos3_team`,
+          pos4Team: sql`excluded.pos4_team`,
+          updatedAt: new Date(),
         },
       });
+
+    if (typeof tb1Guess === "number" || typeof tb2Guess === "number") {
+      await tx
+        .insert(nflDivisionPredictorTiebreakersTable)
+        .values({
+          poolId,
+          userId,
+          ...(typeof tb1Guess === "number" && { tb1Guess }),
+          ...(typeof tb2Guess === "number" && { tb2Guess }),
+        })
+        .onConflictDoUpdate({
+          target: [nflDivisionPredictorTiebreakersTable.poolId, nflDivisionPredictorTiebreakersTable.userId],
+          set: {
+            ...(typeof tb1Guess === "number" && { tb1Guess }),
+            ...(typeof tb2Guess === "number" && { tb2Guess }),
+          },
+        });
+    }
+
+    if (!pool.sandboxMode) {
+      const savedRows = await tx
+        .select()
+        .from(nflDivisionPredictorPicksTable)
+        .where(and(
+          eq(nflDivisionPredictorPicksTable.poolId, poolId),
+          eq(nflDivisionPredictorPicksTable.userId, userId),
+        ));
+      savedRows.sort((a, b) => a.divisionName.localeCompare(b.divisionName));
+      pickConfirmation = makePickConfirmation({
+        toEmail: req.user!.email,
+        username: req.user!.username,
+        poolName: pool.name,
+        picks: buildStandingOrderPickConfirmationItems(savedRows.map((row) => ({
+          label: row.divisionName,
+          positions: [row.pos1Team, row.pos2Team, row.pos3Team, row.pos4Team],
+        }))),
+      });
+      await insertPickConfirmation(tx, pickConfirmation, {
+        userId,
+        poolId,
+        poolType: String(pool.poolType),
+        sport: String(pool.sport),
+        periodKey: `ndp-${pool.season}`,
+      });
+    }
+  });
+  if (pickConfirmation) {
+    deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
   }
 
   const result = await db

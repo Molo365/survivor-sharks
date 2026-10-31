@@ -6,6 +6,8 @@ import {
   createPickConfirmationNumber,
 } from "./mailer";
 import {
+  buildConfidenceTeamPickConfirmationItems,
+  buildStandingOrderPickConfirmationItems,
   buildTeamPickConfirmationItems,
   buildThreeWayPickConfirmationItems,
   isSharedPickConfirmationSport,
@@ -71,6 +73,13 @@ test("football and three-way submissions normalize accurate matchup details", ()
       gameTime: "2026-09-08T00:15:00Z",
     }],
   );
+  assert.deepEqual(
+    buildTeamPickConfirmationItems(
+      [{ gameId: "game-1", pickedTeamId: "TOR", pickedTeamName: "Toronto Sharks -3.5" }],
+      games,
+    )[0]?.selection,
+    "Toronto Sharks -3.5",
+  );
   assert.equal(
     buildThreeWayPickConfirmationItems(
       [{ gameId: "game-1", pickedTeamId: "away_win", pickedTeamName: "Away Win" }],
@@ -84,6 +93,29 @@ test("football and three-way submissions normalize accurate matchup details", ()
       games,
     )[0]?.selection,
     "Draw",
+  );
+});
+
+test("confidence and standing-order receipts include readable labels", () => {
+  const games = [{
+    id: "game-1",
+    date: "2026-04-04T23:00:00Z",
+    awayTeam: { id: "BOS", displayName: "Boston Celtics" },
+    homeTeam: { id: "LAL", displayName: "Los Angeles Lakers" },
+  }];
+  assert.equal(
+    buildConfidenceTeamPickConfirmationItems(
+      [{ gameId: "game-1", pickedTeamId: "LAL", pickedTeamName: "Los Angeles Lakers", confidencePoints: 8 }],
+      games,
+    )[0]?.selection,
+    "Los Angeles Lakers (8 pts)",
+  );
+  assert.match(
+    buildStandingOrderPickConfirmationItems([{
+      label: "AFC East",
+      positions: ["Bills", "Dolphins", "Jets", "Patriots"],
+    }])[0]?.selection ?? "",
+    /AFC East: 1\. Bills, 2\. Dolphins/,
   );
 });
 
