@@ -38,6 +38,20 @@ test("adds the live ESPN slate when the pool has no pick history yet", () => {
   );
 });
 
+test("splits flattened ESPN visible/upcoming/lastCompleted dates into separate matchdays", () => {
+  const espnDates = ["2026-10-20", "2026-10-21", "2026-11-03", "2026-11-04"];
+  const merged = mergeChampionsLeaguePeriodsWithLiveSlate([], espnDates);
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged[0]!.dates, ["2026-10-20", "2026-10-21"]);
+  assert.deepEqual(merged[1]!.dates, ["2026-11-03", "2026-11-04"]);
+  const { current } = pickChampionsLeaguePeriodIndices(
+    merged,
+    ["2026-10-20"],
+    ["2026-11-03", "2026-11-04"],
+  );
+  assert.equal(current, 1);
+});
+
 test("groups UEFA matchday dates and splits on long gaps", () => {
   const periods = groupSortedDatesIntoChampionsLeaguePeriods([
     "2026-09-16",
