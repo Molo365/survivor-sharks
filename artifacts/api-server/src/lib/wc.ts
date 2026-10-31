@@ -8,6 +8,7 @@
  * works; games simply stay "scheduled" until openfootball publishes results.
  */
 import { logger } from "./logger";
+import type { EspnGame } from "./espn";
 
 // ---------------------------------------------------------------------------
 // WC 2026 phase windows (dates are YYYY-MM-DD ET)
@@ -434,6 +435,41 @@ export async function fetchTodayWcGames(): Promise<WcGame[]> {
   const todayEt = getTodayEtDate();
   const days = await fetchWcSchedule();
   return days.find((d) => d.dateStr === todayEt)?.games ?? [];
+}
+
+/** Map a normalized WC game into the EspnGame shape used by pick-status and reminders. */
+export function wcGameToEspnGame(g: WcGame): EspnGame {
+  return {
+    id: g.id,
+    date: g.date,
+    status: g.status,
+    homeTeam: {
+      id: g.homeTeam.id,
+      abbreviation: g.homeTeam.abbreviation,
+      displayName: g.homeTeam.displayName,
+      ...(g.homeTeam.logo ? { logo: g.homeTeam.logo } : {}),
+    },
+    awayTeam: {
+      id: g.awayTeam.id,
+      abbreviation: g.awayTeam.abbreviation,
+      displayName: g.awayTeam.displayName,
+      ...(g.awayTeam.logo ? { logo: g.awayTeam.logo } : {}),
+    },
+    homeScore: g.homeScore,
+    awayScore: g.awayScore,
+    homeRecord: null,
+    awayRecord: null,
+    isCompleted: g.isCompleted,
+    isPostponed: false,
+    hasStarted: g.hasStarted,
+    liveState: null,
+    homeStartingPitcher: null,
+    awayStartingPitcher: null,
+    groupLabel: g.groupLabel,
+    seasonType: 2,
+    homeLinescores: [],
+    awayLinescores: [],
+  };
 }
 
 /**
