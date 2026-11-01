@@ -3,6 +3,7 @@ import { fetchNflGamesByWeek, type EspnGame } from "./espn";
 import {
   etWallClockToUtc,
   isNflOfficePool,
+  partitionNflWeekGamesBySubmissionLock,
   primaryNflSundayEtDate,
 } from "./nfl-slate-reveal";
 import { reminderPeriodKey, reminderTimingFromGames } from "./pick-reminder-windows";
@@ -31,6 +32,25 @@ export function isNflOfficeWeeklyReminderPool(
   if (pool.sandboxMode || pool.sport !== "nfl" || !isNflOfficePool(pool)) return false;
   if (pool.pickFrequency === "daily") return false;
   return SURVIVOR_TYPES.has(pool.poolType) || PICKEM_NFL_TYPES.has(pool.poolType);
+}
+
+export function isNflOfficeConfidencePool(poolType: string): boolean {
+  return poolType === "nfl_confidence" || poolType === "nfl_confidence_weekly";
+}
+
+/** Match pick submission: only still-open games count toward reminder completeness. */
+export function nflOfficeConfidenceReminderRequiredGameIds(
+  pool: { sport: string; poolType: string; sandboxMode?: boolean | null },
+  games: EspnGame[],
+  nowMs = Date.now(),
+): Set<string> {
+  const { openGames } = partitionNflWeekGamesBySubmissionLock({
+    pool,
+    games,
+    lockStyle: "five_minute",
+    nowMs,
+  });
+  return new Set(openGames.map((game) => game.id));
 }
 
 function selectableGames(games: EspnGame[]): EspnGame[] {

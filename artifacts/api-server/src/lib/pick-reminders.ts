@@ -35,9 +35,12 @@ import {
 } from "./one-shot-pool-reminders";
 import {
   isNflOfficeWeeklyReminderPool,
+  isNflOfficeConfidencePool,
+  nflOfficeConfidenceReminderRequiredGameIds,
   reminderStageBeforeNflSundayOfficeLock,
   resolveNflOfficeWeekOpenReminder,
   resolveNflSundayOfficeLockReminder,
+  fetchNflOfficeWeekGames,
 } from "./nfl-office-pick-reminders";
 
 const SURVIVOR_TYPES = new Set(["season", "weekly", "mid_season", "dirty_dozen"]);
@@ -240,7 +243,11 @@ async function incompleteUsers(pool: typeof poolsTable.$inferSelect, context: Re
     : context.period ?? (isCrazyEightsFamilyPoolType(pool.poolType)
       ? await resolveCrazyEightsPickemPeriod(pool)
       : await resolvePickemPeriod(pool));
-  const gameIds = period?.gameIds ?? context.nflGameIds ?? await resolveNflGameIds(pool);
+  let gameIds = period?.gameIds ?? context.nflGameIds ?? await resolveNflGameIds(pool);
+  if (isNflOfficeConfidencePool(pool.poolType as string)) {
+    const games = await fetchNflOfficeWeekGames(pool);
+    gameIds = nflOfficeConfidenceReminderRequiredGameIds(pool, games, Date.now());
+  }
   const resolvedContext = period === context.period ? context : { ...context, period: period ?? undefined };
   const condition = pickemPeriodCondition(pool, resolvedContext);
   const rows = await db.select({ userId: pickemPicksTable.userId, gameId: pickemPicksTable.gameId, confidencePoints: pickemPicksTable.confidencePoints })
