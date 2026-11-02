@@ -1065,6 +1065,23 @@ function generateWeekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => offsetDate(weekStart, i));
 }
 
+/** Super League / MLS leaderboard columns — use API week bounds (Fri–Mon or Mon–Sun). */
+function generateWeeklyLeaderboardDays(
+  weekStart: string,
+  weekEnd: string,
+  options: { isNbaAts?: boolean; isSuperLeague?: boolean },
+): string[] {
+  if (options.isNbaAts) return generateAtsDays(weekStart);
+  if (options.isSuperLeague) {
+    const days: string[] = [];
+    for (let cur = weekStart; cur <= weekEnd; cur = offsetDate(cur, 1)) {
+      days.push(cur);
+    }
+    return days;
+  }
+  return generateWeekDays(weekStart);
+}
+
 /** NBA ATS leaderboard columns — weekStart from the API is the Friday of that weekend */
 function generateAtsDays(weekendFriday: string): string[] {
   return [weekendFriday, offsetDate(weekendFriday, 1), offsetDate(weekendFriday, 2)];
@@ -1264,6 +1281,7 @@ interface WeeklyLeaderboardProps {
   weekStart: string;
   weekEnd: string;
   isNbaAts?: boolean;
+  isSuperLeague?: boolean;
   showTiebreakerColumn?: boolean;
   tiebreakerSport?: "nhl" | "nba";
   tiebreakerColumnHeader?: string | null;
@@ -1279,6 +1297,7 @@ function WeeklyLeaderboard({
   weekStart,
   weekEnd,
   isNbaAts,
+  isSuperLeague,
   showTiebreakerColumn,
   tiebreakerSport = "nhl",
   tiebreakerColumnHeader,
@@ -1287,7 +1306,7 @@ function WeeklyLeaderboard({
   tiebreakerMatchup,
 }: WeeklyLeaderboardProps) {
   const todayEt = getTodayEt();
-  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
+  const days = generateWeeklyLeaderboardDays(weekStart, weekEnd, { isNbaAts, isSuperLeague });
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
   const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
     query: {
@@ -1797,6 +1816,7 @@ function PrevWeekResultsModal({
   tiebreakerActualShotsOnGoal: defaultTbShots,
   tiebreakerActualPenaltyMinutes: defaultTbPIM,
   isNbaAts,
+  isSuperLeague,
   tiebreakerColumnHeader: defaultTbHeader,
   tiebreakerMatchup: defaultTbMatchup,
   showTiebreakerColumn,
@@ -1820,6 +1840,7 @@ function PrevWeekResultsModal({
   tiebreakerActualShotsOnGoal?: number | null;
   tiebreakerActualPenaltyMinutes?: number | null;
   isNbaAts?: boolean;
+  isSuperLeague?: boolean;
   tiebreakerColumnHeader?: string | null;
   tiebreakerMatchup?: TiebreakerMatchupGame | null;
   showTiebreakerColumn?: boolean;
@@ -1883,7 +1904,7 @@ function PrevWeekResultsModal({
     tiebreakerSport === "nba" ? entry.tiebreakerPointsGuess : entry.tiebreakerShotsOnGoalGuess;
   const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
 
-  const days = isNbaAts ? generateAtsDays(weekStart) : generateWeekDays(weekStart);
+  const days = generateWeeklyLeaderboardDays(weekStart, weekEnd, { isNbaAts, isSuperLeague });
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
 
   function toggleCell(userId: number, date: string) {
@@ -3354,6 +3375,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       <PrevWeekResultsModal
         open={weekResultsOpen}
         isNbaAts={isNbaAts}
+        isSuperLeague={sport === "superleague"}
         onClose={() => {
           setWeekResultsOpen(false);
           setWeekResultsInitialWeek(undefined);
@@ -4852,6 +4874,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 weekStart={leaderboard.weekStart}
                 weekEnd={leaderboard.weekEnd}
                 isNbaAts={isNbaAts}
+                isSuperLeague={sport === "superleague"}
                 showTiebreakerColumn={(isNhl && isWeekly) || isNbaAts}
                 tiebreakerSport={isNbaAts ? "nba" : "nhl"}
                 tiebreakerColumnHeader={(leaderboard as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? null}
