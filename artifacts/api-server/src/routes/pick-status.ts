@@ -33,6 +33,7 @@ import {
   replayRowToPickEmShape,
 } from "../lib/nfl2025Schedule";
 import { fetchWcGamesForDate, getWcPhase, wcGameToEspnGame } from "../lib/wc";
+import { nflOfficeConfidenceReminderRequiredGameIds } from "../lib/nfl-office-pick-reminders";
 
 const router = Router({ mergeParams: true });
 
@@ -421,9 +422,6 @@ router.get("/", requireAuth, async (req, res) => {
 
   if (["nfl_confidence", "nfl_confidence_weekly", "pickem_season"].includes(pool.poolType as string)) {
     const isPickemSeason = pool.poolType === "pickem_season";
-    const gameIds = isPickemSeason
-      ? await resolveNflOpenGameIds(pool)
-      : await resolveNflGameIds(pool);
     const pickRows = await db
       .select({
         userId: pickemPicksTable.userId,
@@ -436,18 +434,51 @@ router.get("/", requireAuth, async (req, res) => {
         eq(pickemPicksTable.week, pool.currentWeek),
       ));
     const confidenceRequired = !isPickemSeason;
-    let statuses = buildStatuses(
-      members,
-      gameIds.size,
-      countSubmittedPickemGames(pickRows, gameIds, confidenceRequired),
-    );
-    if (isPickemSeason && gameIds.size === 0) {
-      statuses = statuses.map((row) => ({
-        ...row,
-        pickStatus: "submitted" as const,
-        requiredCount: 0,
-      }));
+
+    if (isPickemSeason) {
+      const gameIds = await resolveNflOpenGameIds(pool);
+      let statuses = buildStatuses(
+        members,
+        gameIds.size,
+        countSubmittedPickemGames(pickRows, gameIds, confidenceRequired),
+      );
+      if (gameIds.size === 0) {
+        statuses = statuses.map((row) => ({
+          ...row,
+          pickStatus: "submitted" as const,
+          requiredCount: 0,
+        }));
+      }
+      res.json(statuses);
+      return;
     }
+
+    const selectableGames = await resolveNflSelectableGames(pool);
+    const allWeekGameIds = new Set(selectableGames.map((game) => game.id));
+    const openGameIds = nflOfficeConfidenceReminderRequiredGameIds(
+      pool,
+      selectableGames.map((game) => ({ id: game.id, date: game.date }) as EspnGame),
+    );
+    const weekSubmittedByUser = countSubmittedPickemGames(pickRows, allWeekGameIds, true);
+    const openSubmittedByUser = countSubmittedPickemGames(pickRows, openGameIds, true);
+    const statuses = members.map((member) => {
+      if (openGameIds.size > 0) {
+        const submittedCount = openSubmittedByUser.get(member.userId) ?? 0;
+        return {
+          userId: member.userId,
+          pickStatus: (submittedCount >= openGameIds.size ? "submitted" : "pending") as PickStatus,
+          submittedCount,
+          requiredCount: openGameIds.size,
+        };
+      }
+      const submittedCount = weekSubmittedByUser.get(member.userId) ?? 0;
+      return {
+        userId: member.userId,
+        pickStatus: (submittedCount > 0 ? "submitted" : "pending") as PickStatus,
+        submittedCount,
+        requiredCount: allWeekGameIds.size,
+      };
+    });
     res.json(statuses);
     return;
   }
