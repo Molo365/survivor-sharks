@@ -30,6 +30,55 @@ describe("resolvePickEmLivePickCell ATS", () => {
     assert.equal(state, "live_winning");
   });
 
+  it("grades live 3-way draw pick as winning when level", () => {
+    const game: PickEmLiveGame = {
+      id: "2",
+      startTime: "2026-11-04T20:00:00Z",
+      status: "in_progress",
+      awayScore: 1,
+      homeScore: 1,
+      awayTeam: { id: "a", abbreviation: "RMA" },
+      homeTeam: { id: "h", abbreviation: "LIV" },
+    };
+    const pick = {
+      gameId: "2",
+      pickedTeamId: "draw",
+      pickedTeamName: "Draw",
+      result: "pending" as const,
+    };
+    const { state, abbr } = resolvePickEmLivePickCell(pick, game, {
+      entryUserId: 1,
+      currentUserId: 1,
+      scoringMode: "three_way",
+    });
+    assert.equal(state, "live_winning");
+    assert.equal(abbr, "D");
+  });
+
+  it("grades live 3-way home win pick as losing when away leads", () => {
+    const game: PickEmLiveGame = {
+      id: "3",
+      startTime: "2026-11-04T20:00:00Z",
+      status: "in_progress",
+      awayScore: 2,
+      homeScore: 0,
+      awayTeam: { id: "a", abbreviation: "BAR" },
+      homeTeam: { id: "h", abbreviation: "PSG" },
+    };
+    const pick = {
+      gameId: "3",
+      pickedTeamId: "home_win",
+      pickedTeamName: "Home Win",
+      result: "pending" as const,
+    };
+    const { state } = resolvePickEmLivePickCell(pick, game, {
+      entryUserId: 1,
+      currentUserId: 1,
+      scoringMode: "three_way",
+    });
+    assert.equal(state, "live_losing");
+  });
+
   it("grades live favorite not covering as losing", () => {
     const pick = {
       gameId: "1",
