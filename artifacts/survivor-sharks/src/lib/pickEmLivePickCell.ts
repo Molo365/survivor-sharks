@@ -204,3 +204,27 @@ export function resolvePickEmLivePickCell(
   if (grade === "correct") return { state: "live_winning", abbr };
   return { state: "live_losing", abbr };
 }
+
+/** In-progress picks that would win if the game ended now (not yet in `entry.correct`). */
+export function countPickEmLiveProvisionalCorrect(
+  picks: PickEmPlayerPick[],
+  games: PickEmLiveGame[],
+  opts: {
+    entryUserId: number;
+    currentUserId: number | null;
+    scoringMode?: PickEmLiveScoringMode;
+  },
+): number {
+  const pickMap = new Map(picks.map((p) => [p.gameId, p]));
+  let n = 0;
+  for (const game of games) {
+    const pick = pickMap.get(game.id);
+    const { state } = resolvePickEmLivePickCell(pick, game, {
+      entryUserId: opts.entryUserId,
+      currentUserId: opts.currentUserId,
+      scoringMode: opts.scoringMode ?? "straight",
+    });
+    if (state === "live_winning") n++;
+  }
+  return n;
+}

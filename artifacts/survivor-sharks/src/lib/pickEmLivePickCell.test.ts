@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolvePickEmLivePickCell, type PickEmLiveGame } from "./pickEmLivePickCell";
+import { resolvePickEmLivePickCell, countPickEmLiveProvisionalCorrect, type PickEmLiveGame } from "./pickEmLivePickCell";
 
 const baseGame: PickEmLiveGame = {
   id: "1",
@@ -77,6 +77,32 @@ describe("resolvePickEmLivePickCell ATS", () => {
       scoringMode: "three_way",
     });
     assert.equal(state, "live_losing");
+  });
+
+  it("counts provisional live winners", () => {
+    const game: PickEmLiveGame = {
+      id: "4",
+      startTime: "2026-11-04T20:00:00Z",
+      status: "in_progress",
+      awayScore: 0,
+      homeScore: 2,
+      awayTeam: { id: "a", abbreviation: "VFB" },
+      homeTeam: { id: "h", abbreviation: "GAL" },
+    };
+    const picks = [
+      {
+        gameId: "4",
+        pickedTeamId: "h",
+        pickedTeamName: "Galatasaray",
+        result: "pending" as const,
+      },
+    ];
+    const n = countPickEmLiveProvisionalCorrect(picks, [game], {
+      entryUserId: 1,
+      currentUserId: 1,
+      scoringMode: "straight",
+    });
+    assert.equal(n, 1);
   });
 
   it("grades live favorite not covering as losing", () => {
