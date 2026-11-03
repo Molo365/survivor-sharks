@@ -2809,10 +2809,19 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const soccerLivePeriodLabel = useMemo(() => {
     if (!isMlsWeekly) return "";
     if (sport === "championsleague") {
-      const phase =
-        leaderboard?.phase?.trim()
-        || (mlsWeekData as { phase?: string | null } | undefined)?.phase?.trim();
-      return phase || weeklyPeriodLabel;
+      const weekPhase = (mlsWeekData as {
+        phase?: { label?: string | null; legLabel?: string | null } | string | null;
+      } | undefined)?.phase;
+      if (weekPhase && typeof weekPhase === "object") {
+        const label = weekPhase.label?.trim();
+        const leg = weekPhase.legLabel?.trim();
+        if (label && leg) return `${label} - ${leg}`;
+        if (label) return label;
+      }
+      if (typeof weekPhase === "string" && weekPhase.trim()) return weekPhase.trim();
+      const lbPhase = leaderboard?.phase;
+      if (typeof lbPhase === "string" && lbPhase.trim()) return lbPhase.trim();
+      return weeklyPeriodLabel;
     }
     if (sport === "superleague") return "Weekend";
     return weeklyPeriodLabel;
