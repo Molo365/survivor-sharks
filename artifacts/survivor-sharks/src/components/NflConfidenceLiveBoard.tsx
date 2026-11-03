@@ -6,6 +6,7 @@ import { ChevronRight, Crosshair, LayoutGrid, Loader2 } from "lucide-react";
 import {
   formatConfidenceGameStatusLabel,
   resolveNflConfidenceLivePickCell,
+  computeConfidenceLiveWeekPoints,
   type ConfidenceLiveCellState,
 } from "@/lib/nflConfidenceLivePickCell";
 import { formatSecondsAgo } from "@/lib/nflPickEmLivePickCell";
@@ -204,30 +205,34 @@ export function NflConfidenceLiveBoard({
 
   const rows = useMemo(() => {
     const lbPlayers = lbData?.players ?? [];
-    if (lbPlayers.length > 0) {
-      return lbPlayers.map((lb) => {
-        const gridRow = playerPickMap.get(lb.userId);
-        return {
-          rank: lb.rank,
-          userId: lb.userId,
-          name: lb.displayName || lb.username,
-          weekPoints: lb.weekPoints,
-          seasonPoints: lb.seasonPoints,
-          picks: gridRow?.picks ?? {},
-          weeklyTiebreakerGuess: gridRow?.weeklyTiebreakerGuess ?? null,
-        };
-      });
-    }
-    return (gridData?.players ?? []).map((p, i) => ({
-      rank: i + 1,
-      userId: p.userId,
-      name: p.displayName || p.username,
-      weekPoints: 0,
-      seasonPoints: undefined,
-      picks: p.picks,
-      weeklyTiebreakerGuess: p.weeklyTiebreakerGuess ?? null,
-    }));
-  }, [lbData?.players, gridData?.players, playerPickMap]);
+    const mapped =
+      lbPlayers.length > 0
+        ? lbPlayers.map((lb) => {
+            const gridRow = playerPickMap.get(lb.userId);
+            const picks = gridRow?.picks ?? {};
+            const liveWeekPoints = computeConfidenceLiveWeekPoints(picks, games);
+            return {
+              userId: lb.userId,
+              name: lb.displayName || lb.username,
+              weekPoints: liveWeekPoints,
+              settledWeekPoints: lb.weekPoints,
+              seasonPoints: lb.seasonPoints,
+              picks,
+              weeklyTiebreakerGuess: gridRow?.weeklyTiebreakerGuess ?? null,
+            };
+          })
+        : (gridData?.players ?? []).map((p) => ({
+            userId: p.userId,
+            name: p.displayName || p.username,
+            weekPoints: computeConfidenceLiveWeekPoints(p.picks, games),
+            settledWeekPoints: 0,
+            seasonPoints: undefined as number | undefined,
+            picks: p.picks,
+            weeklyTiebreakerGuess: p.weeklyTiebreakerGuess ?? null,
+          }));
+    mapped.sort((a, b) => b.weekPoints - a.weekPoints);
+    return mapped.map((row, index) => ({ ...row, rank: index + 1 }));
+  }, [lbData?.players, gridData?.players, playerPickMap, games]);
 
   const liveCount = games.filter((g) => g.status === "in_progress").length;
   const me = rows.find((r) => r.userId === currentUserId);
@@ -331,10 +336,16 @@ export function NflConfidenceLiveBoard({
             {variant === "season" && me.seasonPoints != null ? (
               <>
                 Season · #{me.rank} · {me.seasonPoints} pts · this week {me.weekPoints} pts
+                {me.weekPoints > me.settledWeekPoints && (
+                  <span className="text-white/30"> (incl. live)</span>
+                )}
               </>
             ) : (
               <>
                 Week · #{me.rank} · {me.weekPoints} pts
+                {me.weekPoints > me.settledWeekPoints && (
+                  <span className="text-white/30"> (incl. live)</span>
+                )}
               </>
             )}
           </p>
@@ -486,7 +497,12 @@ export function NflConfidenceLiveBoard({
                       isMe && "bg-[#0e1218]",
                     )}
                   >
-                    <span className="font-mono text-sm font-bold tabular-nums text-white/90">
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-bold tabular-nums text-white/90",
+                        row.weekPoints > row.settledWeekPoints && accentLive,
+                      )}
+                    >
                       {row.weekPoints}
                     </span>
                   </td>

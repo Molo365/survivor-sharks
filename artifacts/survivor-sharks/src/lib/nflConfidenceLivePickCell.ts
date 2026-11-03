@@ -68,6 +68,24 @@ export function resolveNflConfidenceLivePickCell(
   return { state: "live_losing", abbr, points };
 }
 
+/** Week points on the live board — graded correct plus in-progress winners. */
+export function computeConfidenceLiveWeekPoints(
+  picks: Record<string, PlayerPick>,
+  games: GameSummary[],
+): number {
+  const gamesById = new Map(games.map((g) => [g.id, g]));
+  let total = 0;
+  for (const [gameId, pick] of Object.entries(picks)) {
+    const game = gamesById.get(gameId);
+    if (!game) continue;
+    const { state, points } = resolveNflConfidenceLivePickCell(pick, game);
+    if ((state === "correct" || state === "live_winning") && points != null) {
+      total += points;
+    }
+  }
+  return total;
+}
+
 export function formatConfidenceGameStatusLabel(game: GameSummary): string {
   if (game.status === "final") return "FINAL";
   if (game.status === "in_progress") return "LIVE";

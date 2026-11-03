@@ -3,6 +3,7 @@ import type { PickEmLeaderboardEntry } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Crosshair, LayoutGrid, Loader2 } from "lucide-react";
 import {
+  countPickEmLiveProvisionalCorrect,
   formatPickEmLiveGameStatusLabel,
   resolvePickEmLivePickCell,
   type PickEmLiveCellState,
@@ -169,7 +170,22 @@ export function PickEmLiveBoard({
       g.status?.toUpperCase() === "STATUS_IN_PROGRESS",
   ).length;
 
-  const me = entries.find((e) => e.userId === currentUserId);
+  const rows = useMemo(() => {
+    const mapped = entries.map((entry) => {
+      const settledCorrect = entry.correct;
+      const liveCorrect = countPickEmLiveProvisionalCorrect(entry.picks, sortedGames, {
+        entryUserId: entry.userId,
+        currentUserId,
+        scoringMode,
+      });
+      const periodCorrect = settledCorrect + liveCorrect;
+      return { entry, settledCorrect, liveCorrect, periodCorrect };
+    });
+    mapped.sort((a, b) => b.periodCorrect - a.periodCorrect);
+    return mapped.map((row, index) => ({ ...row, liveRank: index + 1 }));
+  }, [entries, sortedGames, currentUserId, scoringMode]);
+
+  const meRow = currentUserId != null ? rows.find((r) => r.entry.userId === currentUserId) : undefined;
 
   const jumpToMe = useCallback(() => {
     if (currentUserId == null) return;
@@ -262,9 +278,15 @@ export function PickEmLiveBoard({
             {isFetching ? " · …" : ""}
           </span>
         </div>
-        {me && (
+        {meRow && (
           <p className="w-full text-[10px] text-white/40 leading-snug">
-            #{me.rank} · {me.correct}/{me.picked} correct this period
+            #{meRow.liveRank} ·{" "}
+            <span className={cn(meRow.liveCorrect > 0 && a.liveText)}>
+              {meRow.periodCorrect}/{meRow.entry.picked} correct this period
+            </span>
+            {meRow.liveCorrect > 0 && (
+              <span className="text-white/30"> (incl. live)</span>
+            )}
           </p>
         )}
       </div>
@@ -322,9 +344,10 @@ export function PickEmLiveBoard({
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry, idx) => {
+            {rows.map(({ entry, periodCorrect, settledCorrect, liveRank }, idx) => {
               const isMe = entry.userId === currentUserId;
               const pickMap = new Map(entry.picks.map((p) => [p.gameId, p]));
+              const liveProvisional = periodCorrect > settledCorrect;
 
               return (
                 <tr
@@ -349,14 +372,14 @@ export function PickEmLiveBoard({
                       <span
                         className={cn(
                           "font-mono text-[10px] font-bold tabular-nums shrink-0 w-4",
-                          entry.rank === 1
+                          liveRank === 1
                             ? "text-amber-300"
-                            : entry.rank <= 3
+                            : liveRank <= 3
                               ? "text-white/50"
                               : "text-white/30",
                         )}
                       >
-                        {entry.rank}
+                        {liveRank}
                       </span>
                       <span
                         className={cn(
@@ -388,8 +411,13 @@ export function PickEmLiveBoard({
                       isMe && a.meRowBg,
                     )}
                   >
-                    <span className="font-mono text-sm font-bold tabular-nums text-white/90">
-                      {entry.correct}
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-bold tabular-nums",
+                        liveProvisional ? a.liveText : "text-white/90",
+                      )}
+                    >
+                      {periodCorrect}
                     </span>
                   </td>
                 </tr>
