@@ -15,7 +15,28 @@ export type PickEmLiveGame = {
   favoriteTeamId?: string | null;
 };
 
-export type PickEmLiveScoringMode = "straight" | "ats";
+export type PickEmLiveScoringMode = "straight" | "ats" | "three_way";
+
+const THREE_WAY_PICK_IDS = ["home_win", "draw", "away_win"] as const;
+
+function isThreeWayPickId(pickedTeamId: string): boolean {
+  return (THREE_WAY_PICK_IDS as readonly string[]).includes(pickedTeamId);
+}
+
+function gradeThreeWayPick(params: {
+  pickedTeamId: string;
+  homeScore: number;
+  awayScore: number;
+}): "correct" | "incorrect" {
+  const { pickedTeamId, homeScore, awayScore } = params;
+  const actual =
+    homeScore === awayScore
+      ? "draw"
+      : homeScore > awayScore
+        ? "home_win"
+        : "away_win";
+  return pickedTeamId === actual ? "correct" : "incorrect";
+}
 
 function gradeStraightPick(params: {
   pickedTeamId: string;
@@ -62,9 +83,20 @@ export type PickEmLiveCellState =
   | "live_winning"
   | "live_losing";
 
-function pickAbbr(pick: PickEmPlayerPick, game: PickEmLiveGame): string {
-  if (pick.pickedTeamId === game.homeTeam.id) return game.homeTeam.abbreviation;
-  if (pick.pickedTeamId === game.awayTeam.id) return game.awayTeam.abbreviation;
+function pickAbbr(
+  pick: PickEmPlayerPick,
+  game: PickEmLiveGame,
+  scoringMode: PickEmLiveScoringMode,
+): string {
+  const id = pick.pickedTeamId;
+  if (!id) return pick.pickedTeamName.slice(0, 3).toUpperCase();
+  if (scoringMode === "three_way" || isThreeWayPickId(id)) {
+    if (id === "draw") return "D";
+    if (id === "home_win") return game.homeTeam.abbreviation;
+    if (id === "away_win") return game.awayTeam.abbreviation;
+  }
+  if (id === game.homeTeam.id) return game.homeTeam.abbreviation;
+  if (id === game.awayTeam.id) return game.awayTeam.abbreviation;
   return pick.pickedTeamName.slice(0, 3).toUpperCase();
 }
 
@@ -108,7 +140,7 @@ export function resolvePickEmLivePickCell(
     return { state: "hidden", abbr: null };
   }
 
-  const abbr = pickAbbr(visible, game);
+  const abbr = pickAbbr(visible, game, scoringMode);
   const result = visible.result ?? "pending";
 
   if (result === "correct") return { state: "correct", abbr };
@@ -126,6 +158,22 @@ export function resolvePickEmLivePickCell(
     game.homeScore == null
   ) {
     return { state: "pending", abbr };
+  }
+
+  const effectiveMode: PickEmLiveScoringMode =
+    scoringMode === "straight" && isThreeWayPickId(visible.pickedTeamId)
+      ? "three_way"
+      : scoringMode;
+
+  if (effectiveMode === "three_way") {
+    const grade = gradeThreeWayPick({
+      pickedTeamId: visible.pickedTeamId,
+      homeScore: game.homeScore,
+      awayScore: game.awayScore,
+    });
+    return grade === "correct"
+      ? { state: "live_winning", abbr }
+      : { state: "live_losing", abbr };
   }
 
   let grade: "correct" | "incorrect" | "push";

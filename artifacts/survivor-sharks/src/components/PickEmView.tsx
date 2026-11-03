@@ -2451,6 +2451,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const pendingPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
   const pendingSatPicksRef = React.useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
   const nhlWeekendPollGamesRef = useRef<PickEmGame[]>([]);
+  const mlsWeeklyPollGamesRef = useRef<PickEmGame[]>([]);
   const pendingDateRef = React.useRef<string | null>(null);
   const [lineupGame, setLineupGame] = useState<{
     gameId: string;
@@ -2489,7 +2490,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         pickRefetchInterval(
           isNhlWeekly
             ? ({ games: nhlWeekendPollGamesRef.current } as PickEmSlate)
-            : slate,
+            : isMlsWeekly
+              ? ({ games: mlsWeeklyPollGamesRef.current } as PickEmSlate)
+              : slate,
         ),
     },
   });
@@ -2508,7 +2511,9 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       pickRefetchInterval(
         isNhlWeekly
           ? ({ games: nhlWeekendPollGamesRef.current } as PickEmSlate)
-          : slate,
+          : isMlsWeekly
+            ? ({ games: mlsWeeklyPollGamesRef.current } as PickEmSlate)
+            : slate,
       ),
   });
   const leaderboard = isWeeklyPeriodHistory ? leaderboardPeriod : leaderboardDefault;
@@ -2525,7 +2530,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       `/api/pools/${poolId}/pickem/week-games${activePeriodStart ? `?periodStart=${encodeURIComponent(activePeriodStart)}` : ""}`,
     ),
     enabled: isMlsWeekly && pickEmPeriods !== undefined,
-    refetchInterval: 60_000,
+    refetchInterval: (query) => {
+      const days = (query.state.data as MlsWeekGames | undefined)?.days ?? [];
+      const games = days.flatMap((d) => d.games);
+      return pickRefetchInterval({ games } as PickEmSlate);
+    },
     staleTime: 30_000,
   });
   const mlsWeekData = isMlsWeekly ? mlsWeekDataPeriod : undefined;
@@ -2775,6 +2784,39 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   // MLS weekly combined view — derive typed day/game arrays from the week-games response.
   const mlsWeeklyDays: MlsWeekGames["days"] = isMlsWeekly ? (mlsWeekData?.days ?? []) : [];
   const mlsWeeklyAllGames = mlsWeeklyDays.flatMap((d) => d.games);
+  if (isMlsWeekly) {
+    mlsWeeklyPollGamesRef.current = mlsWeeklyAllGames;
+  }
+
+  const soccerWeeklyLiveBoardGames = useMemo((): PickEmLiveGame[] => {
+    if (!isMlsWeekly || !leaderboard?.games?.length) return [];
+    const detailById = new Map(mlsWeeklyAllGames.map((g) => [g.id, g]));
+    return leaderboard.games.map((lg) => {
+      const d = detailById.get(lg.id);
+      return {
+        id: lg.id,
+        startTime: lg.startTime,
+        status: d?.status ?? lg.status,
+        liveDetail: d?.liveDetail ?? null,
+        awayScore: d?.awayScore ?? null,
+        homeScore: d?.homeScore ?? null,
+        awayTeam: { id: lg.awayTeam.id, abbreviation: lg.awayTeam.abbreviation },
+        homeTeam: { id: lg.homeTeam.id, abbreviation: lg.homeTeam.abbreviation },
+      };
+    });
+  }, [isMlsWeekly, leaderboard?.games, mlsWeeklyAllGames]);
+
+  const soccerLivePeriodLabel = useMemo(() => {
+    if (!isMlsWeekly) return "";
+    if (sport === "championsleague") {
+      const phase =
+        leaderboard?.phase?.trim()
+        || (mlsWeekData as { phase?: string | null } | undefined)?.phase?.trim();
+      return phase || weeklyPeriodLabel;
+    }
+    if (sport === "superleague") return "Weekend";
+    return weeklyPeriodLabel;
+  }, [isMlsWeekly, sport, leaderboard?.phase, mlsWeekData, weeklyPeriodLabel]);
 
   // Tiebreaker derived values — needs leaderboard.weekEnd for weekly Sunday detection
   const weekSunday = leaderboard?.weekEnd ?? null;
@@ -5049,6 +5091,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 isLoading={lbLoading || gamesLoading}
                 dataUpdatedAt={lbDataUpdatedAt}
                 isFetching={lbFetching || gamesFetching}
+              />
+            ) : isMlsWeekly ? (
+              <PickEmLiveBoard
+                periodLabel={soccerLivePeriodLabel}
+                games={soccerWeeklyLiveBoardGames}
+                entries={leaderboard?.entries ?? []}
+                currentUserId={user?.id ?? null}
+                scoringMode="three_way"
+                gamesScopeLabel="Full slate"
+                isLoading={lbLoading || mlsWeeklyLoading}
+                dataUpdatedAt={lbDataUpdatedAt}
+                isFetching={lbFetching}
               />
             ) : (
               <PoolLivePlaceholder gridTabLabel={pickEmGridTabLabel} />
