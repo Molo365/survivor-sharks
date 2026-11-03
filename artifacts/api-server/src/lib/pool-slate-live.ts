@@ -136,6 +136,11 @@ export async function fetchPoolSlateGames(pool: PoolSlateContext): Promise<EspnG
         return true;
       });
     }
+    if (sport === "championsleague" && pool.pickFrequency === "weekly") {
+      const { loadChampionsLeaguePeriodSlate } = await import("./pickem-periods");
+      const loaded = await loadChampionsLeaguePeriodSlate(pool.id, undefined);
+      return loaded?.games ?? [];
+    }
   }
 
   return [];
