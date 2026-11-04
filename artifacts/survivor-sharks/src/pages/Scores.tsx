@@ -72,7 +72,14 @@ interface StandingsResponse {
   groups: StandingsGroup[];
 }
 
-const SPORTS_WITH_STANDINGS = new Set(["mlb", "nhl", "nba", "mls", "nfl"]);
+const SPORTS_WITH_STANDINGS = new Set([
+  "mlb",
+  "nhl",
+  "nba",
+  "mls",
+  "nfl",
+  "championsleague",
+]);
 
 interface GameDetail {
   gameId: string;

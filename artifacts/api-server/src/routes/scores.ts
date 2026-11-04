@@ -688,6 +688,16 @@ const STANDINGS_CONFIG: Record<string, {
     sortStat: "playoffSeed",
     sortDir: "asc",
   },
+  championsleague: {
+    // League Phase table (single group); sort by points desc like MLS
+    url: "https://site.api.espn.com/apis/v2/sports/soccer/uefa.champions/standings",
+    extraStat: "ties",
+    extraLabel: "D",
+    pctStat: "points",
+    pctLabel: "PTS",
+    sortStat: "points",
+    sortDir: "desc",
+  },
 };
 
 // GET /api/scores/standings/:sport — public, no auth required
