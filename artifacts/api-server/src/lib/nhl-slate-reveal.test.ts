@@ -59,4 +59,31 @@ describe("nhl-slate-reveal", () => {
       true,
     );
   });
+
+  it("reveals Hit the Ice tiebreaker guesses at the same Saturday 7 PM lock", () => {
+    const hitTheIce = { sport: "nhl", poolType: "crazy_8s", pickFrequency: "weekly", sandboxMode: false };
+    const slate = ["2026-01-10T17:00:00.000Z", "2026-01-11T22:00:00.000Z"];
+    const beforeLock = new Date("2026-01-10T23:30:00.000Z").getTime();
+    const afterLock = new Date("2026-01-11T00:30:00.000Z").getTime();
+    assert.equal(
+      nhlWeekendPoolTiebreakerGuessRevealed({
+        pool: hitTheIce,
+        requesterUserId: 1,
+        rowUserId: 2,
+        slateGameStartIsos: slate,
+        nowMs: beforeLock,
+      }),
+      false,
+    );
+    assert.equal(
+      nhlWeekendPoolTiebreakerGuessRevealed({
+        pool: hitTheIce,
+        requesterUserId: 1,
+        rowUserId: 2,
+        slateGameStartIsos: slate,
+        nowMs: afterLock,
+      }),
+      true,
+    );
+  });
 });
