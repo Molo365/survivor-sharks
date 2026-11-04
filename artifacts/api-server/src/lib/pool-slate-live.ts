@@ -152,6 +152,22 @@ export function isPickSummaryGameLocked(game: { date: string; hasStarted: boolea
   return game.hasStarted || new Date(game.date).getTime() <= Date.now();
 }
 
+/** Games that cannot receive new picks (mirrors pick-status selectableGameIds / pick reminders). */
+export function isUnpickableSlateGame(game: {
+  status?: string;
+  isPostponed?: boolean;
+}): boolean {
+  return Boolean(game.isPostponed)
+    || game.status === "postponed"
+    || game.status === "suspended";
+}
+
+export function openSlateGames(games: EspnGame[]): EspnGame[] {
+  return games.filter(
+    (game) => !isUnpickableSlateGame(game) && !isPickSummaryGameLocked(game),
+  );
+}
+
 export async function poolSlateHasLiveGames(
   pool: PoolSlateContext,
   sandboxLivePoolIds: Set<number>,
@@ -176,6 +192,3 @@ export async function loadSandboxLivePoolIds(poolIds: number[]): Promise<Set<num
   return live;
 }
 
-export function openSlateGames(games: EspnGame[]): EspnGame[] {
-  return games.filter((game) => !game.isPostponed && !isPickSummaryGameLocked(game));
-}

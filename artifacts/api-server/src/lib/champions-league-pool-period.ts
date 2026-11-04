@@ -299,9 +299,7 @@ export async function resolveChampionsLeagueOpenPickState(
   }
 
   const games = await fetchChampionsLeagueGamesForPeriodDates(ctx.current.dates);
-  const openGames = openSlateGames(
-    games.filter((game) => game.status !== "suspended" && game.status !== "postponed" && !game.isPostponed),
-  );
+  const openGames = openSlateGames(games);
 
   return {
     openPeriod: ctx.current,
