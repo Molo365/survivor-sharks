@@ -86,4 +86,22 @@ describe("nhl-slate-reveal", () => {
       true,
     );
   });
+
+  it("hides Hit the Ice opponent picks before Saturday 7 PM even when kickoff ISO is in the past", () => {
+    const hitTheIce = { sport: "nhl", poolType: "crazy_8s", pickFrequency: "weekly", sandboxMode: false };
+    const slate = ["2026-11-07T17:00:00.000Z", "2026-11-08T22:00:00.000Z"];
+    const wedBeforeWeekend = new Date("2026-11-04T17:51:00.000Z").getTime(); // Wed ~12:51 PM ET
+    assert.equal(
+      nhlWeekendPoolOpponentPickRevealed({
+        pool: hitTheIce,
+        isOwnPick: false,
+        result: "pending",
+        gameStartIso: "2026-11-07T17:00:00.000Z",
+        slateGameStartIsos: slate,
+        saturdayEtFallback: "2026-11-07",
+        nowMs: wedBeforeWeekend,
+      }),
+      false,
+    );
+  });
 });
