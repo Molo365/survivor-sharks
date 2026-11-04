@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { pickemPicksTable, poolsTable, usersTable, entriesTable, sandboxGameScoresTable, pickemGameSpreadsTable, crazyEightsPeriodResultsTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, inArray, count, desc } from "drizzle-orm";
-import { calcPrize } from "../lib/prizeCalc";
+import { isUnpickableSlateGame } from "../lib/pool-slate-live";
 import {
   resolveWeeklyPickEmPayoutModel,
   shouldUsePeriodPotWeeklyPrizes,
@@ -880,7 +880,7 @@ router.get("/week-games", requireAuth, async (req, res) => {
       label,
       games: games.map((g) => {
         const existing = pickMap.get(g.id);
-        const locked = isGameLocked(g.date);
+        const locked = isGameLocked(g.date) || isUnpickableSlateGame(g);
         return {
           id: g.id,
           startTime: g.date,
