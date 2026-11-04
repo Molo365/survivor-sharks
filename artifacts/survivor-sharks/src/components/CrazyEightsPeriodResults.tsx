@@ -10,6 +10,7 @@ import {
 import {
   formatPlaceLine,
   getBannerModel,
+  paidPeriodResultGroups,
   type CrazyEightsPeriodResult,
 } from "@/lib/periodResults";
 import { cn } from "@/lib/utils";
@@ -62,7 +63,7 @@ function ResultLines({ result }: { result: CrazyEightsPeriodResult }) {
       {result.groups.length === 0 ? (
         <p className="text-sm text-yellow-300/80">No picks were made</p>
       ) : (
-        [...result.groups]
+        [...paidPeriodResultGroups(result.groups)]
           .sort((a, b) => a.position - b.position)
           .map((group) => (
             <p key={`${result.week}-${group.position}`} className="text-sm text-yellow-300">

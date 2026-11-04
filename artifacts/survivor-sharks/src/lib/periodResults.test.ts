@@ -26,6 +26,35 @@ test("returns null when there are no period results", () => {
   assert.equal(getBannerModel([]), null);
 });
 
+test("omits zero-dollar places from the banner (winner take all)", () => {
+  const model = getBannerModel([
+    result({
+      week: 4,
+      groups: [
+        {
+          position: 1,
+          prize: 285,
+          players: [{ userId: 1, username: "El Puerco" }],
+        },
+        {
+          position: 2,
+          prize: 0,
+          players: [{ userId: 2, username: "Agnello" }],
+        },
+        {
+          position: 3,
+          prize: 0,
+          players: [{ userId: 3, username: "Dimitrios" }],
+        },
+      ],
+    }),
+  ]);
+
+  assert.deepEqual(model?.places, [
+    { position: 1, names: ["El Puerco"], prize: 285 },
+  ]);
+});
+
 test("builds the banner from the newest result and keeps every place", () => {
   const model = getBannerModel([
     result({

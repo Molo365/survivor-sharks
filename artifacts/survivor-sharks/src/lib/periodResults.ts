@@ -28,16 +28,25 @@ export interface PeriodResultsBannerModel {
   places: BannerPlace[];
 }
 
+/** Places that received a payout — omit $0 filler slots (e.g. winner-take-all). */
+export function paidPeriodResultGroups(groups: PeriodResultGroup[]): PeriodResultGroup[] {
+  return groups.filter((group) => group.prize > 0);
+}
+
 export function getBannerModel(
   results: CrazyEightsPeriodResult[],
 ): PeriodResultsBannerModel | null {
   const newest = results[0];
   if (!newest) return null;
 
+  const paidGroups = paidPeriodResultGroups(newest.groups);
+
   return {
     label: `Weekend ${newest.week}`,
-    noPicks: newest.groups.length === 0 || newest.reason === "no picks",
-    places: [...newest.groups]
+    noPicks:
+      paidGroups.length === 0
+      && (newest.groups.length === 0 || newest.reason === "no picks"),
+    places: [...paidGroups]
       .sort((a, b) => a.position - b.position)
       .map((group) => ({
         position: group.position,
