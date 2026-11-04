@@ -132,7 +132,7 @@ export function nhlWeekendPoolTiebreakerGuessRevealed(opts: {
   if (opts.actualsKnown) return true;
   if (opts.pool.isActive === false) return true;
   if (opts.pool.sandboxMode) return true;
-  if (!isNhlWeekendOfficePool(opts.pool) || opts.pool.poolType !== "pickem") return false;
+  if (!isNhlWeekendOfficePool(opts.pool)) return false;
   return nhlSaturdaySevenPmLockActive(
     opts.slateGameStartIsos,
     opts.nowMs ?? Date.now(),
