@@ -167,7 +167,7 @@ function PickCell({
   sport: string;
   poolType?: string;
 }) {
-  if (!pick) {
+  if (!pick || pick.pickedTeamId == null) {
     return (
       <div className="flex items-center justify-center min-w-[76px] h-full">
         <span className="text-muted-foreground/20 text-xs">—</span>

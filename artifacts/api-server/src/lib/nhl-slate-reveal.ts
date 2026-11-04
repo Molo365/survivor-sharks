@@ -111,7 +111,7 @@ export function nhlWeekendPoolOpponentPickRevealed(opts: {
     opts.gameStarted ??
     (opts.gameStartIso != null && new Date(opts.gameStartIso).getTime() <= now);
   if (started) return true;
-  if (!isNhlWeekendOfficePool(opts.pool) || opts.pool.poolType !== "pickem") return false;
+  if (!isNhlWeekendOfficePool(opts.pool)) return false;
   return nhlSaturdaySevenPmLockActive(
     opts.slateGameStartIsos,
     now,

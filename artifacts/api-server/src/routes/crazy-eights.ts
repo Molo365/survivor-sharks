@@ -22,6 +22,7 @@ import {
 import {
   nhlSaturdaySevenPmLockActive,
   nhlSaturdaySevenPmLockInstant,
+  nhlWeekendPoolOpponentPickRevealed,
   nhlWeekendPoolTiebreakerGuessRevealed,
 } from "../lib/nhl-slate-reveal";
 import {
@@ -137,6 +138,7 @@ function isGridPickRevealed(opts: {
   sandboxMode: boolean;
   result: string | null;
   game: EspnGame | undefined;
+  poolType?: string;
   nhlWeekendSlateIsos?: string[];
   nhlSaturdayEt?: string | null;
   nbaWeekendSlateIsos?: string[];
@@ -146,9 +148,19 @@ function isGridPickRevealed(opts: {
   if (opts.result != null && opts.result !== "pending") return true;
   if (opts.sandboxMode || !opts.game) return false;
   if (opts.nhlWeekendSlateIsos?.length) {
-    if (nhlSaturdaySevenPmLockActive(opts.nhlWeekendSlateIsos, undefined, opts.nhlSaturdayEt ?? null)) {
-      return true;
-    }
+    return nhlWeekendPoolOpponentPickRevealed({
+      pool: {
+        sport: "nhl",
+        poolType: opts.poolType ?? "crazy_8s",
+        pickFrequency: "weekly",
+        sandboxMode: opts.sandboxMode,
+      },
+      isOwnPick: false,
+      result: opts.result,
+      gameStartIso: opts.game.date,
+      slateGameStartIsos: opts.nhlWeekendSlateIsos,
+      saturdayEtFallback: opts.nhlSaturdayEt ?? null,
+    });
   }
   if (opts.nbaWeekendSlateIsos?.length) {
     if (nbaSaturdaySixPmLockActive(opts.nbaWeekendSlateIsos, undefined, opts.nbaSaturdayEt ?? null)) {
@@ -571,6 +583,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         sandboxMode: pool.sandboxMode ?? false,
         result: pick.result ?? null,
         game,
+        poolType: pool.poolType as string,
         nhlWeekendSlateIsos,
         nhlSaturdayEt: date,
       });
@@ -579,7 +592,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         pickedTeamId: revealed ? pick.pickedTeamId : null,
         pickedTeamName: revealed ? pick.pickedTeamName : null,
         pickedTeamLogoUrl: revealed && game ? (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null : null,
-        confidencePoints: (pick as any).confidencePoints ?? null,
+        confidencePoints: revealed ? ((pick as any).confidencePoints ?? null) : null,
         result: pick.result ?? null,
       });
     }
