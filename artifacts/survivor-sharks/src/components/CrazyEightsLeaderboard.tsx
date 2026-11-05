@@ -167,11 +167,41 @@ function formatWeekendPickRecord(won: number, lost: number, pending: number, tot
   return `${parts.join(", ")} · ${total} pick${total === 1 ? "" : "s"}`;
 }
 
-function formatWeekendPointsLabel(pointsEarned: number, pointsPossible: number, allDone: boolean): string {
+function formatWeekendPointsLabel(
+  pointsEarned: number,
+  pointsPossible: number,
+  allDone: boolean,
+  poolType?: string,
+): string {
+  const isMultiplier = poolType === "fast_break_multiplier";
+  if (isMultiplier) {
+    const fmt = (n: number) => n.toFixed(2);
+    if (allDone) return `${fmt(pointsEarned)} points`;
+    return `${fmt(pointsEarned)} of ${fmt(pointsPossible)} pts`;
+  }
   if (allDone) {
     return `${pointsEarned} point${pointsEarned === 1 ? "" : "s"}`;
   }
   return `${pointsEarned} of ${pointsPossible} pts`;
+}
+
+function formatWeekendPointsDisplay(
+  pointsEarned: number,
+  pointsPossible: number,
+  allDone: boolean,
+  poolType?: string,
+): { main: string; suffix: string | null } {
+  const isMultiplier = poolType === "fast_break_multiplier";
+  if (isMultiplier) {
+    return {
+      main: pointsEarned.toFixed(2),
+      suffix: allDone ? null : `/${pointsPossible.toFixed(2)}`,
+    };
+  }
+  return {
+    main: String(pointsEarned),
+    suffix: allDone ? null : `/${pointsPossible}`,
+  };
 }
 
 // ── Sport-specific tiebreaker label config ────────────────────────────────────
@@ -510,7 +540,18 @@ export function CrazyEightsLeaderboard({
                       const isMe = player.userId === user?.id;
                       const allDone = player.pending === 0;
                       const recordLine = formatWeekendPickRecord(player.won, player.lost, player.pending, player.total);
-                      const pointsLine = formatWeekendPointsLabel(player.pointsEarned, player.pointsPossible, allDone);
+                      const pointsLine = formatWeekendPointsLabel(
+                        player.pointsEarned,
+                        player.pointsPossible,
+                        allDone,
+                        poolType,
+                      );
+                      const pointsDisplay = formatWeekendPointsDisplay(
+                        player.pointsEarned,
+                        player.pointsPossible,
+                        allDone,
+                        poolType,
+                      );
                       return (
                         <div
                           key={player.userId}
@@ -551,10 +592,10 @@ export function CrazyEightsLeaderboard({
                               "font-bebas text-xl sm:text-2xl leading-none tabular-nums",
                               player.pointsEarned > 0 ? "text-green-400" : "text-muted-foreground/45",
                             )}>
-                              {player.pointsEarned}
+                              {pointsDisplay.main}
                             </span>
-                            {!allDone && (
-                              <span className="font-bebas text-sm text-muted-foreground/40">/{player.pointsPossible}</span>
+                            {pointsDisplay.suffix != null && (
+                              <span className="font-bebas text-sm text-muted-foreground/40">{pointsDisplay.suffix}</span>
                             )}
                             <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5 hidden sm:block">{pointsLine}</p>
                           </div>
@@ -575,7 +616,9 @@ export function CrazyEightsLeaderboard({
 
         {ranked.length > 0 && (
           <p className="text-[11px] text-muted-foreground/40 text-center">
-            Points earned = confidence points from correct picks only
+            {poolType === "fast_break_multiplier"
+              ? "Points = confidence × locked decimal odds on correct picks only"
+              : "Points earned = confidence points from correct picks only"}
           </p>
         )}
 
