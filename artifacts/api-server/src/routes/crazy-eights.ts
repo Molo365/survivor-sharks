@@ -39,6 +39,11 @@ import {
 import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "../lib/fast-break-pool";
 import { decimalOddsForTeam, loadNbaMoneylines } from "../lib/nba-ml-odds";
 import { crazyEightsCorrectPickPoints } from "../lib/crazy-eights-scoring";
+import {
+  buildCrazyEightsCommissionerBalanceSheet,
+  isCrazyEightsCommissionerBalancesPool,
+  patchCrazyEightsCommissionerLedger,
+} from "../lib/crazy-eights-commissioner-balances";
 
 const router = Router({ mergeParams: true });
 
@@ -2317,6 +2322,76 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
     .filter((p): p is NonNullable<typeof p> => p !== null);
 
   res.json({ hadTiebreaker: true, actualStat1, actualStat2, tiedPlayers });
+});
+
+async function assertCrazyEightsCommissioner(
+  poolId: number,
+  userId: number,
+): Promise<
+  | { ok: true; pool: typeof poolsTable.$inferSelect }
+  | { ok: false; status: number; error: string }
+> {
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) return { ok: false, status: 404, error: "Pool not found" };
+  if (
+    !isCrazyEightsCommissionerBalancesPool({
+      sport: pool.sport,
+      poolType: pool.poolType as string,
+      isRecurring: pool.isRecurring,
+      entryFee: pool.entryFee,
+    })
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Commissioner balances are only for paid recurring NHL Hit the Ice and NBA Fast Break / Multiplier pools",
+    };
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    return { ok: false, status: 403, error: "Commissioner or admin only" };
+  }
+
+  return { ok: true, pool };
+}
+
+// GET /api/pools/:poolId/crazy-eights/commissioner-balances
+router.get("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const auth = await assertCrazyEightsCommissioner(poolId, req.user!.id);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const sheet = await buildCrazyEightsCommissionerBalanceSheet(auth.pool, poolId);
+  res.json(sheet);
+});
+
+// PATCH /api/pools/:poolId/crazy-eights/commissioner-balances
+router.patch("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const auth = await assertCrazyEightsCommissioner(poolId, req.user!.id);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const body = req.body as {
+    entryPaid?: { userId: number; paid: boolean };
+    periodPaid?: { periodKey: string; paid: boolean };
+    mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
+  };
+  try {
+    const sheet = await patchCrazyEightsCommissionerLedger(poolId, body);
+    res.json(sheet);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 export default router;

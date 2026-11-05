@@ -107,7 +107,7 @@ function clearDevicePaidState(poolId: number) {
   localStorage.removeItem(`commissioner-weekly-period-paid-${poolId}`);
 }
 
-type CommissionerBalancesApiSegment = "pickem" | "nfl-confidence-weekly";
+type CommissionerBalancesApiSegment = "pickem" | "nfl-confidence-weekly" | "crazy-eights";
 
 async function fetchBalanceSheet(
   poolId: number,
@@ -158,7 +158,9 @@ export function CommissionerWeeklyPickEmBalances({
   const defaultDescription =
     apiSegment === "nfl-confidence-weekly"
       ? "Track entry buy-ins and weekly winner payouts. Paid flags are saved for this pool."
-      : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
+      : apiSegment === "crazy-eights"
+        ? "Track entry buy-ins and weekly winner payouts from recorded weekend results. Paid flags are saved for this pool."
+        : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
 
   const { data, isLoading, error } = useQuery({
@@ -297,7 +299,9 @@ export function CommissionerWeeklyPickEmBalances({
         {periods.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {apiSegment === "nfl-confidence-weekly" ? "Completed weeks" : "Completed periods"}
+              {apiSegment === "nfl-confidence-weekly" || apiSegment === "crazy-eights"
+                ? "Completed weeks"
+                : "Completed periods"}
             </p>
             <div className="flex flex-wrap gap-2">
               {periods.map((p) => (

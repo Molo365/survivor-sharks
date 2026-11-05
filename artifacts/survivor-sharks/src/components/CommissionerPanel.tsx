@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog, isBroadcastEmailSupported } from "@/components/BroadcastEmailDialog";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
+import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -259,9 +260,27 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
 
   if (loadingPool || !pool) return <Skeleton className="h-[400px] w-full" />;
 
+  const poolType = pool.poolType as string;
+  const showCrazyEightsWeeklyBalances =
+    pool.isRecurring === true
+    && pool.entryFee != null
+    && pool.entryFee > 0
+    && (
+      (poolType === "fast_break_multiplier" && pool.sport === "nba")
+      || (poolType === "crazy_8s" && (pool.sport === "nhl" || pool.sport === "nba"))
+    );
+
   return (
     <div className="space-y-8 max-w-4xl">
       <PoolSetupSummary poolId={poolId} />
+
+      {showCrazyEightsWeeklyBalances && (
+        <CommissionerWeeklyPickEmBalances
+          poolId={poolId}
+          apiSegment="crazy-eights"
+          title="Weekly balance sheet"
+        />
+      )}
 
       {/* Invite Code */}
       <Card className="bg-card border-border/50 overflow-hidden relative">
