@@ -1134,6 +1134,51 @@ export function CrazyEightsView({
     );
   }
 
+  if (viewingPastPeriod) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+        <p className="font-bebas text-2xl tracking-wide mb-1">Past Weekend</p>
+        <p className="text-sm">Picks are closed for this week. Use Leaderboard or Weekend Grid to review results.</p>
+      </div>
+    );
+  }
+
+  const weekendRecap = (
+    <>
+      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} />}
+      {(!isWeekendSport || !hasRecordedPeriodResults) &&
+        yesterdayWinner?.hasResults &&
+        yesterdayWinner.winners.length > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
+            <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+            <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-yellow-200">
+                {isWeekendSport ? "Last Weekend's" : "Yesterday's"} Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
+              </span>
+              <span className="text-sm text-yellow-300">
+                {yesterdayWinner.winners.map((w) => w.displayName || w.username).join(" & ")}
+              </span>
+              <span className="text-yellow-500/50 text-xs">·</span>
+              <span className="text-sm text-yellow-400/70">
+                {isMultiplier
+                  ? Number(yesterdayWinner.winners[0].confidencePoints).toFixed(2)
+                  : yesterdayWinner.winners[0].confidencePoints}{" "}
+                pts
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResultsDate(priorPeriodDate)}
+              className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
+            >
+              View Results →
+            </button>
+          </div>
+        )}
+    </>
+  );
+
   if (slateData?.poolNotStarted && slateData.startsAt) {
     return (
       <div className="text-center py-16 text-muted-foreground">
@@ -1155,18 +1200,21 @@ export function CrazyEightsView({
 
   if (games.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">
-          {isWeekendSport ? "No Weekend Games" : "No Games Today"}
-        </p>
-        <p className="text-sm">
-          {isNhl
-            ? "Check back when the weekend NHL slate is available."
-            : isNba
-              ? "Check back when the weekend NBA slate is available."
-              : "Check back when today's MLB slate is available."}
-        </p>
+      <div className="space-y-6">
+        {weekendRecap}
+        <div className="text-center py-16 text-muted-foreground">
+          <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-bebas text-2xl tracking-wide mb-1">
+            {isWeekendSport ? "No Weekend Games" : "No Games Today"}
+          </p>
+          <p className="text-sm">
+            {isNhl
+              ? "Check back when the weekend NHL slate is available."
+              : isNba
+                ? "Check back when the weekend NBA slate is available."
+                : "Check back when today's MLB slate is available."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -1213,12 +1261,22 @@ export function CrazyEightsView({
     await queryClient.invalidateQueries({ queryKey: ["crazy-eights-grid", poolId] });
   }
 
-  if (viewingPastPeriod) {
+  if (MAX_PICKS === 0) {
+    const waitingLines = isMultiplier && games.length > 0;
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">Past Weekend</p>
-        <p className="text-sm">Picks are closed for this week. Use Leaderboard or Weekend Grid to review results.</p>
+      <div className="space-y-6">
+        {weekendRecap}
+        <div className="text-center py-16 text-muted-foreground">
+          <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-bebas text-2xl tracking-wide mb-1">
+            {waitingLines ? "Lines Not Ready" : "No Games Available"}
+          </p>
+          <p className="text-sm">
+            {waitingLines
+              ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon.`
+              : "All games for this period have already started."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -1238,25 +1296,6 @@ export function CrazyEightsView({
         onUpdateNhlTiebreaker={handleUpdateNhlTiebreaker}
         onUpdateNbaTiebreaker={handleUpdateNbaTiebreaker}
       />
-    );
-  }
-
-  // ── All games started ─────────────────────────────────────────────────────
-
-  if (MAX_PICKS === 0) {
-    const waitingLines = isMultiplier && games.length > 0;
-    return (
-      <div className="text-center py-16 text-muted-foreground">
-        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">
-          {waitingLines ? "Lines Not Ready" : "No Games Available"}
-        </p>
-        <p className="text-sm">
-          {waitingLines
-            ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon.`
-            : "All games for this period have already started."}
-        </p>
-      </div>
     );
   }
 
@@ -1312,36 +1351,7 @@ export function CrazyEightsView({
         </div>
       </div>
 
-      {/* Recorded NHL/NBA period results take precedence over the legacy fallback. */}
-      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} />}
-
-      {/* Prior period winner banner */}
-      {(!isWeekendSport || !hasRecordedPeriodResults) &&
-        yesterdayWinner?.hasResults &&
-        yesterdayWinner.winners.length > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
-          <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-          <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-yellow-200">
-              {isWeekendSport ? "Last Weekend's" : "Yesterday's"} Winner{yesterdayWinner.winners.length > 1 ? "s" : ""}:
-            </span>
-            <span className="text-sm text-yellow-300">
-              {yesterdayWinner.winners.map((w) => w.displayName || w.username).join(" & ")}
-            </span>
-            <span className="text-yellow-500/50 text-xs">·</span>
-            <span className="text-sm text-yellow-400/70">
-              {yesterdayWinner.winners[0].confidencePoints} pts
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setResultsDate(priorPeriodDate)}
-            className="text-xs font-medium text-yellow-400/70 hover:text-yellow-300 transition-colors shrink-0 whitespace-nowrap"
-          >
-            View Results →
-          </button>
-        </div>
-      )}
+      {weekendRecap}
 
       {/* How-to hint — shown once per user per pool, dismissible */}
       {showHint && (
