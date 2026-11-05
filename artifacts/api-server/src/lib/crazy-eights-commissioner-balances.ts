@@ -48,6 +48,8 @@ export type CrazyEightsCommissionerBalanceSheet = {
   poolId: number;
   poolName: string;
   entryFee: number;
+  /** Completed weekends (each requires another entry fee per player). */
+  completedWeekCount: number;
   memberCount: number;
   weeklyPickEmPayoutModel: null;
   weeklyBonusEnabled: boolean;
@@ -65,6 +67,16 @@ export type CrazyEightsCommissionerBalanceSheet = {
 
 export function crazyEightsCommissionerPeriodKey(week: number): string {
   return `c8-week-${week}`;
+}
+
+/** Recurring Hit the Ice / Fast Break: each settled week is another entry fee per player. */
+export function crazyEightsCompletedWeekCount(currentWeek: number): number {
+  return Math.max(0, currentWeek - 1);
+}
+
+export function crazyEightsWeeklyEntryTotal(entryFee: number, completedWeekCount: number): number {
+  if (entryFee <= 0 || completedWeekCount <= 0) return 0;
+  return entryFee * completedWeekCount;
 }
 
 export function isCrazyEightsCommissionerBalancesPool(pool: {
@@ -139,6 +151,8 @@ export async function buildCrazyEightsCommissionerBalanceSheet(
     .orderBy(asc(crazyEightsPeriodResultsTable.week));
 
   const entryFee = pool.entryFee ?? 0;
+  const completedWeekCount = crazyEightsCompletedWeekCount(pool.currentWeek);
+  const weeklyEntryPerPlayer = crazyEightsWeeklyEntryTotal(entryFee, completedWeekCount);
   const winsByUser = new Map<number, CrazyEightsPeriodWinLine[]>();
   const periods: CrazyEightsPeriodSummary[] = [];
 
@@ -175,7 +189,7 @@ export async function buildCrazyEightsCommissionerBalanceSheet(
   const players: CrazyEightsBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
     const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-    const entryFeeOwed = entryFee;
+    const entryFeeOwed = weeklyEntryPerPlayer;
     const totalWon = weeklyWon;
     return {
       userId: m.userId,
@@ -190,13 +204,14 @@ export async function buildCrazyEightsCommissionerBalanceSheet(
     };
   });
 
-  const totalEntryExpected = entryFee * members.length;
+  const totalEntryExpected = weeklyEntryPerPlayer * members.length;
   const totalWeeklyOwed = players.reduce((s, p) => s + p.weeklyWon, 0);
 
   return {
     poolId,
     poolName: pool.name,
     entryFee,
+    completedWeekCount,
     memberCount: members.length,
     weeklyPickEmPayoutModel: null,
     weeklyBonusEnabled: false,

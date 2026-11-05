@@ -19,6 +19,7 @@ type BalanceSheet = {
   poolId: number;
   poolName: string;
   entryFee: number;
+  completedWeekCount?: number;
   memberCount: number;
   weeklyPickEmPayoutModel: "period_pot" | "season_budget" | null;
   weeklyBonusEnabled: boolean;
@@ -159,7 +160,7 @@ export function CommissionerWeeklyPickEmBalances({
     apiSegment === "nfl-confidence-weekly"
       ? "Track entry buy-ins and weekly winner payouts. Paid flags are saved for this pool."
       : apiSegment === "crazy-eights"
-        ? "Track entry buy-ins and weekly winner payouts from recorded weekend results. Paid flags are saved for this pool."
+        ? "Each completed weekend is another entry fee per player. Mark weekly entry collected and period payouts paid."
         : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
 
@@ -240,6 +241,11 @@ export function CommissionerWeeklyPickEmBalances({
         ? "This week's pot"
         : null;
   const showSeasonOwed = summary.totalSeasonOwed > 0 && apiSegment === "pickem";
+  const completedWeekCount = data.completedWeekCount ?? 0;
+  const weeklyEntryLabel =
+    apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0
+      ? `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
+      : null;
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/60 overflow-hidden">
@@ -261,6 +267,9 @@ export function CommissionerWeeklyPickEmBalances({
             <div className="font-semibold tabular-nums">{fmt(summary.totalEntryExpected)}</div>
             <div className="text-xs text-muted-foreground">
               {paidCount}/{players.length} marked paid
+              {weeklyEntryLabel && (
+                <span className="block tabular-nums">{weeklyEntryLabel} per player</span>
+              )}
               {entryCollected > 0 && (
                 <span className="block tabular-nums text-emerald-400/90">
                   {fmt(entryCollected)} collected
@@ -332,7 +341,9 @@ export function CommissionerWeeklyPickEmBalances({
           <TableRow className="border-border/40 hover:bg-transparent">
             <TableHead className="text-xs uppercase tracking-wider">Player</TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-center w-24">Entry paid</TableHead>
-            <TableHead className="text-xs uppercase tracking-wider text-right">Entry</TableHead>
+            <TableHead className="text-xs uppercase tracking-wider text-right">
+              {apiSegment === "crazy-eights" ? "Entry (weeks)" : "Entry"}
+            </TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">Won (periods)</TableHead>
             {showSeasonOwed && (
               <TableHead className="text-xs uppercase tracking-wider text-right">Season</TableHead>
@@ -374,7 +385,18 @@ export function CommissionerWeeklyPickEmBalances({
                   </Button>
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm">
-                  {p.entryFeeOwed > 0 ? fmt(p.entryFeeOwed) : "—"}
+                  {p.entryFeeOwed > 0 ? (
+                    <>
+                      {fmt(p.entryFeeOwed)}
+                      {apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0 && (
+                        <span className="block text-[10px] text-muted-foreground font-normal">
+                          {completedWeekCount}× {fmt(data.entryFee)}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                   {p.weeklyWon > 0 ? fmt(p.weeklyWon) : "—"}
