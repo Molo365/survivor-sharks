@@ -29,9 +29,9 @@ export type WeeklyPickEmBalancePlayer = {
   username: string;
   displayName: string | null;
   entryFeeOwed: number;
-  /** Period-pot recurring: total entry owed for all completed weeks so far. */
+  /** Recurring pick-em (period pot or season buy-in): total entry billing units owed so far. */
   entryFeeTotal?: number;
-  /** Period-pot recurring: still owed after weeks_collected taps. */
+  /** Still owed after weeks_collected taps (one unit = one week’s entry or one season buy-in). */
   entryFeeRemaining?: number;
   entryWeeksCollected?: number;
   weeklyWon: number;
@@ -56,7 +56,7 @@ export type WeeklyPickEmCommissionerBalanceSheet = {
   poolName: string;
   entryFee: number;
   /**
-   * Period-pot recurring only: number of completed entry-billing periods (one entry fee each).
+   * Recurring weekly pick-em: entry billing units (completed weeks for period pot; 1 for season buy-in).
    */
   completedWeekCount?: number;
   memberCount: number;
@@ -174,15 +174,19 @@ async function listCompletedPeriodSpecs(
   return specs;
 }
 
-/** Max entry weeks for commissioner ledger taps (period-pot recurring only). */
+/** Max entry billing units for commissioner ledger taps (weeks for period pot; 1 for season buy-in). */
 export async function weeklyPickEmCommissionerMaxEntryWeeks(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
 ): Promise<number | undefined> {
   if (!isWeeklyPickEmCommissionerBalancesPool(pool)) return undefined;
-  if (resolveWeeklyPickEmPayoutModel(pool) !== "period_pot") return undefined;
-  const specs = await listCompletedPeriodSpecs(pool, poolId);
-  return specs.length;
+  const model = resolveWeeklyPickEmPayoutModel(pool);
+  if (model === "season_budget") return 1;
+  if (model === "period_pot") {
+    const specs = await listCompletedPeriodSpecs(pool, poolId);
+    return specs.length;
+  }
+  return undefined;
 }
 
 export type WeeklyPickEmPlayerWeeklyLedger = {
@@ -195,14 +199,15 @@ export type WeeklyPickEmPlayerWeeklyLedger = {
   outstandingNet: number;
 };
 
-/** Profile /balance: recurring weekly pick-em with period_pot — same math as commissioner sheet. */
+/** Profile /balance: recurring weekly pick-em — same math as commissioner sheet. */
 export async function getWeeklyPickEmPlayerWeeklyLedger(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
   userId: number,
 ): Promise<WeeklyPickEmPlayerWeeklyLedger | null> {
   if (!isWeeklyPickEmCommissionerBalancesPool(pool)) return null;
-  if (resolveWeeklyPickEmPayoutModel(pool) !== "period_pot") return null;
+  const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
+  if (payoutModel !== "period_pot" && payoutModel !== "season_budget") return null;
 
   const [member] = await db
     .select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
@@ -214,7 +219,7 @@ export async function getWeeklyPickEmPlayerWeeklyLedger(
   const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
   const entryFee = pool.entryFee ?? 0;
   const periodSpecs = await listCompletedPeriodSpecs(pool, poolId);
-  const completedWeekCount = periodSpecs.length;
+  const completedWeekCount = payoutModel === "season_budget" ? 1 : periodSpecs.length;
 
   let weeklyWon = 0;
   for (const spec of periodSpecs) {
@@ -265,13 +270,19 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
 
   const entryFee = pool.entryFee ?? 0;
   const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
-  const usePeriodPotIncrementalEntry =
-    payoutModel === "period_pot" && isWeeklyPickEmPayoutModelPool(pool) && entryFee > 0;
+  const useIncrementalEntryCollection =
+    isWeeklyPickEmPayoutModelPool(pool)
+    && entryFee > 0
+    && (payoutModel === "period_pot" || payoutModel === "season_budget");
 
   const periodSpecs = await listCompletedPeriodSpecs(pool, poolId);
-  const completedWeekCount = usePeriodPotIncrementalEntry ? periodSpecs.length : undefined;
+  const completedWeekCount = useIncrementalEntryCollection
+    ? payoutModel === "season_budget"
+      ? 1
+      : periodSpecs.length
+    : undefined;
   const weeklyEntryPerPlayer =
-    usePeriodPotIncrementalEntry && completedWeekCount != null
+    useIncrementalEntryCollection && completedWeekCount != null
       ? weeklyPickEmWeeklyEntryDollars(entryFee, completedWeekCount)
       : entryFee;
 
@@ -311,7 +322,7 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
       m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
     const totalWon = weeklyWon + seasonPrizeWon;
 
-    if (usePeriodPotIncrementalEntry && completedWeekCount != null && completedWeekCount >= 0) {
+    if (useIncrementalEntryCollection && completedWeekCount != null && completedWeekCount >= 0) {
       const entryWeeksCollected = resolveEntryWeeksCollected(
         m.userId,
         completedWeekCount,
