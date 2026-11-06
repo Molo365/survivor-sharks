@@ -2534,6 +2534,17 @@ export interface BracketTreeSlot {
   isCorrect: boolean | null;
 }
 
+export interface UserBalanceWeeklyLedger {
+  completedWeekCount: number;
+  entryFee: number;
+  entryWeeksCollected: number;
+  entryFeeTotal: number;
+  entryFeeRemaining: number;
+  weeklyWon: number;
+  /** Positive = player owes commissioner; negative = player is owed. */
+  outstandingNet: number;
+}
+
 export interface UserBalanceActivePool {
   poolId: number;
   poolName: string;
@@ -2542,6 +2553,7 @@ export interface UserBalanceActivePool {
   entryFee: number | null;
   commissionerName: string;
   status: string;
+  weeklyLedger?: UserBalanceWeeklyLedger;
 }
 
 export type UserBalancePastPoolResult = typeof UserBalancePastPoolResult[keyof typeof UserBalancePastPoolResult];

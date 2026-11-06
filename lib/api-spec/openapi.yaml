@@ -6095,6 +6095,36 @@ components:
           type: string
         status:
           type: string
+        weeklyLedger:
+          $ref: "#/components/schemas/UserBalanceWeeklyLedger"
+
+    UserBalanceWeeklyLedger:
+      type: object
+      description: Read-only weekly entry/prize snapshot (Hit the Ice / Fast Break Multiplier recurring).
+      required:
+        - completedWeekCount
+        - entryFee
+        - entryWeeksCollected
+        - entryFeeTotal
+        - entryFeeRemaining
+        - weeklyWon
+        - outstandingNet
+      properties:
+        completedWeekCount:
+          type: integer
+        entryFee:
+          type: number
+        entryWeeksCollected:
+          type: integer
+        entryFeeTotal:
+          type: number
+        entryFeeRemaining:
+          type: number
+        weeklyWon:
+          type: number
+        outstandingNet:
+          type: number
+          description: Positive = player owes commissioner; negative = player is owed.
 
     UserBalancePastPool:
       type: object

@@ -98,6 +98,67 @@ export function isCrazyEightsCommissionerBalancesPool(pool: {
   return family && (pool.sport === "nhl" || pool.sport === "nba");
 }
 
+export type CrazyEightsPlayerWeeklyLedger = {
+  completedWeekCount: number;
+  entryFee: number;
+  entryWeeksCollected: number;
+  entryFeeTotal: number;
+  entryFeeRemaining: number;
+  weeklyWon: number;
+  /** Positive = player owes commissioner; negative = commissioner owes player. */
+  outstandingNet: number;
+};
+
+/** Read-only mirror of one player's row on the commissioner weekly balance sheet. */
+export async function getCrazyEightsPlayerWeeklyLedger(
+  pool: {
+    sport: string;
+    poolType: string;
+    isRecurring?: boolean | null;
+    entryFee: number | null;
+    currentWeek: number;
+  },
+  poolId: number,
+  userId: number,
+): Promise<CrazyEightsPlayerWeeklyLedger | null> {
+  if (!isCrazyEightsCommissionerBalancesPool(pool)) return null;
+
+  const [paidFlags, resultRows] = await Promise.all([
+    loadWeeklyPickEmCommissionerPaidFlags(poolId),
+    db
+      .select()
+      .from(crazyEightsPeriodResultsTable)
+      .where(eq(crazyEightsPeriodResultsTable.poolId, poolId)),
+  ]);
+
+  let weeklyWon = 0;
+  for (const row of resultRows) {
+    for (const group of row.groups) {
+      if (!group.userIds.includes(userId)) continue;
+      weeklyWon += group.prize ?? 0;
+    }
+  }
+
+  const entryFee = pool.entryFee ?? 0;
+  const completedWeekCount = crazyEightsCompletedWeekCount(pool.currentWeek);
+  const entryWeeksCollected = resolveEntryWeeksCollected(userId, completedWeekCount, paidFlags);
+  const entryFeeTotal = crazyEightsWeeklyEntryTotal(entryFee, completedWeekCount);
+  const entryFeeRemaining = crazyEightsWeeklyEntryTotal(
+    entryFee,
+    completedWeekCount - entryWeeksCollected,
+  );
+
+  return {
+    completedWeekCount,
+    entryFee,
+    entryWeeksCollected,
+    entryFeeTotal,
+    entryFeeRemaining,
+    weeklyWon,
+    outstandingNet: entryFeeRemaining - weeklyWon,
+  };
+}
+
 function toPeriodPool(pool: typeof poolsTable.$inferSelect): CrazyEightsPeriodPool {
   return {
     sport: pool.sport as string,
