@@ -2383,11 +2383,12 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
   }
   const body = req.body as {
     entryPaid?: { userId: number; paid: boolean };
+    entryWeeksCollected?: { userId: number; weeksCollected: number };
     periodPaid?: { periodKey: string; paid: boolean };
     mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
   };
   try {
-    const sheet = await patchCrazyEightsCommissionerLedger(poolId, body);
+    const sheet = await patchCrazyEightsCommissionerLedger(poolId, body, auth.pool);
     res.json(sheet);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

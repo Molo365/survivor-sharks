@@ -14,6 +14,7 @@ import { getNbaAtsSlateBoundsForPool } from "./nba-ats-period";
 import {
   applyWeeklyPickEmCommissionerLedgerPatch,
   loadWeeklyPickEmCommissionerPaidFlags,
+  resolveEntryWeeksCollected,
   type WeeklyPickEmCommissionerLedgerPatch,
 } from "./weekly-pickem-commissioner-ledger";
 
@@ -27,7 +28,11 @@ export type CrazyEightsBalancePlayer = {
   userId: number;
   username: string;
   displayName: string | null;
+  /** Same as entryFeeRemaining (legacy field name for shared UI). */
   entryFeeOwed: number;
+  entryFeeTotal: number;
+  entryFeeRemaining: number;
+  entryWeeksCollected: number;
   weeklyWon: number;
   totalWon: number;
   netBalance: number;
@@ -189,17 +194,25 @@ export async function buildCrazyEightsCommissionerBalanceSheet(
   const players: CrazyEightsBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
     const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-    const entryFeeOwed = weeklyEntryPerPlayer;
+    const entryWeeksCollected = resolveEntryWeeksCollected(m.userId, completedWeekCount, paidFlags);
+    const entryFeeTotal = weeklyEntryPerPlayer;
+    const entryFeeRemaining = crazyEightsWeeklyEntryTotal(
+      entryFee,
+      completedWeekCount - entryWeeksCollected,
+    );
     const totalWon = weeklyWon;
     return {
       userId: m.userId,
       username: m.username,
       displayName: m.displayName,
-      entryFeeOwed,
+      entryFeeOwed: entryFeeRemaining,
+      entryFeeTotal,
+      entryFeeRemaining,
+      entryWeeksCollected,
       weeklyWon,
       totalWon,
-      netBalance: entryFeeOwed - totalWon,
-      entryPaid: paidFlags.entryPaidUserIds.has(m.userId),
+      netBalance: entryFeeRemaining - totalWon,
+      entryPaid: entryWeeksCollected >= completedWeekCount && completedWeekCount > 0,
       periodWins,
     };
   });
@@ -231,9 +244,9 @@ export async function buildCrazyEightsCommissionerBalanceSheet(
 export async function patchCrazyEightsCommissionerLedger(
   poolId: number,
   patch: WeeklyPickEmCommissionerLedgerPatch,
+  pool: typeof poolsTable.$inferSelect,
 ): Promise<CrazyEightsCommissionerBalanceSheet> {
-  await applyWeeklyPickEmCommissionerLedgerPatch(poolId, patch);
-  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
-  if (!pool) throw new Error("Pool not found");
+  const maxEntryWeeks = crazyEightsCompletedWeekCount(pool.currentWeek);
+  await applyWeeklyPickEmCommissionerLedgerPatch(poolId, patch, { maxEntryWeeks });
   return buildCrazyEightsCommissionerBalanceSheet(pool, poolId);
 }

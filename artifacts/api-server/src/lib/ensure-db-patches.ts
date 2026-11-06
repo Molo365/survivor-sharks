@@ -19,6 +19,7 @@ const STARTUP_SQL_PATCHES: string[] = [
   CONSTRAINT "pickem_game_moneylines_uniq" UNIQUE("pool_id","game_id","week")
 )`,
   `ALTER TABLE "pickem_picks" ADD COLUMN IF NOT EXISTS "locked_decimal_odds" real`,
+  `ALTER TABLE "weekly_pick_em_entry_paid" ADD COLUMN IF NOT EXISTS "weeks_collected" integer`,
 ];
 
 let patchesApplied = false;
