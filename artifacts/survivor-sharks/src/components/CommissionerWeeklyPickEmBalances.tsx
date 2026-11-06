@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CheckCircle2, Circle, Wallet } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -95,6 +96,11 @@ function playerEntryStillDue(p: {
 }): number {
   if (p.entryFeeRemaining != null) return p.entryFeeRemaining;
   return p.entryPaid ? 0 : p.entryFeeOwed;
+}
+
+function crazyEightsEntryTotal(entryFee: number, weeks: number): number {
+  if (entryFee <= 0 || weeks <= 0) return 0;
+  return entryFee * weeks;
 }
 
 function authHeaders(): HeadersInit {
@@ -183,6 +189,7 @@ export function CommissionerWeeklyPickEmBalances({
         ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
         : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
+  const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey,
@@ -195,8 +202,19 @@ export function CommissionerWeeklyPickEmBalances({
     onSuccess: (sheet) => {
       queryClient.setQueryData(queryKey, sheet);
     },
+    onError: (err: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Could not save",
+        description: err.message || "Try again in a moment.",
+      });
+    },
   });
-  const { mutate: patchLedger, isPending: ledgerPending } = ledgerMutation;
+  const { mutate: patchLedger, isPending: ledgerPending, variables: pendingPatch } = ledgerMutation;
+
+  const pendingEntryUserId =
+    pendingPatch?.entryWeeksCollected?.userId
+    ?? (pendingPatch?.entryPaid ? pendingPatch.entryPaid.userId : undefined);
 
   useEffect(() => {
     if (!data || deviceImportDone.current) return;
@@ -235,7 +253,40 @@ export function CommissionerWeeklyPickEmBalances({
   }
 
   function setEntryWeeksCollected(userId: number, weeksCollected: number) {
-    patchLedger({ entryWeeksCollected: { userId, weeksCollected } });
+    const previous = queryClient.getQueryData<BalanceSheet>(queryKey);
+    if (previous && apiSegment === "crazy-eights") {
+      const cap = previous.completedWeekCount ?? 0;
+      const clamped = Math.min(Math.max(0, weeksCollected), cap);
+      queryClient.setQueryData<BalanceSheet>(queryKey, {
+        ...previous,
+        players: previous.players.map((player) => {
+          if (player.userId !== userId) return player;
+          const entryFeeTotal =
+            player.entryFeeTotal
+            ?? crazyEightsEntryTotal(previous.entryFee, cap);
+          const entryFeeRemaining = Math.max(
+            0,
+            crazyEightsEntryTotal(previous.entryFee, cap - clamped),
+          );
+          return {
+            ...player,
+            entryWeeksCollected: clamped,
+            entryFeeRemaining,
+            entryFeeOwed: entryFeeRemaining,
+            entryPaid: clamped >= cap && cap > 0,
+            netBalance: entryFeeRemaining - player.totalWon,
+          };
+        }),
+      });
+    }
+    patchLedger(
+      { entryWeeksCollected: { userId, weeksCollected } },
+      {
+        onError: () => {
+          if (previous) queryClient.setQueryData(queryKey, previous);
+        },
+      },
+    );
   }
 
   function collectOneWeeklyEntry(userId: number, currentWeeks: number) {
@@ -392,6 +443,7 @@ export function CommissionerWeeklyPickEmBalances({
             const weeksCollected = p.entryWeeksCollected ?? (p.entryPaid ? completedWeekCount : 0);
             const useWeeklyEntrySteps =
               apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0;
+            const rowBusy = ledgerPending && pendingEntryUserId === p.userId;
             const netLabel =
               outstanding > 0 ? "owes you" : outstanding < 0 ? "you owe" : p.entryPaid ? "paid in" : "even";
             return (
@@ -420,7 +472,7 @@ export function CommissionerWeeklyPickEmBalances({
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={ledgerPending || weeksCollected <= 0}
+                          disabled={rowBusy || weeksCollected <= 0}
                           className="h-7 w-7 p-0"
                           aria-label="Undo one week collected"
                           onClick={() => undoOneWeeklyEntry(p.userId, weeksCollected)}
@@ -452,10 +504,14 @@ export function CommissionerWeeklyPickEmBalances({
                   {useWeeklyEntrySteps ? (
                     <Button
                       type="button"
-                      variant="ghost"
-                      disabled={ledgerPending || entryRemaining <= 0}
-                      className="h-auto py-1 px-2 flex flex-col items-end ml-auto hover:bg-emerald-500/10 disabled:opacity-60"
-                      onClick={() => collectOneWeeklyEntry(p.userId, weeksCollected)}
+                      variant="outline"
+                      disabled={rowBusy || entryRemaining <= 0}
+                      className="h-auto min-h-11 min-w-[5.5rem] py-2 px-3 flex flex-col items-end ml-auto touch-manipulation border-emerald-500/25 hover:bg-emerald-500/10 active:bg-emerald-500/15 disabled:opacity-60"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        collectOneWeeklyEntry(p.userId, weeksCollected);
+                      }}
                     >
                       <span className={entryRemaining > 0 ? "text-foreground" : "text-emerald-400"}>
                         {entryRemaining > 0 ? fmt(entryRemaining) : "—"}
