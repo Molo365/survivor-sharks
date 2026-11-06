@@ -7,6 +7,10 @@ import { normalizeDisplayName } from "../lib/display-name";
 import { normalizeRealName } from "../lib/real-name";
 import { getCrazyEightsPlayerWeeklyLedger } from "../lib/crazy-eights-commissioner-balances";
 import { getNflConfidenceWeeklyPlayerWeeklyLedger } from "../lib/nfl-confidence-weekly-commissioner-balances";
+import {
+  getWeeklyPickEmPlayerWeeklyLedger,
+  isWeeklyPickEmCommissionerBalancesPool,
+} from "../lib/weekly-pickem-commissioner-balances";
 
 const router = Router();
 
@@ -211,7 +215,23 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         row.poolId,
         userId,
       );
-      const weeklyLedger = c8Ledger ?? nflWeeklyLedger;
+      let pickemWeeklyLedger = null;
+      if (!c8Ledger && !nflWeeklyLedger) {
+        const [fullPool] = await db.select().from(poolsTable).where(eq(poolsTable.id, row.poolId)).limit(1);
+        if (
+          fullPool
+          && isWeeklyPickEmCommissionerBalancesPool({
+            sport: fullPool.sport,
+            poolType: fullPool.poolType,
+            pickFrequency: fullPool.pickFrequency,
+            isRecurring: fullPool.isRecurring,
+            entryFee: fullPool.entryFee,
+          })
+        ) {
+          pickemWeeklyLedger = await getWeeklyPickEmPlayerWeeklyLedger(fullPool, row.poolId, userId);
+        }
+      }
+      const weeklyLedger = c8Ledger ?? nflWeeklyLedger ?? pickemWeeklyLedger;
       if (weeklyLedger) activePool.weeklyLedger = weeklyLedger;
       activePools.push(activePool);
     } else {

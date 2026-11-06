@@ -182,12 +182,6 @@ export function CommissionerWeeklyPickEmBalances({
 }) {
   const queryClient = useQueryClient();
   const queryKey = [`${apiSegment}-commissioner-balances`, poolId] as const;
-  const defaultDescription =
-    apiSegment === "nfl-confidence-weekly"
-      ? "Tap the entry amount to record one NFL week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
-      : apiSegment === "crazy-eights"
-        ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
-        : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
   const { toast } = useToast();
 
@@ -254,7 +248,12 @@ export function CommissionerWeeklyPickEmBalances({
 
   function setEntryWeeksCollected(userId: number, weeksCollected: number) {
     const previous = queryClient.getQueryData<BalanceSheet>(queryKey);
-    if (previous && (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")) {
+    if (
+      previous
+      && (apiSegment === "crazy-eights"
+        || apiSegment === "nfl-confidence-weekly"
+        || (apiSegment === "pickem" && previous.weeklyPickEmPayoutModel === "period_pot"))
+    ) {
       const cap = previous.completedWeekCount ?? 0;
       const clamped = Math.min(Math.max(0, weeksCollected), cap);
       queryClient.setQueryData<BalanceSheet>(queryKey, {
@@ -327,8 +326,21 @@ export function CommissionerWeeklyPickEmBalances({
         : null;
   const showSeasonOwed = summary.totalSeasonOwed > 0 && apiSegment === "pickem";
   const completedWeekCount = data.completedWeekCount ?? 0;
+  const isPickemPeriodPotIncremental =
+    apiSegment === "pickem" && data.weeklyPickEmPayoutModel === "period_pot";
+  const balanceDescription =
+    description
+    ?? (apiSegment === "nfl-confidence-weekly"
+      ? "Tap the entry amount to record one NFL week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
+      : apiSegment === "crazy-eights"
+        ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
+        : isPickemPeriodPotIncremental
+          ? "Tap the entry amount to record one completed week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
+          : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.");
   const weeklyEntryLabel =
-    (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")
+    (apiSegment === "crazy-eights"
+      || apiSegment === "nfl-confidence-weekly"
+      || isPickemPeriodPotIncremental)
     && completedWeekCount > 0
     && data.entryFee > 0
       ? `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
@@ -342,7 +354,7 @@ export function CommissionerWeeklyPickEmBalances({
           <div>
             <h4 className="font-bebas text-2xl tracking-wide">{title}</h4>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {description ?? defaultDescription}
+              {balanceDescription}
               {apiSegment === "pickem" && modelLabel ? ` (${modelLabel})` : ""}
             </p>
           </div>
@@ -395,7 +407,7 @@ export function CommissionerWeeklyPickEmBalances({
         {periods.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {apiSegment === "nfl-confidence-weekly" || apiSegment === "crazy-eights"
+              {apiSegment === "nfl-confidence-weekly" || apiSegment === "crazy-eights" || isPickemPeriodPotIncremental
                 ? "Completed weeks"
                 : "Completed periods"}
             </p>
@@ -429,7 +441,7 @@ export function CommissionerWeeklyPickEmBalances({
             <TableHead className="text-xs uppercase tracking-wider">Player</TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-center w-24">Entry paid</TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">
-              {apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly"
+              {apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly" || isPickemPeriodPotIncremental
                 ? "Entry (weeks)"
                 : "Entry"}
             </TableHead>
@@ -446,7 +458,9 @@ export function CommissionerWeeklyPickEmBalances({
             const entryRemaining = playerEntryStillDue(p);
             const weeksCollected = p.entryWeeksCollected ?? (p.entryPaid ? completedWeekCount : 0);
             const useWeeklyEntrySteps =
-              (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")
+              (apiSegment === "crazy-eights"
+                || apiSegment === "nfl-confidence-weekly"
+                || isPickemPeriodPotIncremental)
               && completedWeekCount > 0
               && data.entryFee > 0;
             const rowBusy = ledgerPending && pendingEntryUserId === p.userId;
