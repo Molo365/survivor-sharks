@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/auth";
 import { normalizeDisplayName } from "../lib/display-name";
 import { normalizeRealName } from "../lib/real-name";
 import { getCrazyEightsPlayerWeeklyLedger } from "../lib/crazy-eights-commissioner-balances";
+import { getNflConfidenceWeeklyPlayerWeeklyLedger } from "../lib/nfl-confidence-weekly-commissioner-balances";
 
 const router = Router();
 
@@ -95,6 +96,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
       entryFee: poolsTable.entryFee,
       isActive: poolsTable.isActive,
       isRecurring: poolsTable.isRecurring,
+      startWeek: poolsTable.startWeek,
       currentWeek: poolsTable.currentWeek,
       commissionerName: usersTable.displayName,
       commissionerUsername: usersTable.username,
@@ -185,7 +187,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         commissionerName,
         status: row.status,
       };
-      const weeklyLedger = await getCrazyEightsPlayerWeeklyLedger(
+      const c8Ledger = await getCrazyEightsPlayerWeeklyLedger(
         {
           sport: row.sport as string,
           poolType: row.poolType as string,
@@ -196,6 +198,18 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         row.poolId,
         userId,
       );
+      const nflWeeklyLedger = await getNflConfidenceWeeklyPlayerWeeklyLedger(
+        {
+          poolType: row.poolType as string,
+          isRecurring: row.isRecurring,
+          entryFee: row.entryFee,
+          startWeek: row.startWeek,
+          currentWeek: row.currentWeek,
+        },
+        row.poolId,
+        userId,
+      );
+      const weeklyLedger = c8Ledger ?? nflWeeklyLedger;
       if (weeklyLedger) activePool.weeklyLedger = weeklyLedger;
       activePools.push(activePool);
     } else {
