@@ -11,6 +11,7 @@ import {
 import {
   buildWeeklyPickEmCommissionerBalanceSheet,
   isWeeklyPickEmCommissionerBalancesPool,
+  weeklyPickEmCommissionerMaxEntryWeeks,
 } from "../lib/weekly-pickem-commissioner-balances";
 import { applyWeeklyPickEmCommissionerLedgerPatch } from "../lib/weekly-pickem-commissioner-ledger";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
@@ -2749,12 +2750,14 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
 
   const body = req.body as {
     entryPaid?: { userId: number; paid: boolean };
+    entryWeeksCollected?: { userId: number; weeksCollected: number };
     periodPaid?: { periodKey: string; paid: boolean };
     mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
   };
 
   const hasPatch =
     body?.entryPaid != null ||
+    body?.entryWeeksCollected != null ||
     body?.periodPaid != null ||
     (body?.mergeDeviceState != null &&
       ((body.mergeDeviceState.entryUserIds?.length ?? 0) > 0 ||
@@ -2766,7 +2769,10 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
   }
 
   try {
-    await applyWeeklyPickEmCommissionerLedgerPatch(poolId, body);
+    const maxEntryWeeks = await weeklyPickEmCommissionerMaxEntryWeeks(pool, poolId);
+    await applyWeeklyPickEmCommissionerLedgerPatch(poolId, body, {
+      maxEntryWeeks,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid ledger update";
     res.status(400).json({ error: message });
