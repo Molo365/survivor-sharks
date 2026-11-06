@@ -82,6 +82,38 @@ async function poolMemberUserIds(poolId: number): Promise<Set<number>> {
   return new Set(rows.map((r) => r.userId));
 }
 
+async function upsertWeeklyEntryWeeksCollected(
+  poolId: number,
+  userId: number,
+  weeksCollected: number | null,
+): Promise<void> {
+  const [existing] = await db
+    .select({ id: weeklyPickEmEntryPaidTable.id })
+    .from(weeklyPickEmEntryPaidTable)
+    .where(
+      and(
+        eq(weeklyPickEmEntryPaidTable.poolId, poolId),
+        eq(weeklyPickEmEntryPaidTable.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(weeklyPickEmEntryPaidTable)
+      .set({ weeksCollected })
+      .where(
+        and(
+          eq(weeklyPickEmEntryPaidTable.poolId, poolId),
+          eq(weeklyPickEmEntryPaidTable.userId, userId),
+        ),
+      );
+    return;
+  }
+
+  await db.insert(weeklyPickEmEntryPaidTable).values({ poolId, userId, weeksCollected });
+}
+
 export async function applyWeeklyPickEmCommissionerLedgerPatch(
   poolId: number,
   patch: WeeklyPickEmCommissionerLedgerPatch,
@@ -124,22 +156,8 @@ export async function applyWeeklyPickEmCommissionerLedgerPatch(
             eq(weeklyPickEmEntryPaidTable.userId, userId),
           ),
         );
-    } else if (maxWeeks != null && clamped >= maxWeeks) {
-      await db
-        .insert(weeklyPickEmEntryPaidTable)
-        .values({ poolId, userId, weeksCollected: maxWeeks })
-        .onConflictDoUpdate({
-          target: [weeklyPickEmEntryPaidTable.poolId, weeklyPickEmEntryPaidTable.userId],
-          set: { weeksCollected: maxWeeks },
-        });
     } else {
-      await db
-        .insert(weeklyPickEmEntryPaidTable)
-        .values({ poolId, userId, weeksCollected: clamped })
-        .onConflictDoUpdate({
-          target: [weeklyPickEmEntryPaidTable.poolId, weeklyPickEmEntryPaidTable.userId],
-          set: { weeksCollected: clamped },
-        });
+      await upsertWeeklyEntryWeeksCollected(poolId, userId, clamped);
     }
   }
 
@@ -150,19 +168,9 @@ export async function applyWeeklyPickEmCommissionerLedgerPatch(
       throw new Error("User is not in this pool");
     }
     if (paid) {
-      await db
-        .insert(weeklyPickEmEntryPaidTable)
-        .values({
-          poolId,
-          userId,
-          weeksCollected: maxWeeks != null && maxWeeks > 0 ? maxWeeks : null,
-        })
-        .onConflictDoUpdate({
-          target: [weeklyPickEmEntryPaidTable.poolId, weeklyPickEmEntryPaidTable.userId],
-          set: {
-            weeksCollected: maxWeeks != null && maxWeeks > 0 ? maxWeeks : null,
-          },
-        });
+      const weeks =
+        maxWeeks != null && maxWeeks > 0 ? maxWeeks : null;
+      await upsertWeeklyEntryWeeksCollected(poolId, userId, weeks);
     } else {
       await db
         .delete(weeklyPickEmEntryPaidTable)
