@@ -729,7 +729,7 @@ export function NflConfidenceWeeklyCommissionerPanel({
   return (
     <div className="space-y-6">
       <PoolSetupSummary poolId={poolId} />
-      {poolDetail?.entryFee != null && poolDetail.entryFee > 0 && poolDetail.isRecurring === true && (
+      {poolDetail?.entryFee != null && poolDetail.entryFee > 0 && (
         <CommissionerWeeklyPickEmBalances
           poolId={poolId}
           apiSegment="nfl-confidence-weekly"

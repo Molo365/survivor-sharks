@@ -127,7 +127,16 @@ export const GetUserBalanceResponse = zod.object({
   "poolType": zod.string(),
   "entryFee": zod.number().nullable(),
   "commissionerName": zod.string(),
-  "status": zod.string()
+  "status": zod.string(),
+  "weeklyLedger": zod.object({
+  "completedWeekCount": zod.number(),
+  "entryFee": zod.number(),
+  "entryWeeksCollected": zod.number(),
+  "entryFeeTotal": zod.number(),
+  "entryFeeRemaining": zod.number(),
+  "weeklyWon": zod.number(),
+  "outstandingNet": zod.number().describe('Positive = player owes commissioner; negative = player is owed.')
+}).optional().describe('Read-only entry\/prize snapshot for recurring reload pools (Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly recurring) and one-shot NFL Confidence Weekly (completedWeekCount is 1).')
 })),
   "pastPools": zod.array(zod.object({
   "poolId": zod.number(),

@@ -2534,6 +2534,9 @@ export interface BracketTreeSlot {
   isCorrect: boolean | null;
 }
 
+/**
+ * Read-only entry/prize snapshot for recurring reload pools (Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly recurring) and one-shot NFL Confidence Weekly (completedWeekCount is 1).
+ */
 export interface UserBalanceWeeklyLedger {
   completedWeekCount: number;
   entryFee: number;

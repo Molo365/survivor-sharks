@@ -56,7 +56,10 @@ export type NflConfidenceWeeklyCommissionerBalanceSheet = {
   poolId: number;
   poolName: string;
   entryFee: number;
-  /** Completed NFL weeks from startWeek through currentWeek − 1 (each stacks entry fee). */
+  /**
+   * Entry billing periods: recurring = completed reload weeks (startWeek … currentWeek−1);
+   * non-recurring = 1 (one buy-in for the contest).
+   */
   completedWeekCount: number;
   memberCount: number;
   weeklyPickEmPayoutModel: null;
@@ -83,18 +86,51 @@ export function isNflConfidenceWeeklyCommissionerBalancesPool(pool: {
   entryFee: number | null;
 }): boolean {
   if (pool.poolType !== "nfl_confidence_weekly") return false;
-  if (pool.isRecurring !== true) return false;
+  if (pool.isRecurring !== true && pool.isRecurring !== false) return false;
   if (pool.entryFee == null || pool.entryFee <= 0) return false;
   return true;
 }
 
-/** Count of completed slate weeks: startWeek … currentWeek − 1 (Hit the Ice–style reload). */
+/**
+ * Recurring only: completed reload weeks (each owes another entry).
+ * startWeek … currentWeek − 1.
+ */
 export function nflConfidenceWeeklyCompletedWeekCount(pool: {
   startWeek?: number | null;
   currentWeek: number;
 }): number {
   const start = pool.startWeek ?? 1;
   return Math.max(0, pool.currentWeek - Math.max(1, start));
+}
+
+/**
+ * Periods to bill entry for: reload count when recurring; exactly 1 when non-recurring (one-shot contest).
+ */
+export function nflConfidenceWeeklyEntryBillablePeriods(pool: {
+  poolType: string;
+  isRecurring?: boolean | null;
+  entryFee: number | null;
+  startWeek?: number | null;
+  currentWeek: number;
+}): number {
+  if (pool.poolType !== "nfl_confidence_weekly") return 0;
+  if (pool.entryFee == null || pool.entryFee <= 0) return 0;
+  if (pool.isRecurring === true) {
+    return nflConfidenceWeeklyCompletedWeekCount(pool);
+  }
+  if (pool.isRecurring === false) {
+    return 1;
+  }
+  return 0;
+}
+
+/** Last week index (exclusive) for prize aggregation loops. */
+function nflConfidenceWeeklyPrizeWeekEndExclusive(pool: typeof poolsTable.$inferSelect): number {
+  if (pool.isRecurring === false) {
+    if (pool.isActive) return pool.currentWeek;
+    return pool.currentWeek + 1;
+  }
+  return pool.currentWeek;
 }
 
 export type NflConfidenceWeeklyPlayerWeeklyLedger = {
@@ -112,7 +148,7 @@ async function computeNflConfidenceWeeklyPeriodAggregates(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
   startWeek: number,
-  currentWeek: number,
+  weekEndExclusive: number,
   paidFlags: WeeklyPickEmCommissionerPaidFlags,
 ): Promise<{
   winsByUser: Map<number, NflConfidenceWeeklyPeriodWinLine[]>;
@@ -121,7 +157,7 @@ async function computeNflConfidenceWeeklyPeriodAggregates(
   const winsByUser = new Map<number, NflConfidenceWeeklyPeriodWinLine[]>();
   const periods: NflConfidenceWeeklyPeriodSummary[] = [];
 
-  for (let week = startWeek; week < currentWeek; week++) {
+  for (let week = startWeek; week < weekEndExclusive; week++) {
     const prizeMap = await computeNflConfidenceWeeklyWeekPrizeByUser(pool, poolId, week);
     if (prizeMap.size === 0) continue;
 
@@ -167,28 +203,29 @@ export async function getNflConfidenceWeeklyPlayerWeeklyLedger(
 
   const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
   const startWeek = fullPool.startWeek ?? 1;
-  const completedWeekCount = nflConfidenceWeeklyCompletedWeekCount(fullPool);
   const entryFee = fullPool.entryFee ?? 0;
+  const billablePeriods = nflConfidenceWeeklyEntryBillablePeriods(fullPool);
+  const prizeEndExclusive = nflConfidenceWeeklyPrizeWeekEndExclusive(fullPool);
 
   const { winsByUser } = await computeNflConfidenceWeeklyPeriodAggregates(
     fullPool,
     poolId,
     startWeek,
-    fullPool.currentWeek,
+    prizeEndExclusive,
     paidFlags,
   );
 
   const periodWins = winsByUser.get(userId) ?? [];
   const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-  const entryWeeksCollected = resolveEntryWeeksCollected(userId, completedWeekCount, paidFlags);
-  const entryFeeTotal = weeklyEntryDollars(entryFee, completedWeekCount);
+  const entryWeeksCollected = resolveEntryWeeksCollected(userId, billablePeriods, paidFlags);
+  const entryFeeTotal = weeklyEntryDollars(entryFee, billablePeriods);
   const entryFeeRemaining = weeklyEntryDollars(
     entryFee,
-    completedWeekCount - entryWeeksCollected,
+    billablePeriods - entryWeeksCollected,
   );
 
   return {
-    completedWeekCount,
+    completedWeekCount: billablePeriods,
     entryFee,
     entryWeeksCollected,
     entryFeeTotal,
@@ -380,25 +417,26 @@ export async function buildNflConfidenceWeeklyCommissionerBalanceSheet(
 
   const entryFee = pool.entryFee ?? 0;
   const startWeek = pool.startWeek ?? 1;
-  const completedWeekCount = nflConfidenceWeeklyCompletedWeekCount(pool);
-  const weeklyEntryPerPlayer = weeklyEntryDollars(entryFee, completedWeekCount);
+  const billablePeriods = nflConfidenceWeeklyEntryBillablePeriods(pool);
+  const weeklyEntryPerPlayer = weeklyEntryDollars(entryFee, billablePeriods);
+  const prizeEndExclusive = nflConfidenceWeeklyPrizeWeekEndExclusive(pool);
 
   const { winsByUser, periods } = await computeNflConfidenceWeeklyPeriodAggregates(
     pool,
     poolId,
     startWeek,
-    pool.currentWeek,
+    prizeEndExclusive,
     paidFlags,
   );
 
   const players: NflConfidenceWeeklyBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
     const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-    const entryWeeksCollected = resolveEntryWeeksCollected(m.userId, completedWeekCount, paidFlags);
+    const entryWeeksCollected = resolveEntryWeeksCollected(m.userId, billablePeriods, paidFlags);
     const entryFeeTotal = weeklyEntryPerPlayer;
     const entryFeeRemaining = weeklyEntryDollars(
       entryFee,
-      completedWeekCount - entryWeeksCollected,
+      billablePeriods - entryWeeksCollected,
     );
     const totalWon = weeklyWon;
     const netBalance = entryFeeRemaining - totalWon;
@@ -413,7 +451,7 @@ export async function buildNflConfidenceWeeklyCommissionerBalanceSheet(
       weeklyWon,
       totalWon,
       netBalance,
-      entryPaid: entryWeeksCollected >= completedWeekCount && completedWeekCount > 0,
+      entryPaid: entryWeeksCollected >= billablePeriods && billablePeriods > 0,
       periodWins,
     };
   });
@@ -425,7 +463,7 @@ export async function buildNflConfidenceWeeklyCommissionerBalanceSheet(
     poolId,
     poolName: pool.name,
     entryFee,
-    completedWeekCount,
+    completedWeekCount: billablePeriods,
     memberCount: members.length,
     weeklyPickEmPayoutModel: null,
     weeklyBonusEnabled: false,
@@ -448,7 +486,7 @@ export async function patchNflConfidenceWeeklyCommissionerLedger(
 ): Promise<NflConfidenceWeeklyCommissionerBalanceSheet> {
   const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
   if (!pool) throw new Error("Pool not found");
-  const maxEntryWeeks = nflConfidenceWeeklyCompletedWeekCount(pool);
+  const maxEntryWeeks = nflConfidenceWeeklyEntryBillablePeriods(pool);
   await applyWeeklyPickEmCommissionerLedgerPatch(poolId, patch, { maxEntryWeeks });
   return buildNflConfidenceWeeklyCommissionerBalanceSheet(pool, poolId);
 }
