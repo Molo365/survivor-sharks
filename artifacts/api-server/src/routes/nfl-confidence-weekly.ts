@@ -45,7 +45,7 @@ async function assertNflConfidenceWeeklyCommissioner(
     return {
       ok: false,
       status: 400,
-      error: "Commissioner balances are only for paid recurring NFL Confidence Weekly pools",
+      error: "Commissioner balances are only for paid NFL Confidence Weekly pools (recurring or one-week)",
     };
   }
   const isCommissioner = pool.commissionerId === userId;

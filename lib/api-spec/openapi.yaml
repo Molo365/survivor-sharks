@@ -6100,7 +6100,7 @@ components:
 
     UserBalanceWeeklyLedger:
       type: object
-      description: Read-only weekly entry/prize snapshot (recurring weekly reload pools — Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly).
+      description: Read-only entry/prize snapshot for recurring reload pools (Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly recurring) and one-shot NFL Confidence Weekly (completedWeekCount is 1).
       required:
         - completedWeekCount
         - entryFee
