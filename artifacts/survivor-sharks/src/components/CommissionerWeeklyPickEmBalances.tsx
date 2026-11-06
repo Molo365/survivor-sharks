@@ -252,7 +252,9 @@ export function CommissionerWeeklyPickEmBalances({
       previous
       && (apiSegment === "crazy-eights"
         || apiSegment === "nfl-confidence-weekly"
-        || (apiSegment === "pickem" && previous.weeklyPickEmPayoutModel === "period_pot"))
+        || (apiSegment === "pickem"
+          && (previous.weeklyPickEmPayoutModel === "period_pot"
+            || previous.weeklyPickEmPayoutModel === "season_budget")))
     ) {
       const cap = previous.completedWeekCount ?? 0;
       const clamped = Math.min(Math.max(0, weeksCollected), cap);
@@ -328,6 +330,9 @@ export function CommissionerWeeklyPickEmBalances({
   const completedWeekCount = data.completedWeekCount ?? 0;
   const isPickemPeriodPotIncremental =
     apiSegment === "pickem" && data.weeklyPickEmPayoutModel === "period_pot";
+  const isPickemSeasonBudgetIncremental =
+    apiSegment === "pickem" && data.weeklyPickEmPayoutModel === "season_budget";
+  const isPickemIncrementalEntry = isPickemPeriodPotIncremental || isPickemSeasonBudgetIncremental;
   const balanceDescription =
     description
     ?? (apiSegment === "nfl-confidence-weekly"
@@ -336,14 +341,18 @@ export function CommissionerWeeklyPickEmBalances({
         ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
         : isPickemPeriodPotIncremental
           ? "Tap the entry amount to record one completed week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
+          : isPickemSeasonBudgetIncremental
+            ? "Tap the entry amount when you've collected that player's season buy-in. Use − if you tapped by mistake. Paid flags are saved for this pool."
           : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.");
   const weeklyEntryLabel =
     (apiSegment === "crazy-eights"
       || apiSegment === "nfl-confidence-weekly"
-      || isPickemPeriodPotIncremental)
+      || isPickemIncrementalEntry)
     && completedWeekCount > 0
     && data.entryFee > 0
-      ? `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
+      ? isPickemSeasonBudgetIncremental
+        ? `1× ${fmt(data.entryFee)} season buy-in per player`
+        : `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
       : null;
 
   return (
@@ -443,6 +452,8 @@ export function CommissionerWeeklyPickEmBalances({
             <TableHead className="text-xs uppercase tracking-wider text-right">
               {apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly" || isPickemPeriodPotIncremental
                 ? "Entry (weeks)"
+                : isPickemSeasonBudgetIncremental
+                  ? "Entry (buy-in)"
                 : "Entry"}
             </TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">Won (periods)</TableHead>
@@ -460,7 +471,7 @@ export function CommissionerWeeklyPickEmBalances({
             const useWeeklyEntrySteps =
               (apiSegment === "crazy-eights"
                 || apiSegment === "nfl-confidence-weekly"
-                || isPickemPeriodPotIncremental)
+                || isPickemIncrementalEntry)
               && completedWeekCount > 0
               && data.entryFee > 0;
             const rowBusy = ledgerPending && pendingEntryUserId === p.userId;
@@ -485,7 +496,9 @@ export function CommissionerWeeklyPickEmBalances({
                   {useWeeklyEntrySteps ? (
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-xs tabular-nums text-muted-foreground">
-                        {weeksCollected}/{completedWeekCount} wks
+                        {isPickemSeasonBudgetIncremental
+                          ? `${weeksCollected}/${completedWeekCount} buy-in`
+                          : `${weeksCollected}/${completedWeekCount} wks`}
                       </span>
                       <div className="flex items-center gap-1">
                         <Button
@@ -494,7 +507,11 @@ export function CommissionerWeeklyPickEmBalances({
                           variant="outline"
                           disabled={rowBusy || weeksCollected <= 0}
                           className="h-7 w-7 p-0"
-                          aria-label="Undo one week collected"
+                          aria-label={
+                            isPickemSeasonBudgetIncremental
+                              ? "Undo buy-in collected"
+                              : "Undo one week collected"
+                          }
                           onClick={() => undoOneWeeklyEntry(p.userId, weeksCollected)}
                         >
                           −
@@ -539,7 +556,9 @@ export function CommissionerWeeklyPickEmBalances({
                       <span className="text-[10px] text-muted-foreground font-normal text-right leading-snug">
                         {entryRemaining > 0
                           ? `tap +${fmt(data.entryFee)}`
-                          : `${completedWeekCount}× ${fmt(data.entryFee)} in`}
+                          : isPickemSeasonBudgetIncremental
+                            ? `${fmt(data.entryFee)} buy-in in`
+                            : `${completedWeekCount}× ${fmt(data.entryFee)} in`}
                       </span>
                     </Button>
                   ) : p.entryFeeOwed > 0 ? (

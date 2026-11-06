@@ -2535,7 +2535,7 @@ export interface BracketTreeSlot {
 }
 
 /**
- * Read-only entry/prize snapshot for recurring reload pools (Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly recurring) and one-shot NFL Confidence Weekly (completedWeekCount is 1).
+ * Read-only entry/prize snapshot for recurring reload pools (Hit the Ice, Fast Break Multiplier, NFL Confidence Weekly recurring), paid recurring weekly pick-em pools (period-pot or season buy-in), and one-shot NFL Confidence Weekly (completedWeekCount is 1).
  */
 export interface UserBalanceWeeklyLedger {
   completedWeekCount: number;
