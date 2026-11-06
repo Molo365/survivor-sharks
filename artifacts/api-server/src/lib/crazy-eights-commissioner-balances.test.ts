@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   crazyEightsCommissionerPeriodKey,
+  crazyEightsCompletedWeekCount,
+  crazyEightsWeeklyEntryTotal,
   isCrazyEightsCommissionerBalancesPool,
 } from "./crazy-eights-commissioner-balances";
 
@@ -48,5 +50,11 @@ describe("crazy-eights commissioner balances", () => {
 
   it("uses stable period keys per week number", () => {
     expect(crazyEightsCommissionerPeriodKey(1)).toBe("c8-week-1");
+  });
+
+  it("scales entry totals by completed week count", () => {
+    expect(crazyEightsCompletedWeekCount(5)).toBe(4);
+    expect(crazyEightsWeeklyEntryTotal(100, 4)).toBe(400);
+    expect(crazyEightsWeeklyEntryTotal(100, 0)).toBe(0);
   });
 });
