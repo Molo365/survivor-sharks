@@ -11,7 +11,7 @@ export type WeeklyPickEmPayoutPool = {
   weeklyBonusEnabled?: boolean | null;
 };
 
-const RECURRING_PICKEM_SPORTS = ["mlb", "nhl", "mls", "superleague"] as const;
+const RECURRING_PICKEM_SPORTS = ["mlb", "nhl", "nba", "mls", "superleague"] as const;
 
 export function isWeeklyPickEmPayoutModelPool(pool: WeeklyPickEmPayoutPool): boolean {
   return (

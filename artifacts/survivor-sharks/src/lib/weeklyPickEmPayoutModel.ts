@@ -36,7 +36,7 @@ export function isWeeklyPickEmPayoutModelChoiceEligible(opts: {
   ) {
     return false;
   }
-  if (poolType === "pickem" && ["mlb", "nhl", "mls", "superleague"].includes(sport)) {
+  if (poolType === "pickem" && ["mlb", "nhl", "nba", "mls", "superleague"].includes(sport)) {
     return isRecurring === true;
   }
   return false;

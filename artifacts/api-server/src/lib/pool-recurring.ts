@@ -9,7 +9,7 @@ export function isRecurringConfigurablePool(pool: {
   if (pt === "crazy_8s" || pt === "fast_break_multiplier" || pt === "nfl_confidence_weekly" || pt === "nba_ats") {
     return true;
   }
-  if (pt === "pickem" && ["mlb", "nhl", "mls", "superleague"].includes(pool.sport)) {
+  if (pt === "pickem" && ["mlb", "nhl", "nba", "mls", "superleague"].includes(pool.sport)) {
     return true;
   }
   return false;

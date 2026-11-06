@@ -18,6 +18,17 @@ describe("isWeeklyPickEmPayoutModelChoiceEligible", () => {
     ).toBe(true);
   });
 
+  it("allows recurring NBA weekly pickem", () => {
+    expect(
+      isWeeklyPickEmPayoutModelChoiceEligible({
+        sport: "nba",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+      }),
+    ).toBe(true);
+  });
+
   it("skips non-recurring pickem", () => {
     expect(
       isWeeklyPickEmPayoutModelChoiceEligible({

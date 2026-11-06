@@ -100,6 +100,16 @@ describe("weekly-pickem-payout-model", () => {
     );
     assert.equal(
       isWeeklyPickEmCommissionerBalancesPool({
+        sport: "nba",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 10,
+      }),
+      true,
+    );
+    assert.equal(
+      isWeeklyPickEmCommissionerBalancesPool({
         sport: "nfl",
         poolType: "pickem",
         pickFrequency: "weekly",
