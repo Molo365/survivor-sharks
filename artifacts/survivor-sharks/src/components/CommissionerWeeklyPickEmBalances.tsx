@@ -35,8 +35,8 @@ type BalanceSheet = {
   periods: Array<{
     periodKey: string;
     label: string;
-    weekStart: string;
-    weekEnd: string;
+    weekStart?: string;
+    weekEnd?: string;
     totalOwed: number;
     periodPaid: boolean;
   }>;
@@ -184,7 +184,7 @@ export function CommissionerWeeklyPickEmBalances({
   const queryKey = [`${apiSegment}-commissioner-balances`, poolId] as const;
   const defaultDescription =
     apiSegment === "nfl-confidence-weekly"
-      ? "Track entry buy-ins and weekly winner payouts. Paid flags are saved for this pool."
+      ? "Tap the entry amount to record one NFL week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
       : apiSegment === "crazy-eights"
         ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
         : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
@@ -254,7 +254,7 @@ export function CommissionerWeeklyPickEmBalances({
 
   function setEntryWeeksCollected(userId: number, weeksCollected: number) {
     const previous = queryClient.getQueryData<BalanceSheet>(queryKey);
-    if (previous && apiSegment === "crazy-eights") {
+    if (previous && (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")) {
       const cap = previous.completedWeekCount ?? 0;
       const clamped = Math.min(Math.max(0, weeksCollected), cap);
       queryClient.setQueryData<BalanceSheet>(queryKey, {
@@ -328,7 +328,9 @@ export function CommissionerWeeklyPickEmBalances({
   const showSeasonOwed = summary.totalSeasonOwed > 0 && apiSegment === "pickem";
   const completedWeekCount = data.completedWeekCount ?? 0;
   const weeklyEntryLabel =
-    apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0
+    (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")
+    && completedWeekCount > 0
+    && data.entryFee > 0
       ? `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
       : null;
 
@@ -427,7 +429,9 @@ export function CommissionerWeeklyPickEmBalances({
             <TableHead className="text-xs uppercase tracking-wider">Player</TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-center w-24">Entry paid</TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">
-              {apiSegment === "crazy-eights" ? "Entry (weeks)" : "Entry"}
+              {apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly"
+                ? "Entry (weeks)"
+                : "Entry"}
             </TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">Won (periods)</TableHead>
             {showSeasonOwed && (
@@ -442,7 +446,9 @@ export function CommissionerWeeklyPickEmBalances({
             const entryRemaining = playerEntryStillDue(p);
             const weeksCollected = p.entryWeeksCollected ?? (p.entryPaid ? completedWeekCount : 0);
             const useWeeklyEntrySteps =
-              apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0;
+              (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly")
+              && completedWeekCount > 0
+              && data.entryFee > 0;
             const rowBusy = ledgerPending && pendingEntryUserId === p.userId;
             const netLabel =
               outstanding > 0 ? "owes you" : outstanding < 0 ? "you owe" : p.entryPaid ? "paid in" : "even";
