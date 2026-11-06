@@ -1404,7 +1404,7 @@ export interface PickEmPickInput {
   tiebreakerPoints?: number;
   /** The date (YYYY-MM-DD) the picks were made for; used by sandbox weekly pools to validate against the correct anchor-week day's games */
   date?: string;
-  /** Request one pick confirmation email after the final request of a live NHL weekly submission */
+  /** Live NHL weekly only: when true, send one pick confirmation email for this request. Omit or false on earlier partial saves (e.g. Saturday-only POST) so only the final request emails. */
   sendConfirmation?: boolean;
 }
 

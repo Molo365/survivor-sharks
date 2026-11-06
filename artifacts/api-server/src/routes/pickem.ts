@@ -1544,6 +1544,7 @@ router.post("/picks", requireAuth, async (req, res) => {
       !isAts
       && !isSharedPickConfirmationSport(sport)
       && confirmationGames.length > 0
+      && (!isLiveNhlWeekly || sendConfirmation === true)
     ) {
       let periodKey = submittedDate ?? picks[0]?.gameDate ?? todayEt;
       if (sport === "nfl") {
@@ -1564,6 +1565,7 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
   }
   });
+
   if (sharedConfirmation) deliverPickConfirmation(sharedConfirmation, { poolId, userId, sport });
 
   res.status(201).json({ saved, skipped: 0 });

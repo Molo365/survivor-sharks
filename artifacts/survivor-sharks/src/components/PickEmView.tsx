@@ -3237,7 +3237,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     if (satPicks.length > 0 && satDate) {
       const satRes = await submitPicks.mutateAsync({
         poolId,
-        data: { picks: satPicks, date: satDate },
+        data: {
+          picks: satPicks,
+          date: satDate,
+          ...(isLiveNhlWeekly && sunPicks.length === 0 ? { sendConfirmation: true } : {}),
+        },
       });
       totalSaved += satRes.saved;
     }
