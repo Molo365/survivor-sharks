@@ -84,6 +84,35 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
+function formatUsd(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+function weeklyLedgerSummary(ledger: NonNullable<UserBalanceActivePool["weeklyLedger"]>): string {
+  const parts: string[] = [];
+  if (ledger.entryFeeRemaining > 0) {
+    parts.push(`${formatUsd(ledger.entryFeeRemaining)} entry due`);
+  } else if (ledger.completedWeekCount > 0) {
+    parts.push("Entry caught up");
+  }
+  if (ledger.weeklyWon > 0) {
+    parts.push(`${formatUsd(ledger.weeklyWon)} won`);
+  }
+  if (ledger.outstandingNet > 0) {
+    parts.push(`You owe ${formatUsd(ledger.outstandingNet)}`);
+  } else if (ledger.outstandingNet < 0) {
+    parts.push(`You're owed ${formatUsd(Math.abs(ledger.outstandingNet))}`);
+  } else if (ledger.entryFeeRemaining === 0 && ledger.weeklyWon > 0) {
+    parts.push("Even");
+  }
+  return parts.join(" · ");
+}
+
 // ── Active pool card ─────────────────────────────────────────────────────────
 
 function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
@@ -105,12 +134,25 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
               {POOL_TYPE_LABELS[pool.poolType] ?? pool.poolType}
             </span>
           </div>
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center justify-between mt-1 gap-2">
             <span className="text-xs text-muted-foreground">by {pool.commissionerName}</span>
-            <span className="text-xs font-semibold text-foreground">
-              {pool.entryFee && pool.entryFee > 0 ? `$${pool.entryFee}` : "Free"}
-            </span>
+            {!pool.weeklyLedger && (
+              <span className="text-xs font-semibold text-foreground shrink-0">
+                {pool.entryFee && pool.entryFee > 0 ? `$${pool.entryFee}` : "Free"}
+              </span>
+            )}
           </div>
+          {pool.weeklyLedger && (
+            <p className="text-[11px] leading-snug text-muted-foreground mt-0.5">
+              {weeklyLedgerSummary(pool.weeklyLedger)}
+            </p>
+          )}
+          {pool.weeklyLedger && pool.weeklyLedger.completedWeekCount > 0 && (
+            <p className="text-[10px] text-muted-foreground/70">
+              {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount} weekly
+              entries marked collected
+            </p>
+          )}
         </CardContent>
       </Card>
     </Link>

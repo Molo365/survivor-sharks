@@ -5,6 +5,7 @@ import { eq, inArray, sql, desc, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { normalizeDisplayName } from "../lib/display-name";
 import { normalizeRealName } from "../lib/real-name";
+import { getCrazyEightsPlayerWeeklyLedger } from "../lib/crazy-eights-commissioner-balances";
 
 const router = Router();
 
@@ -93,6 +94,8 @@ router.get("/me/balance", requireAuth, async (req, res) => {
       poolType: poolsTable.poolType,
       entryFee: poolsTable.entryFee,
       isActive: poolsTable.isActive,
+      isRecurring: poolsTable.isRecurring,
+      currentWeek: poolsTable.currentWeek,
       commissionerName: usersTable.displayName,
       commissionerUsername: usersTable.username,
     })
@@ -144,6 +147,15 @@ router.get("/me/balance", requireAuth, async (req, res) => {
     entryFee: number | null;
     commissionerName: string;
     status: string;
+    weeklyLedger?: {
+      completedWeekCount: number;
+      entryFee: number;
+      entryWeeksCollected: number;
+      entryFeeTotal: number;
+      entryFeeRemaining: number;
+      weeklyWon: number;
+      outstandingNet: number;
+    };
   }> = [];
 
   const pastPools: Array<{
@@ -164,7 +176,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
     const commissionerName = row.commissionerName ?? row.commissionerUsername;
 
     if (row.isActive) {
-      activePools.push({
+      const activePool: (typeof activePools)[number] = {
         poolId: row.poolId,
         poolName: row.poolName,
         sport: row.sport as string,
@@ -172,7 +184,20 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         entryFee: row.entryFee ?? null,
         commissionerName,
         status: row.status,
-      });
+      };
+      const weeklyLedger = await getCrazyEightsPlayerWeeklyLedger(
+        {
+          sport: row.sport as string,
+          poolType: row.poolType as string,
+          isRecurring: row.isRecurring,
+          entryFee: row.entryFee,
+          currentWeek: row.currentWeek,
+        },
+        row.poolId,
+        userId,
+      );
+      if (weeklyLedger) activePool.weeklyLedger = weeklyLedger;
+      activePools.push(activePool);
     } else {
       let result: "won" | "lost" | "unknown" = "unknown";
       if (row.finalWinner) result = "won";
