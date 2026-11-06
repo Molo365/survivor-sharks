@@ -93,15 +93,29 @@ function formatUsd(n: number): string {
   }).format(n);
 }
 
-function weeklyLedgerSummary(ledger: NonNullable<UserBalanceActivePool["weeklyLedger"]>): string {
+function weeklyLedgerSummary(
+  ledger: NonNullable<UserBalanceActivePool["weeklyLedger"]>,
+  meta: Pick<UserBalanceActivePool, "poolType" | "isRecurring">,
+): string {
+  const isNflOneWeekConfidence =
+    meta.poolType === "nfl_confidence_weekly" && meta.isRecurring === false;
+
   const parts: string[] = [];
   if (ledger.entryFeeRemaining > 0) {
-    parts.push(`${formatUsd(ledger.entryFeeRemaining)} entry due`);
+    parts.push(
+      isNflOneWeekConfidence
+        ? `${formatUsd(ledger.entryFeeRemaining)} contest entry due`
+        : `${formatUsd(ledger.entryFeeRemaining)} entry due`,
+    );
   } else if (ledger.completedWeekCount > 0) {
-    parts.push("Entry caught up");
+    parts.push(isNflOneWeekConfidence ? "Contest entry paid" : "Entry caught up");
   }
   if (ledger.weeklyWon > 0) {
-    parts.push(`${formatUsd(ledger.weeklyWon)} won`);
+    parts.push(
+      isNflOneWeekConfidence
+        ? `${formatUsd(ledger.weeklyWon)} contest prize won`
+        : `${formatUsd(ledger.weeklyWon)} won`,
+    );
   }
   if (ledger.outstandingNet > 0) {
     parts.push(`You owe ${formatUsd(ledger.outstandingNet)}`);
@@ -144,13 +158,23 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
           </div>
           {pool.weeklyLedger && (
             <p className="text-[11px] leading-snug text-muted-foreground mt-0.5">
-              {weeklyLedgerSummary(pool.weeklyLedger)}
+              {weeklyLedgerSummary(pool.weeklyLedger, pool)}
             </p>
           )}
           {pool.weeklyLedger && pool.weeklyLedger.completedWeekCount > 0 && (
             <p className="text-[10px] text-muted-foreground/70">
-              {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount} weekly
-              entries marked collected
+              {pool.poolType === "nfl_confidence_weekly" && pool.isRecurring === false ? (
+                <>
+                  {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
+                  contest {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
+                  collected
+                </>
+              ) : (
+                <>
+                  {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
+                  weekly entries marked collected
+                </>
+              )}
             </p>
           )}
         </CardContent>
