@@ -6095,6 +6095,10 @@ components:
           type: string
         status:
           type: string
+        isRecurring:
+          type: boolean
+          nullable: true
+          description: Present when useful for ledger copy (e.g. NFL Confidence Weekly one-week vs recurring).
         weeklyLedger:
           $ref: "#/components/schemas/UserBalanceWeeklyLedger"
 

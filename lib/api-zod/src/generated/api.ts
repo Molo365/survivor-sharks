@@ -128,6 +128,7 @@ export const GetUserBalanceResponse = zod.object({
   "entryFee": zod.number().nullable(),
   "commissionerName": zod.string(),
   "status": zod.string(),
+  "isRecurring": zod.boolean().nullish().describe('Present when useful for ledger copy (e.g. NFL Confidence Weekly one-week vs recurring).'),
   "weeklyLedger": zod.object({
   "completedWeekCount": zod.number(),
   "entryFee": zod.number(),

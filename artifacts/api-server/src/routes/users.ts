@@ -149,6 +149,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
     entryFee: number | null;
     commissionerName: string;
     status: string;
+    isRecurring?: boolean | null;
     weeklyLedger?: {
       completedWeekCount: number;
       entryFee: number;
@@ -186,6 +187,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         entryFee: row.entryFee ?? null,
         commissionerName,
         status: row.status,
+        isRecurring: row.isRecurring,
       };
       const c8Ledger = await getCrazyEightsPlayerWeeklyLedger(
         {

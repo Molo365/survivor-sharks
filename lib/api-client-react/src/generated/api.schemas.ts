@@ -2556,6 +2556,8 @@ export interface UserBalanceActivePool {
   entryFee: number | null;
   commissionerName: string;
   status: string;
+  /** Present when useful for ledger copy (e.g. NFL Confidence Weekly one-week vs recurring). */
+  isRecurring?: boolean | null;
   weeklyLedger?: UserBalanceWeeklyLedger;
 }
 
