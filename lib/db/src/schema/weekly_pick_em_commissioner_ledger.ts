@@ -13,6 +13,8 @@ export const weeklyPickEmEntryPaidTable = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
+    /** Null = legacy “all weeks collected” when commissioner used the old Paid toggle. */
+    weeksCollected: integer("weeks_collected"),
     markedAt: timestamp("marked_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("weekly_pick_em_entry_paid_pool_user").on(t.poolId, t.userId)],

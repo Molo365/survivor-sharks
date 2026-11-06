@@ -5,6 +5,7 @@ import {
   crazyEightsWeeklyEntryTotal,
   isCrazyEightsCommissionerBalancesPool,
 } from "./crazy-eights-commissioner-balances";
+import { resolveEntryWeeksCollected } from "./weekly-pickem-commissioner-ledger";
 
 describe("crazy-eights commissioner balances", () => {
   it("accepts paid recurring NBA Fast Break Multiplier pools", () => {
@@ -56,5 +57,17 @@ describe("crazy-eights commissioner balances", () => {
     expect(crazyEightsCompletedWeekCount(5)).toBe(4);
     expect(crazyEightsWeeklyEntryTotal(100, 4)).toBe(400);
     expect(crazyEightsWeeklyEntryTotal(100, 0)).toBe(0);
+  });
+
+  it("resolves legacy full-paid vs partial weeks", () => {
+    const flags = {
+      entryPaidUserIds: new Set([1, 2]),
+      periodPaidKeys: new Set<string>(),
+      entryWeeksCollectedByUser: new Map([[2, 2]]),
+      entryLegacyFullPaidUserIds: new Set([1]),
+    };
+    expect(resolveEntryWeeksCollected(1, 4, flags)).toBe(4);
+    expect(resolveEntryWeeksCollected(2, 4, flags)).toBe(2);
+    expect(resolveEntryWeeksCollected(99, 4, flags)).toBe(0);
   });
 });

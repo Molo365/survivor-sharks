@@ -44,6 +44,9 @@ type BalanceSheet = {
     username: string;
     displayName: string | null;
     entryFeeOwed: number;
+    entryFeeTotal?: number;
+    entryFeeRemaining?: number;
+    entryWeeksCollected?: number;
     weeklyWon: number;
     seasonPrizeWon: number;
     totalWon: number;
@@ -55,6 +58,7 @@ type BalanceSheet = {
 
 type LedgerPatch = {
   entryPaid?: { userId: number; paid: boolean };
+  entryWeeksCollected?: { userId: number; weeksCollected: number };
   periodPaid?: { periodKey: string; paid: boolean };
   mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
 };
@@ -67,14 +71,30 @@ function fmt(n: number) {
   }).format(n);
 }
 
-/** Cash still in play after commissioner marks entry collected (paid toggle). */
+/** Cash still in play after commissioner marks entry collected. */
 function playerOutstandingNet(p: {
   entryPaid: boolean;
   entryFeeOwed: number;
+  entryFeeRemaining?: number;
   totalWon: number;
 }): number {
-  const entryStillDue = p.entryPaid ? 0 : p.entryFeeOwed;
+  const entryStillDue =
+    p.entryFeeRemaining != null
+      ? p.entryFeeRemaining
+      : p.entryPaid
+        ? 0
+        : p.entryFeeOwed;
   return entryStillDue - p.totalWon;
+}
+
+function playerEntryStillDue(p: {
+  entryPaid: boolean;
+  entryFeeOwed: number;
+  entryFeeRemaining?: number;
+  entryFeeTotal?: number;
+}): number {
+  if (p.entryFeeRemaining != null) return p.entryFeeRemaining;
+  return p.entryPaid ? 0 : p.entryFeeOwed;
 }
 
 function authHeaders(): HeadersInit {
@@ -160,7 +180,7 @@ export function CommissionerWeeklyPickEmBalances({
     apiSegment === "nfl-confidence-weekly"
       ? "Track entry buy-ins and weekly winner payouts. Paid flags are saved for this pool."
       : apiSegment === "crazy-eights"
-        ? "Each completed weekend is another entry fee per player. Mark weekly entry collected and period payouts paid."
+        ? "Tap the entry amount to record one week collected (+denomination). Use − if you tapped too many."
         : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.";
   const deviceImportDone = useRef(false);
 
@@ -196,20 +216,34 @@ export function CommissionerWeeklyPickEmBalances({
 
   const entryCollected = useMemo(() => {
     if (!data) return 0;
-    return data.players
-      .filter((p) => p.entryPaid)
-      .reduce((s, p) => s + p.entryFeeOwed, 0);
+    return data.players.reduce((s, p) => {
+      if (p.entryFeeTotal != null && p.entryFeeRemaining != null) {
+        return s + (p.entryFeeTotal - p.entryFeeRemaining);
+      }
+      if (p.entryPaid) return s + p.entryFeeOwed;
+      return s;
+    }, 0);
   }, [data]);
 
   const entryStillDue = useMemo(() => {
     if (!data) return 0;
-    return data.players
-      .filter((p) => !p.entryPaid)
-      .reduce((s, p) => s + p.entryFeeOwed, 0);
+    return data.players.reduce((s, p) => s + playerEntryStillDue(p), 0);
   }, [data]);
 
   function toggleEntryPaid(userId: number, paid: boolean) {
     patchLedger({ entryPaid: { userId, paid: !paid } });
+  }
+
+  function setEntryWeeksCollected(userId: number, weeksCollected: number) {
+    patchLedger({ entryWeeksCollected: { userId, weeksCollected } });
+  }
+
+  function collectOneWeeklyEntry(userId: number, currentWeeks: number) {
+    setEntryWeeksCollected(userId, currentWeeks + 1);
+  }
+
+  function undoOneWeeklyEntry(userId: number, currentWeeks: number) {
+    setEntryWeeksCollected(userId, Math.max(0, currentWeeks - 1));
   }
 
   function togglePeriodPaid(periodKey: string, paid: boolean) {
@@ -354,6 +388,10 @@ export function CommissionerWeeklyPickEmBalances({
         <TableBody>
           {players.map((p) => {
             const outstanding = playerOutstandingNet(p);
+            const entryRemaining = playerEntryStillDue(p);
+            const weeksCollected = p.entryWeeksCollected ?? (p.entryPaid ? completedWeekCount : 0);
+            const useWeeklyEntrySteps =
+              apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0;
             const netLabel =
               outstanding > 0 ? "owes you" : outstanding < 0 ? "you owe" : p.entryPaid ? "paid in" : "even";
             return (
@@ -372,28 +410,64 @@ export function CommissionerWeeklyPickEmBalances({
                   )}
                 </TableCell>
                 <TableCell className="text-center">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={p.entryPaid ? "secondary" : "outline"}
-                    disabled={ledgerPending}
-                    className={`h-8 gap-1 text-xs ${p.entryPaid ? "text-emerald-400" : ""}`}
-                    onClick={() => toggleEntryPaid(p.userId, p.entryPaid)}
-                  >
-                    {p.entryPaid ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                    {p.entryPaid ? "Paid" : "Unpaid"}
-                  </Button>
+                  {useWeeklyEntrySteps ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {weeksCollected}/{completedWeekCount} wks
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={ledgerPending || weeksCollected <= 0}
+                          className="h-7 w-7 p-0"
+                          aria-label="Undo one week collected"
+                          onClick={() => undoOneWeeklyEntry(p.userId, weeksCollected)}
+                        >
+                          −
+                        </Button>
+                        {p.entryPaid ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-muted-foreground/50" />
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={p.entryPaid ? "secondary" : "outline"}
+                      disabled={ledgerPending}
+                      className={`h-8 gap-1 text-xs ${p.entryPaid ? "text-emerald-400" : ""}`}
+                      onClick={() => toggleEntryPaid(p.userId, p.entryPaid)}
+                    >
+                      {p.entryPaid ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                      {p.entryPaid ? "Paid" : "Unpaid"}
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm">
-                  {p.entryFeeOwed > 0 ? (
-                    <>
-                      {fmt(p.entryFeeOwed)}
-                      {apiSegment === "crazy-eights" && completedWeekCount > 0 && data.entryFee > 0 && (
-                        <span className="block text-[10px] text-muted-foreground font-normal">
-                          {completedWeekCount}× {fmt(data.entryFee)}
-                        </span>
-                      )}
-                    </>
+                  {useWeeklyEntrySteps ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={ledgerPending || entryRemaining <= 0}
+                      className="h-auto py-1 px-2 flex flex-col items-end ml-auto hover:bg-emerald-500/10 disabled:opacity-60"
+                      onClick={() => collectOneWeeklyEntry(p.userId, weeksCollected)}
+                    >
+                      <span className={entryRemaining > 0 ? "text-foreground" : "text-emerald-400"}>
+                        {entryRemaining > 0 ? fmt(entryRemaining) : "—"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-normal text-right leading-snug">
+                        {entryRemaining > 0
+                          ? `tap +${fmt(data.entryFee)}`
+                          : `${completedWeekCount}× ${fmt(data.entryFee)} in`}
+                      </span>
+                    </Button>
+                  ) : p.entryFeeOwed > 0 ? (
+                    fmt(p.entryFeeOwed)
                   ) : (
                     "—"
                   )}
@@ -418,9 +492,9 @@ export function CommissionerWeeklyPickEmBalances({
                   >
                     {outstanding !== 0
                       ? fmt(Math.abs(outstanding))
-                      : p.entryPaid && p.entryFeeOwed > 0
+                      : entryRemaining <= 0 && p.entryPaid
                         ? "—"
-                        : p.entryFeeOwed > 0 || p.totalWon > 0
+                        : entryRemaining > 0 || p.totalWon > 0
                           ? fmt(0)
                           : "—"}
                   </div>
