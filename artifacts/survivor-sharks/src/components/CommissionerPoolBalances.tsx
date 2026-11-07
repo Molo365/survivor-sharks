@@ -46,6 +46,8 @@ type BalanceSheet = {
     entryFeeOwed: number;
     entryPaid: boolean;
     weeklyBonusWon: number;
+    seasonPrizeAmount: number;
+    seasonPrizePaid: boolean;
     seasonPrizeWon: number;
     totalWon: number;
     netBalance: number;
@@ -198,7 +200,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             <p className="text-sm text-muted-foreground mt-0.5">
               Who owes entry, who you owe for weekly bonuses
               {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
-              Entry and weekly bonus payouts are saved for this pool.
+              Entry, weekly bonus, and season prize payouts are saved for this pool.
               {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
                 <span className="block mt-1">
                   Weekly bonus prizes apply after the minimum player count is reached.
@@ -296,7 +298,9 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
                 Weekly owed
               </TableHead>
             )}
-            <TableHead className="text-xs uppercase tracking-wider text-right">Season</TableHead>
+            <TableHead className="text-xs uppercase tracking-wider text-right">
+              Season owed
+            </TableHead>
             <TableHead className="text-xs uppercase tracking-wider text-right">Net</TableHead>
           </TableRow>
         </TableHeader>
@@ -358,8 +362,44 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
                     {p.weeklyBonusWon > 0 ? fmt(p.weeklyBonusWon) : "—"}
                   </TableCell>
                 )}
-                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                  {p.seasonPrizeWon > 0 ? fmt(p.seasonPrizeWon) : "—"}
+                <TableCell className="text-right text-sm">
+                  {p.seasonPrizeAmount > 0 ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <span
+                        className={`tabular-nums ${
+                          p.seasonPrizeWon > 0 ? "text-muted-foreground" : "text-emerald-400/90"
+                        }`}
+                      >
+                        {p.seasonPrizeWon > 0 ? fmt(p.seasonPrizeWon) : fmt(p.seasonPrizeAmount)}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={p.seasonPrizePaid ? "secondary" : "outline"}
+                        disabled={ledgerPending}
+                        className={`h-7 gap-1 text-[10px] px-2 ${
+                          p.seasonPrizePaid ? "text-emerald-400" : ""
+                        }`}
+                        onClick={() =>
+                          patchLedger({
+                            periodPaid: {
+                              periodKey: `pickem-season-prize-u${p.userId}`,
+                              paid: !p.seasonPrizePaid,
+                            },
+                          })
+                        }
+                      >
+                        {p.seasonPrizePaid ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <Circle className="w-3 h-3" />
+                        )}
+                        {p.seasonPrizePaid ? "Paid out" : "Mark paid"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <div

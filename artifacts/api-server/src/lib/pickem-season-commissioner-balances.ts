@@ -22,6 +22,21 @@ export function pickemSeasonWeeklyBonusPeriodKey(week: number): string {
   return `pickem-season-w${week}`;
 }
 
+/** Per-winner season (main pool) prize payout in `weekly_pick_em_period_paid`. */
+export function pickemSeasonSeasonPrizePeriodKey(userId: number): string {
+  return `pickem-season-prize-u${userId}`;
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function seasonPrizeAmountFromEntry(prizeAmount: string | number | null): number {
+  if (prizeAmount == null) return 0;
+  const n = roundMoney(Number(prizeAmount));
+  return n > 0 ? n : 0;
+}
+
 export type PickemSeasonWeeklyBonusPeriod = {
   periodKey: string;
   label: string;
@@ -58,6 +73,10 @@ export type CommissionerBalancePlayer = {
   entryPaid: boolean;
   /** Weekly bonus still owed (excludes weeks marked paid out). */
   weeklyBonusWon: number;
+  /** Full season main-prize amount from pool closure (0 if none). */
+  seasonPrizeAmount: number;
+  seasonPrizePaid: boolean;
+  /** Season main prize still owed (excludes marked paid out). */
   seasonPrizeWon: number;
   totalWon: number;
   /** Positive = player owes commissioner (entry remaining minus winnings). */
@@ -231,7 +250,11 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
     const weeklyBonusWon = weekly
       ? weeklyBonusOutstandingAmount(weekly.weeks, paidFlags.periodPaidKeys)
       : 0;
-    const seasonPrizeWon = m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
+    const seasonPrizeAmount = seasonPrizeAmountFromEntry(m.prizeAmount);
+    const seasonPrizePaid =
+      seasonPrizeAmount > 0
+      && paidFlags.periodPaidKeys.has(pickemSeasonSeasonPrizePeriodKey(m.userId));
+    const seasonPrizeWon = seasonPrizePaid ? 0 : seasonPrizeAmount;
     const totalWon = weeklyBonusWon + seasonPrizeWon;
     const unitsCollected = resolveEntryWeeksCollected(
       m.userId,
@@ -250,6 +273,8 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
       entryFeeOwed,
       entryPaid,
       weeklyBonusWon,
+      seasonPrizeAmount,
+      seasonPrizePaid,
       seasonPrizeWon,
       totalWon,
       netBalance,
@@ -321,9 +346,12 @@ export async function getPickemSeasonPlayerWeeklyLedger(
   const weeklyWon = weekly
     ? weeklyBonusOutstandingAmount(weekly.weeks, paidFlags.periodPaidKeys)
     : 0;
-  const seasonPrizeWon =
-    member.prizeAmount != null ? Math.round(Number(member.prizeAmount) * 100) / 100 : 0;
-  const totalWon = weeklyWon + seasonPrizeWon;
+  const seasonPrizeAmount = seasonPrizeAmountFromEntry(member.prizeAmount);
+  const seasonPrizePaid =
+    seasonPrizeAmount > 0
+    && paidFlags.periodPaidKeys.has(pickemSeasonSeasonPrizePeriodKey(userId));
+  const seasonPrizeOwed = seasonPrizePaid ? 0 : seasonPrizeAmount;
+  const totalWon = weeklyWon + seasonPrizeOwed;
 
   const entryWeeksCollected = resolveEntryWeeksCollected(
     userId,

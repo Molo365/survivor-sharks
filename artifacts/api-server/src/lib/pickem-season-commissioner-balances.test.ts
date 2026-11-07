@@ -12,9 +12,17 @@ function pickemSeasonWeeklyBonusPeriodKey(week: number) {
   return `pickem-season-w${week}`;
 }
 
+function pickemSeasonSeasonPrizePeriodKey(userId: number) {
+  return `pickem-season-prize-u${userId}`;
+}
+
 describe("pickem-season commissioner balance helpers", () => {
   it("uses stable weekly bonus period keys", () => {
     assert.equal(pickemSeasonWeeklyBonusPeriodKey(3), "pickem-season-w3");
+  });
+
+  it("uses stable season prize period keys per winner", () => {
+    assert.equal(pickemSeasonSeasonPrizePeriodKey(42), "pickem-season-prize-u42");
   });
 
   it("splits weekly bonus evenly among tiebreaker winners", () => {

@@ -1851,7 +1851,13 @@ export type PickemSeasonCommissionerBalanceSheetPlayersItem = {
   displayName?: string | null;
   entryFeeOwed: number;
   entryPaid: boolean;
+  /** Weekly bonus still owed (unpaid weeks only). */
   weeklyBonusWon: number;
+  /** Season main prize from pool closure. */
+  seasonPrizeAmount: number;
+  /** Commissioner marked season prize paid out. */
+  seasonPrizePaid: boolean;
+  /** Season main prize still owed (0 when seasonPrizePaid). */
   seasonPrizeWon: number;
   totalWon: number;
   netBalance: number;
