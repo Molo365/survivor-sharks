@@ -99,20 +99,23 @@ function weeklyLedgerSummary(
 ): string {
   const isNflOneWeekConfidence =
     meta.poolType === "nfl_confidence_weekly" && meta.isRecurring === false;
+  const isNbaAtsOneWeekend =
+    meta.poolType === "nba_ats" && meta.isRecurring === false;
+  const isOneShotContest = isNflOneWeekConfidence || isNbaAtsOneWeekend;
 
   const parts: string[] = [];
   if (ledger.entryFeeRemaining > 0) {
     parts.push(
-      isNflOneWeekConfidence
+      isOneShotContest
         ? `${formatUsd(ledger.entryFeeRemaining)} contest entry due`
         : `${formatUsd(ledger.entryFeeRemaining)} entry due`,
     );
   } else if (ledger.completedWeekCount > 0) {
-    parts.push(isNflOneWeekConfidence ? "Contest entry paid" : "Entry caught up");
+    parts.push(isOneShotContest ? "Contest entry paid" : "Entry caught up");
   }
   if (ledger.weeklyWon > 0) {
     parts.push(
-      isNflOneWeekConfidence
+      isOneShotContest
         ? `${formatUsd(ledger.weeklyWon)} contest prize won`
         : `${formatUsd(ledger.weeklyWon)} won`,
     );
@@ -163,7 +166,8 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
           )}
           {pool.weeklyLedger && pool.weeklyLedger.completedWeekCount > 0 && (
             <p className="text-[10px] text-muted-foreground/70">
-              {pool.poolType === "nfl_confidence_weekly" && pool.isRecurring === false ? (
+              {(pool.poolType === "nfl_confidence_weekly" || pool.poolType === "nba_ats")
+                && pool.isRecurring === false ? (
                 <>
                   {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
                   contest {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
