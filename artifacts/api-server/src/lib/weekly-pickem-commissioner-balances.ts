@@ -116,6 +116,11 @@ async function buildOneShotWeeklyPeriodSpec(
 
 export type WeeklyPeriodWinLine = { periodKey: string; label: string; amount: number };
 
+/** Per-winner season (main) prize for recurring weekly pick-em (`season_budget` closure). */
+export function weeklyPickEmRecurringSeasonPrizePeriodKey(userId: number): string {
+  return `pickem-weekly-season-prize-u${userId}`;
+}
+
 export type WeeklyPickEmBalancePlayer = {
   userId: number;
   username: string;
@@ -127,6 +132,10 @@ export type WeeklyPickEmBalancePlayer = {
   entryFeeRemaining?: number;
   entryWeeksCollected?: number;
   weeklyWon: number;
+  /** Full season main-prize amount from pool closure (0 if none). */
+  seasonPrizeAmount?: number;
+  seasonPrizePaid?: boolean;
+  /** Season main prize still owed (0 when marked paid out). */
   seasonPrizeWon: number;
   totalWon: number;
   netBalance: number;
@@ -392,9 +401,12 @@ export async function getWeeklyPickEmPlayerWeeklyLedger(
     if (amount > 0) weeklyWon += amount;
   }
 
-  const seasonPrizeWon =
-    member.prizeAmount != null ? roundMoney(Number(member.prizeAmount)) : 0;
-  const totalWon = weeklyWon + seasonPrizeWon;
+  const seasonPrizeAmount = prizeFromEntry(member.prizeAmount);
+  const seasonPrizePaid =
+    seasonPrizeAmount > 0
+    && paidFlags.periodPaidKeys.has(weeklyPickEmRecurringSeasonPrizePeriodKey(userId));
+  const seasonPrizeOwed = seasonPrizePaid ? 0 : seasonPrizeAmount;
+  const totalWon = weeklyWon + seasonPrizeOwed;
 
   const entryWeeksCollected = resolveEntryWeeksCollected(userId, completedWeekCount, paidFlags);
   const entryFeeTotal = weeklyPickEmWeeklyEntryDollars(entryFee, completedWeekCount);
@@ -412,6 +424,19 @@ export async function getWeeklyPickEmPlayerWeeklyLedger(
     weeklyWon,
     outstandingNet: entryFeeRemaining - totalWon,
   };
+}
+
+function resolveRecurringSeasonPrizeFields(
+  prizeAmount: string | number | null,
+  userId: number,
+  paidFlags: { periodPaidKeys: Set<string> },
+): { seasonPrizeAmount: number; seasonPrizePaid: boolean; seasonPrizeWon: number } {
+  const seasonPrizeAmount = prizeFromEntry(prizeAmount);
+  const seasonPrizePaid =
+    seasonPrizeAmount > 0
+    && paidFlags.periodPaidKeys.has(weeklyPickEmRecurringSeasonPrizePeriodKey(userId));
+  const seasonPrizeWon = seasonPrizePaid ? 0 : seasonPrizeAmount;
+  return { seasonPrizeAmount, seasonPrizePaid, seasonPrizeWon };
 }
 
 export async function buildWeeklyPickEmCommissionerBalanceSheet(
@@ -514,11 +539,10 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
   const players: WeeklyPickEmBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
     let weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-    const seasonPrizeWon = isOneShot
-      ? 0
-      : m.prizeAmount != null
-        ? roundMoney(Number(m.prizeAmount))
-        : 0;
+    const seasonFields = isOneShot
+      ? { seasonPrizeAmount: 0, seasonPrizePaid: false, seasonPrizeWon: 0 }
+      : resolveRecurringSeasonPrizeFields(m.prizeAmount, m.userId, paidFlags);
+    const { seasonPrizeAmount, seasonPrizePaid, seasonPrizeWon } = seasonFields;
     if (isOneShot && periodWins.length > 0) {
       const periodKey = periodWins[0]!.periodKey;
       if (paidFlags.periodPaidKeys.has(periodKey)) weeklyWon = 0;
@@ -546,6 +570,8 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
         entryFeeRemaining,
         entryWeeksCollected,
         weeklyWon,
+        seasonPrizeAmount: seasonPrizeAmount > 0 ? seasonPrizeAmount : undefined,
+        seasonPrizePaid: seasonPrizeAmount > 0 ? seasonPrizePaid : undefined,
         seasonPrizeWon,
         totalWon,
         netBalance,
@@ -562,6 +588,8 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
       displayName: m.displayName,
       entryFeeOwed,
       weeklyWon,
+      seasonPrizeAmount: seasonPrizeAmount > 0 ? seasonPrizeAmount : undefined,
+      seasonPrizePaid: seasonPrizeAmount > 0 ? seasonPrizePaid : undefined,
       seasonPrizeWon,
       totalWon,
       netBalance,
