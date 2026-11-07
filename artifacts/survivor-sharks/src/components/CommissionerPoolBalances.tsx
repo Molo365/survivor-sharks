@@ -22,7 +22,15 @@ type BalanceSheet = {
   entryFee: number;
   memberCount: number;
   weeklyBonusEnabled: boolean;
+  weeklyBonusThresholdMet: boolean;
   poolIsActive: boolean;
+  weeklyBonusPeriods: Array<{
+    periodKey: string;
+    label: string;
+    week: number;
+    totalOwed: number;
+    periodPaid: boolean;
+  }>;
   summary: {
     totalEntryExpected: number;
     totalEntryCollected: number;
@@ -47,7 +55,8 @@ type BalanceSheet = {
 
 type LedgerPatch = {
   entryPaid?: { userId: number; paid: boolean };
-  mergeDeviceState?: { entryUserIds?: number[] };
+  periodPaid?: { periodKey: string; paid: boolean };
+  mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
 };
 
 function fmt(n: number) {
@@ -63,19 +72,31 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** Legacy device-only flags (same key as weekly pick-em importer). */
-function readLegacyDeviceEntryPaid(poolId: number): number[] {
+/** Legacy device-only flags (same keys as weekly pick-em importer). */
+function readLegacyDevicePaidState(poolId: number): {
+  entryUserIds: number[];
+  periodKeys: string[];
+} {
+  let entryUserIds: number[] = [];
+  let periodKeys: string[] = [];
   try {
-    const raw = localStorage.getItem(`commissioner-entry-paid-${poolId}`);
-    if (!raw) return [];
-    return JSON.parse(raw) as number[];
+    const entryRaw = localStorage.getItem(`commissioner-entry-paid-${poolId}`);
+    if (entryRaw) entryUserIds = JSON.parse(entryRaw) as number[];
   } catch {
-    return [];
+    /* ignore */
   }
+  try {
+    const periodRaw = localStorage.getItem(`commissioner-weekly-period-paid-${poolId}`);
+    if (periodRaw) periodKeys = JSON.parse(periodRaw) as string[];
+  } catch {
+    /* ignore */
+  }
+  return { entryUserIds, periodKeys };
 }
 
-function clearLegacyDeviceEntryPaid(poolId: number) {
+function clearLegacyDevicePaidState(poolId: number) {
   localStorage.removeItem(`commissioner-entry-paid-${poolId}`);
+  localStorage.removeItem(`commissioner-weekly-period-paid-${poolId}`);
 }
 
 async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
@@ -134,11 +155,11 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
   useEffect(() => {
     if (!data || deviceImportDone.current) return;
     deviceImportDone.current = true;
-    const entryUserIds = readLegacyDeviceEntryPaid(poolId);
-    if (entryUserIds.length === 0) return;
+    const { entryUserIds, periodKeys } = readLegacyDevicePaidState(poolId);
+    if (entryUserIds.length === 0 && periodKeys.length === 0) return;
     patchLedger(
-      { mergeDeviceState: { entryUserIds } },
-      { onSuccess: () => clearLegacyDeviceEntryPaid(poolId) },
+      { mergeDeviceState: { entryUserIds, periodKeys } },
+      { onSuccess: () => clearLegacyDevicePaidState(poolId) },
     );
   }, [data, poolId, patchLedger]);
 
@@ -177,7 +198,12 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             <p className="text-sm text-muted-foreground mt-0.5">
               Who owes entry, who you owe for weekly bonuses
               {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
-              Entry paid is saved for this pool.
+              Entry and weekly bonus payouts are saved for this pool.
+              {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
+                <span className="block mt-1">
+                  Weekly bonus prizes apply after the minimum player count is reached.
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -225,6 +251,36 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             </div>
           </div>
         </div>
+
+        {data.weeklyBonusEnabled && data.weeklyBonusPeriods.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Weekly bonus weeks
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {data.weeklyBonusPeriods.map((p) => (
+                <Button
+                  key={p.periodKey}
+                  type="button"
+                  size="sm"
+                  variant={p.periodPaid ? "secondary" : "outline"}
+                  disabled={ledgerPending}
+                  className={`h-auto py-1.5 px-2.5 text-left flex-col items-start gap-0.5 ${
+                    p.periodPaid ? "text-emerald-400" : ""
+                  }`}
+                  onClick={() =>
+                    patchLedger({ periodPaid: { periodKey: p.periodKey, paid: !p.periodPaid } })
+                  }
+                >
+                  <span className="text-xs font-semibold">{p.label}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {fmt(p.totalOwed)} · {p.periodPaid ? "paid out" : "mark paid"}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <Table>
@@ -237,7 +293,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             <TableHead className="text-xs uppercase tracking-wider text-right">Entry</TableHead>
             {data.weeklyBonusEnabled && (
               <TableHead className="text-xs uppercase tracking-wider text-right">
-                Weekly won
+                Weekly owed
               </TableHead>
             )}
             <TableHead className="text-xs uppercase tracking-wider text-right">Season</TableHead>

@@ -1822,6 +1822,14 @@ export interface WeeklyPickEmCommissionerLedgerPatch {
   mergeDeviceState?: WeeklyPickEmCommissionerLedgerPatchMergeDeviceState;
 }
 
+export type PickemSeasonCommissionerBalanceSheetWeeklyBonusPeriodsItem = {
+  periodKey: string;
+  label: string;
+  week: number;
+  totalOwed: number;
+  periodPaid: boolean;
+};
+
 export type PickemSeasonCommissionerBalanceSheetSummary = {
   totalEntryExpected: number;
   totalEntryCollected: number;
@@ -1856,7 +1864,11 @@ export interface PickemSeasonCommissionerBalanceSheet {
   entryFee: number;
   memberCount: number;
   weeklyBonusEnabled: boolean;
+  /** Enrollment threshold for weekly bonus prizes (same gate as week results). */
+  weeklyBonusThresholdMet: boolean;
   poolIsActive: boolean;
+  /** Resolved NFL weeks with weekly bonus winners (only when threshold met). */
+  weeklyBonusPeriods: PickemSeasonCommissionerBalanceSheetWeeklyBonusPeriodsItem[];
   summary: PickemSeasonCommissionerBalanceSheetSummary;
   players: PickemSeasonCommissionerBalanceSheetPlayersItem[];
 }
@@ -1866,12 +1878,19 @@ export type PickemSeasonCommissionerLedgerPatchEntryPaid = {
   paid: boolean;
 };
 
+export type PickemSeasonCommissionerLedgerPatchPeriodPaid = {
+  periodKey: string;
+  paid: boolean;
+};
+
 export type PickemSeasonCommissionerLedgerPatchMergeDeviceState = {
   entryUserIds?: number[];
+  periodKeys?: string[];
 };
 
 export interface PickemSeasonCommissionerLedgerPatch {
   entryPaid?: PickemSeasonCommissionerLedgerPatchEntryPaid;
+  periodPaid?: PickemSeasonCommissionerLedgerPatchPeriodPaid;
   mergeDeviceState?: PickemSeasonCommissionerLedgerPatchMergeDeviceState;
 }
 

@@ -17,6 +17,38 @@ import {
 
 export type WeeklyWinLine = { week: number; amount: number };
 
+/** Stable key for weekly bonus payout ledger rows (shared `weekly_pick_em_period_paid` table). */
+export function pickemSeasonWeeklyBonusPeriodKey(week: number): string {
+  return `pickem-season-w${week}`;
+}
+
+export type PickemSeasonWeeklyBonusPeriod = {
+  periodKey: string;
+  label: string;
+  week: number;
+  totalOwed: number;
+  periodPaid: boolean;
+};
+
+export type WeeklyBonusWinBreakdown = {
+  thresholdMet: boolean;
+  winsByUser: Map<number, { total: number; weeks: WeeklyWinLine[] }>;
+  /** One row per NFL week with a resolved weekly bonus winner. */
+  bonusPeriods: Array<{ week: number; totalOwed: number }>;
+};
+
+function weeklyBonusOutstandingAmount(
+  weeks: WeeklyWinLine[],
+  periodPaidKeys: Set<string>,
+): number {
+  let s = 0;
+  for (const w of weeks) {
+    if (periodPaidKeys.has(pickemSeasonWeeklyBonusPeriodKey(w.week))) continue;
+    s += w.amount;
+  }
+  return s;
+}
+
 export type CommissionerBalancePlayer = {
   userId: number;
   username: string;
@@ -24,6 +56,7 @@ export type CommissionerBalancePlayer = {
   /** Season entry still due (0 when commissioner marked collected in DB). */
   entryFeeOwed: number;
   entryPaid: boolean;
+  /** Weekly bonus still owed (excludes weeks marked paid out). */
   weeklyBonusWon: number;
   seasonPrizeWon: number;
   totalWon: number;
@@ -38,7 +71,10 @@ export type CommissionerBalanceSheet = {
   entryFee: number;
   memberCount: number;
   weeklyBonusEnabled: boolean;
+  /** When weekly bonus is on: enrollment threshold for paying weekly prizes. */
+  weeklyBonusThresholdMet: boolean;
   poolIsActive: boolean;
+  weeklyBonusPeriods: PickemSeasonWeeklyBonusPeriod[];
   summary: {
     totalEntryExpected: number;
     /** Sum of entry fees marked collected (DB). */
@@ -51,14 +87,15 @@ export type CommissionerBalanceSheet = {
   players: CommissionerBalancePlayer[];
 };
 
-async function weeklyBonusWinsForPool(
+async function weeklyBonusWinBreakdownForPool(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
-): Promise<Map<number, { total: number; weeks: WeeklyWinLine[] }>> {
-  const out = new Map<number, { total: number; weeks: WeeklyWinLine[] }>();
+): Promise<WeeklyBonusWinBreakdown> {
+  const winsByUser = new Map<number, { total: number; weeks: WeeklyWinLine[] }>();
+  const bonusPeriods: Array<{ week: number; totalOwed: number }> = [];
 
   if (!pool.weeklyBonusEnabled || pool.weeklyBonusAmount == null) {
-    return out;
+    return { thresholdMet: false, winsByUser, bonusPeriods };
   }
 
   const weeklyBonusAmount = Number(pool.weeklyBonusAmount);
@@ -68,7 +105,7 @@ async function weeklyBonusWinsForPool(
     .where(eq(entriesTable.poolId, poolId));
 
   const enrolled = Number(playerCount);
-  const thresholdMetBase = resolveWeeklyBonusThreshold({
+  const thresholdMet = resolveWeeklyBonusThreshold({
     poolType: pool.poolType,
     weeklyBonusEnabled: true,
     weeklyBonusMinPlayers: pool.weeklyBonusMinPlayers,
@@ -77,8 +114,8 @@ async function weeklyBonusWinsForPool(
     persistedThreshold: pool.weeklyBonusLockedActive,
   });
 
-  if (!thresholdMetBase) {
-    return out;
+  if (!thresholdMet) {
+    return { thresholdMet: false, winsByUser, bonusPeriods };
   }
 
   const weekRows = await db
@@ -140,16 +177,20 @@ async function weeklyBonusWinsForPool(
     if (resolution.status === "pending" || resolution.winners.length === 0) continue;
 
     const perWinner = Math.round((weeklyBonusAmount / resolution.winners.length) * 100) / 100;
+    if (perWinner <= 0) continue;
+    const weekTotal = Math.round(perWinner * resolution.winners.length * 100) / 100;
+    bonusPeriods.push({ week, totalOwed: weekTotal });
     for (const winner of resolution.winners) {
       const uid = winner.userId;
-      if (!out.has(uid)) out.set(uid, { total: 0, weeks: [] });
-      const row = out.get(uid)!;
+      if (!winsByUser.has(uid)) winsByUser.set(uid, { total: 0, weeks: [] });
+      const row = winsByUser.get(uid)!;
       row.total += perWinner;
       row.weeks.push({ week, amount: perWinner });
     }
   }
 
-  return out;
+  bonusPeriods.sort((a, b) => a.week - b.week);
+  return { thresholdMet: true, winsByUser, bonusPeriods };
 }
 
 /** NFL Pick-Em Season: one season buy-in per player (same ledger row semantics as weekly pick-em cap 1). */
@@ -174,11 +215,22 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
     .orderBy(usersTable.username);
 
   const entryFee = pool.entryFee ?? 0;
-  const weeklyWinsByUser = await weeklyBonusWinsForPool(pool, poolId);
+  const weeklyBreakdown = await weeklyBonusWinBreakdownForPool(pool, poolId);
+  const weeklyBonusPeriods: PickemSeasonWeeklyBonusPeriod[] = weeklyBreakdown.bonusPeriods.map(
+    (p) => ({
+      periodKey: pickemSeasonWeeklyBonusPeriodKey(p.week),
+      label: `Week ${p.week}`,
+      week: p.week,
+      totalOwed: p.totalOwed,
+      periodPaid: paidFlags.periodPaidKeys.has(pickemSeasonWeeklyBonusPeriodKey(p.week)),
+    }),
+  );
 
   const players: CommissionerBalancePlayer[] = members.map((m) => {
-    const weekly = weeklyWinsByUser.get(m.userId);
-    const weeklyBonusWon = weekly?.total ?? 0;
+    const weekly = weeklyBreakdown.winsByUser.get(m.userId);
+    const weeklyBonusWon = weekly
+      ? weeklyBonusOutstandingAmount(weekly.weeks, paidFlags.periodPaidKeys)
+      : 0;
     const seasonPrizeWon = m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
     const totalWon = weeklyBonusWon + seasonPrizeWon;
     const unitsCollected = resolveEntryWeeksCollected(
@@ -221,7 +273,9 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
     entryFee,
     memberCount: members.length,
     weeklyBonusEnabled: pool.weeklyBonusEnabled,
+    weeklyBonusThresholdMet: weeklyBreakdown.thresholdMet,
     poolIsActive: pool.isActive,
+    weeklyBonusPeriods,
     summary: {
       totalEntryExpected,
       totalEntryCollected,
@@ -260,11 +314,13 @@ export async function getPickemSeasonPlayerWeeklyLedger(
     .limit(1);
   if (!member) return null;
 
-  const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
   const entryFee = pool.entryFee ?? 0;
-  const weeklyWinsByUser = await weeklyBonusWinsForPool(pool, poolId);
-  const weekly = weeklyWinsByUser.get(userId);
-  const weeklyWon = weekly?.total ?? 0;
+  const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
+  const weeklyBreakdown = await weeklyBonusWinBreakdownForPool(pool, poolId);
+  const weekly = weeklyBreakdown.winsByUser.get(userId);
+  const weeklyWon = weekly
+    ? weeklyBonusOutstandingAmount(weekly.weeks, paidFlags.periodPaidKeys)
+    : 0;
   const seasonPrizeWon =
     member.prizeAmount != null ? Math.round(Number(member.prizeAmount) * 100) / 100 : 0;
   const totalWon = weeklyWon + seasonPrizeWon;

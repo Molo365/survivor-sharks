@@ -2185,12 +2185,14 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
   const body = req.body as {
     entryPaid?: { userId: number; paid: boolean };
     entryWeeksCollected?: { userId: number; weeksCollected: number };
+    periodPaid?: { periodKey: string; paid: boolean };
     mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
   };
 
   const hasPatch =
     body?.entryPaid != null ||
     body?.entryWeeksCollected != null ||
+    body?.periodPaid != null ||
     (body?.mergeDeviceState != null &&
       ((body.mergeDeviceState.entryUserIds?.length ?? 0) > 0 ||
         (body.mergeDeviceState.periodKeys?.length ?? 0) > 0));
