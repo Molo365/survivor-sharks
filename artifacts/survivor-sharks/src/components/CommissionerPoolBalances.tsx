@@ -11,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, Circle, Wallet } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CommissionerAccountingCollapsible } from "@/components/CommissionerAccountingCollapsible";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -190,26 +191,31 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
 
   const { summary, players } = data;
 
-  return (
-    <div className="rounded-xl border border-border/40 bg-card/60 overflow-hidden">
-      <div className="p-6 space-y-4 border-b border-border/40">
-        <div className="flex items-start gap-3">
-          <Wallet className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-bebas text-2xl tracking-wide">Pool balance sheet</h4>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Who owes entry, who you owe for weekly bonuses
-              {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
-              Entry, weekly bonus, and season prize payouts are saved for this pool.
-              {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
-                <span className="block mt-1">
-                  Weekly bonus prizes apply after the minimum player count is reached.
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
+  const collapsedSummary = [
+    `${paidCount}/${players.length} entry paid`,
+    fmt(summary.totalEntryCollected) + " collected",
+    `Net ${fmt(summary.netToCommissioner)}`,
+  ].join(" · ");
 
+  return (
+    <CommissionerAccountingCollapsible
+      title="Pool balance sheet"
+      playerCount={players.length}
+      collapsedSummary={collapsedSummary}
+      description={
+        <>
+          Who owes entry, who you owe for weekly bonuses
+          {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
+          Entry, weekly bonus, and season prize payouts are saved for this pool.
+          {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
+            <span className="block mt-1">
+              Weekly bonus prizes apply after the minimum player count is reached.
+            </span>
+          )}
+        </>
+      }
+    >
+      <div className="p-6 space-y-4 border-b border-border/40">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div className="rounded-lg bg-muted/40 px-3 py-2">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">
@@ -285,6 +291,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
         )}
       </div>
 
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="border-border/40 hover:bg-transparent">
@@ -422,6 +429,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </CommissionerAccountingCollapsible>
   );
 }

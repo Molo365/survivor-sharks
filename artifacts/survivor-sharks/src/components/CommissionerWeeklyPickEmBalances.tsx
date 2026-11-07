@@ -11,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, Circle, Wallet } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CommissionerAccountingCollapsible } from "@/components/CommissionerAccountingCollapsible";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -355,20 +356,27 @@ export function CommissionerWeeklyPickEmBalances({
         : `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
       : null;
 
-  return (
-    <div className="rounded-xl border border-border/40 bg-card/60 overflow-hidden">
-      <div className="p-6 space-y-4 border-b border-border/40">
-        <div className="flex items-start gap-3">
-          <Wallet className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-bebas text-2xl tracking-wide">{title}</h4>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {balanceDescription}
-              {apiSegment === "pickem" && modelLabel ? ` (${modelLabel})` : ""}
-            </p>
-          </div>
-        </div>
+  const collapsedSummary = [
+    `${paidCount}/${players.length} entry paid`,
+    entryCollected > 0 ? `${fmt(entryCollected)} collected` : null,
+    `Net ${fmt(summary.netToCommissioner)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
+  return (
+    <CommissionerAccountingCollapsible
+      title={title}
+      playerCount={players.length}
+      collapsedSummary={collapsedSummary}
+      description={
+        <>
+          {balanceDescription}
+          {apiSegment === "pickem" && modelLabel ? ` (${modelLabel})` : ""}
+        </>
+      }
+    >
+      <div className="p-6 space-y-4 border-b border-border/40">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div className="rounded-lg bg-muted/40 px-3 py-2">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Entry expected</div>
@@ -444,6 +452,7 @@ export function CommissionerWeeklyPickEmBalances({
         )}
       </div>
 
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="border-border/40 hover:bg-transparent">
@@ -600,6 +609,7 @@ export function CommissionerWeeklyPickEmBalances({
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </CommissionerAccountingCollapsible>
   );
 }
