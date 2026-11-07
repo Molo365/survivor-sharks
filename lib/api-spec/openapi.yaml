@@ -4995,6 +4995,8 @@ components:
                 entryFeeOwed,
                 entryPaid,
                 weeklyBonusWon,
+                seasonPrizeAmount,
+                seasonPrizePaid,
                 seasonPrizeWon,
                 totalWon,
                 netBalance,
@@ -5006,8 +5008,18 @@ components:
               displayName: { type: ["string", "null"] }
               entryFeeOwed: { type: number }
               entryPaid: { type: boolean }
-              weeklyBonusWon: { type: number }
-              seasonPrizeWon: { type: number }
+              weeklyBonusWon:
+                type: number
+                description: Weekly bonus still owed (unpaid weeks only).
+              seasonPrizeAmount:
+                type: number
+                description: Season main prize from pool closure.
+              seasonPrizePaid:
+                type: boolean
+                description: Commissioner marked season prize paid out.
+              seasonPrizeWon:
+                type: number
+                description: Season main prize still owed (0 when seasonPrizePaid).
               totalWon: { type: number }
               netBalance: { type: number }
               weeklyWins:
