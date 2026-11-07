@@ -5,7 +5,12 @@ import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
 import { nbaSurvivorWeekLabel } from "../lib/nba-survivor-labels";
-import { nhlSurvivorWeekLabel } from "../lib/nhl-survivor-slate";
+import {
+  isNhlSurvivorSeasonPool,
+  nhlSurvivorSeasonSlateRevealed,
+  nhlSurvivorWeekLabel,
+  survivorGridSlateIsosForWeek,
+} from "../lib/nhl-survivor-slate";
 import {
   isNflOfficePool,
   nflSundayOnePmRevealActiveForSurvivorWeek,
@@ -61,6 +66,22 @@ router.get("/", requireAuth, async (req, res) => {
     }
   }
 
+  const nhlSurvivorSeason = isNhlSurvivorSeasonPool(pool) && !pool.sandboxMode;
+  const nhlWeekSlateRevealed = new Map<number, boolean>();
+  if (nhlSurvivorSeason) {
+    for (const w of weeks) {
+      nhlWeekSlateRevealed.set(
+        w,
+        nhlSurvivorSeasonSlateRevealed(
+          pool,
+          w,
+          survivorGridSlateIsosForWeek(teamKickoffMap, w),
+          now.getTime(),
+        ),
+      );
+    }
+  }
+
   const picksWithUsername = await db.select({
     pick: picksTable,
     username: usersTable.username,
@@ -111,8 +132,12 @@ router.get("/", requireAuth, async (req, res) => {
         kickoffPassed = kickoff !== undefined && now >= kickoff;
       }
 
-      const slateRevealed = nflOfficeSurvivor && nflWeekSlateRevealed.get(pick.week) === true;
-      const showTeam = isOwnPick || kickoffPassed || isGraded || slateRevealed;
+      const slateRevealed =
+        (nflOfficeSurvivor && nflWeekSlateRevealed.get(pick.week) === true)
+        || (nhlSurvivorSeason && nhlWeekSlateRevealed.get(pick.week) === true);
+      const kickoffRevealsOpponent = !nhlSurvivorSeason;
+      const showTeam = isOwnPick || isGraded || slateRevealed
+        || (kickoffRevealsOpponent && kickoffPassed);
 
       return {
         id: pick.id,

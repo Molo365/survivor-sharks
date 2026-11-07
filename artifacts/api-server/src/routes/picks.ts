@@ -26,6 +26,10 @@ import { getSandboxGamesForWeek, NFL_TEAM_INFO } from "../lib/nfl2025Schedule";
 import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 import { fetchNbaSurvivorGamesByWeek, weekendGamesEt } from "../lib/nba-survivor-slate";
 import { buildTeamPickConfirmationItems, deliverPickConfirmation, insertPickConfirmation, makePickConfirmation, resolveSurvivorConfirmationGame } from "../lib/pick-confirmation";
+import {
+  nhlSurvivorSeasonWeekSubmissionLocked,
+  nhlSurvivorSlateForSettlement,
+} from "../lib/nhl-survivor-slate";
 
 const router = Router({ mergeParams: true });
 
@@ -334,6 +338,21 @@ router.post("/", requireAuth, async (req, res) => {
 
   // ── Lock checks (skipped when sandbox mode is on) ────────────────────────
   if (!pool.sandboxMode) {
+  if (pool.sport === "nhl" && pool.poolType === "season") {
+    const weekGames = await fetchNhlGamesByWeek(
+      pool.createdAt,
+      week,
+      pool.isPreseason ? 1 : 2,
+      pool.initialPeriodStart,
+    );
+    const saturdaySlate = nhlSurvivorSlateForSettlement(weekGames);
+    if (nhlSurvivorSeasonWeekSubmissionLocked(pool, week, saturdaySlate)) {
+      res.status(400).json({
+        error: "Weekly picks are locked — the pool locked Saturday at 7:00 PM ET.",
+      });
+      return;
+    }
+  }
   if (pool.sport === "nfl" && pool.poolType === "season") {
     const weekGames = await fetchNflGamesByWeek(week, pool.season, pool.isPreseason ? 1 : 2);
     if (nflOfficePoolWeekSubmissionLocked(pool, weekGames.map((g) => g.date))) {
