@@ -11,7 +11,7 @@ export type WeeklyPickEmPayoutPool = {
   weeklyBonusEnabled?: boolean | null;
 };
 
-const RECURRING_PICKEM_SPORTS = ["mlb", "nhl", "nba", "mls", "superleague"] as const;
+const RECURRING_PICKEM_SPORTS = ["mlb", "nhl", "nba", "mls", "superleague", "championsleague"] as const;
 
 /** Paid one-week office pools (NFL/MLB/NHL/MLS/Super League/NBA weekly pick-em). */
 const ONE_SHOT_WEEKLY_PICKEM_SPORTS = ["nfl", "mlb", "nhl", "mls", "superleague", "nba"] as const;
@@ -31,6 +31,8 @@ export function resolveWeeklyPickEmPayoutModel(pool: WeeklyPickEmPayoutPool): We
   if (pool.weeklyPickEmPayoutModel === "period_pot" || pool.weeklyPickEmPayoutModel === "season_budget") {
     return pool.weeklyPickEmPayoutModel;
   }
+  // CL matchday standings are leaders-only unless explicitly period_pot; tournament buy-in + final prize.
+  if (pool.sport === "championsleague") return "season_budget";
   return pool.weeklyBonusEnabled === true ? "season_budget" : "period_pot";
 }
 

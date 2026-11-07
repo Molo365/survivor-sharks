@@ -228,11 +228,15 @@ async function listCompletedPeriodSpecs(
   }
 
   if (
-    (sport === "mls" || sport === "superleague") &&
+    (sport === "mls" || sport === "superleague" || sport === "championsleague") &&
     pool.poolType === "pickem" &&
     pool.pickFrequency === "weekly" &&
     pool.isRecurring
   ) {
+    if (sport === "championsleague") {
+      const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
+      if (payoutModel === "season_budget") return specs;
+    }
     try {
       const { periods } = await listPickEmPeriodsForPool(poolId, {
         sport: pool.sport,

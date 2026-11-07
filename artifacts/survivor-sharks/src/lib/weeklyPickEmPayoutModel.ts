@@ -36,7 +36,10 @@ export function isWeeklyPickEmPayoutModelChoiceEligible(opts: {
   ) {
     return false;
   }
-  if (poolType === "pickem" && ["mlb", "nhl", "nba", "mls", "superleague"].includes(sport)) {
+  if (
+    poolType === "pickem"
+    && ["mlb", "nhl", "nba", "mls", "superleague", "championsleague"].includes(sport)
+  ) {
     return isRecurring === true;
   }
   return false;
@@ -80,6 +83,7 @@ export function inferWeeklyPickEmPayoutModelFromPool(pool: {
   if (pool.weeklyPickEmPayoutModel === "period_pot" || pool.weeklyPickEmPayoutModel === "season_budget") {
     return pool.weeklyPickEmPayoutModel;
   }
+  if (pool.sport === "championsleague") return "season_budget";
   return pool.weeklyBonusEnabled === true ? "season_budget" : "period_pot";
 }
 
