@@ -1780,6 +1780,10 @@ export type WeeklyPickEmCommissionerBalanceSheetPlayersItem = {
   displayName?: string | null;
   entryFeeOwed: number;
   weeklyWon: number;
+  /** Season main prize from pool closure. */
+  seasonPrizeAmount?: number;
+  /** Commissioner marked season prize paid out. */
+  seasonPrizePaid?: boolean;
   seasonPrizeWon: number;
   totalWon: number;
   netBalance: number;

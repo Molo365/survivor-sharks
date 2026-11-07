@@ -4942,6 +4942,12 @@ components:
               displayName: { type: ["string", "null"] }
               entryFeeOwed: { type: number }
               weeklyWon: { type: number }
+              seasonPrizeAmount:
+                type: number
+                description: Season main prize from pool closure.
+              seasonPrizePaid:
+                type: boolean
+                description: Commissioner marked season prize paid out.
               seasonPrizeWon: { type: number }
               totalWon: { type: number }
               netBalance: { type: number }

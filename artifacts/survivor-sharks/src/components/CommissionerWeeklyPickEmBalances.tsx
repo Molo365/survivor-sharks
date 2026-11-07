@@ -50,6 +50,8 @@ type BalanceSheet = {
     entryFeeRemaining?: number;
     entryWeeksCollected?: number;
     weeklyWon: number;
+    seasonPrizeAmount?: number;
+    seasonPrizePaid?: boolean;
     seasonPrizeWon: number;
     totalWon: number;
     netBalance: number;
@@ -359,7 +361,10 @@ export function CommissionerWeeklyPickEmBalances({
       : data.weeklyPickEmPayoutModel === "period_pot"
         ? "This week's pot"
         : null;
-  const showSeasonOwed = summary.totalSeasonOwed > 0 && apiSegment === "pickem";
+  const showSeasonOwed =
+    apiSegment === "pickem"
+    && (summary.totalSeasonOwed > 0
+      || players.some((p) => (p.seasonPrizeAmount ?? p.seasonPrizeWon) > 0));
   const completedWeekCount = data.completedWeekCount ?? 0;
   const isPickemPeriodPotIncremental =
     apiSegment === "pickem" && data.weeklyPickEmPayoutModel === "period_pot";
@@ -377,7 +382,7 @@ export function CommissionerWeeklyPickEmBalances({
         : isPickemPeriodPotIncremental
           ? "Tap the entry amount to record one completed week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
           : isPickemSeasonBudgetIncremental
-            ? "Tap the entry amount when you've collected that player's season buy-in. Use − if you tapped by mistake. Paid flags are saved for this pool."
+            ? "Tap the entry amount when you've collected that player's season buy-in. Mark weekly payouts on completed periods and season prizes on each winner after the pool closes. Paid flags are saved for this pool."
           : apiSegment === "pickem" && isPickemOneShotContestLedger(data)
             ? "Tap the entry amount when you've collected that player's contest buy-in. Use − if you tapped by mistake. Paid flags are saved for this pool."
           : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.");
@@ -630,8 +635,46 @@ export function CommissionerWeeklyPickEmBalances({
                   {p.weeklyWon > 0 ? fmt(p.weeklyWon) : "—"}
                 </TableCell>
                 {showSeasonOwed && (
-                  <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                    {p.seasonPrizeWon > 0 ? fmt(p.seasonPrizeWon) : "—"}
+                  <TableCell className="text-right text-sm">
+                    {(p.seasonPrizeAmount ?? p.seasonPrizeWon) > 0 ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`tabular-nums ${
+                            p.seasonPrizeWon > 0 ? "text-muted-foreground" : "text-emerald-400/90"
+                          }`}
+                        >
+                          {p.seasonPrizeWon > 0
+                            ? fmt(p.seasonPrizeWon)
+                            : fmt(p.seasonPrizeAmount ?? 0)}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={p.seasonPrizePaid ? "secondary" : "outline"}
+                          disabled={ledgerPending}
+                          className={`h-7 gap-1 text-[10px] px-2 ${
+                            p.seasonPrizePaid ? "text-emerald-400" : ""
+                          }`}
+                          onClick={() =>
+                            patchLedger({
+                              periodPaid: {
+                                periodKey: `pickem-weekly-season-prize-u${p.userId}`,
+                                paid: !p.seasonPrizePaid,
+                              },
+                            })
+                          }
+                        >
+                          {p.seasonPrizePaid ? (
+                            <CheckCircle2 className="w-3 h-3" />
+                          ) : (
+                            <Circle className="w-3 h-3" />
+                          )}
+                          {p.seasonPrizePaid ? "Paid out" : "Mark paid"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 )}
                 <TableCell className="text-right">

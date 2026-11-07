@@ -2,11 +2,20 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { weeklyPickEmWeeklyEntryDollars } from "./weekly-pickem-commissioner-balance-math";
 
+/** Mirrored from weekly-pickem-commissioner-balances (avoid DB bundle in this test). */
+function weeklyPickEmRecurringSeasonPrizePeriodKey(userId: number): string {
+  return `pickem-weekly-season-prize-u${userId}`;
+}
+
 describe("weekly pick-em commissioner balance helpers", () => {
   it("scales entry due by completed week count", () => {
     assert.equal(weeklyPickEmWeeklyEntryDollars(10, 3), 30);
     assert.equal(weeklyPickEmWeeklyEntryDollars(10, 0), 0);
     assert.equal(weeklyPickEmWeeklyEntryDollars(0, 5), 0);
+  });
+
+  it("uses stable recurring season prize period keys per winner", () => {
+    assert.equal(weeklyPickEmRecurringSeasonPrizePeriodKey(7), "pickem-weekly-season-prize-u7");
   });
 
   it("partial collection leaves proportional remainder", () => {
