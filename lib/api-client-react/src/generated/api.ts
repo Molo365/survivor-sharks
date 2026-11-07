@@ -8097,6 +8097,155 @@ export function useGetNflConfidenceWeeklyWinner<TData = Awaited<ReturnType<typeo
 
 
 
+export const getGetNflConfidenceCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/nfl-confidence/commissioner-balances`
+}
+
+/**
+ * @summary Commissioner balance sheet for NFL Confidence season (paid pools)
+ */
+export const getNflConfidenceCommissionerBalances = async (poolId: number, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getGetNflConfidenceCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNflConfidenceCommissionerBalancesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/nfl-confidence/commissioner-balances`
+    ] as const;
+    }
+
+
+export const getGetNflConfidenceCommissionerBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNflConfidenceCommissionerBalancesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>> = ({ signal }) => getNflConfidenceCommissionerBalances(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNflConfidenceCommissionerBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>>
+export type GetNflConfidenceCommissionerBalancesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Commissioner balance sheet for NFL Confidence season (paid pools)
+ */
+
+export function useGetNflConfidenceCommissionerBalances<TData = Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNflConfidenceCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNflConfidenceCommissionerBalancesQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPatchNflConfidenceCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/nfl-confidence/commissioner-balances`
+}
+
+/**
+ * @summary Update commissioner entry collection flags (stored server-side)
+ */
+export const patchNflConfidenceCommissionerBalances = async (poolId: number,
+    pickemSeasonCommissionerLedgerPatch: PickemSeasonCommissionerLedgerPatch, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getPatchNflConfidenceCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pickemSeasonCommissionerLedgerPatch,)
+  }
+);}
+
+
+
+
+export const getPatchNflConfidenceCommissionerBalancesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext> => {
+
+const mutationKey = ['patchNflConfidenceCommissionerBalances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>, {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  patchNflConfidenceCommissionerBalances(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchNflConfidenceCommissionerBalancesMutationResult = NonNullable<Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>>
+    export type PatchNflConfidenceCommissionerBalancesMutationBody = BodyType<PickemSeasonCommissionerLedgerPatch>
+    export type PatchNflConfidenceCommissionerBalancesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update commissioner entry collection flags (stored server-side)
+ */
+export const usePatchNflConfidenceCommissionerBalances = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchNflConfidenceCommissionerBalances>>,
+        TError,
+        {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchNflConfidenceCommissionerBalancesMutationOptions(options));
+    }
+
 export const getSetNflPickEmSeasonSandboxWeekUrl = (poolId: number,) => {
 
 

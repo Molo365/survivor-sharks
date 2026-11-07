@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import {
   useUpdatePool,
+  useGetPool,
   getGetPoolQueryKey,
   useGetNflConfidenceWeeklyWinner,
   getGetNflConfidenceWeeklyWinnerQueryKey,
 } from "@workspace/api-client-react";
+import { CommissionerPoolBalances } from "@/components/CommissionerPoolBalances";
 import { useAuth } from "@/contexts/AuthContext";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
@@ -547,6 +549,10 @@ export function NflConfidenceCommissionerPanel({
   const [replayDelay, setReplayDelay] = useState(5);
   const [startingReplay, setStartingReplay] = useState(false);
 
+  const { data: poolDetail } = useGetPool(poolId, {
+    query: { queryKey: getGetPoolQueryKey(poolId), staleTime: 5 * 60 * 1000 },
+  });
+
   const { data: replayStatus } = useQuery({
     queryKey: ["replay-status", poolId],
     queryFn: async () => {
@@ -672,6 +678,11 @@ export function NflConfidenceCommissionerPanel({
   return (
     <div className="space-y-6">
       <PoolSetupSummary poolId={poolId} />
+
+      {poolDetail?.entryFee != null && poolDetail.entryFee > 0 && (
+        <CommissionerPoolBalances poolId={poolId} ledgerApi="nfl-confidence" />
+      )}
+
       <BroadcastEmailDialog poolId={poolId} sport="nfl" poolType="nfl_confidence" />
 
       {/* Invite Code */}

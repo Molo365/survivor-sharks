@@ -25,6 +25,11 @@ import {
 } from "../lib/nfl-slate-reveal";
 import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import {
+  buildNflConfidenceCommissionerBalanceSheet,
+  patchNflConfidenceCommissionerLedger,
+} from "../lib/nfl-confidence-commissioner-balances";
+import type { WeeklyPickEmCommissionerLedgerPatch } from "../lib/weekly-pickem-commissioner-ledger";
+import {
   deliverPickConfirmation,
   persistConfidencePickemWeekConfirmation,
   type PersistedPickConfirmation,
@@ -1415,6 +1420,94 @@ router.get("/season-standings", requireAuth, async (req, res) => {
   });
 
   res.json({ currentWeek: pool.currentWeek, totalWeeks: 18, players });
+});
+
+// GET /api/pools/:poolId/nfl-confidence/commissioner-balances
+router.get("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if ((pool.poolType as string) !== "nfl_confidence") {
+    res.status(400).json({ error: "Not an NFL Confidence pool" });
+    return;
+  }
+  if (pool.entryFee == null || pool.entryFee <= 0) {
+    res.status(400).json({ error: "Commissioner balances are only for paid pools" });
+    return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const sheet = await buildNflConfidenceCommissionerBalanceSheet(pool, poolId);
+  res.json(sheet);
+});
+
+// PATCH /api/pools/:poolId/nfl-confidence/commissioner-balances
+router.patch("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if ((pool.poolType as string) !== "nfl_confidence") {
+    res.status(400).json({ error: "Not an NFL Confidence pool" });
+    return;
+  }
+  if (pool.entryFee == null || pool.entryFee <= 0) {
+    res.status(400).json({ error: "Commissioner balances are only for paid pools" });
+    return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const body = req.body as WeeklyPickEmCommissionerLedgerPatch;
+
+  const hasPatch =
+    body?.entryPaid != null
+    || body?.entryWeeksCollected != null
+    || body?.periodPaid != null
+    || (body?.mergeDeviceState != null
+      && ((body.mergeDeviceState.entryUserIds?.length ?? 0) > 0
+        || (body.mergeDeviceState.periodKeys?.length ?? 0) > 0));
+
+  if (!hasPatch) {
+    res.status(400).json({ error: "No ledger update provided" });
+    return;
+  }
+
+  try {
+    const sheet = await patchNflConfidenceCommissionerLedger(poolId, body, pool);
+    res.json(sheet);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid ledger update";
+    res.status(400).json({ error: message });
+  }
 });
 
 export default router;

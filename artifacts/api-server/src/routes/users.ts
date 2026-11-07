@@ -12,6 +12,10 @@ import {
   isPickemWeeklyCommissionerBalancesPool,
 } from "../lib/weekly-pickem-commissioner-balances";
 import { getPickemSeasonPlayerWeeklyLedger } from "../lib/pickem-season-commissioner-balances";
+import {
+  getNflConfidencePlayerWeeklyLedger,
+  isNflConfidenceCommissionerBalancesPool,
+} from "../lib/nfl-confidence-commissioner-balances";
 import { getSurvivorSeasonPlayerWeeklyLedger } from "../lib/survivor-season-commissioner-balances";
 import {
   getNbaAtsPlayerWeeklyLedger,
@@ -223,6 +227,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
       );
       let pickemWeeklyLedger = null;
       let pickemSeasonLedger = null;
+      let nflConfidenceSeasonLedger = null;
       let survivorSeasonLedger = null;
       let nbaAtsLedger = null;
       if (!c8Ledger && !nflWeeklyLedger) {
@@ -245,6 +250,12 @@ router.get("/me/balance", requireAuth, async (req, res) => {
           && fullPool.entryFee > 0
         ) {
           pickemSeasonLedger = await getPickemSeasonPlayerWeeklyLedger(fullPool, row.poolId, userId);
+        } else if (fullPool && isNflConfidenceCommissionerBalancesPool(fullPool)) {
+          nflConfidenceSeasonLedger = await getNflConfidencePlayerWeeklyLedger(
+            fullPool,
+            row.poolId,
+            userId,
+          );
         } else if (fullPool && isNbaAtsCommissionerBalancesPool(fullPool)) {
           nbaAtsLedger = await getNbaAtsPlayerWeeklyLedger(fullPool, row.poolId, userId);
         } else if (fullPool) {
@@ -256,6 +267,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         ?? nflWeeklyLedger
         ?? pickemWeeklyLedger
         ?? pickemSeasonLedger
+        ?? nflConfidenceSeasonLedger
         ?? nbaAtsLedger
         ?? survivorSeasonLedger;
       if (weeklyLedger) activePool.weeklyLedger = weeklyLedger;
