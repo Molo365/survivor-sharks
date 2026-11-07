@@ -102,8 +102,16 @@ function clearLegacyDevicePaidState(poolId: number) {
   localStorage.removeItem(`commissioner-weekly-period-paid-${poolId}`);
 }
 
-async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
-  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem-season/commissioner-balances`, {
+type SeasonLedgerApi = "pickem-season" | "survivor-season";
+
+function seasonPrizePeriodKey(userId: number, ledgerApi: SeasonLedgerApi): string {
+  return ledgerApi === "survivor-season"
+    ? `survivor-season-prize-u${userId}`
+    : `pickem-season-prize-u${userId}`;
+}
+
+async function fetchBalanceSheet(poolId: number, ledgerApi: SeasonLedgerApi): Promise<BalanceSheet> {
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/${ledgerApi}/commissioner-balances`, {
     credentials: "include",
     headers: authHeaders(),
   });
@@ -114,8 +122,12 @@ async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
   return res.json();
 }
 
-async function patchBalanceSheet(poolId: number, patch: LedgerPatch): Promise<BalanceSheet> {
-  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem-season/commissioner-balances`, {
+async function patchBalanceSheet(
+  poolId: number,
+  ledgerApi: SeasonLedgerApi,
+  patch: LedgerPatch,
+): Promise<BalanceSheet> {
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/${ledgerApi}/commissioner-balances`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -128,20 +140,26 @@ async function patchBalanceSheet(poolId: number, patch: LedgerPatch): Promise<Ba
   return res.json();
 }
 
-export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
+export function CommissionerPoolBalances({
+  poolId,
+  ledgerApi = "pickem-season",
+}: {
+  poolId: number;
+  ledgerApi?: SeasonLedgerApi;
+}) {
   const queryClient = useQueryClient();
-  const queryKey = ["pickem-season-commissioner-balances", poolId] as const;
+  const queryKey = [`${ledgerApi}-commissioner-balances`, poolId] as const;
   const deviceImportDone = useRef(false);
   const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => fetchBalanceSheet(poolId),
+    queryFn: () => fetchBalanceSheet(poolId, ledgerApi),
     enabled: poolId > 0,
   });
 
   const ledgerMutation = useMutation({
-    mutationFn: (patch: LedgerPatch) => patchBalanceSheet(poolId, patch),
+    mutationFn: (patch: LedgerPatch) => patchBalanceSheet(poolId, ledgerApi, patch),
     onSuccess: (sheet) => {
       queryClient.setQueryData(queryKey, sheet);
     },
@@ -197,22 +215,31 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
     `Net ${fmt(summary.netToCommissioner)}`,
   ].join(" · ");
 
+  const isSurvivorLedger = ledgerApi === "survivor-season";
+
   return (
     <CommissionerAccountingCollapsible
       title="Pool balance sheet"
       playerCount={players.length}
       collapsedSummary={collapsedSummary}
       description={
-        <>
-          Who owes entry, who you owe for weekly bonuses
-          {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
-          Entry, weekly bonus, and season prize payouts are saved for this pool.
-          {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
-            <span className="block mt-1">
-              Weekly bonus prizes apply after the minimum player count is reached.
-            </span>
-          )}
-        </>
+        isSurvivorLedger ? (
+          <>
+            Who owes season entry, who you owe after the pool closes and prizes are assigned. Entry
+            and prize payouts are saved for this pool.
+          </>
+        ) : (
+          <>
+            Who owes entry, who you owe for weekly bonuses
+            {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
+            Entry, weekly bonus, and season prize payouts are saved for this pool.
+            {data.weeklyBonusEnabled && !data.weeklyBonusThresholdMet && (
+              <span className="block mt-1">
+                Weekly bonus prizes apply after the minimum player count is reached.
+              </span>
+            )}
+          </>
+        )
       }
     >
       <div className="p-6 space-y-4 border-b border-border/40">
@@ -231,15 +258,17 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
               )}
             </div>
           </div>
-          <div className="rounded-lg bg-muted/40 px-3 py-2">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              Weekly owed
+          {data.weeklyBonusEnabled && (
+            <div className="rounded-lg bg-muted/40 px-3 py-2">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                Weekly owed
+              </div>
+              <div className="font-semibold tabular-nums">{fmt(summary.totalWeeklyOwed)}</div>
             </div>
-            <div className="font-semibold tabular-nums">{fmt(summary.totalWeeklyOwed)}</div>
-          </div>
+          )}
           <div className="rounded-lg bg-muted/40 px-3 py-2">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              Season owed
+              {isSurvivorLedger ? "Prizes owed" : "Season owed"}
             </div>
             <div className="font-semibold tabular-nums">{fmt(summary.totalSeasonOwed)}</div>
           </div>
@@ -390,7 +419,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
                         onClick={() =>
                           patchLedger({
                             periodPaid: {
-                              periodKey: `pickem-season-prize-u${p.userId}`,
+                              periodKey: seasonPrizePeriodKey(p.userId, ledgerApi),
                               paid: !p.seasonPrizePaid,
                             },
                           })

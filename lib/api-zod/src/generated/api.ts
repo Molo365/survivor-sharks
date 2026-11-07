@@ -3414,3 +3414,118 @@ export const PatchPickemSeasonCommissionerBalancesResponse = zod.object({
 })
 
 
+/**
+ * @summary Commissioner balance sheet for Survivor Season (paid pools)
+ */
+export const GetSurvivorSeasonCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetSurvivorSeasonCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyBonusEnabled": zod.boolean(),
+  "weeklyBonusThresholdMet": zod.boolean().describe('Enrollment threshold for weekly bonus prizes (same gate as week results).'),
+  "poolIsActive": zod.boolean(),
+  "weeklyBonusPeriods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "week": zod.number(),
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
+})).describe('Resolved NFL weeks with weekly bonus winners (only when threshold met).'),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalEntryCollected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "entryPaid": zod.boolean(),
+  "weeklyBonusWon": zod.number().describe('Weekly bonus still owed (unpaid weeks only).'),
+  "seasonPrizeAmount": zod.number().describe('Season main prize from pool closure.'),
+  "seasonPrizePaid": zod.boolean().describe('Commissioner marked season prize paid out.'),
+  "seasonPrizeWon": zod.number().describe('Season main prize still owed (0 when seasonPrizePaid).'),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "weeklyWins": zod.array(zod.object({
+  "week": zod.number(),
+  "amount": zod.number()
+}))
+}))
+})
+
+
+/**
+ * @summary Update commissioner entry and prize payout flags (stored server-side)
+ */
+export const PatchSurvivorSeasonCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const PatchSurvivorSeasonCommissionerBalancesBody = zod.object({
+  "entryPaid": zod.object({
+  "userId": zod.number(),
+  "paid": zod.boolean()
+}).optional(),
+  "periodPaid": zod.object({
+  "periodKey": zod.string(),
+  "paid": zod.boolean()
+}).optional(),
+  "mergeDeviceState": zod.object({
+  "entryUserIds": zod.array(zod.number()).optional(),
+  "periodKeys": zod.array(zod.string()).optional()
+}).optional()
+})
+
+export const PatchSurvivorSeasonCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyBonusEnabled": zod.boolean(),
+  "weeklyBonusThresholdMet": zod.boolean().describe('Enrollment threshold for weekly bonus prizes (same gate as week results).'),
+  "poolIsActive": zod.boolean(),
+  "weeklyBonusPeriods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "week": zod.number(),
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
+})).describe('Resolved NFL weeks with weekly bonus winners (only when threshold met).'),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalEntryCollected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "entryPaid": zod.boolean(),
+  "weeklyBonusWon": zod.number().describe('Weekly bonus still owed (unpaid weeks only).'),
+  "seasonPrizeAmount": zod.number().describe('Season main prize from pool closure.'),
+  "seasonPrizePaid": zod.boolean().describe('Commissioner marked season prize paid out.'),
+  "seasonPrizeWon": zod.number().describe('Season main prize still owed (0 when seasonPrizePaid).'),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "weeklyWins": zod.array(zod.object({
+  "week": zod.number(),
+  "amount": zod.number()
+}))
+}))
+})
+
+

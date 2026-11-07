@@ -175,6 +175,12 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
                   season {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
                   collected
                 </>
+              ) : pool.poolType === "season" || pool.poolType === "mid_season" ? (
+                <>
+                  {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
+                  survivor {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
+                  collected
+                </>
               ) : (
                 <>
                   {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}

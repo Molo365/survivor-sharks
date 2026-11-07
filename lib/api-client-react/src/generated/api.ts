@@ -8549,3 +8549,152 @@ export const usePatchPickemSeasonCommissionerBalances = <TError = ErrorType<Erro
       return useMutation(getPatchPickemSeasonCommissionerBalancesMutationOptions(options));
     }
 
+export const getGetSurvivorSeasonCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/survivor-season/commissioner-balances`
+}
+
+/**
+ * @summary Commissioner balance sheet for Survivor Season (paid pools)
+ */
+export const getSurvivorSeasonCommissionerBalances = async (poolId: number, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getGetSurvivorSeasonCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSurvivorSeasonCommissionerBalancesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/survivor-season/commissioner-balances`
+    ] as const;
+    }
+
+
+export const getGetSurvivorSeasonCommissionerBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSurvivorSeasonCommissionerBalancesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>> = ({ signal }) => getSurvivorSeasonCommissionerBalances(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSurvivorSeasonCommissionerBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>>
+export type GetSurvivorSeasonCommissionerBalancesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Commissioner balance sheet for Survivor Season (paid pools)
+ */
+
+export function useGetSurvivorSeasonCommissionerBalances<TData = Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSurvivorSeasonCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSurvivorSeasonCommissionerBalancesQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPatchSurvivorSeasonCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/survivor-season/commissioner-balances`
+}
+
+/**
+ * @summary Update commissioner entry and prize payout flags (stored server-side)
+ */
+export const patchSurvivorSeasonCommissionerBalances = async (poolId: number,
+    pickemSeasonCommissionerLedgerPatch: PickemSeasonCommissionerLedgerPatch, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getPatchSurvivorSeasonCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pickemSeasonCommissionerLedgerPatch,)
+  }
+);}
+
+
+
+
+export const getPatchSurvivorSeasonCommissionerBalancesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext> => {
+
+const mutationKey = ['patchSurvivorSeasonCommissionerBalances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>, {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  patchSurvivorSeasonCommissionerBalances(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchSurvivorSeasonCommissionerBalancesMutationResult = NonNullable<Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>>
+    export type PatchSurvivorSeasonCommissionerBalancesMutationBody = BodyType<PickemSeasonCommissionerLedgerPatch>
+    export type PatchSurvivorSeasonCommissionerBalancesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update commissioner entry and prize payout flags (stored server-side)
+ */
+export const usePatchSurvivorSeasonCommissionerBalances = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchSurvivorSeasonCommissionerBalances>>,
+        TError,
+        {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchSurvivorSeasonCommissionerBalancesMutationOptions(options));
+    }
+
