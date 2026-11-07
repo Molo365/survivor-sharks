@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
+  poolMemberHasRealNameOverride,
+  poolMemberRealName,
   poolMemberStageName,
   type PoolMemberLike,
 } from "@/lib/poolMemberDisplay";
@@ -122,7 +124,12 @@ export function PoolMemberIdentityProvider({
   const selectedMember =
     selectedUserId != null ? membersByUserId.get(selectedUserId) : undefined;
   const isYou = selectedUserId != null && selectedUserId === currentUserId;
-  const selectedRealName = selectedMember?.realName?.trim() ?? "";
+  const selectedPeopleName = selectedMember
+    ? poolMemberRealName(selectedMember)
+    : "";
+  const selectedHasRealNameOverride = selectedMember
+    ? poolMemberHasRealNameOverride(selectedMember)
+    : false;
 
   const sortedMembers = useMemo(
     () =>
@@ -164,32 +171,33 @@ export function PoolMemberIdentityProvider({
                   )}
                 </SheetTitle>
                 <SheetDescription>
-                  Board name above; real name below is what each player adds in Profile (not the
-                  display name).
+                  Pool name is the title above. The name below is each player&apos;s profile real
+                  name, or their account username if they haven&apos;t set one.
                 </SheetDescription>
               </SheetHeader>
 
               <div className="mt-6 space-y-4">
                 <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-1">
-                    Real name
+                    Name in People list
                   </p>
-                  <p className="text-base font-medium text-foreground">
-                    {selectedRealName ? selectedRealName : "Not added yet"}
-                  </p>
-                  {isYou && !selectedRealName && (
+                  <p className="text-base font-medium text-foreground">{selectedPeopleName}</p>
+                  {selectedHasRealNameOverride ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Add it under{" "}
-                      <Link href="/profile" className="text-primary underline-offset-2 hover:underline">
-                        Profile → Account → Real name
-                      </Link>
-                      , then reopen this sheet (or refresh the pool).
+                      Custom name from their profile.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      From account username (usually the name they signed up with).
                     </p>
                   )}
-                  {!isYou && !selectedRealName && (
+                  {isYou && !selectedHasRealNameOverride && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      They haven&apos;t added a real name in their profile yet — only they can set
-                      it.
+                      Optional: set a different name under{" "}
+                      <Link href="/profile" className="text-primary underline-offset-2 hover:underline">
+                        Profile → Real name
+                      </Link>
+                      .
                     </p>
                   )}
                 </div>
@@ -238,7 +246,7 @@ export function PoolMemberIdentityProvider({
               Participants
             </SheetTitle>
             <SheetDescription>
-              Each person adds their own real name in Profile → Account. Pool names stay on the
+              Real name from Profile when set; otherwise the account username. Pool names stay on the
               board.
             </SheetDescription>
           </SheetHeader>
@@ -248,14 +256,15 @@ export function PoolMemberIdentityProvider({
               <thead>
                 <tr className="bg-primary/10 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   <th className="px-3 py-2">Pool name</th>
-                  <th className="px-3 py-2">Real name</th>
+                  <th className="px-3 py-2">Name</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedMembers.map((m, idx) => {
                   const stage = poolMemberStageName(m);
                   const isRowYou = m.userId === currentUserId;
-                  const real = m.realName?.trim();
+                  const peopleName = poolMemberRealName(m);
+                  const fromProfile = poolMemberHasRealNameOverride(m);
                   return (
                     <tr
                       key={m.userId}
@@ -280,7 +289,12 @@ export function PoolMemberIdentityProvider({
                         </button>
                       </td>
                       <td className="px-3 py-2.5 text-muted-foreground">
-                        {real || "—"}
+                        <span>{peopleName}</span>
+                        {!fromProfile && (
+                          <span className="ml-1 text-[10px] text-muted-foreground/70">
+                            (username)
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
