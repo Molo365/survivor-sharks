@@ -7,7 +7,16 @@ function perWinnerAmount(poolAmount: number, winners: number) {
   return Math.round((poolAmount / winners) * 100) / 100;
 }
 
+/** Mirror pickem-season-commissioner-balances period keys */
+function pickemSeasonWeeklyBonusPeriodKey(week: number) {
+  return `pickem-season-w${week}`;
+}
+
 describe("pickem-season commissioner balance helpers", () => {
+  it("uses stable weekly bonus period keys", () => {
+    assert.equal(pickemSeasonWeeklyBonusPeriodKey(3), "pickem-season-w3");
+  });
+
   it("splits weekly bonus evenly among tiebreaker winners", () => {
     const leaders = [{ userId: 1 }, { userId: 2 }];
     const resolution = resolveWeeklyTiebreaker(leaders, [

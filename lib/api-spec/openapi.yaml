@@ -4932,14 +4932,40 @@ components:
     PickemSeasonCommissionerBalanceSheet:
       type: object
       required:
-        [poolId, poolName, entryFee, memberCount, weeklyBonusEnabled, poolIsActive, summary, players]
+        [
+          poolId,
+          poolName,
+          entryFee,
+          memberCount,
+          weeklyBonusEnabled,
+          weeklyBonusThresholdMet,
+          poolIsActive,
+          weeklyBonusPeriods,
+          summary,
+          players,
+        ]
       properties:
         poolId: { type: integer }
         poolName: { type: string }
         entryFee: { type: number }
         memberCount: { type: integer }
         weeklyBonusEnabled: { type: boolean }
+        weeklyBonusThresholdMet:
+          type: boolean
+          description: Enrollment threshold for weekly bonus prizes (same gate as week results).
         poolIsActive: { type: boolean }
+        weeklyBonusPeriods:
+          type: array
+          description: Resolved NFL weeks with weekly bonus winners (only when threshold met).
+          items:
+            type: object
+            required: [periodKey, label, week, totalOwed, periodPaid]
+            properties:
+              periodKey: { type: string }
+              label: { type: string }
+              week: { type: integer }
+              totalOwed: { type: number }
+              periodPaid: { type: boolean }
         summary:
           type: object
           required:
@@ -5002,12 +5028,21 @@ components:
           properties:
             userId: { type: integer }
             paid: { type: boolean }
+        periodPaid:
+          type: object
+          required: [periodKey, paid]
+          properties:
+            periodKey: { type: string }
+            paid: { type: boolean }
         mergeDeviceState:
           type: object
           properties:
             entryUserIds:
               type: array
               items: { type: integer }
+            periodKeys:
+              type: array
+              items: { type: string }
 
     PickEmYesterdayWinner:
       type: object
