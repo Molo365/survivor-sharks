@@ -5150,6 +5150,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   <CommissionerWeeklyPickEmBalances poolId={poolId} />
                 )}
 
+              {isNbaAts &&
+                poolDetail?.entryFee != null &&
+                poolDetail.entryFee > 0 && (
+                  <CommissionerWeeklyPickEmBalances
+                    poolId={poolId}
+                    apiSegment="nba-ats"
+                    title="Weekend balance sheet"
+                  />
+                )}
+
               <div>
                 <h3 className="font-bebas text-2xl tracking-wide mb-1">Commissioner Tools</h3>
                 <p className="text-sm text-muted-foreground">
