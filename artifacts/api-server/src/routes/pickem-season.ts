@@ -39,7 +39,10 @@ import {
   isNflPickemSeasonAts,
   type PickemScoringMode,
 } from "../lib/nfl-pickem-ats-grade";
-import { buildPickemSeasonCommissionerBalanceSheet } from "../lib/pickem-season-commissioner-balances";
+import {
+  buildPickemSeasonCommissionerBalanceSheet,
+} from "../lib/pickem-season-commissioner-balances";
+import { applyWeeklyPickEmCommissionerLedgerPatch } from "../lib/weekly-pickem-commissioner-ledger";
 
 const router = Router({ mergeParams: true });
 
@@ -2147,6 +2150,62 @@ router.get("/commissioner-balances", requireAuth, async (req, res) => {
     .limit(1);
   if (!isCommissioner && userRow?.role !== "admin") {
     res.status(403).json({ error: "Commissioner or admin only" }); return;
+  }
+
+  const sheet = await buildPickemSeasonCommissionerBalanceSheet(pool, poolId);
+  res.json(sheet);
+});
+
+// PATCH /api/pools/:poolId/pickem-season/commissioner-balances
+router.patch("/commissioner-balances", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const userId = req.user!.id;
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) {
+    res.status(404).json({ error: "Pool not found" });
+    return;
+  }
+  if ((pool.poolType as string) !== "pickem_season") {
+    res.status(400).json({ error: "Not an NFL Pick-Ems Season pool" });
+    return;
+  }
+
+  const isCommissioner = pool.commissionerId === userId;
+  const [userRow] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!isCommissioner && userRow?.role !== "admin") {
+    res.status(403).json({ error: "Commissioner or admin only" });
+    return;
+  }
+
+  const body = req.body as {
+    entryPaid?: { userId: number; paid: boolean };
+    entryWeeksCollected?: { userId: number; weeksCollected: number };
+    mergeDeviceState?: { entryUserIds?: number[]; periodKeys?: string[] };
+  };
+
+  const hasPatch =
+    body?.entryPaid != null ||
+    body?.entryWeeksCollected != null ||
+    (body?.mergeDeviceState != null &&
+      ((body.mergeDeviceState.entryUserIds?.length ?? 0) > 0 ||
+        (body.mergeDeviceState.periodKeys?.length ?? 0) > 0));
+
+  if (!hasPatch) {
+    res.status(400).json({ error: "No ledger update provided" });
+    return;
+  }
+
+  try {
+    await applyWeeklyPickEmCommissionerLedgerPatch(poolId, body, { maxEntryWeeks: 1 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid ledger update";
+    res.status(400).json({ error: message });
+    return;
   }
 
   const sheet = await buildPickemSeasonCommissionerBalanceSheet(pool, poolId);

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CheckCircle2, Circle, Wallet } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -24,6 +25,7 @@ type BalanceSheet = {
   poolIsActive: boolean;
   summary: {
     totalEntryExpected: number;
+    totalEntryCollected: number;
     totalWeeklyOwed: number;
     totalSeasonOwed: number;
     totalOwedToPlayers: number;
@@ -34,12 +36,18 @@ type BalanceSheet = {
     username: string;
     displayName: string | null;
     entryFeeOwed: number;
+    entryPaid: boolean;
     weeklyBonusWon: number;
     seasonPrizeWon: number;
     totalWon: number;
     netBalance: number;
     weeklyWins: Array<{ week: number; amount: number }>;
   }>;
+};
+
+type LedgerPatch = {
+  entryPaid?: { userId: number; paid: boolean };
+  mergeDeviceState?: { entryUserIds?: number[] };
 };
 
 function fmt(n: number) {
@@ -50,69 +58,94 @@ function fmt(n: number) {
   }).format(n);
 }
 
-function loadEntryPaid(poolId: number): Set<number> {
+function authHeaders(): HeadersInit {
+  const token = localStorage.getItem("auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Legacy device-only flags (same key as weekly pick-em importer). */
+function readLegacyDeviceEntryPaid(poolId: number): number[] {
   try {
     const raw = localStorage.getItem(`commissioner-entry-paid-${poolId}`);
-    if (!raw) return new Set();
-    const ids = JSON.parse(raw) as number[];
-    return new Set(ids);
+    if (!raw) return [];
+    return JSON.parse(raw) as number[];
   } catch {
-    return new Set();
+    return [];
   }
 }
 
-function saveEntryPaid(poolId: number, ids: Set<number>) {
-  localStorage.setItem(
-    `commissioner-entry-paid-${poolId}`,
-    JSON.stringify([...ids]),
-  );
+function clearLegacyDeviceEntryPaid(poolId: number) {
+  localStorage.removeItem(`commissioner-entry-paid-${poolId}`);
 }
 
 async function fetchBalanceSheet(poolId: number): Promise<BalanceSheet> {
-  const token = localStorage.getItem("auth_token");
-  const res = await fetch(
-    `${API_BASE}/api/pools/${poolId}/pickem-season/commissioner-balances`,
-    {
-      credentials: "include",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    },
-  );
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem-season/commissioner-balances`, {
+    credentials: "include",
+    headers: authHeaders(),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? "Failed to load balance sheet");
+    throw new Error(body.error ?? "Failed to load pool balance sheet");
+  }
+  return res.json();
+}
+
+async function patchBalanceSheet(poolId: number, patch: LedgerPatch): Promise<BalanceSheet> {
+  const res = await fetch(`${API_BASE}/api/pools/${poolId}/pickem-season/commissioner-balances`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? "Failed to update pool balance sheet");
   }
   return res.json();
 }
 
 export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
+  const queryClient = useQueryClient();
+  const queryKey = ["pickem-season-commissioner-balances", poolId] as const;
+  const deviceImportDone = useRef(false);
+  const { toast } = useToast();
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["pickem-season-commissioner-balances", poolId],
+    queryKey,
     queryFn: () => fetchBalanceSheet(poolId),
     enabled: poolId > 0,
   });
 
-  const [entryPaid, setEntryPaid] = useState<Set<number>>(() =>
-    loadEntryPaid(poolId),
-  );
+  const ledgerMutation = useMutation({
+    mutationFn: (patch: LedgerPatch) => patchBalanceSheet(poolId, patch),
+    onSuccess: (sheet) => {
+      queryClient.setQueryData(queryKey, sheet);
+    },
+    onError: (err: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Could not save",
+        description: err.message || "Try again in a moment.",
+      });
+    },
+  });
+  const { mutate: patchLedger, isPending: ledgerPending } = ledgerMutation;
 
   useEffect(() => {
-    setEntryPaid(loadEntryPaid(poolId));
-  }, [poolId]);
+    if (!data || deviceImportDone.current) return;
+    deviceImportDone.current = true;
+    const entryUserIds = readLegacyDeviceEntryPaid(poolId);
+    if (entryUserIds.length === 0) return;
+    patchLedger(
+      { mergeDeviceState: { entryUserIds } },
+      { onSuccess: () => clearLegacyDeviceEntryPaid(poolId) },
+    );
+  }, [data, poolId, patchLedger]);
 
   const paidCount = useMemo(() => {
     if (!data) return 0;
-    return data.players.filter((p) => entryPaid.has(p.userId)).length;
-  }, [data, entryPaid]);
-
-  function toggleEntryPaid(userId: number) {
-    setEntryPaid((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      saveEntryPaid(poolId, next);
-      return next;
-    });
-  }
+    return data.players.filter((p) => p.entryPaid).length;
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -144,7 +177,7 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             <p className="text-sm text-muted-foreground mt-0.5">
               Who owes entry, who you owe for weekly bonuses
               {data.poolIsActive ? " (season prizes after the pool closes)" : " and season prizes"}.
-              Entry paid is saved on this device only.
+              Entry paid is saved for this pool.
             </p>
           </div>
         </div>
@@ -157,6 +190,11 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             <div className="font-semibold tabular-nums">{fmt(summary.totalEntryExpected)}</div>
             <div className="text-xs text-muted-foreground">
               {paidCount}/{players.length} marked paid
+              {summary.totalEntryCollected > 0 && (
+                <span className="block tabular-nums text-emerald-400/90">
+                  {fmt(summary.totalEntryCollected)} collected
+                </span>
+              )}
             </div>
           </div>
           <div className="rounded-lg bg-muted/40 px-3 py-2">
@@ -182,6 +220,9 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
             >
               {fmt(summary.netToCommissioner)}
             </div>
+            <div className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+              After entry collected and prizes owed
+            </div>
           </div>
         </div>
       </div>
@@ -205,7 +246,6 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
         </TableHeader>
         <TableBody>
           {players.map((p) => {
-            const paid = entryPaid.has(p.userId);
             const netLabel =
               p.netBalance > 0
                 ? "owes you"
@@ -239,16 +279,19 @@ export function CommissionerPoolBalances({ poolId }: { poolId: number }) {
                   <Button
                     type="button"
                     size="sm"
-                    variant={paid ? "secondary" : "outline"}
-                    className={`h-8 gap-1 text-xs ${paid ? "text-emerald-400" : ""}`}
-                    onClick={() => toggleEntryPaid(p.userId)}
+                    variant={p.entryPaid ? "secondary" : "outline"}
+                    disabled={ledgerPending}
+                    className={`h-8 gap-1 text-xs ${p.entryPaid ? "text-emerald-400" : ""}`}
+                    onClick={() =>
+                      patchLedger({ entryPaid: { userId: p.userId, paid: !p.entryPaid } })
+                    }
                   >
-                    {paid ? (
+                    {p.entryPaid ? (
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     ) : (
                       <Circle className="w-3.5 h-3.5" />
                     )}
-                    {paid ? "Paid" : "Unpaid"}
+                    {p.entryPaid ? "Paid" : "Unpaid"}
                   </Button>
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm">

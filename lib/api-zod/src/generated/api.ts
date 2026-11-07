@@ -3299,3 +3299,93 @@ export const SetNflPickEmSeasonAtsSpreadsResponse = zod.object({
 })
 
 
+/**
+ * @summary Commissioner balance sheet for NFL Pick-Em Season (paid pools)
+ */
+export const GetPickemSeasonCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const GetPickemSeasonCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyBonusEnabled": zod.boolean(),
+  "poolIsActive": zod.boolean(),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalEntryCollected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "entryPaid": zod.boolean(),
+  "weeklyBonusWon": zod.number(),
+  "seasonPrizeWon": zod.number(),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "weeklyWins": zod.array(zod.object({
+  "week": zod.number(),
+  "amount": zod.number()
+}))
+}))
+})
+
+
+/**
+ * @summary Update commissioner entry collection flags (stored server-side)
+ */
+export const PatchPickemSeasonCommissionerBalancesParams = zod.object({
+  "poolId": zod.coerce.number()
+})
+
+export const PatchPickemSeasonCommissionerBalancesBody = zod.object({
+  "entryPaid": zod.object({
+  "userId": zod.number(),
+  "paid": zod.boolean()
+}).optional(),
+  "mergeDeviceState": zod.object({
+  "entryUserIds": zod.array(zod.number()).optional()
+}).optional()
+})
+
+export const PatchPickemSeasonCommissionerBalancesResponse = zod.object({
+  "poolId": zod.number(),
+  "poolName": zod.string(),
+  "entryFee": zod.number(),
+  "memberCount": zod.number(),
+  "weeklyBonusEnabled": zod.boolean(),
+  "poolIsActive": zod.boolean(),
+  "summary": zod.object({
+  "totalEntryExpected": zod.number(),
+  "totalEntryCollected": zod.number(),
+  "totalWeeklyOwed": zod.number(),
+  "totalSeasonOwed": zod.number(),
+  "totalOwedToPlayers": zod.number(),
+  "netToCommissioner": zod.number()
+}),
+  "players": zod.array(zod.object({
+  "userId": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string().nullish(),
+  "entryFeeOwed": zod.number(),
+  "entryPaid": zod.boolean(),
+  "weeklyBonusWon": zod.number(),
+  "seasonPrizeWon": zod.number(),
+  "totalWon": zod.number(),
+  "netBalance": zod.number(),
+  "weeklyWins": zod.array(zod.object({
+  "week": zod.number(),
+  "amount": zod.number()
+}))
+}))
+})
+
+
