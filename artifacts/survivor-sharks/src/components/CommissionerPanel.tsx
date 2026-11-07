@@ -16,6 +16,7 @@ import { CancelPoolButton } from "@/components/CancelPoolButton";
 import { BroadcastEmailDialog, isBroadcastEmailSupported } from "@/components/BroadcastEmailDialog";
 import { PoolSetupSummary } from "@/components/PoolSetupSummary";
 import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
+import { CommissionerPoolBalances } from "@/components/CommissionerPoolBalances";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -270,9 +271,18 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
       || (poolType === "crazy_8s" && (pool.sport === "nhl" || pool.sport === "nba"))
     );
 
+  const showSurvivorSeasonBalances =
+    (poolType === "season" || poolType === "mid_season")
+    && pool.entryFee != null
+    && pool.entryFee > 0;
+
   return (
     <div className="space-y-8 max-w-4xl">
       <PoolSetupSummary poolId={poolId} />
+
+      {showSurvivorSeasonBalances && (
+        <CommissionerPoolBalances poolId={poolId} ledgerApi="survivor-season" />
+      )}
 
       {showCrazyEightsWeeklyBalances && (
         <CommissionerWeeklyPickEmBalances

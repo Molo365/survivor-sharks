@@ -2960,6 +2960,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pools/{poolId}/survivor-season/commissioner-balances:
+    get:
+      operationId: getSurvivorSeasonCommissionerBalances
+      tags: [survivor-season]
+      summary: Commissioner balance sheet for Survivor Season (paid pools)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Entry collection vs season survivor prizes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: patchSurvivorSeasonCommissionerBalances
+      tags: [survivor-season]
+      summary: Update commissioner entry and prize payout flags (stored server-side)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickemSeasonCommissionerLedgerPatch"
+      responses:
+        "200":
+          description: Updated balance sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     PoolId:
