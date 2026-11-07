@@ -143,14 +143,33 @@ type CommissionerBalancesApiSegment =
 
 function usesIncrementalWeeklyEntry(
   apiSegment: CommissionerBalancesApiSegment,
-  data: Pick<BalanceSheet, "weeklyPickEmPayoutModel">,
+  data: Pick<
+    BalanceSheet,
+    "weeklyPickEmPayoutModel" | "completedWeekCount" | "weeklyBonusEnabled"
+  >,
 ): boolean {
   if (apiSegment === "crazy-eights" || apiSegment === "nfl-confidence-weekly" || apiSegment === "nba-ats") {
+    return true;
+  }
+  if (
+    apiSegment === "pickem"
+    && data.weeklyPickEmPayoutModel == null
+    && (data.completedWeekCount ?? 0) === 1
+    && !data.weeklyBonusEnabled
+  ) {
     return true;
   }
   return (
     apiSegment === "pickem"
     && (data.weeklyPickEmPayoutModel === "period_pot" || data.weeklyPickEmPayoutModel === "season_budget")
+  );
+}
+
+function isPickemOneShotContestLedger(data: BalanceSheet): boolean {
+  return (
+    data.weeklyPickEmPayoutModel == null
+    && (data.completedWeekCount ?? 0) === 1
+    && !data.weeklyBonusEnabled
   );
 }
 
@@ -359,6 +378,8 @@ export function CommissionerWeeklyPickEmBalances({
           ? "Tap the entry amount to record one completed week collected (same denomination as pool entry). Use − if you tapped too many. Paid flags are saved for this pool."
           : isPickemSeasonBudgetIncremental
             ? "Tap the entry amount when you've collected that player's season buy-in. Use − if you tapped by mistake. Paid flags are saved for this pool."
+          : apiSegment === "pickem" && isPickemOneShotContestLedger(data)
+            ? "Tap the entry amount when you've collected that player's contest buy-in. Use − if you tapped by mistake. Paid flags are saved for this pool."
           : "Who paid entry, who you owe for completed periods. Paid flags are saved for this pool.");
   const weeklyEntryLabel =
     usesIncrementalWeeklyEntry(apiSegment, data)
@@ -366,9 +387,11 @@ export function CommissionerWeeklyPickEmBalances({
     && data.entryFee > 0
       ? isPickemSeasonBudgetIncremental
         ? `1× ${fmt(data.entryFee)} season buy-in per player`
-        : apiSegment === "nba-ats"
-          ? `${completedWeekCount}× ${fmt(data.entryFee)}/weekend`
-          : `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
+        : apiSegment === "pickem" && isPickemOneShotContestLedger(data)
+          ? `1× ${fmt(data.entryFee)} contest buy-in per player`
+          : apiSegment === "nba-ats"
+            ? `${completedWeekCount}× ${fmt(data.entryFee)}/weekend`
+            : `${completedWeekCount}× ${fmt(data.entryFee)}/wk`
       : null;
 
   const collapsedSummary = [
@@ -443,7 +466,11 @@ export function CommissionerWeeklyPickEmBalances({
                 || apiSegment === "crazy-eights"
                 || apiSegment === "nba-ats"
                 || isPickemPeriodPotIncremental
-                ? apiSegment === "nba-ats" ? "Completed weekends" : "Completed weeks"
+                ? apiSegment === "nba-ats"
+                  ? "Completed weekends"
+                  : isPickemOneShotContestLedger(data)
+                    ? "Contest payout"
+                    : "Completed weeks"
                 : "Completed periods"}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -481,7 +508,11 @@ export function CommissionerWeeklyPickEmBalances({
                 || apiSegment === "nfl-confidence-weekly"
                 || apiSegment === "nba-ats"
                 || isPickemPeriodPotIncremental
-                ? apiSegment === "nba-ats" ? "Entry (weekends)" : "Entry (weeks)"
+                ? apiSegment === "nba-ats"
+                  ? "Entry (weekends)"
+                  : isPickemOneShotContestLedger(data)
+                    ? "Entry (contest)"
+                    : "Entry (weeks)"
                 : isPickemSeasonBudgetIncremental
                   ? "Entry (buy-in)"
                 : "Entry"}

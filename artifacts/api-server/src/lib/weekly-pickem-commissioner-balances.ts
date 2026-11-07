@@ -13,6 +13,8 @@ import {
   isWeeklyPickEmPayoutModelPool,
   resolveWeeklyPickEmPayoutModel,
   isWeeklyPickEmCommissionerBalancesPool,
+  isWeeklyPickEmOneShotCommissionerBalancesPool,
+  weeklyPickEmOneShotContestPeriodKey,
 } from "./weekly-pickem-payout-model";
 import {
   loadWeeklyPickEmCommissionerPaidFlags,
@@ -20,7 +22,97 @@ import {
 } from "./weekly-pickem-commissioner-ledger";
 import { weeklyPickEmWeeklyEntryDollars } from "./weekly-pickem-commissioner-balance-math";
 
-export { isWeeklyPickEmCommissionerBalancesPool };
+export {
+  isWeeklyPickEmCommissionerBalancesPool,
+  isWeeklyPickEmOneShotCommissionerBalancesPool,
+  isPickemWeeklyCommissionerBalancesPool,
+  weeklyPickEmOneShotContestPeriodKey,
+} from "./weekly-pickem-payout-model";
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function prizeFromEntry(prizeAmount: string | number | null): number {
+  if (prizeAmount == null) return 0;
+  const n = roundMoney(Number(prizeAmount));
+  return n > 0 ? n : 0;
+}
+
+async function buildOneShotWeeklyPeriodSpec(
+  pool: typeof poolsTable.$inferSelect,
+  poolId: number,
+): Promise<PeriodSpec | null> {
+  const week = pool.currentWeek;
+  const periodKey = weeklyPickEmOneShotContestPeriodKey(week);
+  const sport = pool.sport as string;
+
+  if (sport === "nhl") {
+    const { days } = getNhlWeekBounds(
+      pool.createdAt,
+      week,
+      pool.sandboxMode ? null : pool.initialPeriodStart,
+    );
+    return {
+      periodKey,
+      label: "Contest week",
+      weekStart: days[0]!,
+      weekEnd: days[days.length - 1]!,
+      target: { kind: "nhl_week", week },
+    };
+  }
+
+  if (sport === "mlb") {
+    const bounds = mlbPickEmWeekBounds(pool, week);
+    return {
+      periodKey,
+      label: `Week ${week}`,
+      weekStart: bounds.weekStart,
+      weekEnd: bounds.weekEnd,
+      target: { kind: "date_range", weekStart: bounds.weekStart, weekEnd: bounds.weekEnd },
+    };
+  }
+
+  if (sport === "mls" || sport === "superleague") {
+    try {
+      const { periods } = await listPickEmPeriodsForPool(poolId, {
+        sport: pool.sport,
+        poolType: pool.poolType,
+        pickFrequency: pool.pickFrequency,
+        currentWeek: pool.currentWeek,
+        createdAt: pool.createdAt,
+        initialPeriodStart: pool.initialPeriodStart,
+      });
+      const match =
+        periods.find((p) => p.status === "current" || p.status === "completed") ?? periods[0];
+      if (match) {
+        return {
+          periodKey,
+          label: match.label,
+          weekStart: match.weekStart,
+          weekEnd: match.weekEnd,
+          target: {
+            kind: "date_range",
+            weekStart: match.weekStart,
+            weekEnd: match.weekEnd,
+          },
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  const todayEt = getTodayEtDate();
+  const bounds = genericWeekBoundsFromCurrentWeek(pool, week, todayEt);
+  return {
+    periodKey,
+    label: sport === "nfl" || sport === "nba" ? `Week ${week}` : "Contest",
+    weekStart: bounds.weekStart,
+    weekEnd: bounds.weekEnd,
+    target: { kind: "date_range", weekStart: bounds.weekStart, weekEnd: bounds.weekEnd },
+  };
+}
 
 export type WeeklyPeriodWinLine = { periodKey: string; label: string; amount: number };
 
@@ -171,6 +263,11 @@ async function listCompletedPeriodSpecs(
     }
   }
 
+  if (isWeeklyPickEmOneShotCommissionerBalancesPool(pool)) {
+    const spec = await buildOneShotWeeklyPeriodSpec(pool, poolId);
+    if (spec) specs.push(spec);
+  }
+
   return specs;
 }
 
@@ -179,6 +276,7 @@ export async function weeklyPickEmCommissionerMaxEntryWeeks(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
 ): Promise<number | undefined> {
+  if (isWeeklyPickEmOneShotCommissionerBalancesPool(pool)) return 1;
   if (!isWeeklyPickEmCommissionerBalancesPool(pool)) return undefined;
   const model = resolveWeeklyPickEmPayoutModel(pool);
   if (model === "season_budget") return 1;
@@ -200,14 +298,41 @@ export type WeeklyPickEmPlayerWeeklyLedger = {
 };
 
 /** Profile /balance: recurring weekly pick-em — same math as commissioner sheet. */
+async function resolveOneShotWeeklyContestPrizeByUser(
+  pool: typeof poolsTable.$inferSelect,
+  poolId: number,
+  members: Array<{ userId: number; prizeAmount: string | number | null }>,
+  periodSpecs: PeriodSpec[],
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  const useStored =
+    !pool.isActive || members.some((m) => prizeFromEntry(m.prizeAmount) > 0);
+
+  if (useStored) {
+    for (const m of members) {
+      const amount = prizeFromEntry(m.prizeAmount);
+      if (amount > 0) out.set(m.userId, amount);
+    }
+    return out;
+  }
+
+  for (const spec of periodSpecs) {
+    const prizeMap = await computePickEmPeriodPrizeByUser(pool, poolId, spec.target);
+    if (!prizeMap) continue;
+    for (const [userId, amount] of prizeMap) {
+      if (amount > 0) out.set(userId, (out.get(userId) ?? 0) + amount);
+    }
+  }
+  return out;
+}
+
 export async function getWeeklyPickEmPlayerWeeklyLedger(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
   userId: number,
 ): Promise<WeeklyPickEmPlayerWeeklyLedger | null> {
-  if (!isWeeklyPickEmCommissionerBalancesPool(pool)) return null;
-  const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
-  if (payoutModel !== "period_pot" && payoutModel !== "season_budget") return null;
+  const isOneShot = isWeeklyPickEmOneShotCommissionerBalancesPool(pool);
+  if (!isWeeklyPickEmCommissionerBalancesPool(pool) && !isOneShot) return null;
 
   const [member] = await db
     .select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
@@ -219,6 +344,45 @@ export async function getWeeklyPickEmPlayerWeeklyLedger(
   const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
   const entryFee = pool.entryFee ?? 0;
   const periodSpecs = await listCompletedPeriodSpecs(pool, poolId);
+
+  if (isOneShot) {
+    const completedWeekCount = 1;
+    const allMembers = await db
+      .select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
+      .from(entriesTable)
+      .where(eq(entriesTable.poolId, poolId));
+    const prizeByUser = await resolveOneShotWeeklyContestPrizeByUser(
+      pool,
+      poolId,
+      allMembers,
+      periodSpecs,
+    );
+    const periodKey =
+      periodSpecs[0]?.periodKey ?? weeklyPickEmOneShotContestPeriodKey(pool.currentWeek);
+    let weeklyWon = prizeByUser.get(userId) ?? 0;
+    if (paidFlags.periodPaidKeys.has(periodKey)) weeklyWon = 0;
+
+    const entryWeeksCollected = resolveEntryWeeksCollected(userId, completedWeekCount, paidFlags);
+    const entryFeeTotal = entryFee;
+    const entryFeeRemaining = weeklyPickEmWeeklyEntryDollars(
+      entryFee,
+      completedWeekCount - entryWeeksCollected,
+    );
+
+    return {
+      completedWeekCount,
+      entryFee,
+      entryWeeksCollected,
+      entryFeeTotal,
+      entryFeeRemaining,
+      weeklyWon,
+      outstandingNet: entryFeeRemaining - weeklyWon,
+    };
+  }
+
+  const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
+  if (payoutModel !== "period_pot" && payoutModel !== "season_budget") return null;
+
   const completedWeekCount = payoutModel === "season_budget" ? 1 : periodSpecs.length;
 
   let weeklyWon = 0;
@@ -229,7 +393,7 @@ export async function getWeeklyPickEmPlayerWeeklyLedger(
   }
 
   const seasonPrizeWon =
-    member.prizeAmount != null ? Math.round(Number(member.prizeAmount) * 100) / 100 : 0;
+    member.prizeAmount != null ? roundMoney(Number(member.prizeAmount)) : 0;
   const totalWon = weeklyWon + seasonPrizeWon;
 
   const entryWeeksCollected = resolveEntryWeeksCollected(userId, completedWeekCount, paidFlags);
@@ -269,17 +433,21 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
     .orderBy(usersTable.username);
 
   const entryFee = pool.entryFee ?? 0;
-  const payoutModel = resolveWeeklyPickEmPayoutModel(pool);
+  const isOneShot = isWeeklyPickEmOneShotCommissionerBalancesPool(pool);
+  const payoutModel = isOneShot ? null : resolveWeeklyPickEmPayoutModel(pool);
   const useIncrementalEntryCollection =
-    isWeeklyPickEmPayoutModelPool(pool)
-    && entryFee > 0
-    && (payoutModel === "period_pot" || payoutModel === "season_budget");
+    (isOneShot && entryFee > 0)
+    || (isWeeklyPickEmPayoutModelPool(pool)
+      && entryFee > 0
+      && (payoutModel === "period_pot" || payoutModel === "season_budget"));
 
   const periodSpecs = await listCompletedPeriodSpecs(pool, poolId);
   const completedWeekCount = useIncrementalEntryCollection
-    ? payoutModel === "season_budget"
+    ? isOneShot
       ? 1
-      : periodSpecs.length
+      : payoutModel === "season_budget"
+        ? 1
+        : periodSpecs.length
     : undefined;
   const weeklyEntryPerPlayer =
     useIncrementalEntryCollection && completedWeekCount != null
@@ -289,37 +457,72 @@ export async function buildWeeklyPickEmCommissionerBalanceSheet(
   const winsByUser = new Map<number, WeeklyPeriodWinLine[]>();
   const periods: WeeklyPickEmPeriodSummary[] = [];
 
-  for (const spec of periodSpecs) {
-    const prizeMap = await computePickEmPeriodPrizeByUser(pool, poolId, spec.target);
-    if (!prizeMap || prizeMap.size === 0) continue;
+  if (isOneShot) {
+    const prizeByUser = await resolveOneShotWeeklyContestPrizeByUser(
+      pool,
+      poolId,
+      members,
+      periodSpecs,
+    );
+    const spec = periodSpecs[0];
+    const periodKey = spec?.periodKey ?? weeklyPickEmOneShotContestPeriodKey(pool.currentWeek);
+    const label = spec?.label ?? "Contest";
     let totalOwed = 0;
-    for (const [userId, amount] of prizeMap) {
+    for (const [userId, amount] of prizeByUser) {
       if (amount <= 0) continue;
       totalOwed += amount;
-      if (!winsByUser.has(userId)) winsByUser.set(userId, []);
-      winsByUser.get(userId)!.push({
-        periodKey: spec.periodKey,
-        label: spec.label,
-        amount,
-      });
+      winsByUser.set(userId, [{ periodKey, label, amount }]);
     }
-    if (totalOwed > 0) {
+    if (totalOwed > 0 && spec) {
       periods.push({
-        periodKey: spec.periodKey,
-        label: spec.label,
+        periodKey,
+        label,
         weekStart: spec.weekStart,
         weekEnd: spec.weekEnd,
         totalOwed,
-        periodPaid: paidFlags.periodPaidKeys.has(spec.periodKey),
+        periodPaid: paidFlags.periodPaidKeys.has(periodKey),
       });
+    }
+  } else {
+    for (const spec of periodSpecs) {
+      const prizeMap = await computePickEmPeriodPrizeByUser(pool, poolId, spec.target);
+      if (!prizeMap || prizeMap.size === 0) continue;
+      let totalOwed = 0;
+      for (const [userId, amount] of prizeMap) {
+        if (amount <= 0) continue;
+        totalOwed += amount;
+        if (!winsByUser.has(userId)) winsByUser.set(userId, []);
+        winsByUser.get(userId)!.push({
+          periodKey: spec.periodKey,
+          label: spec.label,
+          amount,
+        });
+      }
+      if (totalOwed > 0) {
+        periods.push({
+          periodKey: spec.periodKey,
+          label: spec.label,
+          weekStart: spec.weekStart,
+          weekEnd: spec.weekEnd,
+          totalOwed,
+          periodPaid: paidFlags.periodPaidKeys.has(spec.periodKey),
+        });
+      }
     }
   }
 
   const players: WeeklyPickEmBalancePlayer[] = members.map((m) => {
     const periodWins = winsByUser.get(m.userId) ?? [];
-    const weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
-    const seasonPrizeWon =
-      m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
+    let weeklyWon = periodWins.reduce((s, w) => s + w.amount, 0);
+    const seasonPrizeWon = isOneShot
+      ? 0
+      : m.prizeAmount != null
+        ? roundMoney(Number(m.prizeAmount))
+        : 0;
+    if (isOneShot && periodWins.length > 0) {
+      const periodKey = periodWins[0]!.periodKey;
+      if (paidFlags.periodPaidKeys.has(periodKey)) weeklyWon = 0;
+    }
     const totalWon = weeklyWon + seasonPrizeWon;
 
     if (useIncrementalEntryCollection && completedWeekCount != null && completedWeekCount >= 0) {

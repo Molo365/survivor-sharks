@@ -101,7 +101,10 @@ function weeklyLedgerSummary(
     meta.poolType === "nfl_confidence_weekly" && meta.isRecurring === false;
   const isNbaAtsOneWeekend =
     meta.poolType === "nba_ats" && meta.isRecurring === false;
-  const isOneShotContest = isNflOneWeekConfidence || isNbaAtsOneWeekend;
+  const isPickemOneWeekContest =
+    meta.poolType === "pickem" && meta.isRecurring === false;
+  const isOneShotContest =
+    isNflOneWeekConfidence || isNbaAtsOneWeekend || isPickemOneWeekContest;
 
   const parts: string[] = [];
   if (ledger.entryFeeRemaining > 0) {
@@ -166,8 +169,11 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
           )}
           {pool.weeklyLedger && pool.weeklyLedger.completedWeekCount > 0 && (
             <p className="text-[10px] text-muted-foreground/70">
-              {(pool.poolType === "nfl_confidence_weekly" || pool.poolType === "nba_ats")
-                && pool.isRecurring === false ? (
+              {(pool.poolType === "nfl_confidence_weekly"
+                || pool.poolType === "nba_ats"
+                || pool.poolType === "pickem")
+                && pool.isRecurring === false
+                && pool.weeklyLedger ? (
                 <>
                   {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
                   contest {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
