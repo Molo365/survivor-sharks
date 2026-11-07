@@ -3312,7 +3312,15 @@ export const GetPickemSeasonCommissionerBalancesResponse = zod.object({
   "entryFee": zod.number(),
   "memberCount": zod.number(),
   "weeklyBonusEnabled": zod.boolean(),
+  "weeklyBonusThresholdMet": zod.boolean().describe('Enrollment threshold for weekly bonus prizes (same gate as week results).'),
   "poolIsActive": zod.boolean(),
+  "weeklyBonusPeriods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "week": zod.number(),
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
+})).describe('Resolved NFL weeks with weekly bonus winners (only when threshold met).'),
   "summary": zod.object({
   "totalEntryExpected": zod.number(),
   "totalEntryCollected": zod.number(),
@@ -3351,8 +3359,13 @@ export const PatchPickemSeasonCommissionerBalancesBody = zod.object({
   "userId": zod.number(),
   "paid": zod.boolean()
 }).optional(),
+  "periodPaid": zod.object({
+  "periodKey": zod.string(),
+  "paid": zod.boolean()
+}).optional(),
   "mergeDeviceState": zod.object({
-  "entryUserIds": zod.array(zod.number()).optional()
+  "entryUserIds": zod.array(zod.number()).optional(),
+  "periodKeys": zod.array(zod.string()).optional()
 }).optional()
 })
 
@@ -3362,7 +3375,15 @@ export const PatchPickemSeasonCommissionerBalancesResponse = zod.object({
   "entryFee": zod.number(),
   "memberCount": zod.number(),
   "weeklyBonusEnabled": zod.boolean(),
+  "weeklyBonusThresholdMet": zod.boolean().describe('Enrollment threshold for weekly bonus prizes (same gate as week results).'),
   "poolIsActive": zod.boolean(),
+  "weeklyBonusPeriods": zod.array(zod.object({
+  "periodKey": zod.string(),
+  "label": zod.string(),
+  "week": zod.number(),
+  "totalOwed": zod.number(),
+  "periodPaid": zod.boolean()
+})).describe('Resolved NFL weeks with weekly bonus winners (only when threshold met).'),
   "summary": zod.object({
   "totalEntryExpected": zod.number(),
   "totalEntryCollected": zod.number(),
