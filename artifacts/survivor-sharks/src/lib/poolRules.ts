@@ -353,7 +353,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Picks and deadlines",
           items: [
-            "You can change your pick until that team's game starts. Then the pick locks.",
+            "Submit or change your Saturday pick until that team's game starts, or until Saturday 7:00 PM ET — whichever comes first.",
+            "At Saturday 7:00 PM ET the weekly pick window closes and everyone's picks become visible on the grid (same as NHL weekly pick'em / Hit the Ice).",
             "A missed pick counts as a loss for that week.",
             "You have three lives. A loss costs one life; your third loss eliminates you.",
             "A postponed pick is a push and does not cost a life.",

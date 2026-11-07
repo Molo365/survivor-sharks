@@ -1,4 +1,5 @@
 import { getNhlWeekBounds, NHL_SANDBOX_ANCHOR } from "./espn";
+import { nhlSaturdaySevenPmLockActive } from "./nhl-slate-reveal";
 
 const easternWeekday = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
@@ -48,4 +49,66 @@ export function saturdayGamesEt<T extends { date: string }>(games: T[]): T[] {
 export function nhlSurvivorSlateForSettlement<T extends { date: string }>(games: T[]): T[] {
   const saturdayGames = saturdayGamesEt(games);
   return saturdayGames.length > 0 ? saturdayGames : games;
+}
+
+export function isNhlSurvivorSeasonPool(pool: { sport: string; poolType: string }): boolean {
+  return pool.sport === "nhl" && pool.poolType === "season";
+}
+
+/** Saturday 7 PM ET — same office lock as NHL weekly pick'em / Hit the Ice. */
+export function nhlSurvivorSeasonWeekSubmissionLocked(
+  pool: {
+    createdAt: Date;
+    initialPeriodStart?: string | null;
+    sandboxMode?: boolean | null;
+  },
+  week: number,
+  slateGames: { date: string }[],
+  nowMs = Date.now(),
+): boolean {
+  if (pool.sandboxMode) return false;
+  const saturdayEt = nhlSurvivorSaturdayDateEt(
+    pool.createdAt,
+    week,
+    pool.initialPeriodStart,
+    pool.sandboxMode,
+  );
+  const slateIsos = slateGames.map((g) => g.date);
+  return nhlSaturdaySevenPmLockActive(slateIsos, nowMs, saturdayEt);
+}
+
+export function nhlSurvivorSeasonSlateRevealed(
+  pool: {
+    createdAt: Date;
+    initialPeriodStart?: string | null;
+    sandboxMode?: boolean | null;
+  },
+  week: number,
+  slateGameStartIsos: string[],
+  nowMs = Date.now(),
+): boolean {
+  if (pool.sandboxMode) return true;
+  const saturdayEt = nhlSurvivorSaturdayDateEt(
+    pool.createdAt,
+    week,
+    pool.initialPeriodStart,
+    pool.sandboxMode,
+  );
+  return nhlSaturdaySevenPmLockActive(slateGameStartIsos, nowMs, saturdayEt);
+}
+
+/** Distinct game kickoff ISOs for one survivor week from the grid kickoff map. */
+export function survivorGridSlateIsosForWeek(teamKickoffMap: Map<string, Date>, week: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const prefix = `${week}:`;
+  for (const [key, kickoff] of teamKickoffMap) {
+    if (!key.startsWith(prefix)) continue;
+    const iso = kickoff.toISOString();
+    if (!seen.has(iso)) {
+      seen.add(iso);
+      out.push(iso);
+    }
+  }
+  return out;
 }

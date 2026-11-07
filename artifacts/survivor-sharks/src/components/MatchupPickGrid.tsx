@@ -1074,7 +1074,7 @@ export function MatchupPickGrid({
             </p>
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
               {sport === "nhl"
-                ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot. Picks lock at puck drop on your team (or Saturday 7:00 PM ET for the week); everyone's picks show on the grid at 7:00 PM ET."
                 : sport === "nba"
                   ? "Pick one NBA team from Friday–Sunday games each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
                   : sport === "nfl"
