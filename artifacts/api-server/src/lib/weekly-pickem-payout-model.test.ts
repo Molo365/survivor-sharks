@@ -1,11 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  isPickemWeeklyCommissionerBalancesPool,
   isWeeklyPickEmCommissionerBalancesPool,
+  isWeeklyPickEmOneShotCommissionerBalancesPool,
   isWeeklyPickEmPayoutModelPool,
   resolveWeeklyPickEmPayoutModel,
   shouldUsePeriodPotWeeklyPrizes,
   shouldUseSeasonBudgetFixedWeeklyPayout,
+  weeklyPickEmOneShotContestPeriodKey,
 } from "./weekly-pickem-payout-model";
 
 describe("weekly-pickem-payout-model", () => {
@@ -75,6 +78,50 @@ describe("weekly-pickem-payout-model", () => {
     } as const;
     assert.equal(shouldUsePeriodPotWeeklyPrizes(mlbPeriod), true);
     assert.equal(shouldUseSeasonBudgetFixedWeeklyPayout(mlbPeriod), false);
+  });
+
+  it("accepts paid one-shot weekly pick-em contests", () => {
+    assert.equal(
+      isWeeklyPickEmOneShotCommissionerBalancesPool({
+        sport: "nfl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: false,
+        entryFee: 20,
+      }),
+      true,
+    );
+    assert.equal(
+      isWeeklyPickEmOneShotCommissionerBalancesPool({
+        sport: "mlb",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: false,
+        entryFee: 10,
+      }),
+      true,
+    );
+    assert.equal(
+      isWeeklyPickEmOneShotCommissionerBalancesPool({
+        sport: "nfl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 20,
+      }),
+      false,
+    );
+    assert.equal(
+      isPickemWeeklyCommissionerBalancesPool({
+        sport: "nfl",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: false,
+        entryFee: 25,
+      }),
+      true,
+    );
+    assert.equal(weeklyPickEmOneShotContestPeriodKey(1), "pickem-contest-w1");
   });
 
   it("commissioner balances require paid recurring weekly pickem", () => {

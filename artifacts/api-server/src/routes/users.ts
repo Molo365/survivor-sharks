@@ -9,7 +9,7 @@ import { getCrazyEightsPlayerWeeklyLedger } from "../lib/crazy-eights-commission
 import { getNflConfidenceWeeklyPlayerWeeklyLedger } from "../lib/nfl-confidence-weekly-commissioner-balances";
 import {
   getWeeklyPickEmPlayerWeeklyLedger,
-  isWeeklyPickEmCommissionerBalancesPool,
+  isPickemWeeklyCommissionerBalancesPool,
 } from "../lib/weekly-pickem-commissioner-balances";
 import { getPickemSeasonPlayerWeeklyLedger } from "../lib/pickem-season-commissioner-balances";
 import { getSurvivorSeasonPlayerWeeklyLedger } from "../lib/survivor-season-commissioner-balances";
@@ -229,7 +229,7 @@ router.get("/me/balance", requireAuth, async (req, res) => {
         const [fullPool] = await db.select().from(poolsTable).where(eq(poolsTable.id, row.poolId)).limit(1);
         if (
           fullPool
-          && isWeeklyPickEmCommissionerBalancesPool({
+          && isPickemWeeklyCommissionerBalancesPool({
             sport: fullPool.sport,
             poolType: fullPool.poolType,
             pickFrequency: fullPool.pickFrequency,

@@ -10,7 +10,7 @@ import {
 } from "../lib/weekly-pickem-payout-model";
 import {
   buildWeeklyPickEmCommissionerBalanceSheet,
-  isWeeklyPickEmCommissionerBalancesPool,
+  isPickemWeeklyCommissionerBalancesPool,
   weeklyPickEmCommissionerMaxEntryWeeks,
 } from "../lib/weekly-pickem-commissioner-balances";
 import { applyWeeklyPickEmCommissionerLedgerPatch } from "../lib/weekly-pickem-commissioner-ledger";
@@ -2687,7 +2687,7 @@ router.get("/commissioner-balances", requireAuth, async (req, res) => {
     return;
   }
   if (
-    !isWeeklyPickEmCommissionerBalancesPool({
+    !isPickemWeeklyCommissionerBalancesPool({
       sport: pool.sport,
       poolType: pool.poolType,
       pickFrequency: pool.pickFrequency,
@@ -2695,7 +2695,7 @@ router.get("/commissioner-balances", requireAuth, async (req, res) => {
       entryFee: pool.entryFee,
     })
   ) {
-    res.status(400).json({ error: "Commissioner balances are only for paid recurring weekly pick-em pools" });
+    res.status(400).json({ error: "Commissioner balances are only for paid weekly pick-em pools" });
     return;
   }
 
@@ -2725,7 +2725,7 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
     return;
   }
   if (
-    !isWeeklyPickEmCommissionerBalancesPool({
+    !isPickemWeeklyCommissionerBalancesPool({
       sport: pool.sport,
       poolType: pool.poolType,
       pickFrequency: pool.pickFrequency,
@@ -2733,7 +2733,7 @@ router.patch("/commissioner-balances", requireAuth, async (req, res) => {
       entryFee: pool.entryFee,
     })
   ) {
-    res.status(400).json({ error: "Commissioner balances are only for paid recurring weekly pick-em pools" });
+    res.status(400).json({ error: "Commissioner balances are only for paid weekly pick-em pools" });
     return;
   }
 

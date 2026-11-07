@@ -13,6 +13,9 @@ export type WeeklyPickEmPayoutPool = {
 
 const RECURRING_PICKEM_SPORTS = ["mlb", "nhl", "nba", "mls", "superleague"] as const;
 
+/** Paid one-week office pools (NFL/MLB/NHL/MLS/Super League/NBA weekly pick-em). */
+const ONE_SHOT_WEEKLY_PICKEM_SPORTS = ["nfl", "mlb", "nhl", "mls", "superleague", "nba"] as const;
+
 export function isWeeklyPickEmPayoutModelPool(pool: WeeklyPickEmPayoutPool): boolean {
   return (
     pool.poolType === "pickem" &&
@@ -74,4 +77,42 @@ export function isWeeklyPickEmCommissionerBalancesPool(pool: {
   if (!pool.isRecurring || pool.pickFrequency !== "weekly" || pool.poolType !== "pickem") return false;
   if (pool.entryFee == null || pool.entryFee <= 0) return false;
   return isWeeklyPickEmPayoutModelPool(pool);
+}
+
+export function isWeeklyPickEmOneShotCommissionerBalancesPool(pool: {
+  sport: string;
+  poolType: string;
+  pickFrequency: string;
+  isRecurring?: boolean | null;
+  entryFee: number | null;
+}): boolean {
+  if (pool.poolType !== "pickem" || pool.pickFrequency !== "weekly" || pool.isRecurring !== false) {
+    return false;
+  }
+  if (pool.entryFee == null || pool.entryFee <= 0) return false;
+  return (ONE_SHOT_WEEKLY_PICKEM_SPORTS as readonly string[]).includes(pool.sport);
+}
+
+/** Paid weekly pick-em with commissioner ledger (recurring payout-model pools or one-shot contests). */
+export function isPickemWeeklyCommissionerBalancesPool(pool: {
+  sport: string;
+  poolType: string;
+  pickFrequency: string;
+  isRecurring?: boolean | null;
+  entryFee: number | null;
+}): boolean {
+  return (
+    isWeeklyPickEmCommissionerBalancesPool({
+      sport: pool.sport,
+      poolType: pool.poolType,
+      pickFrequency: pool.pickFrequency,
+      isRecurring: pool.isRecurring === true,
+      entryFee: pool.entryFee,
+    })
+    || isWeeklyPickEmOneShotCommissionerBalancesPool(pool)
+  );
+}
+
+export function weeklyPickEmOneShotContestPeriodKey(week: number): string {
+  return `pickem-contest-w${week}`;
 }
