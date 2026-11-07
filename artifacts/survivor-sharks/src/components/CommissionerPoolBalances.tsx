@@ -102,12 +102,12 @@ function clearLegacyDevicePaidState(poolId: number) {
   localStorage.removeItem(`commissioner-weekly-period-paid-${poolId}`);
 }
 
-type SeasonLedgerApi = "pickem-season" | "survivor-season";
+type SeasonLedgerApi = "pickem-season" | "survivor-season" | "nfl-confidence";
 
 function seasonPrizePeriodKey(userId: number, ledgerApi: SeasonLedgerApi): string {
-  return ledgerApi === "survivor-season"
-    ? `survivor-season-prize-u${userId}`
-    : `pickem-season-prize-u${userId}`;
+  if (ledgerApi === "survivor-season") return `survivor-season-prize-u${userId}`;
+  if (ledgerApi === "nfl-confidence") return `nfl-confidence-season-prize-u${userId}`;
+  return `pickem-season-prize-u${userId}`;
 }
 
 async function fetchBalanceSheet(poolId: number, ledgerApi: SeasonLedgerApi): Promise<BalanceSheet> {

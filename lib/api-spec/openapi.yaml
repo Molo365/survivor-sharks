@@ -2806,6 +2806,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/NflConfidenceWeeklyWinner"
 
+  /pools/{poolId}/nfl-confidence/commissioner-balances:
+    get:
+      operationId: getNflConfidenceCommissionerBalances
+      tags: [nfl-confidence]
+      summary: Commissioner balance sheet for NFL Confidence season (paid pools)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Entry collection vs weekly bonus and season prizes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: patchNflConfidenceCommissionerBalances
+      tags: [nfl-confidence]
+      summary: Update commissioner entry collection flags (stored server-side)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickemSeasonCommissionerLedgerPatch"
+      responses:
+        "200":
+          description: Updated balance sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "400":
+          description: Invalid patch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pools/{poolId}/pickem-season/sandbox-week:
     patch:
       operationId: setNflPickEmSeasonSandboxWeek
