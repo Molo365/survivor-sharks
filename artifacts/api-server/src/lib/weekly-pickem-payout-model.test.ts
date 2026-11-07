@@ -124,6 +124,38 @@ describe("weekly-pickem-payout-model", () => {
     assert.equal(weeklyPickEmOneShotContestPeriodKey(1), "pickem-contest-w1");
   });
 
+  it("includes Champions League in recurring weekly pick-em payout model", () => {
+    assert.equal(
+      isWeeklyPickEmPayoutModelPool({
+        sport: "championsleague",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+      }),
+      true,
+    );
+    assert.equal(
+      resolveWeeklyPickEmPayoutModel({
+        sport: "championsleague",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        weeklyBonusEnabled: false,
+      }),
+      "season_budget",
+    );
+    assert.equal(
+      isWeeklyPickEmCommissionerBalancesPool({
+        sport: "championsleague",
+        poolType: "pickem",
+        pickFrequency: "weekly",
+        isRecurring: true,
+        entryFee: 25,
+      }),
+      true,
+    );
+  });
+
   it("commissioner balances require paid recurring weekly pickem", () => {
     assert.equal(
       isWeeklyPickEmCommissionerBalancesPool({

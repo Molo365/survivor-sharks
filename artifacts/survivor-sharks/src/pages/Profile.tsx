@@ -95,7 +95,7 @@ function formatUsd(n: number): string {
 
 function weeklyLedgerSummary(
   ledger: NonNullable<UserBalanceActivePool["weeklyLedger"]>,
-  meta: Pick<UserBalanceActivePool, "poolType" | "isRecurring">,
+  meta: Pick<UserBalanceActivePool, "poolType" | "isRecurring" | "sport">,
 ): string {
   const isNflOneWeekConfidence =
     meta.poolType === "nfl_confidence_weekly" && meta.isRecurring === false;
@@ -103,22 +103,25 @@ function weeklyLedgerSummary(
     meta.poolType === "nba_ats" && meta.isRecurring === false;
   const isPickemOneWeekContest =
     meta.poolType === "pickem" && meta.isRecurring === false;
+  const isChampionsLeagueTournament =
+    meta.sport === "championsleague" && meta.poolType === "pickem" && meta.isRecurring === true;
   const isOneShotContest =
     isNflOneWeekConfidence || isNbaAtsOneWeekend || isPickemOneWeekContest;
+  const usesContestEntryCopy = isOneShotContest || isChampionsLeagueTournament;
 
   const parts: string[] = [];
   if (ledger.entryFeeRemaining > 0) {
     parts.push(
-      isOneShotContest
+      usesContestEntryCopy
         ? `${formatUsd(ledger.entryFeeRemaining)} contest entry due`
         : `${formatUsd(ledger.entryFeeRemaining)} entry due`,
     );
   } else if (ledger.completedWeekCount > 0) {
-    parts.push(isOneShotContest ? "Contest entry paid" : "Entry caught up");
+    parts.push(usesContestEntryCopy ? "Contest entry paid" : "Entry caught up");
   }
   if (ledger.weeklyWon > 0) {
     parts.push(
-      isOneShotContest
+      usesContestEntryCopy
         ? `${formatUsd(ledger.weeklyWon)} contest prize won`
         : `${formatUsd(ledger.weeklyWon)} won`,
     );
@@ -169,7 +172,13 @@ function ActivePoolCard({ pool }: { pool: UserBalanceActivePool }) {
           )}
           {pool.weeklyLedger && pool.weeklyLedger.completedWeekCount > 0 && (
             <p className="text-[10px] text-muted-foreground/70">
-              {(pool.poolType === "nfl_confidence_weekly"
+              {pool.sport === "championsleague" && pool.poolType === "pickem" && pool.weeklyLedger ? (
+                <>
+                  {pool.weeklyLedger.entryWeeksCollected}/{pool.weeklyLedger.completedWeekCount}{" "}
+                  tournament {pool.weeklyLedger.completedWeekCount === 1 ? "entry" : "entries"} marked
+                  collected
+                </>
+              ) : (pool.poolType === "nfl_confidence_weekly"
                 || pool.poolType === "nba_ats"
                 || pool.poolType === "pickem")
                 && pool.isRecurring === false

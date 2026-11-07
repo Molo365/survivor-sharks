@@ -5150,6 +5150,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   <CommissionerWeeklyPickEmBalances poolId={poolId} />
                 )}
 
+              {sport === "championsleague" &&
+                isWeekly &&
+                isRecurring &&
+                poolDetail?.entryFee != null &&
+                poolDetail.entryFee > 0 &&
+                poolDetail.poolType === "pickem" && (
+                  <CommissionerWeeklyPickEmBalances
+                    poolId={poolId}
+                    title="Tournament balance sheet"
+                  />
+                )}
+
               {isWeekly &&
                 !isRecurring &&
                 !isWc &&
