@@ -2908,6 +2908,58 @@ paths:
                   skipped:
                     type: integer
 
+  /pools/{poolId}/pickem-season/commissioner-balances:
+    get:
+      operationId: getPickemSeasonCommissionerBalances
+      tags: [pickem-season]
+      summary: Commissioner balance sheet for NFL Pick-Em Season (paid pools)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Entry collection vs weekly bonus and season prizes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: patchPickemSeasonCommissionerBalances
+      tags: [pickem-season]
+      summary: Update commissioner entry collection flags (stored server-side)
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickemSeasonCommissionerLedgerPatch"
+      responses:
+        "200":
+          description: Updated balance sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickemSeasonCommissionerBalanceSheet"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     PoolId:
@@ -4876,6 +4928,86 @@ components:
             periodKeys:
               type: array
               items: { type: string }
+
+    PickemSeasonCommissionerBalanceSheet:
+      type: object
+      required:
+        [poolId, poolName, entryFee, memberCount, weeklyBonusEnabled, poolIsActive, summary, players]
+      properties:
+        poolId: { type: integer }
+        poolName: { type: string }
+        entryFee: { type: number }
+        memberCount: { type: integer }
+        weeklyBonusEnabled: { type: boolean }
+        poolIsActive: { type: boolean }
+        summary:
+          type: object
+          required:
+            [
+              totalEntryExpected,
+              totalEntryCollected,
+              totalWeeklyOwed,
+              totalSeasonOwed,
+              totalOwedToPlayers,
+              netToCommissioner,
+            ]
+          properties:
+            totalEntryExpected: { type: number }
+            totalEntryCollected: { type: number }
+            totalWeeklyOwed: { type: number }
+            totalSeasonOwed: { type: number }
+            totalOwedToPlayers: { type: number }
+            netToCommissioner: { type: number }
+        players:
+          type: array
+          items:
+            type: object
+            required:
+              [
+                userId,
+                username,
+                entryFeeOwed,
+                entryPaid,
+                weeklyBonusWon,
+                seasonPrizeWon,
+                totalWon,
+                netBalance,
+                weeklyWins,
+              ]
+            properties:
+              userId: { type: integer }
+              username: { type: string }
+              displayName: { type: ["string", "null"] }
+              entryFeeOwed: { type: number }
+              entryPaid: { type: boolean }
+              weeklyBonusWon: { type: number }
+              seasonPrizeWon: { type: number }
+              totalWon: { type: number }
+              netBalance: { type: number }
+              weeklyWins:
+                type: array
+                items:
+                  type: object
+                  required: [week, amount]
+                  properties:
+                    week: { type: integer }
+                    amount: { type: number }
+
+    PickemSeasonCommissionerLedgerPatch:
+      type: object
+      properties:
+        entryPaid:
+          type: object
+          required: [userId, paid]
+          properties:
+            userId: { type: integer }
+            paid: { type: boolean }
+        mergeDeviceState:
+          type: object
+          properties:
+            entryUserIds:
+              type: array
+              items: { type: integer }
 
     PickEmYesterdayWinner:
       type: object

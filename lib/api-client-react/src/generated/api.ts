@@ -110,6 +110,8 @@ import type {
   PickEmSlate,
   PickEmYesterdayWinner,
   PickInput,
+  PickemSeasonCommissionerBalanceSheet,
+  PickemSeasonCommissionerLedgerPatch,
   Pool,
   PoolDetail,
   PoolInput,
@@ -8396,5 +8398,154 @@ export const useSetNflPickEmSeasonAtsSpreads = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSetNflPickEmSeasonAtsSpreadsMutationOptions(options));
+    }
+
+export const getGetPickemSeasonCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/commissioner-balances`
+}
+
+/**
+ * @summary Commissioner balance sheet for NFL Pick-Em Season (paid pools)
+ */
+export const getPickemSeasonCommissionerBalances = async (poolId: number, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getGetPickemSeasonCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPickemSeasonCommissionerBalancesQueryKey = (poolId: number,) => {
+    return [
+    `/api/pools/${poolId}/pickem-season/commissioner-balances`
+    ] as const;
+    }
+
+
+export const getGetPickemSeasonCommissionerBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPickemSeasonCommissionerBalancesQueryKey(poolId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>> = ({ signal }) => getPickemSeasonCommissionerBalances(poolId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(poolId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPickemSeasonCommissionerBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>>
+export type GetPickemSeasonCommissionerBalancesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Commissioner balance sheet for NFL Pick-Em Season (paid pools)
+ */
+
+export function useGetPickemSeasonCommissionerBalances<TData = Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>, TError = ErrorType<ErrorResponse>>(
+ poolId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPickemSeasonCommissionerBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPickemSeasonCommissionerBalancesQueryOptions(poolId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPatchPickemSeasonCommissionerBalancesUrl = (poolId: number,) => {
+
+
+
+
+  return `/api/pools/${poolId}/pickem-season/commissioner-balances`
+}
+
+/**
+ * @summary Update commissioner entry collection flags (stored server-side)
+ */
+export const patchPickemSeasonCommissionerBalances = async (poolId: number,
+    pickemSeasonCommissionerLedgerPatch: PickemSeasonCommissionerLedgerPatch, options?: RequestInit): Promise<PickemSeasonCommissionerBalanceSheet> => {
+
+  return customFetch<PickemSeasonCommissionerBalanceSheet>(getPatchPickemSeasonCommissionerBalancesUrl(poolId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pickemSeasonCommissionerLedgerPatch,)
+  }
+);}
+
+
+
+
+export const getPatchPickemSeasonCommissionerBalancesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext> => {
+
+const mutationKey = ['patchPickemSeasonCommissionerBalances'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>, {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}> = (props) => {
+          const {poolId,data} = props ?? {};
+
+          return  patchPickemSeasonCommissionerBalances(poolId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchPickemSeasonCommissionerBalancesMutationResult = NonNullable<Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>>
+    export type PatchPickemSeasonCommissionerBalancesMutationBody = BodyType<PickemSeasonCommissionerLedgerPatch>
+    export type PatchPickemSeasonCommissionerBalancesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update commissioner entry collection flags (stored server-side)
+ */
+export const usePatchPickemSeasonCommissionerBalances = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>, TError,{poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchPickemSeasonCommissionerBalances>>,
+        TError,
+        {poolId: number;data: BodyType<PickemSeasonCommissionerLedgerPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchPickemSeasonCommissionerBalancesMutationOptions(options));
     }
 

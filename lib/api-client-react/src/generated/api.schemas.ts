@@ -1822,6 +1822,59 @@ export interface WeeklyPickEmCommissionerLedgerPatch {
   mergeDeviceState?: WeeklyPickEmCommissionerLedgerPatchMergeDeviceState;
 }
 
+export type PickemSeasonCommissionerBalanceSheetSummary = {
+  totalEntryExpected: number;
+  totalEntryCollected: number;
+  totalWeeklyOwed: number;
+  totalSeasonOwed: number;
+  totalOwedToPlayers: number;
+  netToCommissioner: number;
+};
+
+export type PickemSeasonCommissionerBalanceSheetPlayersItemWeeklyWinsItem = {
+  week: number;
+  amount: number;
+};
+
+export type PickemSeasonCommissionerBalanceSheetPlayersItem = {
+  userId: number;
+  username: string;
+  /** @nullable */
+  displayName?: string | null;
+  entryFeeOwed: number;
+  entryPaid: boolean;
+  weeklyBonusWon: number;
+  seasonPrizeWon: number;
+  totalWon: number;
+  netBalance: number;
+  weeklyWins: PickemSeasonCommissionerBalanceSheetPlayersItemWeeklyWinsItem[];
+};
+
+export interface PickemSeasonCommissionerBalanceSheet {
+  poolId: number;
+  poolName: string;
+  entryFee: number;
+  memberCount: number;
+  weeklyBonusEnabled: boolean;
+  poolIsActive: boolean;
+  summary: PickemSeasonCommissionerBalanceSheetSummary;
+  players: PickemSeasonCommissionerBalanceSheetPlayersItem[];
+}
+
+export type PickemSeasonCommissionerLedgerPatchEntryPaid = {
+  userId: number;
+  paid: boolean;
+};
+
+export type PickemSeasonCommissionerLedgerPatchMergeDeviceState = {
+  entryUserIds?: number[];
+};
+
+export interface PickemSeasonCommissionerLedgerPatch {
+  entryPaid?: PickemSeasonCommissionerLedgerPatchEntryPaid;
+  mergeDeviceState?: PickemSeasonCommissionerLedgerPatchMergeDeviceState;
+}
+
 export interface PickEmYesterdayWinner {
   /** YYYY-MM-DD date queried */
   date: string;

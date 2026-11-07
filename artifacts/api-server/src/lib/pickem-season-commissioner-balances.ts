@@ -10,6 +10,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { resolveWeeklyBonusThreshold } from "./pool-start";
 import { resolveWeeklyTiebreaker } from "./nfl-weekly-tiebreaker";
 import { NFL_TOTAL_WEEKS } from "./pickem-season-closure";
+import {
+  loadWeeklyPickEmCommissionerPaidFlags,
+  resolveEntryWeeksCollected,
+} from "./weekly-pickem-commissioner-ledger";
 
 export type WeeklyWinLine = { week: number; amount: number };
 
@@ -17,11 +21,13 @@ export type CommissionerBalancePlayer = {
   userId: number;
   username: string;
   displayName: string | null;
+  /** Season entry still due (0 when commissioner marked collected in DB). */
   entryFeeOwed: number;
+  entryPaid: boolean;
   weeklyBonusWon: number;
   seasonPrizeWon: number;
   totalWon: number;
-  /** Positive = player owes commissioner (entry minus winnings). */
+  /** Positive = player owes commissioner (entry remaining minus winnings). */
   netBalance: number;
   weeklyWins: WeeklyWinLine[];
 };
@@ -35,6 +41,8 @@ export type CommissionerBalanceSheet = {
   poolIsActive: boolean;
   summary: {
     totalEntryExpected: number;
+    /** Sum of entry fees marked collected (DB). */
+    totalEntryCollected: number;
     totalWeeklyOwed: number;
     totalSeasonOwed: number;
     totalOwedToPlayers: number;
@@ -144,10 +152,15 @@ async function weeklyBonusWinsForPool(
   return out;
 }
 
+/** NFL Pick-Em Season: one season buy-in per player (same ledger row semantics as weekly pick-em cap 1). */
+const PICKEM_SEASON_ENTRY_UNITS = 1;
+
 export async function buildPickemSeasonCommissionerBalanceSheet(
   pool: typeof poolsTable.$inferSelect,
   poolId: number,
 ): Promise<CommissionerBalanceSheet> {
+  const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
+
   const members = await db
     .select({
       userId: entriesTable.userId,
@@ -168,7 +181,14 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
     const weeklyBonusWon = weekly?.total ?? 0;
     const seasonPrizeWon = m.prizeAmount != null ? Math.round(Number(m.prizeAmount) * 100) / 100 : 0;
     const totalWon = weeklyBonusWon + seasonPrizeWon;
-    const entryFeeOwed = entryFee;
+    const unitsCollected = resolveEntryWeeksCollected(
+      m.userId,
+      PICKEM_SEASON_ENTRY_UNITS,
+      paidFlags,
+    );
+    const entryPaid = unitsCollected >= PICKEM_SEASON_ENTRY_UNITS && entryFee > 0;
+    const entryFeeOwed =
+      entryFee > 0 ? Math.max(0, entryFee * (PICKEM_SEASON_ENTRY_UNITS - unitsCollected)) : 0;
     const netBalance = entryFeeOwed - totalWon;
 
     return {
@@ -176,6 +196,7 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
       username: m.username,
       displayName: m.displayName,
       entryFeeOwed,
+      entryPaid,
       weeklyBonusWon,
       seasonPrizeWon,
       totalWon,
@@ -185,10 +206,14 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
   });
 
   const totalEntryExpected = entryFee * members.length;
+  const totalEntryCollected = players.reduce(
+    (s, p) => s + (entryFee > 0 ? entryFee - p.entryFeeOwed : 0),
+    0,
+  );
   const totalWeeklyOwed = players.reduce((s, p) => s + p.weeklyBonusWon, 0);
   const totalSeasonOwed = players.reduce((s, p) => s + p.seasonPrizeWon, 0);
   const totalOwedToPlayers = totalWeeklyOwed + totalSeasonOwed;
-  const netToCommissioner = totalEntryExpected - totalOwedToPlayers;
+  const netToCommissioner = totalEntryCollected - totalOwedToPlayers;
 
   return {
     poolId,
@@ -199,11 +224,69 @@ export async function buildPickemSeasonCommissionerBalanceSheet(
     poolIsActive: pool.isActive,
     summary: {
       totalEntryExpected,
+      totalEntryCollected,
       totalWeeklyOwed,
       totalSeasonOwed,
       totalOwedToPlayers,
       netToCommissioner,
     },
     players,
+  };
+}
+
+export type PickemSeasonPlayerWeeklyLedger = {
+  completedWeekCount: number;
+  entryFee: number;
+  entryWeeksCollected: number;
+  entryFeeTotal: number;
+  entryFeeRemaining: number;
+  weeklyWon: number;
+  outstandingNet: number;
+};
+
+/** Profile balance: NFL pick-em season entry collection vs weekly bonus + season prize. */
+export async function getPickemSeasonPlayerWeeklyLedger(
+  pool: typeof poolsTable.$inferSelect,
+  poolId: number,
+  userId: number,
+): Promise<PickemSeasonPlayerWeeklyLedger | null> {
+  if ((pool.poolType as string) !== "pickem_season") return null;
+  if (pool.entryFee == null || pool.entryFee <= 0) return null;
+
+  const [member] = await db
+    .select({ userId: entriesTable.userId, prizeAmount: entriesTable.prizeAmount })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)))
+    .limit(1);
+  if (!member) return null;
+
+  const paidFlags = await loadWeeklyPickEmCommissionerPaidFlags(poolId);
+  const entryFee = pool.entryFee ?? 0;
+  const weeklyWinsByUser = await weeklyBonusWinsForPool(pool, poolId);
+  const weekly = weeklyWinsByUser.get(userId);
+  const weeklyWon = weekly?.total ?? 0;
+  const seasonPrizeWon =
+    member.prizeAmount != null ? Math.round(Number(member.prizeAmount) * 100) / 100 : 0;
+  const totalWon = weeklyWon + seasonPrizeWon;
+
+  const entryWeeksCollected = resolveEntryWeeksCollected(
+    userId,
+    PICKEM_SEASON_ENTRY_UNITS,
+    paidFlags,
+  );
+  const entryFeeTotal = entryFee * PICKEM_SEASON_ENTRY_UNITS;
+  const entryFeeRemaining = Math.max(
+    0,
+    entryFee * (PICKEM_SEASON_ENTRY_UNITS - entryWeeksCollected),
+  );
+
+  return {
+    completedWeekCount: PICKEM_SEASON_ENTRY_UNITS,
+    entryFee,
+    entryWeeksCollected,
+    entryFeeTotal,
+    entryFeeRemaining,
+    weeklyWon,
+    outstandingNet: entryFeeRemaining - totalWon,
   };
 }
