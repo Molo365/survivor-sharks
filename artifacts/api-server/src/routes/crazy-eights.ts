@@ -2344,7 +2344,7 @@ async function assertCrazyEightsCommissioner(
     return {
       ok: false,
       status: 400,
-      error: "Commissioner balances are only for paid recurring NHL Hit the Ice and NBA Fast Break / Multiplier pools",
+      error: "Commissioner balances are only for paid recurring Hit the Ice, Fast Break, Multiplier, and MLB High Heat pools",
     };
   }
 

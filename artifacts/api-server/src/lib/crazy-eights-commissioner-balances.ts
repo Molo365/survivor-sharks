@@ -6,7 +6,8 @@ import {
   usersTable,
 } from "@workspace/db";
 import { asc, eq } from "drizzle-orm";
-import { getNhlWeekBounds } from "./espn";
+import { getMlbWeekBounds, getNhlWeekBounds } from "./espn";
+import { getMlbWeeklyAnchor } from "./mlb-weekly-period";
 import {
   type CrazyEightsPeriodPool,
 } from "./crazy-eights-periods";
@@ -95,7 +96,7 @@ export function isCrazyEightsCommissionerBalancesPool(pool: {
   const family =
     pool.poolType === "crazy_8s"
     || (pool.poolType === "fast_break_multiplier" && pool.sport === "nba");
-  return family && (pool.sport === "nhl" || pool.sport === "nba");
+  return family && (pool.sport === "nhl" || pool.sport === "nba" || pool.sport === "mlb");
 }
 
 export type CrazyEightsPlayerWeeklyLedger = {
@@ -179,6 +180,9 @@ function periodBounds(pool: typeof poolsTable.$inferSelect, weekNumber: number) 
       weekNumber,
       periodPool.initialPeriodStart,
     );
+  }
+  if (pool.sport === "mlb") {
+    return getMlbWeekBounds(getMlbWeeklyAnchor(pool), weekNumber);
   }
   return getNbaAtsSlateBoundsForPool(
     {

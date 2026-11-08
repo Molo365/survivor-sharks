@@ -268,7 +268,7 @@ export function CommissionerPanel({ poolId, isSuperAdmin = false }: { poolId: nu
     && pool.entryFee > 0
     && (
       (poolType === "fast_break_multiplier" && pool.sport === "nba")
-      || (poolType === "crazy_8s" && (pool.sport === "nhl" || pool.sport === "nba"))
+      || (poolType === "crazy_8s" && (pool.sport === "nhl" || pool.sport === "nba" || pool.sport === "mlb"))
     );
 
   const showSurvivorSeasonBalances =

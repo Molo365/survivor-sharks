@@ -30,6 +30,17 @@ describe("crazy-eights commissioner balances", () => {
     ).toBe(true);
   });
 
+  it("accepts paid recurring MLB High Heat pools", () => {
+    expect(
+      isCrazyEightsCommissionerBalancesPool({
+        sport: "mlb",
+        poolType: "crazy_8s",
+        isRecurring: true,
+        entryFee: 25,
+      }),
+    ).toBe(true);
+  });
+
   it("rejects free or non-recurring pools", () => {
     expect(
       isCrazyEightsCommissionerBalancesPool({
