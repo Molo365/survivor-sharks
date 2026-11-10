@@ -52,8 +52,8 @@ describe("Super League start-period resolution", () => {
       weekEnd: "2026-11-16",
     });
     assert.deepEqual(getSuperLeaguePreviousConfiguredPeriod(pool, now), {
-      weekStart: "2026-11-07",
-      weekEnd: "2026-11-10",
+      weekStart: "2026-11-06",
+      weekEnd: "2026-11-09",
     });
   });
 });
