@@ -3831,10 +3831,20 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ))}
             </div>
           ) : nhlWeeklyEmpty ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
-              <p className="text-sm mt-1">Check back when the schedule is posted.</p>
+            <div className="space-y-6">
+              {prevWeekResults && (
+                <PrevWeekWinnerBanner
+                  groups={prevWeekWinnerGroups}
+                  weekStart={prevWeekResults.weekStart}
+                  weekEnd={prevWeekResults.weekEnd}
+                  onViewResults={() => setWeekResultsOpen(true)}
+                />
+              )}
+              <div className="text-center py-16 text-muted-foreground">
+                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p className="font-bebas text-2xl tracking-wide">No games this weekend</p>
+                <p className="text-sm mt-1">Check back when the schedule is posted.</p>
+              </div>
             </div>
           ) : isNhlWeekly ? (
             <div className="space-y-6">
@@ -4046,15 +4056,32 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               ))}
             </div>
           ) : mlsWeeklyEmpty ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <p className="text-lg font-medium">
-                {sport === "championsleague" ? "No Champions League matches available" : "No games scheduled this week"}
-              </p>
-              <p className="text-sm mt-1 text-muted-foreground/60">
-                {sport === "championsleague"
-                  ? "The next matchday appears here one week before its first kickoff."
-                  : "Check back when the schedule is posted."}
-              </p>
+            <div className="space-y-6">
+              {prevWeekResults && (
+                <PrevWeekWinnerBanner
+                  groups={prevWeekWinnerGroups}
+                  weekStart={prevWeekResults.weekStart}
+                  weekEnd={prevWeekResults.weekEnd}
+                  periodLabel={prevPeriodLabel}
+                  onViewResults={() => setWeekResultsOpen(true)}
+                />
+              )}
+              <div className="text-center py-16 text-muted-foreground">
+                <p className="text-lg font-medium">
+                  {sport === "championsleague"
+                    ? "No Champions League matches available"
+                    : sport === "superleague"
+                      ? "No Super League fixtures this weekend"
+                      : "No games scheduled this week"}
+                </p>
+                <p className="text-sm mt-1 text-muted-foreground/60">
+                  {sport === "championsleague"
+                    ? "The next matchday appears here one week before its first kickoff."
+                    : sport === "superleague"
+                      ? "During international breaks there may be no Fri–Mon slate. Check back when fixtures are posted."
+                      : "Check back when the schedule is posted."}
+                </p>
+              </div>
             </div>
           ) : mlsWeeklyPoolClosed ? (
             <div className="space-y-5">
