@@ -2307,6 +2307,36 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
     );
 
+  let effectivePicksWhere = picksWhere;
+  let effectivePrevWeekBounds = prevWeekBounds;
+  if (isSuperLeagueWeekly && pool.isRecurring && pool.currentWeek > 1) {
+    const [{ pickCount }] = await db
+      .select({ pickCount: count() })
+      .from(pickemPicksTable)
+      .where(effectivePicksWhere);
+      const configuredPrev = getSuperLeaguePreviousConfiguredPeriod(pool);
+    const periodStartInJustFinished =
+      !periodStartParam
+      || periodStartParam === configuredPrev.weekStart
+      || (periodStartParam >= configuredPrev.weekStart && periodStartParam <= configuredPrev.weekEnd);
+    if (Number(pickCount) === 0 && periodStartInJustFinished) {
+      const prevWeekNum = pool.currentWeek - 1;
+      effectivePicksWhere = and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.week, prevWeekNum),
+      );
+      const [range] = await db
+        .select({
+          minDate: sql<string>`min(${pickemPicksTable.gameDate})`,
+        })
+        .from(pickemPicksTable)
+        .where(effectivePicksWhere);
+      if (range?.minDate) {
+        effectivePrevWeekBounds = getSuperLeagueWeekBoundsEt(range.minDate);
+      }
+    }
+  }
+
   const [aggregates, dailyAggregates, tbMlbEntries, tbNhlEntries, prevSundayGames, memberCountRow] = await Promise.all([
     db
       .select({
@@ -2319,7 +2349,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       })
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-      .where(picksWhere)
+      .where(effectivePicksWhere)
       .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
       .orderBy(
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
@@ -2333,7 +2363,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
         picked: sql<string>`COUNT(*)`,
       })
       .from(pickemPicksTable)
-      .where(picksWhere)
+      .where(effectivePicksWhere)
       .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
       .orderBy(pickemPicksTable.gameDate),
     // MLB tiebreaker guesses stored on entries
@@ -2371,7 +2401,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   const superLeaguePrevWeekSettled = !isSuperLeagueWeekly
     ? true
     : isSuperLeaguePrevWeekSettled(
-      prevWeekBounds.weekEnd,
+      effectivePrevWeekBounds.weekEnd,
       todayEt,
       pool.currentWeek,
       resolvedPrevWeek,
@@ -2697,8 +2727,8 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   res.json({
     hasResults,
-    weekStart: prevWeekBounds.weekStart,
-    weekEnd: prevWeekBounds.weekEnd,
+    weekStart: effectivePrevWeekBounds.weekStart,
+    weekEnd: effectivePrevWeekBounds.weekEnd,
     weekNumber: isChampionsLeagueWeekly
       ? 0
       : (resolvedPrevWeek ?? (requestedWeek ?? Math.max(1, pool.currentWeek - 1))),
@@ -3005,6 +3035,46 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       )
     : and(eq(pickemPicksTable.poolId, poolId), eq(pickemPicksTable.gameDate, dailyDate));
 
+  let effectiveLbPicksWhere = picksWhereClause;
+  let effectiveLbWeekBounds = weekBounds;
+  if (
+    sport === "superleague"
+    && isCalendarSoccerWeekly
+    && pool.isRecurring
+    && (pool.currentWeek ?? 1) > 1
+    && weekBounds
+  ) {
+    const [{ pickCount }] = await db
+      .select({ pickCount: count() })
+      .from(pickemPicksTable)
+      .where(effectiveLbPicksWhere);
+    const configuredPrev = getSuperLeaguePreviousConfiguredPeriod(pool);
+    const periodStartInJustFinished =
+      !periodStartParam
+      || periodStartParam === configuredPrev.weekStart
+      || (periodStartParam >= configuredPrev.weekStart && periodStartParam <= configuredPrev.weekEnd)
+      || (
+        weekBounds.weekStart === configuredPrev.weekStart
+        && weekBounds.weekEnd === configuredPrev.weekEnd
+      );
+    if (Number(pickCount) === 0 && periodStartInJustFinished) {
+      const prevWeekNum = pool.currentWeek - 1;
+      effectiveLbPicksWhere = and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.week, prevWeekNum),
+      );
+      const [range] = await db
+        .select({
+          minDate: sql<string>`min(${pickemPicksTable.gameDate})`,
+        })
+        .from(pickemPicksTable)
+        .where(effectiveLbPicksWhere);
+      if (range?.minDate) {
+        effectiveLbWeekBounds = getSuperLeagueWeekBoundsEt(range.minDate);
+      }
+    }
+  }
+
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
   const weeklySoccerLeaderboard = isChampionsLeague || isCalendarSoccerWeekly;
@@ -3041,9 +3111,10 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           });
         })()
     : (sport === "nba" && pool.sandboxMode && isWeekly) ? fetchNbaGamesByWeek(NBA_SANDBOX_ANCHOR, pool.currentWeek)
-    : (sport === "superleague" && isWeekly && weekBounds)
+    : (sport === "superleague" && isWeekly && (effectiveLbWeekBounds ?? weekBounds))
       ? (() => {
-          const [wy, wm, wd] = weekBounds.weekStart.split("-").map(Number);
+          const slBounds = effectiveLbWeekBounds ?? weekBounds!;
+          const [wy, wm, wd] = slBounds.weekStart.split("-").map(Number);
           const friday = new Date(Date.UTC(wy!, wm! - 1, wd!));
           const slWeekEspnDates = Array.from({ length: 4 }, (_, i) =>
             new Date(friday.getTime() + i * 86_400_000).toISOString().slice(0, 10).replace(/-/g, ""),
@@ -3075,7 +3146,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           return Promise.all(nflWeekEspnDates.map((d) => fetchGamesForDate("nfl", d))).then((results) => results.flat());
         })()
     : fetchGamesForDate(sport, todayEspn),
-    db.select().from(pickemPicksTable).where(picksWhereClause),
+    db.select().from(pickemPicksTable).where(effectiveLbPicksWhere),
     db
       .select({
         userId: pickemPicksTable.userId,
@@ -3086,7 +3157,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
       })
       .from(pickemPicksTable)
       .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
-      .where(picksWhereClause)
+      .where(effectiveLbPicksWhere)
       .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
       .orderBy(
         sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
@@ -3101,7 +3172,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
             picked: sql<string>`COUNT(*)`,
           })
           .from(pickemPicksTable)
-          .where(picksWhereClause)
+          .where(effectiveLbPicksWhere)
           .groupBy(pickemPicksTable.userId, pickemPicksTable.gameDate)
           .orderBy(pickemPicksTable.gameDate)
       : Promise.resolve(null as null),
@@ -3486,8 +3557,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     poolId,
     week: pool.currentWeek,
     isWeekly: isWeekly || undefined,
-    weekStart: championsLeagueDates[0] ?? weekBounds?.weekStart ?? null,
-    weekEnd: championsLeagueDates.at(-1) ?? weekBounds?.weekEnd ?? null,
+    weekStart: championsLeagueDates[0] ?? effectiveLbWeekBounds?.weekStart ?? weekBounds?.weekStart ?? null,
+    weekEnd: championsLeagueDates.at(-1) ?? effectiveLbWeekBounds?.weekEnd ?? weekBounds?.weekEnd ?? null,
     phase,
     games: formattedGames,
     entries,

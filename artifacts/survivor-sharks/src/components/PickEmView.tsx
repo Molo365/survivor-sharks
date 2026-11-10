@@ -1869,6 +1869,7 @@ function PrevWeekResultsModal({
   initialWeek,
   defaultPeriodStart,
   completedPeriods,
+  singlePreviousPeriod = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1899,6 +1900,8 @@ function PrevWeekResultsModal({
   /** Super League / MLS: Fri–Mon or Mon–Sun period key (YYYY-MM-DD week start). */
   defaultPeriodStart?: string;
   completedPeriods?: PickEmPeriodListItem[];
+  /** Super League banner: only the just-finished weekend, not full period history. */
+  singlePreviousPeriod?: boolean;
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
@@ -1917,10 +1920,15 @@ function PrevWeekResultsModal({
 
   const completedCalendarPeriods = useMemo(() => {
     if (!isSuperLeague || !completedPeriods?.length) return [];
-    return [...completedPeriods]
+    const completed = [...completedPeriods]
       .filter((p) => p.status === "completed")
       .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-  }, [isSuperLeague, completedPeriods]);
+    if (singlePreviousPeriod && defaultPeriodStart) {
+      const match = completed.find((p) => p.weekStart === defaultPeriodStart);
+      return match ? [match] : completed.slice(-1);
+    }
+    return completed;
+  }, [isSuperLeague, completedPeriods, singlePreviousPeriod, defaultPeriodStart]);
 
   const initialPeriodStart = defaultPeriodStart ?? defaultWeekStart;
   const [selectedPeriodStart, setSelectedPeriodStart] = useState(initialPeriodStart);
@@ -1947,21 +1955,23 @@ function PrevWeekResultsModal({
     queryKey: ["pickem-prev-week-period", poolId, canonicalPeriodStart],
     queryFn: async () => {
       const periodQuery = encodeURIComponent(canonicalPeriodStart);
-      const prev = await authedFetch<PickEmPrevWeekResults>(
-        `/api/pools/${poolId}/pickem/prev-week-results?periodStart=${periodQuery}`,
-      );
-      if (prev.entries?.length) return prev;
+      const periodMeta = completedCalendarPeriods.find((p) => p.weekStart === canonicalPeriodStart);
       const lb = await authedFetch<PickEmLeaderboard>(
         `/api/pools/${poolId}/pickem/leaderboard?periodStart=${periodQuery}`,
       );
-      if (!lb.entries?.length) return prev;
-      return {
-        ...prev,
-        hasResults: true,
-        weekStart: lb.weekStart ?? prev.weekStart ?? canonicalPeriodStart,
-        weekEnd: lb.weekEnd ?? prev.weekEnd ?? canonicalPeriodStart,
-        entries: lb.entries,
-      };
+      const weekStart = periodMeta?.weekStart ?? lb.weekStart ?? canonicalPeriodStart;
+      const weekEnd = periodMeta?.weekEnd ?? lb.weekEnd ?? weekStart;
+      if (lb.entries?.length) {
+        return {
+          hasResults: true,
+          weekStart,
+          weekEnd,
+          entries: lb.entries,
+        } satisfies PickEmPrevWeekResults;
+      }
+      return await authedFetch<PickEmPrevWeekResults>(
+        `/api/pools/${poolId}/pickem/prev-week-results?periodStart=${periodQuery}`,
+      );
     },
     enabled: open && isSuperLeague && canonicalPeriodStart.length > 0,
     staleTime: 30 * 60 * 1000,
@@ -1995,14 +2005,18 @@ function PrevWeekResultsModal({
 
   const defaultWeekSource = defaultEntries.length > 0 ? null : defaultWeekData;
 
+  const activeCalendarPeriod = completedCalendarPeriods.find(
+    (p) => p.weekStart === canonicalPeriodStart,
+  );
+
   // Resolve display data — Super League uses calendar periods; others use week counter.
   const weekStart = isSuperLeague
-    ? (calendarPeriodData?.weekStart ?? selectedPeriodStart)
+    ? (activeCalendarPeriod?.weekStart ?? calendarPeriodData?.weekStart ?? defaultWeekStart)
     : isDefaultWeek
       ? (defaultWeekSource?.weekStart ?? defaultWeekStart)
       : (altWeekData?.weekStart ?? defaultWeekStart);
   const weekEnd = isSuperLeague
-    ? (calendarPeriodData?.weekEnd ?? defaultWeekEnd)
+    ? (activeCalendarPeriod?.weekEnd ?? calendarPeriodData?.weekEnd ?? defaultWeekEnd)
     : isDefaultWeek
       ? (defaultWeekSource?.weekEnd ?? defaultWeekEnd)
       : (altWeekData?.weekEnd ?? defaultWeekEnd);
@@ -3672,6 +3686,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         weekEnd={prevWeekBannerDates.weekEnd}
         defaultPeriodStart={pickEmPeriods?.previousPeriod?.key ?? prevWeekBannerDates.weekStart}
         completedPeriods={pickEmPeriods?.periods}
+        singlePreviousPeriod={sport === "superleague"}
         entries={prevWeekResults?.entries ?? []}
         currentUserId={user?.id ?? null}
         tiebreakerActualRuns={(prevWeekResults as any)?.tiebreakerActualRuns ?? null}
