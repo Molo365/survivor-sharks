@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   isNbaAtsPrevWeekSettled,
+  isSuperLeaguePrevWeekSettled,
   resolveDefaultPrevPickemWeek,
 } from "./pickem-prev-week";
 
@@ -34,6 +35,22 @@ describe("isNbaAtsPrevWeekSettled", () => {
   it("is true when pool has advanced to a later week", () => {
     assert.equal(
       isNbaAtsPrevWeekSettled("2026-10-25", "2026-10-24", 2, 1),
+      true,
+    );
+  });
+});
+
+describe("isSuperLeaguePrevWeekSettled", () => {
+  it("is true on the closing Monday", () => {
+    assert.equal(
+      isSuperLeaguePrevWeekSettled("2026-11-10", "2026-11-10", 11, 10),
+      true,
+    );
+  });
+
+  it("is true once the pool week has advanced", () => {
+    assert.equal(
+      isSuperLeaguePrevWeekSettled("2026-11-10", "2026-11-09", 12, 11),
       true,
     );
   });

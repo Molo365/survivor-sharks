@@ -19,3 +19,14 @@ export function isNbaAtsPrevWeekSettled(
   if (poolCurrentWeek > prevWeekNum) return true;
   return todayEt > weekEndEt;
 }
+
+/** Super League Fri–Mon: prior weekend counts as settled after Monday (ET calendar day). */
+export function isSuperLeaguePrevWeekSettled(
+  weekEndEt: string,
+  todayEt: string,
+  poolCurrentWeek: number,
+  prevWeekNum: number | null,
+): boolean {
+  if (prevWeekNum !== null && poolCurrentWeek > prevWeekNum) return true;
+  return todayEt >= weekEndEt;
+}

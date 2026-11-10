@@ -20,10 +20,11 @@ import {
   useGetPool,
   useGetPoolSchedule,
   useUpdatePool,
+  useGetPickEmDashboardStats,
   getGetPoolQueryKey,
   getGetPoolScheduleQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboard, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail, PoolSchedule } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboard, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail, PoolSchedule, PoolPickEmStatLastWinnersItem } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -156,6 +157,31 @@ function buildPrevWeekWinnerGroups(
     : prevWeekResults.entries.filter((entry) => entry.picked > 0);
   if (entries.length === 0) return [];
   return groupPrevWeekWinners(entries);
+}
+
+function dashboardLastWinnersToGroups(
+  winners: PoolPickEmStatLastWinnersItem[] | null | undefined,
+): PrevWeekWinnerGroup[] {
+  if (!winners?.length) return [];
+  const correct = winners[0].correct;
+  const picked = winners[0].picked;
+  const prizeWon = winners[0].prizeWon ?? null;
+  return [{
+    entries: winners.map((winner) => ({
+      rank: 1,
+      userId: winner.userId,
+      username: winner.username,
+      displayName: winner.displayName,
+      correct: winner.correct,
+      picked: winner.picked,
+      prizeWon: winner.prizeWon ?? null,
+      picks: [],
+      dailyBreakdown: [],
+    })),
+    correct,
+    picked,
+    prizeWon,
+  }];
 }
 
 function PrevWeekWinnerBanner({
@@ -2435,22 +2461,43 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     { query: { queryKey: getGetPickEmYesterdayWinnerQueryKey(poolId, yesterdayParams), enabled: isToday && !isWc, staleTime: 5 * 60 * 1000 } },
   );
 
-  const poolCurrentWeekForPrev = poolDetail?.currentWeek ?? 0;
-  const prevWeekResultsParams =
-    sport === "superleague" && poolCurrentWeekForPrev > 1
-      ? { week: poolCurrentWeekForPrev - 1 }
-      : undefined;
-  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, prevWeekResultsParams, {
+  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, undefined, {
     query: {
-      queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, prevWeekResultsParams),
-      enabled:
-        (isWeekly || isMlsWeekly)
-        && (sport !== "superleague" || poolCurrentWeekForPrev > 1),
+      queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId),
+      enabled: isWeekly || isMlsWeekly,
       staleTime: 10 * 60 * 1000,
     },
   });
+  const { data: pickEmDashboardStats } = useGetPickEmDashboardStats({
+    query: {
+      enabled: isMlsWeekly,
+      staleTime: 5 * 60 * 1000,
+      select: (stats) => stats.find((stat) => stat.poolId === poolId),
+    },
+  });
   const prevWeekWinnerGroups = buildPrevWeekWinnerGroups(prevWeekResults);
+  const dashboardPrevWeekGroups = dashboardLastWinnersToGroups(pickEmDashboardStats?.lastWinners);
+  const effectivePrevWeekWinnerGroups =
+    prevWeekWinnerGroups.length > 0 ? prevWeekWinnerGroups : dashboardPrevWeekGroups;
   const prevPeriodLabel = (prevWeekResults as { periodLabel?: string } | undefined)?.periodLabel;
+  const lastCompletedSoccerPeriod = useMemo(() => {
+    if (!pickEmPeriods?.periods.length) return null;
+    return pickEmPeriods.periods.filter((p) => p.status === "completed").at(-1) ?? null;
+  }, [pickEmPeriods]);
+  const prevWeekBannerDates = useMemo(() => {
+    if (prevWeekResults?.weekStart && prevWeekResults.weekEnd) {
+      return { weekStart: prevWeekResults.weekStart, weekEnd: prevWeekResults.weekEnd };
+    }
+    if (lastCompletedSoccerPeriod?.weekStart && lastCompletedSoccerPeriod.weekEnd) {
+      return {
+        weekStart: lastCompletedSoccerPeriod.weekStart,
+        weekEnd: lastCompletedSoccerPeriod.weekEnd,
+      };
+    }
+    return null;
+  }, [prevWeekResults, lastCompletedSoccerPeriod]);
+  const showPrevWeekWinnerBanner =
+    effectivePrevWeekWinnerGroups.length > 0 && prevWeekBannerDates != null;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
   const [nbaAtsWaitingOpen, setNbaAtsWaitingOpen] = useState(false);
@@ -3848,11 +3895,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : nhlWeeklyEmpty ? (
             <div className="space-y-6">
-              {prevWeekResults && (
+              {showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
               )}
@@ -3880,11 +3927,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* Last Week's Winner banner */}
-              {prevWeekResults && (
+              {showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
               )}
@@ -4073,11 +4120,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             </div>
           ) : mlsWeeklyEmpty ? (
             <div className="space-y-6">
-              {prevWeekResults && (
+              {showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   periodLabel={prevPeriodLabel}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
@@ -4171,11 +4218,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ) : isMlsWeekly ? (
             <div className="space-y-6">
               {/* Last Week's Winner banner */}
-              {prevWeekResults && (
+              {showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   periodLabel={prevPeriodLabel}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
@@ -4300,11 +4347,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
             /* NBA Weekend ATS — shows full Fri/Sat/Sun slate with spread lines */
             <div className="space-y-6">
               {/* Last Week's Winner banner */}
-              {prevWeekResults && (
+              {showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
               )}
@@ -4686,11 +4733,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
               )}
 
               {/* Last Week's Winner banner (weekly pools only) */}
-              {isWeekly && prevWeekResults && (
+              {isWeekly && showPrevWeekWinnerBanner && prevWeekBannerDates && (
                 <PrevWeekWinnerBanner
-                  groups={prevWeekWinnerGroups}
-                  weekStart={prevWeekResults.weekStart}
-                  weekEnd={prevWeekResults.weekEnd}
+                  groups={effectivePrevWeekWinnerGroups}
+                  weekStart={prevWeekBannerDates.weekStart}
+                  weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
                 />
               )}
