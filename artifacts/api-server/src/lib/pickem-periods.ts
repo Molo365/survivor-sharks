@@ -11,7 +11,7 @@ import {
 } from "./champions-league-pool-period";
 import { resolveChampionsLeagueDefaultPeriodKey } from "./champions-league-default-period";
 import { getMlsConfiguredPeriod } from "./mls-weekly-period";
-import { getSuperLeagueConfiguredPeriod } from "./superleague-period";
+import { getSuperLeagueConfiguredPeriod, getSuperLeaguePreviousConfiguredPeriod } from "./superleague-period";
 import {
   fetchChampionsLeaguePickemSlates,
   fetchCurrentChampionsLeagueSlate,
@@ -220,7 +220,24 @@ export async function listCalendarSoccerPickEmPeriods(
     };
   });
 
-  return { periods, defaultKey: current.weekStart };
+  const previousPeriod =
+    sport === "superleague"
+      ? getSuperLeaguePreviousConfiguredPeriod(pool, now)
+      : null;
+
+  return {
+    periods,
+    defaultKey: current.weekStart,
+    ...(previousPeriod
+      ? {
+        previousPeriod: {
+          key: previousPeriod.weekStart,
+          weekStart: previousPeriod.weekStart,
+          weekEnd: previousPeriod.weekEnd,
+        },
+      }
+      : {}),
+  };
 }
 
 export function resolveCalendarSoccerPeriodBounds(

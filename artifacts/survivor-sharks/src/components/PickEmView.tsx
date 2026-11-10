@@ -24,7 +24,7 @@ import {
   getGetPoolQueryKey,
   getGetPoolScheduleQueryKey,
 } from "@workspace/api-client-react";
-import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboard, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail, PoolSchedule, PoolPickEmStatLastWinnersItem } from "@workspace/api-client-react";
+import type { PickEmGame, PickEmSlate, MlsWeekGames, PickEmLeaderboard, PickEmLeaderboardGame, PickEmLeaderboardEntry, PickEmPlayerPick, PickEmDailyBreakdown, PickEmDailyPickDetail, PoolSchedule, PoolPickEmStatLastWinnersItem, PickEmPrevWeekResults } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -105,6 +105,11 @@ type PickEmPeriodListItem = {
 type PickEmPeriodListResponse = {
   periods: PickEmPeriodListItem[];
   defaultKey: string | null;
+  previousPeriod?: {
+    key: string;
+    weekStart: string;
+    weekEnd: string;
+  };
 };
 
 function authedFetch<T>(url: string): Promise<T> {
@@ -1862,6 +1867,8 @@ function PrevWeekResultsModal({
   periodLabel,
   hidePrizeColumn = false,
   initialWeek,
+  defaultPeriodStart,
+  completedPeriods,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1889,6 +1896,9 @@ function PrevWeekResultsModal({
   hidePrizeColumn?: boolean;
   /** When set, modal opens on this completed week instead of the latest. */
   initialWeek?: number;
+  /** Super League / MLS: Fri–Mon or Mon–Sun period key (YYYY-MM-DD week start). */
+  defaultPeriodStart?: string;
+  completedPeriods?: PickEmPeriodListItem[];
 }) {
   // maxWeek is the most-recently completed week (currentWeek - 1); the default view.
   const maxWeek = Math.max(1, currentWeek - 1);
@@ -1903,7 +1913,33 @@ function PrevWeekResultsModal({
   }, [open, maxWeek, initialWeek]);
 
   const isDefaultWeek = selectedWeek === maxWeek;
-  const defaultWeekParams = isSuperLeague ? undefined : { week: selectedWeek };
+  const defaultWeekParams = { week: selectedWeek };
+
+  const completedCalendarPeriods = useMemo(() => {
+    if (!isSuperLeague || !completedPeriods?.length) return [];
+    return [...completedPeriods]
+      .filter((p) => p.status === "completed")
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+  }, [isSuperLeague, completedPeriods]);
+
+  const initialPeriodStart = defaultPeriodStart ?? defaultWeekStart;
+  const [selectedPeriodStart, setSelectedPeriodStart] = useState(initialPeriodStart);
+
+  useEffect(() => {
+    if (!open || !isSuperLeague) return;
+    setSelectedPeriodStart(initialPeriodStart);
+  }, [open, isSuperLeague, initialPeriodStart]);
+
+  const periodIndex = completedCalendarPeriods.findIndex((p) => p.key === selectedPeriodStart);
+
+  const { data: calendarPeriodData, isFetching: isCalendarPeriodFetching } = useQuery({
+    queryKey: ["pickem-prev-week-period", poolId, selectedPeriodStart],
+    queryFn: () => authedFetch<PickEmPrevWeekResults>(
+      `/api/pools/${poolId}/pickem/prev-week-results?periodStart=${encodeURIComponent(selectedPeriodStart)}`,
+    ),
+    enabled: open && isSuperLeague && selectedPeriodStart.length > 0,
+    staleTime: 30 * 60 * 1000,
+  });
 
   // Parent may pass an empty entries array (e.g. Super League banner used dashboard fallback).
   const { data: defaultWeekData, isFetching: isDefaultWeekFetching } = useGetPickEmPrevWeekResults(
@@ -1912,7 +1948,7 @@ function PrevWeekResultsModal({
     {
       query: {
         queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, defaultWeekParams),
-        enabled: open && isDefaultWeek && defaultEntries.length === 0,
+        enabled: open && !isSuperLeague && isDefaultWeek && defaultEntries.length === 0,
         staleTime: 30 * 60 * 1000,
       },
     },
@@ -1925,7 +1961,7 @@ function PrevWeekResultsModal({
     {
       query: {
         queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, { week: selectedWeek }),
-        enabled: open && !isDefaultWeek,
+        enabled: open && !isSuperLeague && !isDefaultWeek,
         staleTime: 30 * 60 * 1000,
       },
     },
@@ -1933,50 +1969,71 @@ function PrevWeekResultsModal({
 
   const defaultWeekSource = defaultEntries.length > 0 ? null : defaultWeekData;
 
-  // Resolve display data — prop data for the default week, fetched data otherwise.
-  const weekStart = isDefaultWeek
-    ? (defaultWeekSource?.weekStart ?? defaultWeekStart)
-    : (altWeekData?.weekStart ?? defaultWeekStart);
-  const weekEnd = isDefaultWeek
-    ? (defaultWeekSource?.weekEnd ?? defaultWeekEnd)
-    : (altWeekData?.weekEnd ?? defaultWeekEnd);
-  const entries = isDefaultWeek
-    ? (defaultEntries.length > 0 ? defaultEntries : (defaultWeekSource?.entries ?? []))
-    : (altWeekData?.entries ?? []);
-  const tiebreakerActualRuns = isDefaultWeek
-    ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualRuns ?? null) : (defaultTbRuns ?? null))
-    : ((altWeekData as any)?.tiebreakerActualRuns ?? null);
-  const tiebreakerActualStrikeouts = isDefaultWeek
-    ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualStrikeouts ?? null) : (defaultTbSO ?? null))
-    : ((altWeekData as any)?.tiebreakerActualStrikeouts ?? null);
-  const tiebreakerActualShotsOnGoal = isDefaultWeek
-    ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualShotsOnGoal ?? null) : (defaultTbShots ?? null))
-    : ((altWeekData as any)?.tiebreakerActualShotsOnGoal ?? null);
-  const tiebreakerActualPenaltyMinutes = isDefaultWeek
-    ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualPenaltyMinutes ?? null) : (defaultTbPIM ?? null))
-    : ((altWeekData as any)?.tiebreakerActualPenaltyMinutes ?? null);
-  const tiebreakerColumnHeader = isDefaultWeek
-    ? (defaultWeekSource
-      ? ((defaultWeekSource as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? defaultTbHeader ?? null)
-      : (defaultTbHeader ?? null))
-    : ((altWeekData as { tiebreakerColumnHeader?: string })?.tiebreakerColumnHeader ?? defaultTbHeader ?? null);
-  const tiebreakerMatchup = isDefaultWeek
-    ? (defaultWeekSource
-      ? ((defaultWeekSource as { tiebreakerMatchup?: TiebreakerMatchupGame }).tiebreakerMatchup ?? defaultTbMatchup ?? null)
-      : (defaultTbMatchup ?? null))
-    : ((altWeekData as { tiebreakerMatchup?: TiebreakerMatchupGame })?.tiebreakerMatchup ?? defaultTbMatchup ?? null);
-  const tiebreakerActualPoints = isDefaultWeek
-    ? (defaultWeekSource
-      ? ((defaultWeekSource as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? defaultTbPoints ?? null)
-      : (defaultTbPoints ?? null))
-    : ((altWeekData as { tiebreakerActualPoints?: number })?.tiebreakerActualPoints ?? defaultTbPoints ?? null);
+  // Resolve display data — Super League uses calendar periods; others use week counter.
+  const weekStart = isSuperLeague
+    ? (calendarPeriodData?.weekStart ?? selectedPeriodStart)
+    : isDefaultWeek
+      ? (defaultWeekSource?.weekStart ?? defaultWeekStart)
+      : (altWeekData?.weekStart ?? defaultWeekStart);
+  const weekEnd = isSuperLeague
+    ? (calendarPeriodData?.weekEnd ?? defaultWeekEnd)
+    : isDefaultWeek
+      ? (defaultWeekSource?.weekEnd ?? defaultWeekEnd)
+      : (altWeekData?.weekEnd ?? defaultWeekEnd);
+  const entries = isSuperLeague
+    ? (calendarPeriodData?.entries ?? [])
+    : isDefaultWeek
+      ? (defaultEntries.length > 0 ? defaultEntries : (defaultWeekSource?.entries ?? []))
+      : (altWeekData?.entries ?? []);
+  const tiebreakerActualRuns = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerActualRuns?: number } | undefined)?.tiebreakerActualRuns ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualRuns ?? null) : (defaultTbRuns ?? null))
+      : ((altWeekData as any)?.tiebreakerActualRuns ?? null);
+  const tiebreakerActualStrikeouts = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerActualStrikeouts?: number } | undefined)?.tiebreakerActualStrikeouts ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualStrikeouts ?? null) : (defaultTbSO ?? null))
+      : ((altWeekData as any)?.tiebreakerActualStrikeouts ?? null);
+  const tiebreakerActualShotsOnGoal = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerActualShotsOnGoal?: number } | undefined)?.tiebreakerActualShotsOnGoal ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualShotsOnGoal ?? null) : (defaultTbShots ?? null))
+      : ((altWeekData as any)?.tiebreakerActualShotsOnGoal ?? null);
+  const tiebreakerActualPenaltyMinutes = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerActualPenaltyMinutes?: number } | undefined)?.tiebreakerActualPenaltyMinutes ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource ? ((defaultWeekSource as any).tiebreakerActualPenaltyMinutes ?? null) : (defaultTbPIM ?? null))
+      : ((altWeekData as any)?.tiebreakerActualPenaltyMinutes ?? null);
+  const tiebreakerColumnHeader = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerColumnHeader?: string } | undefined)?.tiebreakerColumnHeader ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource
+        ? ((defaultWeekSource as { tiebreakerColumnHeader?: string }).tiebreakerColumnHeader ?? defaultTbHeader ?? null)
+        : (defaultTbHeader ?? null))
+      : ((altWeekData as { tiebreakerColumnHeader?: string })?.tiebreakerColumnHeader ?? defaultTbHeader ?? null);
+  const tiebreakerMatchup = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerMatchup?: TiebreakerMatchupGame } | undefined)?.tiebreakerMatchup ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource
+        ? ((defaultWeekSource as { tiebreakerMatchup?: TiebreakerMatchupGame }).tiebreakerMatchup ?? defaultTbMatchup ?? null)
+        : (defaultTbMatchup ?? null))
+      : ((altWeekData as { tiebreakerMatchup?: TiebreakerMatchupGame })?.tiebreakerMatchup ?? defaultTbMatchup ?? null);
+  const tiebreakerActualPoints = isSuperLeague
+    ? ((calendarPeriodData as { tiebreakerActualPoints?: number } | undefined)?.tiebreakerActualPoints ?? null)
+    : isDefaultWeek
+      ? (defaultWeekSource
+        ? ((defaultWeekSource as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? defaultTbPoints ?? null)
+        : (defaultTbPoints ?? null))
+      : ((altWeekData as { tiebreakerActualPoints?: number })?.tiebreakerActualPoints ?? defaultTbPoints ?? null);
   const tbCol = showTiebreakerColumn && tiebreakerColumnHeader;
   const tbActual = tiebreakerSport === "nba" ? tiebreakerActualPoints : tiebreakerActualShotsOnGoal;
   const tbGuess = (entry: PickEmLeaderboardEntry) =>
     tiebreakerSport === "nba" ? entry.tiebreakerPointsGuess : entry.tiebreakerShotsOnGoalGuess;
-  const isLoadingAlt = !isDefaultWeek && isAltFetching && !altWeekData;
-  const isLoadingDefault =
-    isDefaultWeek && defaultEntries.length === 0 && isDefaultWeekFetching && !defaultWeekData;
+  const isLoadingAlt = !isSuperLeague && !isDefaultWeek && isAltFetching && !altWeekData;
+  const isLoadingDefault = isSuperLeague
+    ? isCalendarPeriodFetching && !calendarPeriodData
+    : isDefaultWeek && defaultEntries.length === 0 && isDefaultWeekFetching && !defaultWeekData;
 
   const days = generateWeeklyLeaderboardDays(weekStart, weekEnd, { isNbaAts, isSuperLeague });
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
@@ -2006,7 +2063,45 @@ function PrevWeekResultsModal({
                 ? `${periodLabel ? `${periodLabel} · ` : ""}${fmtDate(weekStart)} – ${fmtDate(weekEnd)} · Matchday Results`
                 : `Week of ${fmtDate(weekStart)} – ${fmtDate(weekEnd)} · Final Results`}
             </DialogTitle>
-            {maxWeek > 1 && (
+            {isSuperLeague && completedCalendarPeriods.length > 1 ? (
+              <div className="flex items-center gap-1 shrink-0 max-w-[14rem]">
+                <button
+                  type="button"
+                  disabled={periodIndex <= 0}
+                  onClick={() => {
+                    const prev = completedCalendarPeriods[periodIndex - 1];
+                    if (prev) setSelectedPeriodStart(prev.key);
+                  }}
+                  className={cn(
+                    "w-7 h-7 flex items-center justify-center rounded-md transition-colors shrink-0",
+                    periodIndex <= 0
+                      ? "text-muted-foreground/25 cursor-not-allowed"
+                      : "hover:bg-muted/20 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-medium text-muted-foreground text-center leading-tight truncate">
+                  {completedCalendarPeriods[periodIndex]?.label ?? "Weekend"}
+                </span>
+                <button
+                  type="button"
+                  disabled={periodIndex < 0 || periodIndex >= completedCalendarPeriods.length - 1}
+                  onClick={() => {
+                    const next = completedCalendarPeriods[periodIndex + 1];
+                    if (next) setSelectedPeriodStart(next.key);
+                  }}
+                  className={cn(
+                    "w-7 h-7 flex items-center justify-center rounded-md transition-colors shrink-0",
+                    periodIndex < 0 || periodIndex >= completedCalendarPeriods.length - 1
+                      ? "text-muted-foreground/25 cursor-not-allowed"
+                      : "hover:bg-muted/20 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : maxWeek > 1 && !isSuperLeague ? (
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
@@ -2038,7 +2133,7 @@ function PrevWeekResultsModal({
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
           <DialogDescription>
             {isLoadingAlt || isLoadingDefault
@@ -2517,31 +2612,31 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const effectivePrevWeekWinnerGroups =
     prevWeekWinnerGroups.length > 0 ? prevWeekWinnerGroups : dashboardPrevWeekGroups;
   const prevPeriodLabel = (prevWeekResults as { periodLabel?: string } | undefined)?.periodLabel;
-  const priorSoccerPeriod = useMemo(() => {
+  const prevWeekBannerDates = useMemo(() => {
+    if (pickEmPeriods?.previousPeriod?.weekStart && pickEmPeriods.previousPeriod.weekEnd) {
+      return {
+        weekStart: pickEmPeriods.previousPeriod.weekStart,
+        weekEnd: pickEmPeriods.previousPeriod.weekEnd,
+      };
+    }
+    if (prevWeekResults?.weekStart && prevWeekResults.weekEnd) {
+      return { weekStart: prevWeekResults.weekStart, weekEnd: prevWeekResults.weekEnd };
+    }
     if (!pickEmPeriods?.periods.length) return null;
     const currentKey =
       pickEmPeriods.defaultKey
       ?? pickEmPeriods.periods.find((p) => p.status === "current")?.key;
-    if (!currentKey) {
-      return pickEmPeriods.periods.filter((p) => p.status === "completed").at(-1) ?? null;
-    }
-    return pickEmPeriods.periods
-      .filter((p) => p.weekStart < currentKey)
-      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
-      .at(-1) ?? null;
-  }, [pickEmPeriods]);
-  const prevWeekBannerDates = useMemo(() => {
-    if (prevWeekResults?.weekStart && prevWeekResults.weekEnd) {
-      return { weekStart: prevWeekResults.weekStart, weekEnd: prevWeekResults.weekEnd };
-    }
-    if (priorSoccerPeriod?.weekStart && priorSoccerPeriod.weekEnd) {
-      return {
-        weekStart: priorSoccerPeriod.weekStart,
-        weekEnd: priorSoccerPeriod.weekEnd,
-      };
+    const prior = currentKey
+      ? pickEmPeriods.periods
+        .filter((p) => p.weekStart < currentKey)
+        .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+        .at(-1)
+      : pickEmPeriods.periods.filter((p) => p.status === "completed").at(-1);
+    if (prior?.weekStart && prior.weekEnd) {
+      return { weekStart: prior.weekStart, weekEnd: prior.weekEnd };
     }
     return null;
-  }, [prevWeekResults, priorSoccerPeriod]);
+  }, [pickEmPeriods, prevWeekResults]);
   const showPrevWeekWinnerBanner =
     effectivePrevWeekWinnerGroups.length > 0 && prevWeekBannerDates != null;
 
@@ -3549,6 +3644,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         initialWeek={weekResultsInitialWeek}
         weekStart={prevWeekBannerDates.weekStart}
         weekEnd={prevWeekBannerDates.weekEnd}
+        defaultPeriodStart={pickEmPeriods?.previousPeriod?.key ?? prevWeekBannerDates.weekStart}
+        completedPeriods={pickEmPeriods?.periods}
         entries={prevWeekResults?.entries ?? []}
         currentUserId={user?.id ?? null}
         tiebreakerActualRuns={(prevWeekResults as any)?.tiebreakerActualRuns ?? null}
