@@ -58,6 +58,7 @@ import {
 } from "../lib/nba-ats-period";
 import {
   isNbaAtsPrevWeekSettled,
+  isSuperLeaguePrevWeekSettled,
   resolveDefaultPrevPickemWeek,
 } from "../lib/pickem-prev-week";
 import { NBA_ATS_MAX_PICKS, nbaAtsExceedsPickLimit } from "../lib/nba-ats-picks";
@@ -2258,14 +2259,10 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
 
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
-  const isSuperLeagueRecurringWeekly =
-    isSuperLeagueWeeklyPickem(pool) && pool.isRecurring === true;
+  const isSuperLeagueWeekly = isSuperLeagueWeeklyPickem(pool);
 
   const prevNhlWeekNum = isNhlPickemWeekly ? resolvedPrevWeek : null;
   const prevNbaAtsWeekNum = isNbaAts ? resolvedPrevWeek : null;
-  const prevSuperLeagueWeekNum = isSuperLeagueRecurringWeekly && resolvedPrevWeek !== null
-    ? resolvedPrevWeek
-    : null;
 
   const picksWhere = isChampionsLeagueWeekly && championsLeaguePrevious
     ? and(
@@ -2282,10 +2279,12 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       eq(pickemPicksTable.poolId, poolId),
       eq(pickemPicksTable.week, prevNhlWeekNum),
     )
-    : prevSuperLeagueWeekNum !== null
+    : isSuperLeagueWeekly
     ? and(
       eq(pickemPicksTable.poolId, poolId),
-      eq(pickemPicksTable.week, prevSuperLeagueWeekNum),
+      gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
+      lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
+      ...(requestedWeek !== null ? [eq(pickemPicksTable.week, requestedWeek)] : []),
     )
     : and(
       eq(pickemPicksTable.poolId, poolId),
@@ -2354,8 +2353,21 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       pool.currentWeek,
       prevNbaAtsWeekNum,
     );
+  const superLeaguePrevWeekSettled = !isSuperLeagueWeekly
+    ? true
+    : isSuperLeaguePrevWeekSettled(
+      prevWeekBounds.weekEnd,
+      todayEt,
+      pool.currentWeek,
+      resolvedPrevWeek,
+    );
+  const allGradedPrev = aggregates.length > 0
+    && aggregates.every((r) => Number(r.graded) === Number(r.picked));
   const hasResults = nbaAtsPrevWeekSettled
-    && aggregates.some((r) => Number(r.graded) > 0);
+    && superLeaguePrevWeekSettled
+    && (isSuperLeagueWeekly
+      ? allGradedPrev
+      : aggregates.some((r) => Number(r.graded) > 0));
 
   const dailyByUser = new Map<number, { date: string; correct: number; picked: number }[]>();
   for (const row of dailyAggregates) {
@@ -2368,7 +2380,7 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   }
 
   // allGraded / weekTopCorrect needed for tiebreaker rank resolution and prize computation below.
-  const allGraded = hasResults && aggregates.every((r) => Number(r.graded) === Number(r.picked));
+  const allGraded = hasResults && allGradedPrev;
   let weekTopCorrect = -1;
   if (allGraded && aggregates.length > 0) {
     weekTopCorrect = Number(aggregates[0].correct);
