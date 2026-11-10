@@ -52,3 +52,36 @@ export function getSuperLeagueConfiguredPeriod(pool: SuperLeaguePool, now = new 
     : todayEt;
   return getSuperLeagueWeekBoundsEt(reference);
 }
+
+/**
+ * Fri–Mon slate immediately before the configured "current" period.
+ * Tue–Thu (before the upcoming Friday opens) the configured current period
+ * already points at the next slate; offsetting its Friday by -7 lands on
+ * the wrong window, so we anchor via Sunday inside the just-finished slate.
+ */
+export function getSuperLeaguePreviousConfiguredPeriod(pool: SuperLeaguePool, now = new Date()): {
+  weekStart: string;
+  weekEnd: string;
+} {
+  const todayEt = etDateString(now);
+  const current = getSuperLeagueConfiguredPeriod(pool, now);
+  if (todayEt < current.weekStart) {
+    return getSuperLeagueWeekBoundsEt(offsetDate(current.weekStart, -4));
+  }
+  return getSuperLeagueWeekBoundsEt(offsetDate(current.weekStart, -7));
+}
+
+export function getSuperLeaguePeriodWeeksBefore(
+  pool: SuperLeaguePool,
+  weeksBack: number,
+  now = new Date(),
+): { weekStart: string; weekEnd: string } {
+  if (weeksBack < 1) {
+    return getSuperLeagueConfiguredPeriod(pool, now);
+  }
+  let bounds = getSuperLeaguePreviousConfiguredPeriod(pool, now);
+  for (let i = 1; i < weeksBack; i++) {
+    bounds = getSuperLeagueWeekBoundsEt(offsetDate(bounds.weekStart, -7));
+  }
+  return bounds;
+}

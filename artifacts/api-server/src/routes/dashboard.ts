@@ -35,7 +35,7 @@ import { getCurrentBracketRoundEventIds } from "../lib/bracketRound";
 import { calcPrize } from "../lib/prizeCalc";
 import { fetchPoolSlateGames, loadSandboxLivePoolIds, openSlateGames, poolSlateHasLiveGames } from "../lib/pool-slate-live";
 import { resolveSequentialTiebreaker } from "../lib/tiebreaker";
-import { getSuperLeagueConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
+import { getSuperLeagueConfiguredPeriod, getSuperLeaguePreviousConfiguredPeriod, isSuperLeaguePreStart } from "../lib/superleague-period";
 import { getMlsConfiguredPeriod, isMlsWeeklyPreStart } from "../lib/mls-weekly-period";
 import { resolveChampionsLeaguePeriodContext } from "../lib/champions-league-pool-period";
 import { getMlbBracketPickPoints, MLB_BRACKET_SLOTS, MLB_MAX_SCORE } from "../lib/mlb-bracket";
@@ -1649,9 +1649,7 @@ router.get("/pickem-stats", requireAuth, async (req, res) => {
         ? await resolveChampionsLeaguePeriodContext(pool.id)
         : null;
       const superLeagueCurrentBounds = getSuperLeagueConfiguredPeriod(pool);
-      const superLeaguePrevBounds = getSuperLeagueWeekBoundsEt(
-        offsetDateStr(superLeagueCurrentBounds.weekStart, -7),
-      );
+      const superLeaguePrevBounds = getSuperLeaguePreviousConfiguredPeriod(pool);
       const mlsCurrentBounds = getMlsConfiguredPeriod(pool);
       const weeklyCurrentBounds = isChampionsLeagueWeekly && championsLeaguePeriods?.current
         ? {
