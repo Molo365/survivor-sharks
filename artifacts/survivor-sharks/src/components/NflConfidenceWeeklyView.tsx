@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,46 +30,49 @@ import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Set
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
+import {
+  resolveNflConfidenceWeeklyWinnerDisplay,
+  type NflConfidenceWeeklyWinnerLeaderboard,
+} from "@/lib/nflConfidenceWeeklyWinner";
 import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
 import { useGetPool } from "@workspace/api-client-react";
 
 // ── Winner Banner (exported for use at pool page level) ───────────────────────
 
-interface WinnerBannerLeaderboardResponse {
-  week: number;
-  players: Array<{
-    rank: number;
-    userId: number;
-    username: string;
-    displayName: string | null;
-    weekPoints: number;
-    gradedPicks: number;
-    totalPicks: number;
-    potSplit: boolean;
-  }>;
-  actualPassingYards: number | null;
-}
-
 export function NflConfidenceWeeklyWinnerBanner({ poolId, currentWeek }: { poolId: number; currentWeek: number }) {
-  const { data: leaderboardData } = useQuery<WinnerBannerLeaderboardResponse>({
-    queryKey: ["nfl-confidence-weekly-leaderboard", poolId, currentWeek],
-    queryFn: () => authedFetch<WinnerBannerLeaderboardResponse>(`/api/pools/${poolId}/nfl-confidence-weekly/leaderboard?week=${currentWeek}`),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+  const weekQueries = useQueries({
+    queries: (currentWeek > 1 ? [currentWeek, currentWeek - 1] : [currentWeek]).map((week) => ({
+      queryKey: ["nfl-confidence-weekly-leaderboard", poolId, week],
+      queryFn: () =>
+        authedFetch<NflConfidenceWeeklyWinnerLeaderboard>(
+          `/api/pools/${poolId}/nfl-confidence-weekly/leaderboard?week=${week}`,
+        ),
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+    })),
   });
 
-  const isWeekFullyGraded = leaderboardData?.actualPassingYards != null;
-  const players = leaderboardData?.players ?? [];
-  const weekWinner = isWeekFullyGraded && players.length > 0 ? players[0] : null;
+  const currentWeekData = weekQueries[0]?.data;
+  const previousWeekData = currentWeek > 1 ? weekQueries[1]?.data : undefined;
+
+  const { displayWeek, winner: weekWinner, isLastWeek } = resolveNflConfidenceWeeklyWinnerDisplay(
+    currentWeek,
+    currentWeekData,
+    previousWeekData,
+  );
 
   if (!weekWinner) return null;
+
+  const titleLabel = isLastWeek
+    ? `🏆 Last Week's Winner · Week ${displayWeek}`
+    : `🏆 Week ${displayWeek} Winner`;
 
   return (
     <div className="rounded-lg border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-amber-600/5 px-4 py-3.5 flex items-center gap-3">
       <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-400 mb-0.5">
-          🏆 Week {currentWeek} Winner
+          {titleLabel}
         </p>
         <p className="font-bebas text-lg tracking-wide leading-none text-foreground truncate">
           {weekWinner.displayName ?? weekWinner.username}

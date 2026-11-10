@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,7 +63,9 @@ function RankBadge({ rank }: { rank: number }) {
 
 export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId: number; initialWeek?: number }) {
   const { user } = useAuth();
-  const [week, setWeek] = useState(() => initialWeek ?? 1);
+  const poolWeek = initialWeek ?? 1;
+  const [week, setWeek] = useState(() => poolWeek);
+  const userChangedWeek = useRef(false);
 
   const { data, isLoading } = useQuery<WeeklyLeaderboardResponse>({
     queryKey: ["nfl-confidence-weekly-leaderboard", poolId, week],
@@ -86,10 +88,19 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const weeklyTbColumnHeader = weeklyTb?.columnHeader;
   const showWeeklyTbCol = Boolean(weeklyTbColumnHeader);
   const weeklyTbMatchup = weeklyTb?.tiebreakerMatchup as TiebreakerMatchupGame | undefined;
-  const isCurrentWeek = week === (initialWeek ?? 1);
+  const isCurrentWeek = week === poolWeek;
   const isGraded = players.some((p) => p.gradedPicks > 0);
   const isFullyGraded = data?.actualPassingYards != null;
   const weekWinner = isFullyGraded && players.length > 0 ? players[0] : null;
+
+  // Land on the latest completed week when the pool week is new and still empty.
+  useEffect(() => {
+    if (userChangedWeek.current || isLoading || week !== poolWeek || poolWeek <= 1) return;
+    const emptyCurrentSlate = players.length === 0 && !isFullyGraded;
+    if (emptyCurrentSlate) {
+      setWeek(poolWeek - 1);
+    }
+  }, [isLoading, week, poolWeek, players.length, isFullyGraded]);
 
   // Find the highest-score group with 2+ players (a tie at any position)
   const tiedTopPlayers: WeeklyPlayer[] = (() => {
@@ -129,20 +140,28 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
       {/* Week nav */}
       <div className="flex items-center justify-between gap-3">
         <button
-          onClick={() => setWeek((w) => Math.max(1, w - 1))}
+          onClick={() => {
+            userChangedWeek.current = true;
+            setWeek((w) => Math.max(1, w - 1));
+          }}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="text-center">
           <p className="font-bebas text-lg tracking-wide leading-none">Week {week}</p>
-          {isCurrentWeek && (
+          {week === poolWeek ? (
             <span className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider">This Week</span>
-          )}
+          ) : week === poolWeek - 1 && isFullyGraded && weekWinner ? (
+            <span className="text-[10px] text-yellow-400/90 font-semibold uppercase tracking-wider">Last Week</span>
+          ) : null}
         </div>
         <button
-          onClick={() => setWeek((w) => Math.min(18, w + 1))}
-          disabled={isCurrentWeek}
+          onClick={() => {
+            userChangedWeek.current = true;
+            setWeek((w) => Math.min(poolWeek, w + 1));
+          }}
+          disabled={week >= poolWeek}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-4 h-4" />
