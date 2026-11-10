@@ -2164,6 +2164,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     return;
   }
 
+  const periodStartParam =
+    (sport === "superleague" || sport === "mls") && pool.pickFrequency === "weekly"
+      ? parsePickEmPeriodStartQuery(req)
+      : undefined;
+
   // Optional ?week=N param: 1-indexed completed week number. Defaults to the
   // immediately prior calendar/weekend week when omitted (backward-compatible).
   const weekParam = req.query.week;
@@ -2212,7 +2217,18 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
   // For Super League: Fri–Mon slate bounds. For all others: Mon–Sun calendar
   // week. Without a week param, default to the immediately prior full window.
   let prevWeekBounds: { weekStart: string; weekEnd: string };
-  if (isChampionsLeagueWeekly && championsLeaguePrevious) {
+  if (periodStartParam && (sport === "superleague" || sport === "mls")) {
+    const resolved = resolveCalendarSoccerPeriodBounds(
+      sport as "superleague" | "mls",
+      pool,
+      periodStartParam,
+    );
+    if (!resolved) {
+      res.status(404).json({ error: "Period not found" });
+      return;
+    }
+    prevWeekBounds = { weekStart: resolved.weekStart, weekEnd: resolved.weekEnd };
+  } else if (isChampionsLeagueWeekly && championsLeaguePrevious) {
     prevWeekBounds = {
       weekStart: championsLeaguePrevious.weekStart,
       weekEnd: championsLeaguePrevious.weekEnd,
@@ -2284,7 +2300,6 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
       eq(pickemPicksTable.poolId, poolId),
       gte(pickemPicksTable.gameDate, prevWeekBounds.weekStart),
       lte(pickemPicksTable.gameDate, prevWeekBounds.weekEnd),
-      ...(requestedWeek !== null ? [eq(pickemPicksTable.week, requestedWeek)] : []),
     )
     : and(
       eq(pickemPicksTable.poolId, poolId),
