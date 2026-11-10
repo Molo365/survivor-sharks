@@ -1930,14 +1930,40 @@ function PrevWeekResultsModal({
     setSelectedPeriodStart(initialPeriodStart);
   }, [open, isSuperLeague, initialPeriodStart]);
 
-  const periodIndex = completedCalendarPeriods.findIndex((p) => p.key === selectedPeriodStart);
+  const canonicalPeriodStart = useMemo(() => {
+    const exact = completedCalendarPeriods.find((p) => p.key === selectedPeriodStart);
+    if (exact) return exact.weekStart;
+    const containing = completedCalendarPeriods.find(
+      (p) => selectedPeriodStart >= p.weekStart && selectedPeriodStart <= p.weekEnd,
+    );
+    return containing?.weekStart ?? selectedPeriodStart;
+  }, [completedCalendarPeriods, selectedPeriodStart]);
+
+  const periodIndex = completedCalendarPeriods.findIndex(
+    (p) => p.weekStart === canonicalPeriodStart || p.key === selectedPeriodStart,
+  );
 
   const { data: calendarPeriodData, isFetching: isCalendarPeriodFetching } = useQuery({
-    queryKey: ["pickem-prev-week-period", poolId, selectedPeriodStart],
-    queryFn: () => authedFetch<PickEmPrevWeekResults>(
-      `/api/pools/${poolId}/pickem/prev-week-results?periodStart=${encodeURIComponent(selectedPeriodStart)}`,
-    ),
-    enabled: open && isSuperLeague && selectedPeriodStart.length > 0,
+    queryKey: ["pickem-prev-week-period", poolId, canonicalPeriodStart],
+    queryFn: async () => {
+      const periodQuery = encodeURIComponent(canonicalPeriodStart);
+      const prev = await authedFetch<PickEmPrevWeekResults>(
+        `/api/pools/${poolId}/pickem/prev-week-results?periodStart=${periodQuery}`,
+      );
+      if (prev.entries?.length) return prev;
+      const lb = await authedFetch<PickEmLeaderboard>(
+        `/api/pools/${poolId}/pickem/leaderboard?periodStart=${periodQuery}`,
+      );
+      if (!lb.entries?.length) return prev;
+      return {
+        ...prev,
+        hasResults: true,
+        weekStart: lb.weekStart ?? prev.weekStart ?? canonicalPeriodStart,
+        weekEnd: lb.weekEnd ?? prev.weekEnd ?? canonicalPeriodStart,
+        entries: lb.entries,
+      };
+    },
+    enabled: open && isSuperLeague && canonicalPeriodStart.length > 0,
     staleTime: 30 * 60 * 1000,
   });
 

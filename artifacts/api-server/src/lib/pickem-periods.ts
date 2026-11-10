@@ -255,7 +255,6 @@ export function resolveCalendarSoccerPeriodBounds(
   }
 
   const bounds = calendarWeekBounds(sport, periodStart);
-  if (bounds.weekStart !== periodStart) return null;
   return {
     weekStart: bounds.weekStart,
     weekEnd: bounds.weekEnd,
