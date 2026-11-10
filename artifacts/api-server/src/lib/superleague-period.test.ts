@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   getSuperLeagueConfiguredPeriod,
+  getSuperLeaguePreviousConfiguredPeriod,
   isSuperLeaguePreStart,
   resolveSuperLeagueStartDate,
 } from "./superleague-period";
@@ -40,6 +41,19 @@ describe("Super League start-period resolution", () => {
     assert.deepEqual(getSuperLeagueConfiguredPeriod(pool, now), {
       weekStart: "2026-09-11",
       weekEnd: "2026-09-14",
+    });
+  });
+
+  it("resolves the prior slate on Tuesday before the upcoming Friday opens", () => {
+    const pool = { sport: "superleague", poolType: "pickem", pickFrequency: "weekly", initialPeriodStart: null };
+    const now = new Date("2026-11-10T12:00:00-05:00");
+    assert.deepEqual(getSuperLeagueConfiguredPeriod(pool, now), {
+      weekStart: "2026-11-13",
+      weekEnd: "2026-11-16",
+    });
+    assert.deepEqual(getSuperLeaguePreviousConfiguredPeriod(pool, now), {
+      weekStart: "2026-11-07",
+      weekEnd: "2026-11-10",
     });
   });
 });

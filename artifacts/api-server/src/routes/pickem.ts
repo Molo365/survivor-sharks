@@ -61,7 +61,14 @@ import {
   resolveDefaultPrevPickemWeek,
 } from "../lib/pickem-prev-week";
 import { NBA_ATS_MAX_PICKS, nbaAtsExceedsPickLimit } from "../lib/nba-ats-picks";
-import { getSuperLeagueConfiguredPeriod, getSuperLeagueInitialPeriodStart, isSuperLeaguePreStart } from "../lib/superleague-period";
+import {
+  getSuperLeagueConfiguredPeriod,
+  getSuperLeagueInitialPeriodStart,
+  getSuperLeaguePeriodWeeksBefore,
+  getSuperLeaguePreviousConfiguredPeriod,
+  isSuperLeaguePreStart,
+  isSuperLeagueWeeklyPickem,
+} from "../lib/superleague-period";
 import {
   championsLeagueRegulationOutcome,
   isThreeWayPickOption,
@@ -2231,32 +2238,34 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     );
     prevWeekBounds = { weekStart: days[0]!, weekEnd: days[days.length - 1]! };
   } else if (requestedWeek !== null) {
-    // Offset back from the current week's Monday by (currentWeek − requestedWeek) weeks.
-    const currentWeekBounds = sport === "superleague"
-      ? getSuperLeagueWeekBoundsEt(todayEt)
-      : getWeekBoundsEt(todayEt);
     const weeksBack = pool.currentWeek - requestedWeek;
-    const weekNStart = offsetDateStr(currentWeekBounds.weekStart, -(weeksBack * 7));
-    prevWeekBounds = sport === "superleague"
-      ? getSuperLeagueWeekBoundsEt(weekNStart)
-      : getWeekBoundsEt(weekNStart);
+    prevWeekBounds = sport === "superleague" && isSuperLeagueWeeklyPickem(pool)
+      ? getSuperLeaguePeriodWeeksBefore(pool, weeksBack)
+      : (() => {
+        const currentWeekBounds = getWeekBoundsEt(todayEt);
+        const weekNStart = offsetDateStr(currentWeekBounds.weekStart, -(weeksBack * 7));
+        return getWeekBoundsEt(weekNStart);
+      })();
   } else {
-    const currentWeekBounds = sport === "superleague"
-      ? getSuperLeagueWeekBoundsEt(todayEt)
-      : getWeekBoundsEt(todayEt);
-    const priorWindowReference = sport === "superleague"
-      ? offsetDateStr(currentWeekBounds.weekStart, -7)
-      : offsetDateStr(currentWeekBounds.weekStart, -1);
-    prevWeekBounds = sport === "superleague"
-      ? getSuperLeagueWeekBoundsEt(priorWindowReference)
-      : getWeekBoundsEt(priorWindowReference);
+    prevWeekBounds = sport === "superleague" && isSuperLeagueWeeklyPickem(pool)
+      ? getSuperLeaguePreviousConfiguredPeriod(pool)
+      : (() => {
+        const currentWeekBounds = getWeekBoundsEt(todayEt);
+        const priorWindowReference = offsetDateStr(currentWeekBounds.weekStart, -1);
+        return getWeekBoundsEt(priorWindowReference);
+      })();
   }
 
   const isMlb = sport === "mlb";
   const isNhl = sport === "nhl";
+  const isSuperLeagueRecurringWeekly =
+    isSuperLeagueWeeklyPickem(pool) && pool.isRecurring === true;
 
   const prevNhlWeekNum = isNhlPickemWeekly ? resolvedPrevWeek : null;
   const prevNbaAtsWeekNum = isNbaAts ? resolvedPrevWeek : null;
+  const prevSuperLeagueWeekNum = isSuperLeagueRecurringWeekly && resolvedPrevWeek !== null
+    ? resolvedPrevWeek
+    : null;
 
   const picksWhere = isChampionsLeagueWeekly && championsLeaguePrevious
     ? and(
@@ -2272,6 +2281,11 @@ router.get("/prev-week-results", requireAuth, async (req, res) => {
     ? and(
       eq(pickemPicksTable.poolId, poolId),
       eq(pickemPicksTable.week, prevNhlWeekNum),
+    )
+    : prevSuperLeagueWeekNum !== null
+    ? and(
+      eq(pickemPicksTable.poolId, poolId),
+      eq(pickemPicksTable.week, prevSuperLeagueWeekNum),
     )
     : and(
       eq(pickemPicksTable.poolId, poolId),

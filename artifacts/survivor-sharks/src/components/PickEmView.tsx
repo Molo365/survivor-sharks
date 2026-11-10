@@ -147,6 +147,17 @@ function groupPrevWeekWinners(entries: PickEmLeaderboardEntry[]): PrevWeekWinner
   return Array.from(groups.values());
 }
 
+function buildPrevWeekWinnerGroups(
+  prevWeekResults: { hasResults?: boolean; entries?: PickEmLeaderboardEntry[] } | undefined,
+): PrevWeekWinnerGroup[] {
+  if (!prevWeekResults?.entries?.length) return [];
+  const entries = prevWeekResults.hasResults
+    ? prevWeekResults.entries
+    : prevWeekResults.entries.filter((entry) => entry.picked > 0);
+  if (entries.length === 0) return [];
+  return groupPrevWeekWinners(entries);
+}
+
 function PrevWeekWinnerBanner({
   groups,
   weekStart,
@@ -2424,16 +2435,21 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     { query: { queryKey: getGetPickEmYesterdayWinnerQueryKey(poolId, yesterdayParams), enabled: isToday && !isWc, staleTime: 5 * 60 * 1000 } },
   );
 
-  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, undefined, {
+  const poolCurrentWeekForPrev = poolDetail?.currentWeek ?? 0;
+  const prevWeekResultsParams =
+    sport === "superleague" && poolCurrentWeekForPrev > 1
+      ? { week: poolCurrentWeekForPrev - 1 }
+      : undefined;
+  const { data: prevWeekResults } = useGetPickEmPrevWeekResults(poolId, prevWeekResultsParams, {
     query: {
-      queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId),
-      enabled: isWeekly || isMlsWeekly,
+      queryKey: getGetPickEmPrevWeekResultsQueryKey(poolId, prevWeekResultsParams),
+      enabled:
+        (isWeekly || isMlsWeekly)
+        && (sport !== "superleague" || poolCurrentWeekForPrev > 1),
       staleTime: 10 * 60 * 1000,
     },
   });
-  const prevWeekWinnerGroups = prevWeekResults?.hasResults
-    ? groupPrevWeekWinners(prevWeekResults.entries)
-    : [];
+  const prevWeekWinnerGroups = buildPrevWeekWinnerGroups(prevWeekResults);
   const prevPeriodLabel = (prevWeekResults as { periodLabel?: string } | undefined)?.periodLabel;
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
