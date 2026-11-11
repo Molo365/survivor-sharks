@@ -63,6 +63,7 @@ import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
 import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
+import { pickEmCompactTeamLabel } from "@/lib/pickEmTeamLabel";
 import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
@@ -439,9 +440,11 @@ interface GameCardProps {
   pickedTeamId: string | null;
   onPick: (teamId: string) => void;
   isTiebreakerGame?: boolean;
+  /** NHL (and similar): mascot-only on small screens — logo carries brand. */
+  compactTeamNames?: boolean;
 }
 
-function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProps) {
+function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, compactTeamNames }: GameCardProps) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
   const isPostponed = !isFinal && game.status === "postponed";
@@ -489,7 +492,14 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame }: GameCardProp
       <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
         {/* Team name */}
         <span className={cn("font-bebas tracking-wide text-base sm:text-xl leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
-          {team.name}
+          {compactTeamNames ? (
+            <>
+              <span className="sm:hidden uppercase">{pickEmCompactTeamLabel(team)}</span>
+              <span className="hidden sm:inline uppercase">{team.name}</span>
+            </>
+          ) : (
+            team.name
+          )}
         </span>
 
         {/* Record */}
@@ -2697,6 +2707,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const nhlWeekendPollGamesRef = useRef<PickEmGame[]>([]);
   const mlsWeeklyPollGamesRef = useRef<PickEmGame[]>([]);
   const pendingDateRef = React.useRef<string | null>(null);
+  const nhlTiebreakerDismissedUntilSubmitRef = useRef(false);
+  const [savingNhlTiebreaker, setSavingNhlTiebreaker] = useState(false);
   const [lineupGame, setLineupGame] = useState<{
     gameId: string;
     leagueSlug: string;
@@ -3114,6 +3126,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     pendingSunPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     pendingSatPicks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }> = [],
   ) {
+    nhlTiebreakerDismissedUntilSubmitRef.current = false;
     pendingPicksRef.current = pendingSunPicks;
     pendingSatPicksRef.current = pendingSatPicks;
     pendingDateRef.current = sunDate ?? null;
@@ -3127,9 +3140,10 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
 
   // Recovery only: Sunday picks on file but SOG never saved (legacy bug / cancelled dialog).
   useEffect(() => {
-    if (!showNhlTiebreakerPrompt || showNhlTiebreaker || !leaderboard) return;
+    if (!showNhlTiebreakerPrompt || showNhlTiebreaker || savingNhlTiebreaker || !leaderboard) return;
+    if (nhlTiebreakerDismissedUntilSubmitRef.current) return;
     openNhlTiebreakerDialog([]);
-  }, [showNhlTiebreakerPrompt, showNhlTiebreaker, leaderboard]);
+  }, [showNhlTiebreakerPrompt, showNhlTiebreaker, savingNhlTiebreaker, leaderboard]);
 
   useEffect(() => {
     if (!showNbaAtsTiebreakerPrompt || showNbaAtsTiebreaker || !leaderboard) return;
@@ -3513,7 +3527,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ? `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved with tiebreaker.`
           : "Tiebreaker saved!",
     });
-    void invalidatePoolQueries(queryClient, poolId);
+    await invalidatePoolQueries(queryClient, poolId);
   }
 
   async function saveNhlTiebreakerOnly(shots: number): Promise<void> {
@@ -3809,15 +3823,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </DialogHeader>
         <TiebreakerMatchupLogoStrip
           tone="yellow"
+          size="sm"
           game={
             nhlTiebreakerGame
               ? {
                   awayTeam: {
                     name: nhlTiebreakerGame.awayTeam.name,
+                    abbreviation: nhlTiebreakerGame.awayTeam.abbreviation,
                     logoUrl: nhlTiebreakerGame.awayTeam.logoUrl,
                   },
                   homeTeam: {
                     name: nhlTiebreakerGame.homeTeam.name,
+                    abbreviation: nhlTiebreakerGame.homeTeam.abbreviation,
                     logoUrl: nhlTiebreakerGame.homeTeam.logoUrl,
                   },
                   startTime: nhlTiebreakerGame.startTime,
@@ -3840,32 +3857,46 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           </div>
         </div>
         <DialogFooter className="flex flex-row gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setShowNhlTiebreaker(false)}>
+          <Button
+            variant="outline"
+            className="flex-1"
+            disabled={savingNhlTiebreaker}
+            onClick={() => {
+              nhlTiebreakerDismissedUntilSubmitRef.current = true;
+              setShowNhlTiebreaker(false);
+            }}
+          >
             Cancel
           </Button>
           <Button
             className="flex-1 font-bebas text-xl tracking-widest"
+            disabled={savingNhlTiebreaker}
             onClick={() => {
               const shots = parseInt(tbShots, 10);
               if (isNaN(shots) || shots < 0) {
                 toast({ variant: "destructive", title: "Enter valid guess", description: "Combined shots on goal must be ≥ 0." });
                 return;
               }
-              setShowNhlTiebreaker(false);
               const pendingSun = pendingPicksRef.current;
               const pendingSat = pendingSatPicksRef.current;
-              void finalizeNhlWeeklyWithTiebreaker(pendingSat, pendingSun, shots).catch((e: Error) => {
-                toast({
-                  variant: "destructive",
-                  title: "Failed to save picks",
-                  description: e.message || "Please try again.",
-                });
-              });
+              setSavingNhlTiebreaker(true);
+              void finalizeNhlWeeklyWithTiebreaker(pendingSat, pendingSun, shots)
+                .then(() => setShowNhlTiebreaker(false))
+                .catch((e: Error) => {
+                  toast({
+                    variant: "destructive",
+                    title: "Failed to save picks",
+                    description: e.message || "Please try again.",
+                  });
+                })
+                .finally(() => setSavingNhlTiebreaker(false));
             }}
           >
-            {pendingPicksRef.current.length === 0 && pendingSatPicksRef.current.length === 0
-              ? "Save Tiebreaker"
-              : "Submit Picks"}
+            {savingNhlTiebreaker
+              ? "Saving…"
+              : pendingPicksRef.current.length === 0 && pendingSatPicksRef.current.length === 0
+                ? "Save Tiebreaker"
+                : "Submit Picks"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -4247,6 +4278,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
                               onPick={(teamId) => { if (!viewingPastPeriod) togglePick(game.id, teamId); }}
                               isTiebreakerGame={showTiebreakerBadge}
+                              compactTeamNames
                             />
                           );
                         })
@@ -5113,6 +5145,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
                             onPick={(teamId) => togglePick(game.id, teamId)}
                             isTiebreakerGame={showTiebreakerBadge}
+                            compactTeamNames={sport === "nhl"}
                           />
                         )}
                         {sport === "superleague" && slug && (
