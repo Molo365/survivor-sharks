@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 interface CrazyEightsPeriodResultsProps {
   results: CrazyEightsPeriodResult[];
+  onViewWeek?: (week: number) => void;
 }
 
 function authedFetch<T>(url: string): Promise<T> {
@@ -79,7 +80,7 @@ function ResultLines({ result }: { result: CrazyEightsPeriodResult }) {
   );
 }
 
-export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsProps) {
+export function CrazyEightsPeriodResults({ results, onViewWeek }: CrazyEightsPeriodResultsProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const banner = getBannerModel(results);
 
@@ -91,9 +92,20 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
         <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
         <div className="min-w-0 flex-1">
           {banner.noPicks ? (
-            <p className="text-sm font-semibold text-yellow-200">
-              {banner.label}: no picks were made
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-yellow-200">
+                {banner.label}: no picks were made
+              </p>
+              {onViewWeek && (
+                <button
+                  type="button"
+                  onClick={() => onViewWeek(banner.week)}
+                  className="mt-1.5 text-xs font-medium text-yellow-400/80 hover:text-yellow-300 transition-colors"
+                >
+                  Open weekend grid →
+                </button>
+              )}
+            </div>
           ) : (
             <>
               <p className="text-sm font-semibold text-yellow-200">
@@ -106,6 +118,15 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
                   </p>
                 ))}
               </div>
+              {onViewWeek && (
+                <button
+                  type="button"
+                  onClick={() => onViewWeek(banner.week)}
+                  className="mt-1.5 text-xs font-medium text-yellow-400/80 hover:text-yellow-300 transition-colors"
+                >
+                  View full results →
+                </button>
+              )}
             </>
           )}
         </div>
@@ -132,6 +153,15 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
                   Weekend {result.week}
                 </p>
                 <ResultLines result={result} />
+                {onViewWeek && (
+                  <button
+                    type="button"
+                    onClick={() => onViewWeek(result.week)}
+                    className="mt-1 text-[11px] font-medium text-yellow-500/70 hover:text-yellow-400 transition-colors"
+                  >
+                    Weekend grid →
+                  </button>
+                )}
               </div>
             ))}
           </div>

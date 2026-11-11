@@ -69,6 +69,17 @@ export function CrazyEightsPoolTabs({
     ?? periodList?.periods.find((p) => p.status === "current")?.key
     ?? undefined;
 
+  const activePeriodMeta = useMemo(
+    () => periodList?.periods.find((period) => period.key === activePeriodStart),
+    [periodList, activePeriodStart],
+  );
+
+  const handleViewWeekResults = (week: number) => {
+    const match = periodList?.periods.find((period) => period.weekNumber === week);
+    if (match) setSelectedPeriodStart(match.key);
+    onActiveTabChange("grid");
+  };
+
   const viewingPastPeriod = useMemo(() => {
     if (!isPeriodHistory || !periodList?.periods.length || !activePeriodStart) return false;
     const match = periodList.periods.find((period) => period.key === activePeriodStart);
@@ -156,6 +167,9 @@ export function CrazyEightsPoolTabs({
               isActive={pool.isActive}
               periodStart={isPeriodHistory ? activePeriodStart : undefined}
               viewingPastPeriod={viewingPastPeriod}
+              viewingPeriodWeek={activePeriodMeta?.weekNumber}
+              onViewWeekResults={isPeriodHistory ? handleViewWeekResults : undefined}
+              onOpenTab={onActiveTabChange}
             />
           </TabsContent>
           <TabsContent value="leaderboard" className="m-0 focus-visible:outline-none">

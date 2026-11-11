@@ -23,6 +23,7 @@ export interface BannerPlace {
 }
 
 export interface PeriodResultsBannerModel {
+  week: number;
   label: string;
   noPicks: boolean;
   places: BannerPlace[];
@@ -42,6 +43,7 @@ export function getBannerModel(
   const paidGroups = paidPeriodResultGroups(newest.groups);
 
   return {
+    week: newest.week,
     label: `Weekend ${newest.week}`,
     noPicks:
       paidGroups.length === 0

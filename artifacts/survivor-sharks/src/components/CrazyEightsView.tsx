@@ -52,6 +52,9 @@ interface CrazyEightsViewProps {
   isActive?: boolean;
   periodStart?: string;
   viewingPastPeriod?: boolean;
+  viewingPeriodWeek?: number;
+  onViewWeekResults?: (week: number) => void;
+  onOpenTab?: (tab: "leaderboard" | "grid" | "live") => void;
 }
 
 interface PitcherInfo {
@@ -832,6 +835,9 @@ export function CrazyEightsView({
   isActive = true,
   periodStart,
   viewingPastPeriod = false,
+  viewingPeriodWeek,
+  onViewWeekResults,
+  onOpenTab,
 }: CrazyEightsViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1136,17 +1142,65 @@ export function CrazyEightsView({
 
   if (viewingPastPeriod) {
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-bebas text-2xl tracking-wide mb-1">Past Weekend</p>
-        <p className="text-sm">Picks are closed for this week. Use Leaderboard or Weekend Grid to review results.</p>
+      <div className="space-y-6">
+        {isWeekendSport && (
+          <CrazyEightsPeriodResults
+            results={periodResults}
+            onViewWeek={onViewWeekResults}
+          />
+        )}
+        <div className="text-center py-10 text-muted-foreground">
+          <Lock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-bebas text-2xl tracking-wide mb-1">Past Weekend</p>
+          <p className="text-sm max-w-md mx-auto">
+            Picks are closed for this week
+            {viewingPeriodWeek != null ? ` (Week ${viewingPeriodWeek})` : ""}.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {viewingPeriodWeek != null && onViewWeekResults && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="font-bebas tracking-wide"
+                onClick={() => onViewWeekResults(viewingPeriodWeek)}
+              >
+                Open weekend grid
+              </Button>
+            )}
+            {onOpenTab && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="font-bebas tracking-wide"
+                  onClick={() => onOpenTab("leaderboard")}
+                >
+                  Leaderboard
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="font-bebas tracking-wide"
+                  onClick={() => onOpenTab("grid")}
+                >
+                  Daily grid
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
 
   const weekendRecap = (
     <>
-      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} />}
+      {isWeekendSport && (
+        <CrazyEightsPeriodResults
+          results={periodResults}
+          onViewWeek={onViewWeekResults}
+        />
+      )}
       {(!isWeekendSport || !hasRecordedPeriodResults) &&
         yesterdayWinner?.hasResults &&
         yesterdayWinner.winners.length > 0 && (
@@ -1271,11 +1325,21 @@ export function CrazyEightsView({
           <p className="font-bebas text-2xl tracking-wide mb-1">
             {waitingLines ? "Lines Not Ready" : "No Games Available"}
           </p>
-          <p className="text-sm">
+          <p className="text-sm max-w-lg mx-auto">
             {waitingLines
-              ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon.`
+              ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon (usually by Tuesday). Pick reminders email 3–5 hours before the first tip once at least one line is posted.`
               : "All games for this period have already started."}
           </p>
+          {onOpenTab && (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <Button type="button" variant="secondary" className="font-bebas tracking-wide" onClick={() => onOpenTab("leaderboard")}>
+                Leaderboard
+              </Button>
+              <Button type="button" variant="outline" className="font-bebas tracking-wide" onClick={() => onOpenTab("grid")}>
+                Weekend grid
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );

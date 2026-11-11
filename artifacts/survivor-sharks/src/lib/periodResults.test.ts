@@ -76,6 +76,7 @@ test("builds the banner from the newest result and keeps every place", () => {
   ]);
 
   assert.deepEqual(model, {
+    week: 8,
     label: "Weekend 8",
     noPicks: false,
     places: [

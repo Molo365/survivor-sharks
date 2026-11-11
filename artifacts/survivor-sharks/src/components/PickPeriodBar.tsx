@@ -6,6 +6,7 @@ export type PickPeriodListItem = {
   key: string;
   label: string;
   status: "current" | "completed";
+  weekNumber?: number;
 };
 
 export type PickPeriodListResponse = {
