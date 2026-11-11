@@ -14,7 +14,7 @@ import {
   resolveCrazyEightsPickemPeriod,
   resolveCrazyEightsReminderDeadline,
 } from "./crazy-eights-reminder";
-import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "./fast-break-pool";
+import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
 import { isNbaAtsPool } from "./nba-ats-period";
 import {
   nbaWeekendPickRemindersUnblocked,
@@ -100,8 +100,7 @@ export type ReminderEligibilityContext = {
 };
 
 function usesWeekendFirstKickoffReminderStage(pool: typeof poolsTable.$inferSelect): boolean {
-  if (isFastBreakMultiplierPool(pool)) return false;
-  if (isNbaWeekendOfficePool(pool)) return true;
+  if (isNbaWeekendOfficePool(pool)) return pool.poolType === "crazy_8s";
   return isNhlWeekendOfficePool(pool) && pool.poolType === "crazy_8s";
 }
 
@@ -394,10 +393,7 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     return resolved && {
       deadline: resolved.deadline,
       periodKey: resolved.periodKey,
-      context: {
-        period: resolved.period,
-        weekendFirstKickoff: resolved.weekendFirstKickoff,
-      },
+      context: { period: resolved.period },
     };
   }
   const period = await resolvePickemPeriod(pool);

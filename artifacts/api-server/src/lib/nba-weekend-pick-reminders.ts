@@ -10,8 +10,7 @@ import {
   isNbaAtsPreStart,
   type NbaAtsPool,
 } from "./nba-ats-period";
-import { loadNbaAtsSpreads } from "./nba-ats-spreads";
-import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
+import { isNbaWeekendOfficePool, nbaSaturdaySixPmLockInstant } from "./nba-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 import { isFastBreakMultiplierPool } from "./fast-break-pool";
 import type { CrazyEightsPickemPeriod } from "./crazy-eights-reminder";
@@ -63,7 +62,7 @@ export async function fetchNbaWeekendSlateGames(
 
 /**
  * Do not send NBA weekend pick reminders before the pick sheet opens (Tue 6 AM ET)
- * or before at least one spread exists for NBA ATS (Multiplier needs only the weekend slate).
+ * once the Fri–Sun slate has scheduled games (lines/spreads not required for email).
  */
 export async function nbaWeekendPickRemindersUnblocked(
   pool: typeof poolsTable.$inferSelect,
@@ -78,26 +77,9 @@ export async function nbaWeekendPickRemindersUnblocked(
   const picksOpenAt = getNbaAtsPicksOpenInstant(atsPool, now);
   if (now.getTime() < picksOpenAt.getTime()) return false;
 
-  if (isFastBreakMultiplierPool(pool)) {
+  if (isFastBreakMultiplierPool(pool) || isNbaAtsPool(pool)) {
     const { games } = await fetchNbaWeekendSlateGames(pool);
     return games.length > 0;
-  }
-
-  if (isNbaAtsPool(pool)) {
-    const { games } = await fetchNbaWeekendSlateGames(pool);
-    if (games.length === 0) return false;
-    const gameMeta = games.map((g) => ({
-      id: g.id,
-      homeTeamId: g.homeTeam.id,
-      awayTeamId: g.awayTeam.id,
-    }));
-
-    const spreads = await loadNbaAtsSpreads({
-      poolId: pool.id,
-      week: pool.currentWeek,
-      games: gameMeta,
-    });
-    return games.some((g) => spreads.has(g.id));
   }
 
   return true;
@@ -120,7 +102,39 @@ function firstTipEtYmd(kickoff: Date): string {
   }).format(kickoff);
 }
 
-/** NBA weekend office + NHL Crazy 8s: email 3–5 hours before the slate's first puck/tip. */
+/** NBA ATS + Fast Break Multiplier: 24h / final reminders before Saturday 6 PM ET lock. */
+export function buildNbaWeekendSaturdayLockPickReminderResolution(
+  pool: typeof poolsTable.$inferSelect,
+  games: EspnGame[],
+  weekStart: string,
+  weekEnd: string,
+  period: CrazyEightsPickemPeriod,
+): {
+  deadline: Date;
+  periodKey: string;
+  period: CrazyEightsPickemPeriod;
+} | null {
+  const atsPool = toNbaAtsPool(pool);
+  const { days } = getNbaAtsSlateBoundsForPool(atsPool, pool.currentWeek);
+  const saturdayEt = days[1] ?? days[0] ?? null;
+  const lockAt = nbaSaturdaySixPmLockInstant(
+    games.map((game) => game.date),
+    saturdayEt,
+  );
+  if (!lockAt) return null;
+  return {
+    deadline: lockAt,
+    periodKey: reminderPeriodKey({
+      start: weekStart,
+      end: weekEnd,
+      season: pool.season,
+      week: pool.currentWeek,
+    }),
+    period,
+  };
+}
+
+/** NBA Crazy 8s + NHL Crazy 8s: email 3–5 hours before the slate's first puck/tip. */
 export function buildWeekendFirstKickoffPickReminderResolution(
   pool: typeof poolsTable.$inferSelect,
   games: EspnGame[],
@@ -158,13 +172,12 @@ export async function resolveNbaAtsReminderDeadline(
   deadline: Date;
   periodKey: string;
   period: CrazyEightsPickemPeriod;
-  weekendFirstKickoff: Date;
 } | null> {
   if (!isNbaAtsPool(pool)) return null;
 
   const { games, weekStart, weekEnd } = await fetchNbaWeekendSlateGames(pool);
   const gameIds = new Set(games.map((g) => g.id));
-  return buildWeekendFirstKickoffPickReminderResolution(pool, games, weekStart, weekEnd, {
+  return buildNbaWeekendSaturdayLockPickReminderResolution(pool, games, weekStart, weekEnd, {
     kind: "week",
     games,
     gameIds,
