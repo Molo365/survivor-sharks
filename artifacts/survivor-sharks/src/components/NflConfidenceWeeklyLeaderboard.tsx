@@ -13,6 +13,7 @@ import {
 import type { WeeklyTiebreakerGridMeta } from "@/components/nflConfidenceLiveTypes";
 import { useGetPoolPickStatus, getGetPoolPickStatusQueryKey } from "@workspace/api-client-react";
 import { PickStatusIndicator } from "@/components/PickStatusIndicator";
+import { NflConfidenceWeeklyPickDetailDialog } from "@/components/NflConfidenceWeeklyPickDetailDialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,10 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
   const poolWeek = initialWeek ?? 1;
   const [week, setWeek] = useState(() => poolWeek);
   const userChangedWeek = useRef(false);
+  const [pickDetail, setPickDetail] = useState<{
+    userId: number;
+    playerLabel: string;
+  } | null>(null);
 
   const { data, isLoading } = useQuery<WeeklyLeaderboardResponse>({
     queryKey: ["nfl-confidence-weekly-leaderboard", poolId, week],
@@ -183,10 +188,22 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
               )}
             </p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="font-bebas text-2xl text-yellow-400 leading-none">{weekWinner.weekPoints}</p>
-            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts</p>
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setPickDetail({
+                userId: weekWinner.userId,
+                playerLabel: weekWinner.displayName ?? weekWinner.username,
+              })
+            }
+            className="text-right shrink-0 rounded-lg px-2 py-1 -mr-1 hover:bg-yellow-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/40"
+            title="View this player's picks"
+          >
+            <p className="font-bebas text-2xl text-yellow-400 leading-none underline decoration-yellow-500/40 underline-offset-4">
+              {weekWinner.weekPoints}
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts · tap</p>
+          </button>
         </div>
       )}
 
@@ -282,14 +299,22 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
                 {/* Points */}
                 <div className="flex items-center justify-end pr-2">
                   {isGraded ? (
-                    <span
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPickDetail({
+                          userId: player.userId,
+                          playerLabel: player.displayName ?? player.username,
+                        })
+                      }
                       className={cn(
-                        "font-bebas text-lg sm:text-xl leading-none tabular-nums",
+                        "font-bebas text-lg sm:text-xl leading-none tabular-nums rounded-md px-1.5 py-0.5 hover:bg-muted/40 transition-colors cursor-pointer underline decoration-transparent hover:decoration-current/30 underline-offset-2",
                         player.weekPoints > 0 ? "text-green-400" : "text-muted-foreground/30",
                       )}
+                      title={`View ${player.displayName ?? player.username}'s picks`}
                     >
                       {player.weekPoints}
-                    </span>
+                    </button>
                   ) : (
                     <span className="text-sm text-muted-foreground/60 tabular-nums">
                       {player.totalPicks}
@@ -314,8 +339,21 @@ export function NflConfidenceWeeklyLeaderboard({ poolId, initialWeek }: { poolId
       )}
 
       <p className="text-[11px] text-muted-foreground/40 text-center">
-        Points = confidence points from correct picks · Resets every week
+        Points = confidence points from correct picks · Resets every week · Tap a score to view picks
       </p>
+
+      {pickDetail && (
+        <NflConfidenceWeeklyPickDetailDialog
+          poolId={poolId}
+          week={week}
+          userId={pickDetail.userId}
+          playerLabel={pickDetail.playerLabel}
+          open={pickDetail !== null}
+          onOpenChange={(open) => {
+            if (!open) setPickDetail(null);
+          }}
+        />
+      )}
     </div>
   );
 }
