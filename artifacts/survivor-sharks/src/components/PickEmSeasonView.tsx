@@ -1631,7 +1631,21 @@ export function PickEmSeasonView({
 
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
   const [showTbModal, setShowTbModal] = useState(false);
+  const [showWeeklyTbModal, setShowWeeklyTbModal] = useState(false);
+  const [weeklyTbModalGuess, setWeeklyTbModalGuess] = useState("");
   const pendingPicksRef = useRef<Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>>([]);
+
+  function parseWeeklyBonusGuess(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (trimmed === "") return null;
+    const n = Number(trimmed);
+    if (!Number.isInteger(n) || n < 0) return null;
+    return n;
+  }
+
+  const weeklyTiebreakerGame = weeklyBonusEnabled
+    ? slate?.games.find((g) => g.id === slate.weeklyTiebreaker?.targetGameId) ?? slate?.games.at(-1) ?? null
+    : null;
 
   function doFinalSubmit(
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
@@ -1701,28 +1715,22 @@ export function PickEmSeasonView({
       return;
     }
 
-    const parsedWeeklyGuess = Number(weeklyTiebreakerGuess);
-    if (
-      weeklyBonusEnabled &&
-      (!Number.isInteger(parsedWeeklyGuess) || parsedWeeklyGuess < 0)
-    ) {
-      toast({
-        title: "Weekly tiebreaker required",
-        description: "Enter a non-negative whole-number guess for the last game of the week.",
-        variant: "destructive",
-      });
+    pendingPicksRef.current = picks;
+
+    if (weeklyBonusEnabled && weeklyTiebreakerGame) {
+      setWeeklyTbModalGuess(weeklyTiebreakerGuess);
+      setShowWeeklyTbModal(true);
       return;
     }
 
     if (isWeek18) {
-      pendingPicksRef.current = picks;
       setTbPassingYards("");
       setTbRushingYards("");
       setShowTbModal(true);
       return;
     }
 
-      doFinalSubmit(picks, undefined, undefined, weeklyBonusEnabled ? parsedWeeklyGuess : undefined);
+    doFinalSubmit(picks);
   }
 
   function handleGradeResults() {
@@ -1853,9 +1861,6 @@ export function PickEmSeasonView({
   const tiebreakerGame = slate?.tiebreakerGameId
     ? (slate.games.find((g) => g.id === slate.tiebreakerGameId) ?? null)
     : null;
-  const weeklyTiebreakerGame = weeklyBonusEnabled
-    ? slate?.games.find((g) => g.id === slate.weeklyTiebreaker?.targetGameId) ?? slate?.games.at(-1) ?? null
-    : null;
 
   return (
     <>
@@ -1941,8 +1946,108 @@ export function PickEmSeasonView({
                   pendingPicksRef.current,
                   py,
                   undefined,
-                  weeklyBonusEnabled ? Number(weeklyTiebreakerGuess) : undefined,
+                  weeklyBonusEnabled ? parseWeeklyBonusGuess(weeklyTiebreakerGuess) ?? undefined : undefined,
                 );
+              }}
+            >
+              {submitPicks.isPending ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+              ) : (
+                "Submit Picks"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Weekly bonus tiebreaker — prompted on submit (last game of week) */}
+      <Dialog open={showWeeklyTbModal} onOpenChange={(open) => { if (!open) setShowWeeklyTbModal(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <TiebreakerGuessDialogTitle />
+            <TiebreakerGuessDescription
+              game={
+                weeklyTiebreakerGame
+                  ? {
+                      awayTeam: {
+                        name: weeklyTiebreakerGame.awayTeam.name,
+                        logoUrl: weeklyTiebreakerGame.awayTeam.logoUrl,
+                      },
+                      homeTeam: {
+                        name: weeklyTiebreakerGame.homeTeam.name,
+                        logoUrl: weeklyTiebreakerGame.homeTeam.logoUrl,
+                      },
+                      startTime: weeklyTiebreakerGame.startTime,
+                    }
+                  : null
+              }
+            >
+              <span className="block">
+                Enter <strong className="text-foreground">combined passing yards</strong> (both teams) for the last scheduled game of Week {displayWeek}.
+                This weekly bonus tiebreaker is saved with your picks.
+              </span>
+            </TiebreakerGuessDescription>
+          </DialogHeader>
+          <TiebreakerMatchupLogoStrip
+            tone="yellow"
+            game={
+              weeklyTiebreakerGame
+                ? {
+                    awayTeam: {
+                      name: weeklyTiebreakerGame.awayTeam.name,
+                      logoUrl: weeklyTiebreakerGame.awayTeam.logoUrl,
+                    },
+                    homeTeam: {
+                      name: weeklyTiebreakerGame.homeTeam.name,
+                      logoUrl: weeklyTiebreakerGame.homeTeam.logoUrl,
+                    },
+                    startTime: weeklyTiebreakerGame.startTime,
+                  }
+                : null
+            }
+          />
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <TiebreakerFieldLabel>Combined Passing Yards — Last Game</TiebreakerFieldLabel>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                placeholder="e.g. 450"
+                value={weeklyTbModalGuess}
+                onChange={(e) => setWeeklyTbModalGuess(e.target.value)}
+                className="text-lg font-mono h-12"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowWeeklyTbModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 font-bebas text-xl tracking-widest"
+              disabled={submitPicks.isPending}
+              onClick={() => {
+                const guess = parseWeeklyBonusGuess(weeklyTbModalGuess);
+                if (guess === null) {
+                  toast({
+                    variant: "destructive",
+                    title: "Weekly tiebreaker required",
+                    description: "Enter a whole-number guess for combined passing yards (0 or higher).",
+                  });
+                  return;
+                }
+                setWeeklyTiebreakerGuess(String(guess));
+                setShowWeeklyTbModal(false);
+                if (isWeek18) {
+                  setTbPassingYards("");
+                  setTbRushingYards("");
+                  setShowTbModal(true);
+                  return;
+                }
+                doFinalSubmit(pendingPicksRef.current, undefined, undefined, guess);
               }}
             >
               {submitPicks.isPending ? (
@@ -2227,43 +2332,16 @@ export function PickEmSeasonView({
                     />
                   ))}
 
-                   {weeklyBonusEnabled && weeklyTiebreakerGame && openGames.length > 0 && (
-                     <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-4 space-y-3">
-                       <div>
-                         <p className="font-bebas text-lg tracking-wide text-yellow-300">Weekly bonus tiebreaker</p>
-                         <p className="text-xs text-muted-foreground leading-relaxed">
-                           Enter the combined passing yards (both teams) for the last scheduled game of Week {slate.week}.
-                           This guess is collected now; weekly tiebreaker resolution is handled separately.
-                         </p>
-                       </div>
-                       <TiebreakerMatchupLogoStrip
-                         tone="yellow"
-                         game={{
-                           awayTeam: {
-                             name: weeklyTiebreakerGame.awayTeam.name,
-                             abbreviation: weeklyTiebreakerGame.awayTeam.abbreviation,
-                             logoUrl: weeklyTiebreakerGame.awayTeam.logoUrl,
-                           },
-                           homeTeam: {
-                             name: weeklyTiebreakerGame.homeTeam.name,
-                             abbreviation: weeklyTiebreakerGame.homeTeam.abbreviation,
-                             logoUrl: weeklyTiebreakerGame.homeTeam.logoUrl,
-                           },
-                           startTime: weeklyTiebreakerGame.startTime,
-                         }}
-                       />
-                       <Input
-                         type="number"
-                         min="0"
-                         step="1"
-                         inputMode="numeric"
-                         placeholder="Combined passing yards"
-                         value={weeklyTiebreakerGuess}
-                         onChange={(event) => setWeeklyTiebreakerGuess(event.target.value)}
-                         aria-label="Weekly tiebreaker combined passing yards guess"
-                       />
-                     </div>
-                   )}
+                  {weeklyBonusEnabled && weeklyTiebreakerGame && openGames.length > 0 && !weekIsLocked && (
+                    <div className="flex items-start gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/5 px-4 py-2.5">
+                      <Trophy className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-yellow-300/85 leading-relaxed">
+                        The <span className="font-semibold text-yellow-300">last game</span> on the slate is the weekly bonus tiebreaker.
+                        When you tap <span className="font-semibold text-yellow-300">Submit Picks</span>, you&apos;ll enter combined passing yards for{" "}
+                        {weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation} before picks are saved.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Submit */}
                   {isActive && openGames.length > 0 && (
