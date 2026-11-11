@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Shuffle } from "lucide-react";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { pickEmCompactTeamLabel } from "@/lib/pickEmTeamLabel";
 
 export type TiebreakerMatchupTeam = {
   name: string;
@@ -37,9 +38,22 @@ export function TiebreakerGuessDialogTitle() {
 export function TiebreakerMatchupHeadline({ game }: { game: TiebreakerMatchupGame | null }) {
   if (!game) return null;
   const gameTime = game.startTime ? formatTiebreakerKickoffEt(game.startTime) : null;
+  const awayShort = pickEmCompactTeamLabel({
+    name: game.awayTeam.name,
+    abbreviation: game.awayTeam.abbreviation ?? "",
+  });
+  const homeShort = pickEmCompactTeamLabel({
+    name: game.homeTeam.name,
+    abbreviation: game.homeTeam.abbreviation ?? "",
+  });
   return (
     <span className="block text-sm font-semibold text-foreground">
-      {game.awayTeam.name} @ {game.homeTeam.name}
+      <span className="md:hidden">
+        {awayShort} @ {homeShort}
+      </span>
+      <span className="hidden md:inline">
+        {game.awayTeam.name} @ {game.homeTeam.name}
+      </span>
       {gameTime && <span className="ml-2 text-muted-foreground font-normal">· {gameTime}</span>}
     </span>
   );
@@ -54,7 +68,13 @@ function TeamLogoMark({
 }) {
   const imgClass = size === "sm" ? "w-5 h-5" : "w-8 h-8";
   const textClass = size === "sm" ? "text-[9px] sm:text-[10px]" : "text-sm";
-  const label = size === "sm" && team.abbreviation ? team.abbreviation : team.name;
+  const label =
+    size === "sm"
+      ? pickEmCompactTeamLabel({
+          name: team.name,
+          abbreviation: team.abbreviation ?? "",
+        })
+      : team.name;
   return (
     <div className="flex items-center gap-1 min-w-0">
       {team.logoUrl ? (

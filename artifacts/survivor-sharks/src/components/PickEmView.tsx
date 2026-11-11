@@ -494,8 +494,8 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, compactTeamNam
         <span className={cn("font-bebas tracking-wide text-base sm:text-xl leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
           {compactTeamNames ? (
             <>
-              <span className="sm:hidden uppercase">{pickEmCompactTeamLabel(team)}</span>
-              <span className="hidden sm:inline uppercase">{team.name}</span>
+              <span className="md:hidden uppercase">{pickEmCompactTeamLabel(team)}</span>
+              <span className="hidden md:inline uppercase">{team.name}</span>
             </>
           ) : (
             team.name
@@ -3790,7 +3790,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     </Dialog>
 
     {/* NHL Tiebreaker Dialog */}
-    <Dialog open={showNhlTiebreaker} onOpenChange={(open) => { if (!open) setShowNhlTiebreaker(false); }}>
+    <Dialog
+      open={showNhlTiebreaker}
+      onOpenChange={(open) => {
+        if (open) {
+          setShowNhlTiebreaker(true);
+          return;
+        }
+        if (savingNhlTiebreaker) return;
+        nhlTiebreakerDismissedUntilSubmitRef.current = true;
+        setShowNhlTiebreaker(false);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <TiebreakerGuessDialogTitle />
