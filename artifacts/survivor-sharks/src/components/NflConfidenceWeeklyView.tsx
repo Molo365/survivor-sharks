@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { useUpdatePool, getGetPoolQueryKey } from "@workspace/api-client-react";
@@ -34,6 +34,7 @@ import {
   resolveNflConfidenceWeeklyWinnerDisplay,
   type NflConfidenceWeeklyWinnerLeaderboard,
 } from "@/lib/nflConfidenceWeeklyWinner";
+import { NflConfidenceWeeklyPickDetailDialog } from "@/components/NflConfidenceWeeklyPickDetailDialog";
 import { CommissionerWeeklyPickEmBalances } from "@/components/CommissionerWeeklyPickEmBalances";
 import { useGetPool } from "@workspace/api-client-react";
 
@@ -61,6 +62,12 @@ export function NflConfidenceWeeklyWinnerBanner({ poolId, currentWeek }: { poolI
     previousWeekData,
   );
 
+  const [picksDetailOpen, setPicksDetailOpen] = useState(false);
+
+  const openWinnerPicks = useCallback(() => {
+    setPicksDetailOpen(true);
+  }, []);
+
   if (!weekWinner) return null;
 
   const titleLabel = isLastWeek
@@ -81,10 +88,26 @@ export function NflConfidenceWeeklyWinnerBanner({ poolId, currentWeek }: { poolI
           )}
         </p>
       </div>
-      <div className="text-right shrink-0">
-        <p className="font-bebas text-2xl text-yellow-400 leading-none">{weekWinner.weekPoints}</p>
-        <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts</p>
-      </div>
+      <button
+        type="button"
+        onClick={openWinnerPicks}
+        className="text-right shrink-0 rounded-lg px-2 py-1 -mr-1 hover:bg-yellow-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/40"
+        title="View this player's picks"
+        aria-label={`View ${weekWinner.displayName ?? weekWinner.username}'s Week ${displayWeek} picks`}
+      >
+        <p className="font-bebas text-2xl text-yellow-400 leading-none underline decoration-yellow-500/40 underline-offset-4">
+          {weekWinner.weekPoints}
+        </p>
+        <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">pts · tap</p>
+      </button>
+      <NflConfidenceWeeklyPickDetailDialog
+        poolId={poolId}
+        week={displayWeek}
+        userId={weekWinner.userId}
+        playerLabel={weekWinner.displayName ?? weekWinner.username}
+        open={picksDetailOpen}
+        onOpenChange={setPicksDetailOpen}
+      />
     </div>
   );
 }
