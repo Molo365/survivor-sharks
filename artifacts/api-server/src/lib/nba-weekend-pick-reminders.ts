@@ -11,7 +11,6 @@ import {
   type NbaAtsPool,
 } from "./nba-ats-period";
 import { loadNbaAtsSpreads } from "./nba-ats-spreads";
-import { loadNbaMoneylines } from "./nba-ml-odds";
 import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 import { isFastBreakMultiplierPool } from "./fast-break-pool";
@@ -64,7 +63,7 @@ export async function fetchNbaWeekendSlateGames(
 
 /**
  * Do not send NBA weekend pick reminders before the pick sheet opens (Tue 6 AM ET)
- * or before at least one line/spread exists for ATS / Multiplier pools.
+ * or before at least one spread exists for NBA ATS (Multiplier needs only the weekend slate).
  */
 export async function nbaWeekendPickRemindersUnblocked(
   pool: typeof poolsTable.$inferSelect,
@@ -79,7 +78,12 @@ export async function nbaWeekendPickRemindersUnblocked(
   const picksOpenAt = getNbaAtsPicksOpenInstant(atsPool, now);
   if (now.getTime() < picksOpenAt.getTime()) return false;
 
-  if (isFastBreakMultiplierPool(pool) || isNbaAtsPool(pool)) {
+  if (isFastBreakMultiplierPool(pool)) {
+    const { games } = await fetchNbaWeekendSlateGames(pool);
+    return games.length > 0;
+  }
+
+  if (isNbaAtsPool(pool)) {
     const { games } = await fetchNbaWeekendSlateGames(pool);
     if (games.length === 0) return false;
     const gameMeta = games.map((g) => ({
@@ -87,16 +91,6 @@ export async function nbaWeekendPickRemindersUnblocked(
       homeTeamId: g.homeTeam.id,
       awayTeamId: g.awayTeam.id,
     }));
-
-    if (isFastBreakMultiplierPool(pool)) {
-      const moneylines = await loadNbaMoneylines({
-        poolId: pool.id,
-        week: pool.currentWeek,
-        games: gameMeta,
-        sandboxMode: false,
-      });
-      return games.some((g) => moneylines.has(g.id));
-    }
 
     const spreads = await loadNbaAtsSpreads({
       poolId: pool.id,
