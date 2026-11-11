@@ -1273,7 +1273,7 @@ export function CrazyEightsView({
           </p>
           <p className="text-sm">
             {waitingLines
-              ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon.`
+              ? `ESPN money lines are required before picks open. ${linesReadyCount} game${linesReadyCount === 1 ? "" : "s"} ready so far — check back soon (usually by Tuesday). Incomplete-pick emails go out ~24 hours and again ~3 hours before Saturday 6 PM ET lock.`
               : "All games for this period have already started."}
           </p>
         </div>

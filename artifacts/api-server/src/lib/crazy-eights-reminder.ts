@@ -14,10 +14,12 @@ import {
   resolveCrazyEightsPeriod,
   type CrazyEightsPeriodPool,
 } from "./crazy-eights-periods";
-import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
+import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "./fast-break-pool";
+import { getNbaAtsSlateBoundsForPool } from "./nba-ats-period";
 import {
   buildWeekendFirstKickoffPickReminderResolution,
 } from "./nba-weekend-pick-reminders";
+import { nbaSaturdaySixPmLockInstant } from "./nba-slate-reveal";
 import { reminderPeriodKey } from "./pick-reminder-windows";
 
 export type CrazyEightsPickemPeriod =
@@ -191,6 +193,36 @@ export async function resolveCrazyEightsReminderDeadline(
   if (period.kind === "range" || period.kind === "week") {
     const periodMeta = resolveCrazyEightsPeriod(toCrazyEightsPeriodPool(pool), undefined);
     if (!periodMeta || periodMeta.viewingPastPeriod) return null;
+
+    if (pool.sport === "nba" && isFastBreakMultiplierPool(pool)) {
+      const slate = getNbaAtsSlateBoundsForPool(
+        {
+          sport: pool.sport,
+          poolType: pool.poolType,
+          initialPeriodStart: pool.initialPeriodStart ?? null,
+          createdAt: pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+          sandboxMode: pool.sandboxMode ?? false,
+          currentWeek: pool.currentWeek,
+        },
+        periodMeta.weekNumber,
+      );
+      const saturdayEt = slate.days[1] ?? slate.days[0] ?? null;
+      const lockAt = nbaSaturdaySixPmLockInstant(
+        period.games.map((game) => game.date),
+        saturdayEt,
+      );
+      if (!lockAt) return null;
+      return {
+        deadline: lockAt,
+        periodKey: reminderPeriodKey({
+          start: periodMeta.weekStart,
+          end: periodMeta.weekEnd,
+          season: pool.season,
+          week: pool.currentWeek,
+        }),
+        period,
+      };
+    }
 
     if (pool.sport === "nba" || pool.sport === "nhl") {
       return buildWeekendFirstKickoffPickReminderResolution(

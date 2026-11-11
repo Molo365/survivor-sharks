@@ -29,6 +29,18 @@ test("NHL Crazy 8s pick reminder fires 3–5 hours before first puck, not on Sat
   assert.equal(reminderStageForDeadline(afterFirstPuckStillBeforeLock, saturdaySevenPmLock), "24h");
 });
 
+test("NBA Fast Break Multiplier reminders use Saturday 6 PM lock (24h + final)", () => {
+  const saturdayLock = new Date("2025-11-02T23:00:00.000Z");
+  const twentyThreeHoursBefore = new Date(saturdayLock.getTime() - 23 * 60 * 60 * 1000);
+  const twoHalfHoursBefore = new Date(saturdayLock.getTime() - 2.5 * 60 * 60 * 1000);
+  const firstTip = new Date("2025-11-01T00:30:00.000Z");
+  const fourHoursBeforeTip = new Date(firstTip.getTime() - 4 * 60 * 60 * 1000);
+
+  assert.equal(reminderStageForDeadline(twentyThreeHoursBefore, saturdayLock), "24h");
+  assert.equal(reminderStageForDeadline(twoHalfHoursBefore, saturdayLock), "final");
+  assert.equal(reminderStageBeforeFirstTip(fourHoursBeforeTip, firstTip), "24h");
+});
+
 test("NBA weekend pick sheet opens Tuesday 6 AM ET before the Friday slate", () => {
   const friday = "2025-10-31";
   const open = getNbaAtsPicksOpenInstant(
