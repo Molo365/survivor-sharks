@@ -63,7 +63,7 @@ import { cn } from "@/lib/utils";
 import { POOL_TABS_LIST_CLASS, POOL_TAB_TRIGGER_BASE, POOL_TAB_TRIGGER_LIVE } from "@/lib/poolTabStyles";
 import { MemberNameButton } from "@/components/PoolMemberIdentity";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
-import { pickEmCompactTeamLabel } from "@/lib/pickEmTeamLabel";
+import { pickEmNhlMobileTeamCode } from "@/lib/pickEmTeamLabel";
 import { getVisiblePickEmPick } from "@/lib/pickReveal";
 import { PoolLivePlaceholder } from "@/components/PoolLivePlaceholder";
 import { PickEmLiveBoard } from "@/components/PickEmLiveBoard";
@@ -440,11 +440,11 @@ interface GameCardProps {
   pickedTeamId: string | null;
   onPick: (teamId: string) => void;
   isTiebreakerGame?: boolean;
-  /** NHL (and similar): mascot-only on small screens — logo carries brand. */
-  compactTeamNames?: boolean;
+  /** NHL: ESPN tri-code on phones; full name + record/goalie unchanged on wider screens. */
+  nhlMobileTriCode?: boolean;
 }
 
-function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, compactTeamNames }: GameCardProps) {
+function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, nhlMobileTriCode }: GameCardProps) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
   const isPostponed = !isFinal && game.status === "postponed";
@@ -491,14 +491,14 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, compactTeamNam
     const info = (
       <div className={cn("flex-1 flex flex-col gap-0.5 min-w-0", isHome ? "items-end text-right" : "items-start text-left")}>
         {/* Team name */}
-        <span className={cn("font-bebas tracking-wide text-base sm:text-xl leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
-          {compactTeamNames ? (
+        <span className={cn("font-bebas tracking-wide leading-tight", isPicked ? "text-foreground" : "text-muted-foreground")}>
+          {nhlMobileTriCode ? (
             <>
-              <span className="md:hidden uppercase">{pickEmCompactTeamLabel(team)}</span>
-              <span className="hidden md:inline uppercase">{team.name}</span>
+              <span className="sm:hidden text-xl">{pickEmNhlMobileTeamCode(team)}</span>
+              <span className="hidden sm:inline text-base sm:text-xl">{team.name}</span>
             </>
           ) : (
-            team.name
+            <span className="text-base sm:text-xl">{team.name}</span>
           )}
         </span>
 
@@ -4289,7 +4289,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                               pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
                               onPick={(teamId) => { if (!viewingPastPeriod) togglePick(game.id, teamId); }}
                               isTiebreakerGame={showTiebreakerBadge}
-                              compactTeamNames
+                              nhlMobileTriCode
                             />
                           );
                         })
@@ -5156,7 +5156,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             pickedTeamId={localPicks.get(game.id) ?? game.userPickTeamId ?? null}
                             onPick={(teamId) => togglePick(game.id, teamId)}
                             isTiebreakerGame={showTiebreakerBadge}
-                            compactTeamNames={sport === "nhl"}
+                            nhlMobileTriCode={sport === "nhl"}
                           />
                         )}
                         {sport === "superleague" && slug && (
