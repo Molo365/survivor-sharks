@@ -32,6 +32,16 @@ import {
   type TiebreakerMatchupGame,
 } from "@/components/TiebreakerGuessDialogUi";
 import { crazyEightsCorrectPickPoints, formatDecimalOdds } from "@/lib/crazyEightsScoring";
+import { pickEmNhlMobileTeamCode } from "@/lib/pickEmTeamLabel";
+
+function NhlMobileTeamName({ team, className }: { team: SlateTeam; className?: string }) {
+  return (
+    <span className={className}>
+      <span className="sm:hidden whitespace-nowrap">{pickEmNhlMobileTeamCode(team)}</span>
+      <span className="hidden sm:inline">{team.name}</span>
+    </span>
+  );
+}
 
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
@@ -291,7 +301,11 @@ function LockedPickRow({
           "font-bebas tracking-wide text-base sm:text-lg leading-tight",
           isPicked ? "text-foreground" : "text-muted-foreground",
         )}>
-          {team.name}
+          {sport === "nhl" ? (
+            <NhlMobileTeamName team={team} />
+          ) : (
+            team.name
+          )}
         </span>
         {isMultiplier && isPicked && lockedOdds != null && Number.isFinite(lockedOdds) && (
           <span className="text-[10px] sm:text-[11px] text-amber-400 font-mono font-bold mt-0.5">
@@ -682,10 +696,15 @@ function GameCard({
 
         <div className={cn("min-w-0 flex-1", isHome ? "text-right" : "text-left")}>
           <div className={cn(
-            "font-bebas text-base md:text-xl tracking-wide leading-none truncate transition-colors",
+            "font-bebas text-base md:text-xl tracking-wide leading-none transition-colors",
             isPicked ? "text-purple-200" : "text-foreground",
+            !isNhl && "truncate",
           )}>
-            {team.name}
+            {isNhl ? (
+              <NhlMobileTeamName team={team} />
+            ) : (
+              team.name
+            )}
           </div>
           {(isFinal || isLive) && score != null ? (
             <div className={cn(
@@ -971,10 +990,12 @@ export function CrazyEightsView({
     return {
       awayTeam: {
         name: meta?.awayTeam.name ?? last!.awayTeam.name,
+        abbreviation: meta?.awayTeam.abbreviation ?? last!.awayTeam.abbreviation,
         logoUrl: logoSource?.awayTeam.logoUrl ?? null,
       },
       homeTeam: {
         name: meta?.homeTeam.name ?? last!.homeTeam.name,
+        abbreviation: meta?.homeTeam.abbreviation ?? last!.homeTeam.abbreviation,
         logoUrl: logoSource?.homeTeam.logoUrl ?? null,
       },
       startTime: meta?.startTime ?? last?.startTime ?? null,
@@ -1463,7 +1484,7 @@ export function CrazyEightsView({
               </span>
             </TiebreakerGuessDescription>
           </DialogHeader>
-          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} tone="yellow" />
+          <TiebreakerMatchupLogoStrip game={tiebreakerMatchup} tone="yellow" size={isNhl ? "sm" : "md"} />
           <div className="space-y-4 py-2">
             {isNba ? (
               <div className="space-y-1.5">
