@@ -326,24 +326,53 @@ export async function sendPicksConfirmationEmail(input: PicksConfirmationEmailIn
   throw new Error("No email provider configured for pick confirmations");
 }
 
+export type PickReminderEmailContext =
+  | {
+      kind: "nba_multiplier_partial";
+      lockedCount: number;
+      cardCap: number;
+    };
+
 export async function sendPickReminderEmail(
   toEmail: string,
   poolName: string,
   picksUrl: string,
   stage: "24h" | "final",
+  context?: PickReminderEmailContext,
 ): Promise<string | null> {
   const transport = createTransport();
   const urgent = stage === "final";
   const safePoolName = escapeHtml(poolName);
   const safeUrl = escapeHtml(picksUrl);
-  const subject = urgent
-    ? `Final reminder: make your picks for ${poolName}`
-    : `Don't forget your picks for ${poolName}`;
+  const multiplierPartial =
+    context?.kind === "nba_multiplier_partial" && context.lockedCount > 0 && context.lockedCount < context.cardCap;
+
+  const subject = multiplierPartial
+    ? urgent
+      ? `Final reminder: finish your ${context.lockedCount}/${context.cardCap} Fast Break Multiplier card`
+      : `Fast Break Multiplier: ${context.lockedCount} of ${context.cardCap} picks locked — finish your card`
+    : urgent
+      ? `Final reminder: make your picks for ${poolName}`
+      : `Don't forget your picks for ${poolName}`;
+
+  const bodyLead = multiplierPartial
+    ? urgent
+      ? "<strong>Saturday 6 PM ET is coming up.</strong> You still have room on your multiplier card before the incomplete-pick deadline."
+      : "You have locked picks on your multiplier card, but you are not at the 8-game cap yet."
+    : urgent
+      ? "<strong>Your pick deadline is coming up soon.</strong>"
+      : "Your next pick window closes within 24 hours.";
+
+  const bodyDetail = multiplierPartial
+    ? `<p>You have <strong>${context.lockedCount} of ${context.cardCap}</strong> weekend picks locked in <strong>${safePoolName}</strong>. Submit another batch on any lined game before tip-off — each submit locks permanently. ESPN may post more money lines as the week goes on.</p>
+       <p style="font-size:13px;color:#94a3b8">Incomplete-card reminders also go out ~24 hours and ~3 hours before <strong>Saturday 6 PM ET</strong> (that is the reminder cutoff for a full card, not when individual games lock).</p>`
+    : `<p>Make your picks for <strong>${safePoolName}</strong> before the deadline.</p>`;
+
   const html = `
     <div style="font-family:sans-serif;max-width:500px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px">
       <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff">SURVIVOR SHARKS</h1>
-      <p>${urgent ? "<strong>Your pick deadline is coming up soon.</strong>" : "Your next pick window closes within 24 hours."}</p>
-      <p>Make your picks for <strong>${safePoolName}</strong> before the deadline.</p>
+      <p>${bodyLead}</p>
+      ${bodyDetail}
       <a href="${safeUrl}" style="display:inline-block;padding:14px 32px;background:#1e90ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">MAKE PICKS</a>
       <p style="margin-top:24px;font-size:11px;color:#64748b;word-break:break-all">${safeUrl}</p>
     </div>`;
@@ -357,6 +386,54 @@ export async function sendPickReminderEmail(
     return result.messageId ?? null;
   }
   console.log(`\n====== PICK REMINDER (no email provider configured) ======\nTo: ${toEmail}\nPool: ${poolName}\nURL: ${picksUrl}\n=====================================================\n`);
+  return null;
+}
+
+export type MultiplierLinesReadyEmailInput = {
+  linesReadyCount: number;
+  slateGameCount: number;
+  lockedCount: number;
+  cardCap: number;
+};
+
+export async function sendMultiplierLinesReadyEmail(
+  toEmail: string,
+  poolName: string,
+  picksUrl: string,
+  input: MultiplierLinesReadyEmailInput,
+): Promise<string | null> {
+  const transport = createTransport();
+  const safePoolName = escapeHtml(poolName);
+  const safeUrl = escapeHtml(picksUrl);
+  const { linesReadyCount, slateGameCount, lockedCount, cardCap } = input;
+  const subject =
+    lockedCount > 0
+      ? `More money lines posted — ${linesReadyCount} games ready (${poolName})`
+      : `Money lines are posting — ${linesReadyCount} NBA games ready (${poolName})`;
+
+  const cardLine = lockedCount > 0
+    ? `<p>You have <strong>${lockedCount} of ${cardCap}</strong> picks locked. Add another batch on newly lined games before tip-off.</p>`
+    : `<p>Fast Break Multiplier picks open when ESPN posts money lines. You can submit in batches (up to ${cardCap} total) — each batch locks at submit.</p>`;
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:auto;background:#0a0e1a;color:#e2e8f0;padding:40px;border-radius:12px">
+      <h1 style="font-size:28px;letter-spacing:4px;color:#1e90ff">SURVIVOR SHARKS</h1>
+      <p><strong>${linesReadyCount} of ${slateGameCount}</strong> games on this weekend's slate now have ESPN money lines in <strong>${safePoolName}</strong>.</p>
+      ${cardLine}
+      <a href="${safeUrl}" style="display:inline-block;padding:14px 32px;background:#1e90ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">VIEW SLATE</a>
+      <p style="margin-top:24px;font-size:11px;color:#64748b;word-break:break-all">${safeUrl}</p>
+    </div>`;
+
+  if (resend) {
+    const { data, error } = await resend.emails.send({ from: RESEND_FROM, to: toEmail, subject, html });
+    if (error) throw new Error(`Resend multiplier lines email failed: ${error.message}`);
+    return data?.id ?? null;
+  }
+  if (transport) {
+    const result = await transport.sendMail({ from: SMTP_FROM, to: toEmail, subject, html });
+    return result.messageId ?? null;
+  }
+  console.log(`\n====== MULTIPLIER LINES (no email provider configured) ======\nTo: ${toEmail}\nPool: ${poolName}\nLines: ${linesReadyCount}\nURL: ${picksUrl}\n===========================================================\n`);
   return null;
 }
 

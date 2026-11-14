@@ -14,7 +14,9 @@ import {
   resolveCrazyEightsPickemPeriod,
   resolveCrazyEightsReminderDeadline,
 } from "./crazy-eights-reminder";
-import { isCrazyEightsFamilyPoolType } from "./fast-break-pool";
+import { isCrazyEightsFamilyPoolType, isFastBreakMultiplierPool } from "./fast-break-pool";
+import { MULTIPLIER_MAX_PICKS } from "./crazy-eights-multiplier-submit";
+import { runMultiplierLinesReadyNotifications } from "./nba-multiplier-lines-notify";
 import { isNbaAtsPool } from "./nba-ats-period";
 import {
   nbaWeekendPickRemindersUnblocked,
@@ -511,7 +513,20 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
             if (!claim) continue;
             claimed++;
             try {
-              const providerMessageId = await sender(user.email, pool.name, `${appUrl}/pools/${pool.id}`, stage);
+              const lockedCount = user.submittedGameIds.size;
+              const multiplierContext =
+                isFastBreakMultiplierPool(pool)
+                && lockedCount > 0
+                && lockedCount < MULTIPLIER_MAX_PICKS
+                  ? { kind: "nba_multiplier_partial" as const, lockedCount, cardCap: MULTIPLIER_MAX_PICKS }
+                  : undefined;
+              const providerMessageId = await sender(
+                user.email,
+                pool.name,
+                `${appUrl}/pools/${pool.id}`,
+                stage,
+                multiplierContext,
+              );
               await db.update(pickRemindersTable).set({ status: "sent", sentAt: now, providerMessageId }).where(eq(pickRemindersTable.id, claim.id));
               sent++;
             } catch (error) {
@@ -524,7 +539,20 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
       }
     } catch (error) { logger.error({ err: error, poolId: pool.id }, "Pick reminder pool processing failed"); }
   }
-  return { claimed, sent, failed };
+  const lines = await runMultiplierLinesReadyNotifications({
+    now,
+    appUrl,
+    poolIds: options.poolIds,
+    includeSandbox: options.includeSandbox,
+  });
+  if (lines.poolsBumped > 0 || lines.sent > 0) {
+    logger.info(lines, "Multiplier lines notify pass complete");
+  }
+  return {
+    claimed: claimed + lines.claimed,
+    sent: sent + lines.sent,
+    failed: failed + lines.failed,
+  };
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
