@@ -96,10 +96,6 @@ function formatTime(iso: string) {
   }).format(new Date(iso));
 }
 
-function teamLogoSrc(team: TeamInfo, sport: string) {
-  return team.logoUrl ?? `https://a.espncdn.com/i/teamlogos/${sport}/500/${team.abbreviation.toLowerCase()}.png`;
-}
-
 function authedFetch<T>(url: string): Promise<T> {
   const token = localStorage.getItem("auth_token");
   return fetch(url, {
@@ -113,28 +109,16 @@ function authedFetch<T>(url: string): Promise<T> {
 
 // ── Game column header ────────────────────────────────────────────────────────
 
-function GameHeader({ game, sport }: { game: GameSummary; sport: string }) {
+function GameHeader({ game }: { game: GameSummary }) {
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
 
   return (
-    <div className="flex flex-col items-center gap-1 px-1 min-w-[76px]">
-      <div className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground/70 leading-none">
-        <img
-          src={teamLogoSrc(game.awayTeam, sport)}
-          alt={game.awayTeam.abbreviation}
-          className="w-4 h-4 object-contain"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-        <span>{game.awayTeam.abbreviation}</span>
-        <span className="text-muted-foreground/40 mx-0.5">@</span>
-        <img
-          src={teamLogoSrc(game.homeTeam, sport)}
-          alt={game.homeTeam.abbreviation}
-          className="w-4 h-4 object-contain"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-        <span>{game.homeTeam.abbreviation}</span>
+    <div className="flex flex-col items-center gap-0.5 px-1 min-w-[64px]">
+      <div className="text-[10px] font-bold text-muted-foreground/80 leading-tight text-center whitespace-nowrap">
+        {game.awayTeam.abbreviation}
+        <span className="text-muted-foreground/40 font-normal mx-0.5">@</span>
+        {game.homeTeam.abbreviation}
       </div>
       {isFinal ? (
         <span className="text-[9px] text-muted-foreground/50 font-semibold">
@@ -159,12 +143,10 @@ function GameHeader({ game, sport }: { game: GameSummary; sport: string }) {
 function PickCell({
   pick,
   game,
-  sport,
   poolType = "crazy_8s",
 }: {
   pick: PlayerPick | undefined;
   game: GameSummary;
-  sport: string;
   poolType?: string;
 }) {
   if (!pick || pick.pickedTeamId == null) {
@@ -182,17 +164,11 @@ function PickCell({
 
   return (
     <div className={cn(
-      "flex flex-col items-center justify-center gap-0.5 min-w-[76px] px-1 py-1.5 rounded-md",
+      "flex flex-col items-center justify-center gap-0.5 min-w-[64px] px-1 py-1.5 rounded-md",
       isWin ? "bg-green-500/10" : isLoss ? "bg-red-500/10" : "bg-purple-500/5",
     )}>
-      <img
-        src={teamLogoSrc(team, sport)}
-        alt={team.abbreviation}
-        className="w-6 h-6 object-contain"
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-      />
       <span className={cn(
-        "text-[9px] font-bold tracking-wide leading-none",
+        "text-[10px] font-bold tracking-wide leading-none",
         isWin ? "text-green-400" : isLoss ? "text-red-400" : "text-muted-foreground",
       )}>
         {team.abbreviation}
@@ -345,7 +321,7 @@ export function CrazyEightsGrid({
                 </th>
                 {displayGames.map((game) => (
                   <th key={game.id} className="px-1 py-2 border-r border-border/20 last:border-r-0">
-                    <GameHeader game={game} sport={sport} />
+                    <GameHeader game={game} />
                   </th>
                 ))}
               </tr>
@@ -374,7 +350,7 @@ export function CrazyEightsGrid({
                     </td>
                     {displayGames.map((game) => (
                       <td key={game.id} className="px-1 py-1 border-r border-border/20 last:border-r-0">
-                        <PickCell pick={player.picks[game.id]} game={game} sport={sport} poolType={poolType} />
+                        <PickCell pick={player.picks[game.id]} game={game} poolType={poolType} />
                       </td>
                     ))}
                   </tr>
