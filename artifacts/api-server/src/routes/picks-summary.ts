@@ -44,6 +44,7 @@ import {
   poolSlateHasLiveGames,
 } from "../lib/pool-slate-live";
 import { NBA_ATS_MAX_PICKS, nbaAtsPeriodPickStatus } from "../lib/nba-ats-picks";
+import { isFastBreakMultiplierPool } from "../lib/fast-break-pool";
 
 const router = Router();
 
@@ -600,7 +601,7 @@ router.get("/summary", requireAuth, async (req, res) => {
       }
 
       // ── Crazy 8s (daily or weekly — respects pickFrequency) ──────────────
-      if (poolType === "crazy_8s" || poolType === "crazy_eights") {
+      if (poolType === "crazy_8s" || poolType === "crazy_eights" || poolType === "fast_break_multiplier") {
         if (pool.sport === "mlb") {
           const status = await getMlbHighHeatDailyStatus(pool.id, userId);
           return {
@@ -647,15 +648,22 @@ router.get("/summary", requireAuth, async (req, res) => {
         const slateGames = await fetchPoolSlateGames(ctx);
         const openGames = openSlateGames(slateGames);
         const isWeekendCrazyEights = isWeekly && (pool.sport === "nhl" || pool.sport === "nba");
+        const isMultiplier = isFastBreakMultiplierPool(pool);
         // Hit the Ice / Fast Break: submit a full card (up to 8 games), not every game on the slate.
-        const cardTarget = isWeekendCrazyEights ? Math.min(8, slateGames.length) : openGames.length;
+        const cardTarget = isMultiplier
+          ? 8
+          : isWeekendCrazyEights
+            ? Math.min(8, slateGames.length)
+            : openGames.length;
         const pickStatus: PickStatus = pickedGameIds.length === 0
           ? (openGames.length === 0 ? "not_required" : "pending")
-          : isWeekendCrazyEights && picked >= cardTarget
-            ? "submitted"
-            : openGames.some((game) => !pickedGameIds.includes(game.id))
-              ? "incomplete"
-              : "submitted";
+          : isMultiplier
+            ? (picked >= cardTarget ? "submitted" : "incomplete")
+            : isWeekendCrazyEights && picked >= cardTarget
+              ? "submitted"
+              : openGames.some((game) => !pickedGameIds.includes(game.id))
+                ? "incomplete"
+                : "submitted";
 
         let summary: string | null = null;
         if (pickStatus === "not_required") {

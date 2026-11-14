@@ -13,6 +13,10 @@ import { toTiebreakerMatchupPayload } from "../lib/tiebreaker-matchup";
 import { formatNbaPointsTiebreakerColumnHeader } from "../lib/nhl-tiebreaker-standings";
 import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-weekly-period";
 import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
+import {
+  MULTIPLIER_MAX_PICKS,
+  validateMultiplierChunkSubmit,
+} from "../lib/crazy-eights-multiplier-submit";
 import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
 import {
   listCrazyEightsPeriods,
@@ -168,6 +172,9 @@ function isGridPickRevealed(opts: {
     });
   }
   if (opts.nbaWeekendSlateIsos?.length) {
+    if (opts.poolType === "fast_break_multiplier") {
+      return true;
+    }
     if (nbaSaturdaySixPmLockActive(opts.nbaWeekendSlateIsos, undefined, opts.nbaSaturdayEt ?? null)) {
       return true;
     }
@@ -403,9 +410,18 @@ router.get("/slate", requireAuth, async (req, res) => {
     const [ny, nm, nd] = sunDate.split("-").map(Number);
     const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
     const weekLabel = `${fmt.format(new Date(Date.UTC(fy, fm - 1, fd)))} – ${fmt.format(new Date(Date.UTC(ny, nm - 1, nd)))}`;
-    const poolLockAt = isSandbox
+    const nowMsSlate = Date.now();
+    const openWithLines = games.filter((g) => {
+      const started = g.status === "in_progress" || g.status === "final" || nowMsSlate >= new Date(g.date).getTime();
+      if (started) return false;
+      return isMultiplier ? moneylines?.has(g.id) : true;
+    });
+    const poolLockAt = isSandbox || isMultiplier
       ? null
       : nbaSaturdaySixPmLockInstant(games.map((g) => g.date), satDate);
+    const deadlinePassed = isMultiplier
+      ? !isSandbox && openWithLines.length === 0
+      : poolLockAt ? Date.now() >= poolLockAt.getTime() : false;
     res.json({
       sport: "nba",
       week: slateWeek,
@@ -416,8 +432,8 @@ router.get("/slate", requireAuth, async (req, res) => {
       sandboxMode: isSandbox,
       viewingPastPeriod,
       deadline: poolLockAt?.toISOString() ?? null,
-      deadlinePassed: poolLockAt ? Date.now() >= poolLockAt.getTime() : false,
-      ...(isMultiplier ? { linesReadyCount, maxPicks: 8 } : {}),
+      deadlinePassed,
+      ...(isMultiplier ? { linesReadyCount, maxPicks: MULTIPLIER_MAX_PICKS } : {}),
       games: games.map(g => {
         const sbScore = isSandbox ? sandboxScores.get(g.id) : undefined;
         const ml = moneylines?.get(g.id);
@@ -723,6 +739,7 @@ router.get("/grid", requireAuth, async (req, res) => {
         sandboxMode: pool.sandboxMode ?? false,
         result: pick.result ?? null,
         game,
+        poolType: pool.poolType ?? undefined,
         nbaWeekendSlateIsos,
         nbaSaturdayEt: satDate,
       });
@@ -1326,16 +1343,244 @@ router.post("/picks", requireAuth, async (req, res) => {
     }
 
     const nowMs = Date.now();
+
+    if (isMultiplier) {
+      const existingRows = await db
+        .select({
+          gameId: pickemPicksTable.gameId,
+          confidencePoints: pickemPicksTable.confidencePoints,
+        })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.week, pool.currentWeek),
+        ));
+
+      const existingGameIds = new Set(existingRows.map((r) => r.gameId));
+      const existingConfidence = new Set(
+        existingRows
+          .map((r) => r.confidencePoints)
+          .filter((v): v is number => typeof v === "number" && Number.isFinite(v)),
+      );
+
+      const chunkErr = validateMultiplierChunkSubmit({
+        existingGameIds,
+        existingConfidence,
+        newPicks: picks.map((p) => ({
+          gameId: p.gameId,
+          confidencePoints: p.confidencePoints,
+        })),
+      });
+      if (chunkErr) {
+        res.status(400).json({ error: chunkErr });
+        return;
+      }
+
+      for (const pick of picks) {
+        const game = gameMap.get(pick.gameId)!;
+        if (!isSandbox) {
+          const startMs = new Date(game.date).getTime();
+          if (game.status === "in_progress" || game.status === "final" || nowMs >= startMs) {
+            res.status(400).json({ error: "Picks lock at tip-off — one or more selected games have already started." });
+            return;
+          }
+        }
+        if (!moneylines?.has(pick.gameId)) {
+          res.status(409).json({ error: `Line not out yet for: ${pick.gameId}` });
+          return;
+        }
+        const ml = moneylines!.get(pick.gameId)!;
+        const teamLabel = pick.pickedTeam ?? "";
+        if (decimalOddsForTeam(ml, teamLabel) == null) {
+          res.status(400).json({ error: `Invalid team for moneyline: ${pick.gameId}` });
+          return;
+        }
+      }
+
+      if (
+        !isSandbox
+        && (entry as { tiebreakerPoints?: number | null }).tiebreakerPoints == null
+        && typeof tiebreakerPoints !== "number"
+      ) {
+        res.status(400).json({
+          error: "Fast Break Multiplier requires a tiebreaker guess (combined points for the last game of the weekend).",
+        });
+        return;
+      }
+
+      let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
+      let submission: { alreadySubmitted: boolean; saved: number; totalPicks: number; error?: string };
+      try {
+        submission = await db.transaction(async (tx) => {
+          await tx
+            .select({ id: entriesTable.id })
+            .from(entriesTable)
+            .where(eq(entriesTable.id, entry.id))
+            .for("update");
+
+          const existingPicks = await tx
+            .select({
+              id: pickemPicksTable.id,
+              gameId: pickemPicksTable.gameId,
+              confidencePoints: pickemPicksTable.confidencePoints,
+            })
+            .from(pickemPicksTable)
+            .where(and(
+              eq(pickemPicksTable.poolId, poolId),
+              eq(pickemPicksTable.userId, userId),
+              eq(pickemPicksTable.week, pool.currentWeek),
+            ));
+
+          if (decideCrazyEightsSubmission({
+            sandbox: isSandbox,
+            existingPickCount: existingPicks.length,
+            incremental: true,
+            maxPicks: MULTIPLIER_MAX_PICKS,
+          }) === "refuse") {
+            return { alreadySubmitted: true as const, saved: 0, totalPicks: existingPicks.length };
+          }
+
+          const txGameIds = new Set(existingPicks.map((r) => r.gameId));
+          const txConfidence = new Set(
+            existingPicks
+              .map((r) => r.confidencePoints)
+              .filter((v): v is number => typeof v === "number" && Number.isFinite(v)),
+          );
+          const txChunkErr = validateMultiplierChunkSubmit({
+            existingGameIds: txGameIds,
+            existingConfidence: txConfidence,
+            newPicks: picks.map((p) => ({
+              gameId: p.gameId,
+              confidencePoints: p.confidencePoints,
+            })),
+          });
+          if (txChunkErr) {
+            throw new Error(txChunkErr);
+          }
+
+          let saved = 0;
+          for (const pick of picks) {
+            const game = gameMap.get(pick.gameId)!;
+            const gameDate = gameDates.get(pick.gameId) ?? friDate;
+            const teamLabel = pick.pickedTeam ?? "";
+            const lockedDecimalOdds = decimalOddsForTeam(moneylines!.get(pick.gameId)!, teamLabel);
+            const values = {
+              poolId,
+              userId,
+              gameId: pick.gameId,
+              gameDate,
+              week: pool.currentWeek,
+              pickedTeamId: teamLabel,
+              pickedTeamName: pick.pickedTeamName || teamLabel,
+              confidencePoints: pick.confidencePoints,
+              lockedDecimalOdds,
+              result: "pending" as const,
+            };
+            if (isSandbox) {
+              await tx
+                .insert(pickemPicksTable)
+                .values(values)
+                .onConflictDoUpdate({
+                  target: [pickemPicksTable.poolId, pickemPicksTable.userId, pickemPicksTable.gameId],
+                  set: {
+                    pickedTeamId: teamLabel,
+                    pickedTeamName: pick.pickedTeamName || teamLabel,
+                    confidencePoints: pick.confidencePoints,
+                    lockedDecimalOdds,
+                    result: "pending",
+                    updatedAt: new Date(),
+                  },
+                });
+            } else {
+              await tx.insert(pickemPicksTable).values(values);
+            }
+            saved++;
+          }
+
+          await tx
+            .update(entriesTable)
+            .set({
+              tiebreakerPoints: typeof tiebreakerPoints === "number"
+                ? tiebreakerPoints
+                : (entry as { tiebreakerPoints?: number | null }).tiebreakerPoints,
+              tiebreakerThrees: null,
+            } as Record<string, unknown>)
+            .where(eq(entriesTable.id, entry.id));
+
+          const totalPicks = existingPicks.length + saved;
+
+          if (!isSandbox) {
+            const currentPicks = await tx
+              .select({
+                gameId: pickemPicksTable.gameId,
+                pickedTeamId: pickemPicksTable.pickedTeamId,
+                pickedTeamName: pickemPicksTable.pickedTeamName,
+                confidencePoints: pickemPicksTable.confidencePoints,
+              })
+              .from(pickemPicksTable)
+              .where(and(
+                eq(pickemPicksTable.poolId, poolId),
+                eq(pickemPicksTable.userId, userId),
+                eq(pickemPicksTable.week, pool.currentWeek),
+              ));
+            const confirmationGames = games.map((game) => ({
+              id: game.id,
+              date: game.date,
+              homeTeam: { id: game.homeTeam.id, displayName: game.homeTeam.displayName },
+              awayTeam: { id: game.awayTeam.id, displayName: game.awayTeam.displayName },
+            }));
+            pickConfirmation = makePickConfirmation({
+              toEmail: req.user!.email,
+              username: req.user!.username,
+              poolName: pool.name,
+              picks: buildConfidenceTeamPickConfirmationItems(currentPicks, confirmationGames),
+            });
+            await insertPickConfirmation(tx, pickConfirmation, {
+              userId,
+              poolId,
+              poolType: String(pool.poolType),
+              sport: String(pool.sport),
+              periodKey: `nba-weekend-${pool.currentWeek}`,
+            });
+          }
+
+          return { alreadySubmitted: false as const, saved, totalPicks };
+        });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Submission failed";
+        res.status(400).json({ error: message });
+        return;
+      }
+
+      if (submission.alreadySubmitted) {
+        res.status(409).json({
+          error: "Your weekend card is full — 8 picks are already locked.",
+          alreadySubmitted: true,
+        });
+        return;
+      }
+
+      if (pickConfirmation) {
+        deliverPickConfirmation(pickConfirmation, { poolId, userId, sport: pool.sport });
+      }
+
+      res.status(201).json({
+        ok: true,
+        saved: submission.saved,
+        totalPicks: submission.totalPicks,
+        message: "Multiplier picks locked in.",
+      });
+      return;
+    }
+
     const openGames = isSandbox
       ? games
       : games.filter(g => {
           const startMs = new Date(g.date).getTime();
           return g.status !== "in_progress" && g.status !== "final" && nowMs < startMs;
         });
-    const pickableGames = isMultiplier
-      ? openGames.filter((g) => moneylines?.has(g.id))
-      : openGames;
-    const availableCount = Math.min(pickableGames.length, 8);
+    const availableCount = Math.min(openGames.length, 8);
     if (availableCount === 0) {
       res.status(400).json({ error: "No games available to pick — all games have started" });
       return;
@@ -1368,27 +1613,9 @@ router.post("/picks", requireAuth, async (req, res) => {
         && typeof tiebreakerPoints !== "number"
       ) {
         res.status(400).json({
-          error: isMultiplier
-            ? "Fast Break Multiplier requires a tiebreaker guess (combined points for the last game of the weekend)."
-            : "Fast Break requires a tiebreaker guess (combined points for the last game of the weekend).",
+          error: "Fast Break requires a tiebreaker guess (combined points for the last game of the weekend).",
         });
         return;
-      }
-    }
-
-    if (isMultiplier) {
-      const noLineIds = picks.filter((p) => !moneylines?.has(p.gameId)).map((p) => p.gameId);
-      if (noLineIds.length > 0) {
-        res.status(409).json({ error: `Line not out yet for: ${noLineIds.join(", ")}` });
-        return;
-      }
-      for (const pick of picks) {
-        const ml = moneylines!.get(pick.gameId)!;
-        const teamLabel = pick.pickedTeam ?? "";
-        if (decimalOddsForTeam(ml, teamLabel) == null) {
-          res.status(400).json({ error: `Invalid team for moneyline: ${pick.gameId}` });
-          return;
-        }
       }
     }
 
@@ -1418,9 +1645,7 @@ router.post("/picks", requireAuth, async (req, res) => {
         const game = gameMap.get(pick.gameId)!;
         const gameDate = gameDates.get(pick.gameId) ?? friDate;
         const teamLabel = pick.pickedTeam ?? "";
-        const lockedDecimalOdds = isMultiplier
-          ? decimalOddsForTeam(moneylines!.get(pick.gameId)!, teamLabel)
-          : null;
+        const lockedDecimalOdds = null;
         await tx
           .insert(pickemPicksTable)
           .values({
