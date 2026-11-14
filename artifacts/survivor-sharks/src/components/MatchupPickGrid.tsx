@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy, Skull } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CollapsibleHowToHint } from "@/components/CollapsibleHowToHint";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
@@ -727,16 +728,9 @@ export function MatchupPickGrid({
   const pickedTeamIds = picks?.map(p => p.teamId) ?? [];
   const currentPick = picks?.find(p => p.week === currentWeek);
 
-  // Dismissible how-to hint for NFL and NHL survivor pools
-  const hintKey = `survivor-hint-dismissed-${poolId}`;
-  const [showHint, setShowHint] = useState<boolean>(() => {
-    if ((sport !== "nfl" && sport !== "nhl" && sport !== "nba") || poolType !== "season") return false;
-    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
-  });
-  function dismissHint() {
-    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
-    setShowHint(false);
-  }
+  const survivorHintKey = `survivor-hint-dismissed-${poolId}`;
+  const showSurvivorHowToHint =
+    (sport === "nfl" || sport === "nhl" || sport === "nba") && poolType === "season";
 
   const isNhlSurvivorSeason = sport === "nhl" && poolType === "season";
   const isNbaSurvivorSeason = sport === "nba" && poolType === "season";
@@ -1060,37 +1054,29 @@ export function MatchupPickGrid({
         )
       ) : null}
 
-      {/* How-to hint — NFL/NHL survivor, shown once per pool, dismissible */}
-      {showHint && (
-        <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">{sport === "nhl" ? "🏒" : sport === "nba" ? "🏀" : "🏈"}</span>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground leading-snug">
-              {sport === "nhl"
-                ? "How NHL Survivor works"
-                : sport === "nba"
-                  ? "How NBA Survivor works"
-                  : "How NFL Survivor works"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              {sport === "nhl"
-                ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot. Picks lock at puck drop on your team (or Saturday 7:00 PM ET for the week); everyone's picks show on the grid at 7:00 PM ET."
-                : sport === "nba"
-                  ? "Pick one NBA team from Friday–Sunday games each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
-                  : sport === "nfl"
-                    ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. At 1:00 PM ET on the week's main Sunday, picks lock for the rest of the week."
-                    : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={dismissHint}
-            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-            aria-label="Dismiss hint"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      {showSurvivorHowToHint && (
+        <CollapsibleHowToHint
+          storageKey={survivorHintKey}
+          variant="amber"
+          emoji={sport === "nhl" ? "🏒" : sport === "nba" ? "🏀" : "🏈"}
+          title={
+            sport === "nhl"
+              ? "How NHL Survivor works"
+              : sport === "nba"
+                ? "How NBA Survivor works"
+                : "How NFL Survivor works"
+          }
+        >
+          <p>
+            {sport === "nhl"
+              ? "Pick one NHL team from Saturday's slate each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot. Picks lock at puck drop on your team (or Saturday 7:00 PM ET for the week); everyone's picks show on the grid at 7:00 PM ET."
+              : sport === "nba"
+                ? "Pick one NBA team from Friday–Sunday games each week. You can't reuse a team all season. You get 3 strikes before you're eliminated — last survivor standing wins the pot."
+                : sport === "nfl"
+                  ? "Pick one NFL team each week. You can't reuse a team all season. One wrong pick and you're eliminated — last survivor standing wins the pot. At 1:00 PM ET on the week's main Sunday, picks lock for the rest of the week."
+                  : "Pick one team each week. You can't reuse a team all season. Last survivor standing wins the pot."}
+          </p>
+        </CollapsibleHowToHint>
       )}
 
       {/* Week heading */}

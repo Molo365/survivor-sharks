@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CollapsibleHowToHint } from "@/components/CollapsibleHowToHint";
 import { nflOfficePoolGameSubmissionLocked } from "@/lib/nflSlateReveal";
 import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Settings2, CheckCircle2, BarChart3, Play, Clapperboard } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -957,14 +958,7 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
   const [submitting, setSubmitting] = useState(false);
   const [resultsWeek, setResultsWeek] = useState<number | null>(null);
 
-  const hintKey = `nfl-confidence-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
-  const [showHint, setShowHint] = useState<boolean>(() => {
-    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
-  });
-  function dismissHint() {
-    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
-    setShowHint(false);
-  }
+  const nflConfidenceHintKey = `nfl-confidence-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
 
   const myPicksKey = ["nfl-confidence-picks", poolId, currentWeek];
 
@@ -1331,28 +1325,15 @@ export function NflConfidenceView({ poolId, currentWeek, weeklyBonusEnabled }: N
         Tap a selected team again to remove your pick
       </p>
 
-      {/* How-to hint — shown once per user per pool, dismissible */}
-      {showHint && (
-        <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">🏈</span>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground leading-snug">
-              How confidence picks work
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              Pick a winner for every open game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks 5 minutes before kickoff. At 1:00 PM ET on the week&apos;s main Sunday, everyone&apos;s picks for that week become visible. In Week 18, you&apos;ll also enter a passing &amp; rushing yards tiebreaker.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={dismissHint}
-            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-            aria-label="Dismiss hint"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      <CollapsibleHowToHint
+        storageKey={nflConfidenceHintKey}
+        emoji="🏈"
+        title="How confidence picks work"
+      >
+        <p>
+          Pick a winner for every open game and assign a unique confidence number — 1 through {maxConfidence} (one per game, no repeats). Higher numbers on correct picks = more points. Each game locks 5 minutes before kickoff. At 1:00 PM ET on the week&apos;s main Sunday, everyone&apos;s picks for that week become visible. In Week 18, you&apos;ll also enter a passing &amp; rushing yards tiebreaker.
+        </p>
+      </CollapsibleHowToHint>
 
       {/* Game list */}
       <div className="space-y-3">
