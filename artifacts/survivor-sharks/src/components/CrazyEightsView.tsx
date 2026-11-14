@@ -901,7 +901,6 @@ export function CrazyEightsView({
   const [resultsDate, setResultsDate] = useState<string | null>(null);
 
   const crazyEightsHintKey = `crazy-eights-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
-  const hitTheIceLegacyHintKey = `hittheice-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
 
   // For MLB: yesterday; for NHL: Saturday of the most recent past weekend;
   // for NBA: Friday of the most recent past weekend.
@@ -1439,7 +1438,6 @@ export function CrazyEightsView({
 
       <CollapsibleHowToHint
         storageKey={crazyEightsHintKey}
-        legacyStorageKeys={isNhl ? [hitTheIceLegacyHintKey] : []}
         defaultOpen={false}
         emoji={isNhl ? "🏒" : isNba ? "🏀" : "⚾"}
         title={

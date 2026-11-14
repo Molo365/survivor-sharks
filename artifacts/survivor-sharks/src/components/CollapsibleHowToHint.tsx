@@ -1,30 +1,30 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-function isHintDismissed(storageKey: string, legacyKeys: string[]): boolean {
+function readExpandedPreference(storageKey: string, defaultOpen: boolean): boolean {
   try {
-    if (localStorage.getItem(storageKey) === "1") return true;
-    return legacyKeys.some((key) => localStorage.getItem(key) === "1");
+    const stored = localStorage.getItem(`${storageKey}-expanded`);
+    if (stored === "0") return false;
+    if (stored === "1") return true;
   } catch {
-    return false;
+    /* ignore */
   }
+  return defaultOpen;
 }
 
-function persistHintDismissed(storageKey: string, legacyKeys: string[]) {
+function persistExpandedPreference(storageKey: string, open: boolean) {
   try {
-    localStorage.setItem(storageKey, "1");
-    for (const key of legacyKeys) localStorage.setItem(key, "1");
+    localStorage.setItem(`${storageKey}-expanded`, open ? "1" : "0");
   } catch {
     /* ignore */
   }
 }
 
 type CollapsibleHowToHintProps = {
+  /** Used only to remember expanded vs collapsed (not permanent hide). */
   storageKey: string;
-  /** Older dismiss keys treated as dismissed (e.g. merged duplicate hints). */
-  legacyStorageKeys?: string[];
   emoji: string;
   title: string;
   children: ReactNode;
@@ -32,22 +32,16 @@ type CollapsibleHowToHintProps = {
   defaultOpen?: boolean;
 };
 
-/** Single dismissible how-to card; tap title row to expand/collapse body. */
+/** How-to card: title row always visible; tap to expand/collapse instructions. */
 export function CollapsibleHowToHint({
   storageKey,
-  legacyStorageKeys = [],
   emoji,
   title,
   children,
   variant = "primary",
   defaultOpen = true,
 }: CollapsibleHowToHintProps) {
-  const [visible, setVisible] = useState(
-    () => !isHintDismissed(storageKey, legacyStorageKeys),
-  );
-  const [open, setOpen] = useState(defaultOpen);
-
-  if (!visible) return null;
+  const [open, setOpen] = useState(() => readExpandedPreference(storageKey, defaultOpen));
 
   const shellClass =
     variant === "amber"
@@ -55,35 +49,29 @@ export function CollapsibleHowToHint({
       : "border-primary/30 bg-primary/5";
 
   return (
-    <div className={cn("relative rounded-xl border pr-10", shellClass)}>
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="flex items-start gap-3 px-4 py-3.5">
-          <span className="text-xl leading-none mt-0.5">{emoji}</span>
-          <CollapsibleTrigger className="flex flex-1 items-center justify-between gap-2 min-w-0 text-left">
-            <span className="font-semibold text-sm text-foreground leading-snug">{title}</span>
-            <ChevronDown
-              className={cn(
-                "w-4 h-4 shrink-0 text-muted-foreground transition-transform",
-                open && "rotate-180",
-              )}
-            />
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent className="px-4 pb-3.5 pl-11 text-sm text-muted-foreground leading-snug space-y-2">
+    <div className={cn("rounded-xl border", shellClass)}>
+      <Collapsible
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          persistExpandedPreference(storageKey, next);
+        }}
+      >
+        <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3.5 text-left min-h-[44px]">
+          <span className="text-xl leading-none shrink-0">{emoji}</span>
+          <span className="flex-1 min-w-0 font-semibold text-sm text-foreground leading-snug">{title}</span>
+          <ChevronDown
+            className={cn(
+              "w-5 h-5 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-4 pb-3.5 pl-11 text-sm text-muted-foreground leading-snug space-y-2 border-t border-border/20">
           {children}
         </CollapsibleContent>
       </Collapsible>
-      <button
-        type="button"
-        onClick={() => {
-          persistHintDismissed(storageKey, legacyStorageKeys);
-          setVisible(false);
-        }}
-        className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-        aria-label="Dismiss hint"
-      >
-        <X className="w-4 h-4" />
-      </button>
     </div>
   );
 }
