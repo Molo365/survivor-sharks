@@ -1406,9 +1406,9 @@ export function CrazyEightsView({
           <p className="text-sm text-muted-foreground mt-0.5">
             {isMultiplier
               ? `Submit picks in batches (up to ${multiplierCardCap} total). Each batch locks permanently; unused confidence 1–${multiplierCardCap} can go on later games when lines post.`
-              : `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–${MAX_PICKS}.`}
-            {isNhl && !isLocked && !hasPicks && ` ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
-            {isNba && !isMultiplier && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
+              : isWeekendSport
+                ? "Pick winners and assign confidence for this weekend's slate."
+                : `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–${MAX_PICKS}.`}
           </p>
           {!isLocked && !hasPicks && (
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -1440,6 +1440,7 @@ export function CrazyEightsView({
       <CollapsibleHowToHint
         storageKey={crazyEightsHintKey}
         legacyStorageKeys={isNhl ? [hitTheIceLegacyHintKey] : []}
+        defaultOpen={false}
         emoji={isNhl ? "🏒" : isNba ? "🏀" : "⚾"}
         title={
           isNhl
@@ -1452,15 +1453,12 @@ export function CrazyEightsView({
         }
       >
         {isNhl ? (
-          <>
-            <p className="text-amber-200/90">
-              Hit the Ice works just like High Heat — pick up to 8 NHL games, earn points for correct picks.
-              Points accumulate Mon–Sun and the weekly leader wins.
-            </p>
-            <p>
-              {`Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
-            </p>
-          </>
+          <p>
+            <span className="text-amber-200/90">
+              Like High Heat, points stack Mon–Sun and the weekly leader wins.
+            </span>{" "}
+            {`Pick up to 8 games, choose a winner for each, and assign confidence 1–8 (each value once). ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
+          </p>
         ) : isMultiplier ? (
           <p>
             Submit lined games anytime before tip-off — each submit locks permanently. Opponents see picks as they lock.
@@ -1468,7 +1466,7 @@ export function CrazyEightsView({
           </p>
         ) : isNba ? (
           <p>
-            {`Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
+            {`Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence 1–8 (each value once). ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
           </p>
         ) : (
           <p>
