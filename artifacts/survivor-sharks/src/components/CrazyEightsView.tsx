@@ -1454,10 +1454,7 @@ export function CrazyEightsView({
       >
         {isNhl ? (
           <p>
-            <span className="text-amber-200/90">
-              Like High Heat, points stack Mon–Sun and the weekly leader wins.
-            </span>{" "}
-            {`Pick up to 8 games, choose a winner for each, and assign confidence 1–8 (each value once). ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
+            {`Points stack Mon–Sun and the weekly leader wins. Pick up to 8 games, choose a winner for each, and assign confidence 1–8 (each value once). ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
           </p>
         ) : isMultiplier ? (
           <p>
