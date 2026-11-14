@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CollapsibleHowToHint } from "@/components/CollapsibleHowToHint";
 import { Lock, Dice5, AlertCircle, Trophy, Check, X, Clock, Snowflake } from "lucide-react";
 import { CrazyEightsGrid } from "@/components/CrazyEightsGrid";
 import {
@@ -899,23 +900,8 @@ export function CrazyEightsView({
   const [submitting, setSubmitting] = useState(false);
   const [resultsDate, setResultsDate] = useState<string | null>(null);
 
-  const hintKey = `crazy-eights-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
-  const [showHint, setShowHint] = useState<boolean>(() => {
-    try { return localStorage.getItem(hintKey) !== "1"; } catch { return false; }
-  });
-  function dismissHint() {
-    try { localStorage.setItem(hintKey, "1"); } catch { /* ignore */ }
-    setShowHint(false);
-  }
-
-  const hintKeyNhl = `hittheice-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
-  const [showHintNhl, setShowHintNhl] = useState<boolean>(() => {
-    try { return localStorage.getItem(hintKeyNhl) !== "1"; } catch { return false; }
-  });
-  function dismissHintNhl() {
-    try { localStorage.setItem(hintKeyNhl, "1"); } catch { /* ignore */ }
-    setShowHintNhl(false);
-  }
+  const crazyEightsHintKey = `crazy-eights-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
+  const hitTheIceLegacyHintKey = `hittheice-hint-dismissed-${poolId}-${user?.id ?? "guest"}`;
 
   // For MLB: yesterday; for NHL: Saturday of the most recent past weekend;
   // for NBA: Friday of the most recent past weekend.
@@ -1451,54 +1437,46 @@ export function CrazyEightsView({
 
       {weekendRecap}
 
-      {/* How-to hint — shown once per user per pool, dismissible */}
-      {showHint && (
-        <div className="relative flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">{isNhl ? "🏒" : isNba ? "🏀" : "⚾"}</span>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground leading-snug">
-              {isNhl ? "How Hit the Ice works" : isMultiplier ? "How Fast Break Multiplier works" : isNba ? "How Fast Break works" : "How High Heat works"}
+      <CollapsibleHowToHint
+        storageKey={crazyEightsHintKey}
+        legacyStorageKeys={isNhl ? [hitTheIceLegacyHintKey] : []}
+        emoji={isNhl ? "🏒" : isNba ? "🏀" : "⚾"}
+        title={
+          isNhl
+            ? "How Hit the Ice works"
+            : isMultiplier
+              ? "How Fast Break Multiplier works"
+              : isNba
+                ? "How Fast Break works"
+                : "How High Heat works"
+        }
+      >
+        {isNhl ? (
+          <>
+            <p className="text-amber-200/90">
+              Hit the Ice works just like High Heat — pick up to 8 NHL games, earn points for correct picks.
+              Points accumulate Mon–Sun and the weekly leader wins.
             </p>
-            <p className="text-sm text-muted-foreground mt-0.5 leading-snug">
-              {isNhl
-                ? `Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
-                : isMultiplier
-                  ? "Submit lined games anytime before tip-off — each submit locks. Opponents see picks as they lock. Score confidence × locked decimal odds on winners."
-                  : isNba
-                    ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
-                    : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch. Minimum 4 games required to play.`}
+            <p>
+              {`Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
             </p>
-          </div>
-          <button
-            type="button"
-            onClick={dismissHint}
-            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-            aria-label="Dismiss hint"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Hit the Ice intro hint — NHL only, shown once per user per pool, dismissible */}
-      {isNhl && showHintNhl && (
-        <div className="relative flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5 pr-10">
-          <span className="text-xl leading-none mt-0.5">🏒</span>
-          <div className="min-w-0">
-            <p className="text-sm text-amber-200/90 leading-snug">
-              Hit the Ice works just like High Heat — pick up to 8 NHL games, earn points for correct picks. Points accumulate Mon–Sun and the weekly leader wins. 🏒
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={dismissHintNhl}
-            className="absolute top-2.5 right-2.5 rounded-md p-1 text-muted-foreground/50 hover:text-foreground hover:bg-muted/30 transition-colors"
-            aria-label="Dismiss hint"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+          </>
+        ) : isMultiplier ? (
+          <p>
+            Submit lined games anytime before tip-off — each submit locks permanently. Opponents see picks as they lock.
+            Score confidence × locked decimal odds on winners.
+          </p>
+        ) : isNba ? (
+          <p>
+            {`Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`}
+          </p>
+        ) : (
+          <p>
+            Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points.
+            Each game locks at first pitch. Minimum 4 games required to play.
+          </p>
+        )}
+      </CollapsibleHowToHint>
 
       {isMultiplier && existingPicks.length > 0 && (
         <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-4 space-y-3">
