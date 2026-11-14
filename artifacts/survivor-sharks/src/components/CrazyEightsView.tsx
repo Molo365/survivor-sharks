@@ -43,6 +43,15 @@ function NhlMobileTeamName({ team, className }: { team: SlateTeam; className?: s
   );
 }
 
+function NbaMobileTeamName({ team, className }: { team: SlateTeam; className?: string }) {
+  return (
+    <span className={className}>
+      <span className="sm:hidden whitespace-nowrap">{team.abbreviation}</span>
+      <span className="hidden sm:inline">{team.name}</span>
+    </span>
+  );
+}
+
 function isGameStarted(game: { status: string; startTime: string }, sandboxMode: boolean): boolean {
   return (
     game.status === "in_progress" ||
@@ -394,7 +403,7 @@ function LockedPickRow({
                 <div className="flex items-center gap-0.5 mt-0.5">
                   <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
                   <span className="text-[9px] text-muted-foreground/60 leading-tight font-medium whitespace-nowrap">
-                    {sport === "nhl" ? formatDateTimeEt(pick.startTime) : formatTimeEt(pick.startTime)}
+                    {sport === "nhl" || sport === "nba" ? formatDateTimeEt(pick.startTime) : formatTimeEt(pick.startTime)}
                   </span>
                 </div>
               </>
@@ -654,6 +663,7 @@ function GameCard({
     || (isLocked && !isSelected)
     || (gameHasStarted && !isSelected);
   const isNhl = sport === "nhl";
+  const isNba = sport === "nba";
 
   const awayPitcher = sport !== "mlb" ? null : pitcherLine(game.awayPitcher);
   const homePitcher = sport !== "mlb" ? null : pitcherLine(game.homePitcher);
@@ -698,10 +708,12 @@ function GameCard({
           <div className={cn(
             "font-bebas text-base md:text-xl tracking-wide leading-none transition-colors",
             isPicked ? "text-purple-200" : "text-foreground",
-            !isNhl && "truncate",
+            !isNhl && !isNba && "truncate",
           )}>
             {isNhl ? (
               <NhlMobileTeamName team={team} />
+            ) : isNba ? (
+              <NbaMobileTeamName team={team} />
             ) : (
               team.name
             )}
@@ -781,7 +793,7 @@ function GameCard({
             <span className="text-[10px] font-bold text-red-400">vs</span>
           ) : (
             <span className="text-[11px] md:text-xs text-muted-foreground font-semibold whitespace-nowrap text-center leading-tight">
-              {isNhl ? formatDateTimeEt(game.startTime) : formatTimeEt(game.startTime)}
+              {isNhl || isNba ? formatDateTimeEt(game.startTime) : formatTimeEt(game.startTime)}
             </span>
           )}
           {isSelected ? (
@@ -946,15 +958,34 @@ export function CrazyEightsView({
   const games: SlateGame[] = slateData?.games ?? [];
   const sandboxMode = slateData?.sandboxMode ?? false;
 
+  const existingPicks = myPicksData?.picks ?? [];
+  const hasPicks = existingPicks.length > 0;
+  const multiplierCardCap = slateData?.maxPicks ?? 8;
+
+  const lockedGameIds = useMemo(
+    () => new Set(existingPicks.map((p) => p.gameId)),
+    [existingPicks],
+  );
+
   const MAX_PICKS = useMemo(() => {
+    if (isMultiplier) {
+      const remaining = multiplierCardCap - existingPicks.length;
+      if (remaining <= 0) return 0;
+      const open = games.filter((g) => {
+        if (lockedGameIds.has(g.id)) return false;
+        if (isGameStarted(g, sandboxMode)) return false;
+        if (g.hasMoneyline === false) return false;
+        return true;
+      });
+      return Math.min(open.length, remaining);
+    }
     const cap = slateData?.maxPicks ?? 8;
     const open = games.filter((g) => {
       if (isGameStarted(g, sandboxMode)) return false;
-      if (isMultiplier && g.hasMoneyline === false) return false;
       return true;
     });
     return Math.min(open.length, cap);
-  }, [games, sandboxMode, isMultiplier, slateData?.maxPicks]);
+  }, [games, sandboxMode, isMultiplier, slateData?.maxPicks, multiplierCardCap, existingPicks.length, lockedGameIds]);
 
   const linesReadyCount = useMemo(() => {
     if (!isMultiplier) return 0;
@@ -962,8 +993,8 @@ export function CrazyEightsView({
     return games.filter((g) => g.hasMoneyline).length;
   }, [isMultiplier, slateData?.linesReadyCount, games]);
 
-  const existingPicks = myPicksData?.picks ?? [];
-  const hasPicks = existingPicks.length > 0;
+  const hasFullMultiplierCard = isMultiplier && existingPicks.length >= multiplierCardCap;
+  const showLockedOnlyView = hasPicks && (!isMultiplier || hasFullMultiplierCard);
 
   const earliestSelectedStart = useMemo(() => {
     const selected = games.filter((g) => selectedIds.includes(g.id));
@@ -973,11 +1004,24 @@ export function CrazyEightsView({
   }, [games, selectedIds]);
 
   const isLocked = !sandboxMode && (
-    slateData?.deadlinePassed === true ||
-    Date.now() >= earliestSelectedStart
+    isMultiplier
+      ? slateData?.deadlinePassed === true
+      : slateData?.deadlinePassed === true || Date.now() >= earliestSelectedStart
   );
 
-  const usedPoints = useMemo(() => new Set(Object.values(confidence)), [confidence]);
+  const usedPoints = useMemo(() => {
+    const s = new Set<number>();
+    for (const p of existingPicks) {
+      if (p.confidencePoints != null) s.add(p.confidencePoints);
+    }
+    for (const v of Object.values(confidence)) {
+      if (v != null) s.add(v);
+    }
+    return s;
+  }, [existingPicks, confidence]);
+
+  const confidenceButtonCount = isMultiplier ? multiplierCardCap : MAX_PICKS;
+  const minPicksToSubmit = isMultiplier ? 1 : MAX_PICKS;
 
   const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
     const meta =
@@ -1003,12 +1047,17 @@ export function CrazyEightsView({
   }, [myPicksData?.tiebreakerGame, slateData?.tiebreakerGame, games]);
 
   const allReady =
-    selectedIds.length === MAX_PICKS &&
+    selectedIds.length >= minPicksToSubmit &&
     selectedIds.every((id) => confidence[id] !== undefined) &&
     selectedIds.every((id) => pickedTeams[id] !== undefined);
 
+  const gamesForPicker = useMemo(() => {
+    if (!isMultiplier) return games;
+    return games.filter((g) => !lockedGameIds.has(g.id));
+  }, [games, isMultiplier, lockedGameIds]);
+
   function handleTeamClick(gameId: string, teamId: string) {
-    if (isLocked) return;
+    if (isLocked || lockedGameIds.has(gameId)) return;
     const game = games.find((g) => g.id === gameId);
     if (isMultiplier && game && !game.hasMoneyline) {
       toast({ title: "Line not ready", description: "This game does not have ESPN money lines yet.", variant: "destructive" });
@@ -1067,12 +1116,22 @@ export function CrazyEightsView({
         credentials: "include",
         body: JSON.stringify(body),
       });
+      const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error || "Submission failed");
+        throw new Error((payload as { error?: string }).error || "Submission failed");
       }
+      const chunkCount = selectedIds.length;
       setShowTiebreaker(false);
-      toast({ title: "Picks submitted!", description: "Good luck. Picks are now locked." });
+      setSelectedIds([]);
+      setConfidence({});
+      setPickedTeams({});
+      const totalPicks = (payload as { totalPicks?: number }).totalPicks;
+      toast({
+        title: isMultiplier ? "Picks locked in!" : "Picks submitted!",
+        description: isMultiplier
+          ? `${totalPicks ?? existingPicks.length + chunkCount} of ${multiplierCardCap} weekend picks locked. Add more when new lines post.`
+          : "Good luck. Picks are now locked.",
+      });
       await queryClient.invalidateQueries({ queryKey: myPicksKey });
       await queryClient.invalidateQueries({ queryKey: ["crazy-eights-slate", poolId] });
       await queryClient.invalidateQueries({ predicate: (query) =>
@@ -1088,8 +1147,14 @@ export function CrazyEightsView({
   }
 
   function handleSubmitClick() {
-    if (selectedIds.length < MAX_PICKS) {
-      toast({ title: `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}`, description: `You must choose exactly ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}.`, variant: "destructive" });
+    if (selectedIds.length < minPicksToSubmit) {
+      toast({
+        title: isMultiplier ? "Select at least one game" : `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}`,
+        description: isMultiplier
+          ? "Choose lined games for this submit — each batch locks permanently."
+          : `You must choose exactly ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}.`,
+        variant: "destructive",
+      });
       return;
     }
     if (!selectedIds.every((id) => pickedTeams[id])) {
@@ -1097,10 +1162,20 @@ export function CrazyEightsView({
       return;
     }
     if (!allReady) {
-      toast({ title: "Assign all confidence points", description: `Each selected game needs a point value 1–${MAX_PICKS}.`, variant: "destructive" });
+      toast({
+        title: "Assign confidence points",
+        description: isMultiplier
+          ? `Each game in this batch needs a unique value from 1–${multiplierCardCap} (skip numbers already locked).`
+          : `Each selected game needs a point value 1–${MAX_PICKS}.`,
+        variant: "destructive",
+      });
       return;
     }
-    if (!isWeekly || isLastDayOfWeek || isWeekendSport) {
+    const needsTiebreaker =
+      isMultiplier
+        ? myPicksData?.tiebreakerPoints == null
+        : !isWeekly || isLastDayOfWeek || isWeekendSport;
+    if (needsTiebreaker) {
       setShowTiebreaker(true);
     } else {
       void postPicks({ picks: buildPicks() });
@@ -1282,7 +1357,7 @@ export function CrazyEightsView({
     await queryClient.invalidateQueries({ queryKey: ["crazy-eights-grid", poolId] });
   }
 
-  if (MAX_PICKS === 0) {
+  if (MAX_PICKS === 0 && !(isMultiplier && hasPicks && !hasFullMultiplierCard)) {
     const waitingLines = isMultiplier && games.length > 0;
     return (
       <div className="space-y-6">
@@ -1302,7 +1377,7 @@ export function CrazyEightsView({
     );
   }
 
-  if (hasPicks) {
+  if (showLockedOnlyView) {
     return (
       <LockedPicksView
         picks={existingPicks}
@@ -1324,7 +1399,7 @@ export function CrazyEightsView({
 
   const missingWinner = selectedIds.some((id) => !pickedTeams[id]);
   const missingPoints =
-    selectedIds.length === MAX_PICKS &&
+    selectedIds.length >= minPicksToSubmit &&
     !selectedIds.every((id) => confidence[id] !== undefined);
 
   return (
@@ -1344,10 +1419,10 @@ export function CrazyEightsView({
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isMultiplier
-              ? `Pick ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"} with ESPN money lines, assign confidence 1–${MAX_PICKS}, and earn confidence × decimal odds on correct picks.`
+              ? `Submit picks in batches (up to ${multiplierCardCap} total). Each batch locks permanently; unused confidence 1–${multiplierCardCap} can go on later games when lines post.`
               : `Select ${MAX_PICKS} game${MAX_PICKS === 1 ? "" : "s"}, pick a winner for each, and assign confidence points 1–${MAX_PICKS}.`}
             {isNhl && !isLocked && !hasPicks && ` ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
-            {isNba && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
+            {isNba && !isMultiplier && !isLocked && !hasPicks && ` ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`}
           </p>
           {!isLocked && !hasPicks && (
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -1358,11 +1433,13 @@ export function CrazyEightsView({
         <div className="flex items-center gap-3">
           <div className={cn(
             "text-sm font-bold px-3 py-1 rounded-full border",
-            selectedIds.length === MAX_PICKS
+            selectedIds.length >= minPicksToSubmit && (isMultiplier || selectedIds.length === MAX_PICKS)
               ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
               : "bg-muted/50 text-muted-foreground border-border/40",
           )}>
-            {selectedIds.length} / {MAX_PICKS} selected
+            {isMultiplier
+              ? `${existingPicks.length} locked · ${selectedIds.length} in this batch (${multiplierCardCap} max)`
+              : `${selectedIds.length} / ${MAX_PICKS} selected`}
           </div>
           {isLocked && (
             <span className="flex items-center gap-1 text-xs text-destructive font-semibold bg-destructive/10 border border-destructive/20 px-2 py-1 rounded-full">
@@ -1386,7 +1463,7 @@ export function CrazyEightsView({
               {isNhl
                 ? `Pick up to 8 games from the weekend slate, choose a winner for each, and assign confidence points. ${NHL_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
                 : isMultiplier
-                  ? `Pick up to 8 games with posted money lines, assign confidence 1–8, and score confidence × locked decimal odds on winners. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE}`
+                  ? "Submit lined games anytime before tip-off — each submit locks. Opponents see picks as they lock. Score confidence × locked decimal odds on winners."
                   : isNba
                     ? `Pick up to 8 games from the Fri–Sun slate, choose a winner for each, and assign confidence points. ${NBA_WEEKEND_SATURDAY_LOCK_SENTENCE} Minimum 4 games required when available.`
                     : `Pick up to 8 games, choose a winner for each, and assign confidence points. Higher numbers on correct picks = more points. Each game locks at first pitch. Minimum 4 games required to play.`}
@@ -1423,21 +1500,34 @@ export function CrazyEightsView({
         </div>
       )}
 
+      {isMultiplier && existingPicks.length > 0 && (
+        <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-4 space-y-3">
+          <p className="text-sm font-semibold text-purple-200">
+            Locked picks ({existingPicks.length}/{multiplierCardCap})
+          </p>
+          <div className="space-y-2">
+            {existingPicks.map((pick) => (
+              <LockedPickRow key={pick.gameId} pick={pick} sport={sport} poolType={poolType} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {isMultiplier && (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-sm text-amber-200/90">
           <span className="font-semibold text-amber-200">Money lines:</span>{" "}
           {linesReadyCount} of {games.length} games ready
-          {linesReadyCount < MAX_PICKS && linesReadyCount > 0
-            ? ` — you need ${MAX_PICKS} lined games to submit.`
-            : linesReadyCount === 0
+          {MAX_PICKS === 0
+            ? linesReadyCount === 0
               ? " — picks unlock when ESPN posts lines."
-              : ""}
+              : " — no open lined games right now; check back before tip-offs."
+            : ` — you can lock up to ${MAX_PICKS} more this batch.`}
         </div>
       )}
 
       {/* Game list */}
       <div className="space-y-3">
-        {games.map((game) => (
+        {gamesForPicker.map((game) => (
           <GameCard
             key={game.id}
             game={game}
@@ -1448,7 +1538,7 @@ export function CrazyEightsView({
             confidence={confidence[game.id]}
             usedPoints={usedPoints}
             pickedTeam={pickedTeams[game.id] ?? null}
-            maxPicks={MAX_PICKS}
+            maxPicks={confidenceButtonCount}
             showMoneylines={isMultiplier}
             moneylinePending={isMultiplier && !game.hasMoneyline}
             onTeamClick={(teamId) => handleTeamClick(game.id, teamId)}
@@ -1460,16 +1550,22 @@ export function CrazyEightsView({
       {/* Submit button */}
       <Button
         onClick={handleSubmitClick}
-        disabled={isLocked || selectedIds.length < MAX_PICKS || !allReady}
+        disabled={isLocked || MAX_PICKS === 0 || selectedIds.length < minPicksToSubmit || !allReady}
         className="w-full font-bebas text-xl tracking-wider h-12 bg-purple-600 hover:bg-purple-500 text-white"
       >
-        {selectedIds.length < MAX_PICKS
-          ? `Select ${MAX_PICKS - selectedIds.length} more game${MAX_PICKS - selectedIds.length === 1 ? "" : "s"}`
-          : missingWinner
-            ? "Pick a winner for each game"
-            : missingPoints
-              ? "Assign all confidence points"
-              : "Submit Picks"}
+        {MAX_PICKS === 0
+          ? "No open lined games"
+          : selectedIds.length < minPicksToSubmit
+            ? isMultiplier
+              ? "Select games for this batch"
+              : `Select ${MAX_PICKS - selectedIds.length} more game${MAX_PICKS - selectedIds.length === 1 ? "" : "s"}`
+            : missingWinner
+              ? "Pick a winner for each game"
+              : missingPoints
+                ? "Assign confidence points"
+                : isMultiplier
+                  ? `Lock ${selectedIds.length} pick${selectedIds.length === 1 ? "" : "s"}`
+                  : "Submit Picks"}
       </Button>
 
       {/* Tiebreaker dialog */}
