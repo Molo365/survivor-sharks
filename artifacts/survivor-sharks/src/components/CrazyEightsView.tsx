@@ -292,11 +292,11 @@ function LockedPickRow({
     const isHome = side === "home";
 
     const logo = (
-      <div className="shrink-0 rounded-full bg-white/90 p-1.5 shadow-sm">
+      <div className="shrink-0 rounded-full bg-white/90 p-1 shadow-sm">
         <img
           src={teamLogoSrc(team, sport)}
           alt={team.name}
-          className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+          className="w-8 h-8 sm:w-12 sm:h-12 object-contain"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
         />
       </div>
@@ -313,6 +313,8 @@ function LockedPickRow({
         )}>
           {sport === "nhl" ? (
             <NhlMobileTeamName team={team} />
+          ) : sport === "nba" ? (
+            <NbaMobileTeamName team={team} />
           ) : (
             team.name
           )}
