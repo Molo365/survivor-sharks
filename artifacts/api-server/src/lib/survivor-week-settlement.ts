@@ -195,3 +195,12 @@ export function orderedUnsettledSurvivorWeeksFromPicks(
     .filter(week => !finalized.has(week))
     .sort((a, b) => a - b);
 }
+
+/** Do not crown a winner while a slate-complete week is still open, or while currentWeek is void. */
+export function shouldDeferSurvivorWinnerCloseForVoidDisplayWeek(options: {
+  currentWeekVoided: boolean;
+  hasUnsettledCompleteWeek: boolean;
+}): boolean {
+  if (options.hasUnsettledCompleteWeek) return true;
+  return options.currentWeekVoided;
+}
