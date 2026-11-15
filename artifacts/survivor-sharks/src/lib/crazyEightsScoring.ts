@@ -48,6 +48,17 @@ export function formatDecimalOdds(dec: number): string {
   return dec.toFixed(2);
 }
 
+const FAST_BREAK_MULTIPLIER_PTS_DECIMALS = 2;
+
+/** Display earned / live multiplier points (confidence × locked decimal odds). */
+export function formatCrazyEightsPointsValue(n: number, poolType: string): string {
+  if (!Number.isFinite(n)) return "—";
+  if (poolType === "fast_break_multiplier") {
+    return n.toFixed(FAST_BREAK_MULTIPLIER_PTS_DECIMALS);
+  }
+  return Number.isInteger(n) ? String(n) : String(Math.round(n));
+}
+
 type GridPickLike = {
   confidencePoints: number | null;
   lockedDecimalOdds?: number | null;

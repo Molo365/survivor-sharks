@@ -10,7 +10,10 @@ import {
   type ConfidenceLiveCellState,
 } from "@/lib/nflConfidenceLivePickCell";
 import { computeCrazyEightsLivePeriodPoints } from "@/lib/crazyEightsLivePoints";
-import { crazyEightsLiveCellDisplayPoints } from "@/lib/crazyEightsScoring";
+import {
+  crazyEightsLiveCellDisplayPoints,
+  formatCrazyEightsPointsValue,
+} from "@/lib/crazyEightsScoring";
 import { formatSecondsAgo } from "@/lib/nflPickEmLivePickCell";
 
 const GAME_COL_MIN = 56;
@@ -115,7 +118,7 @@ function ConfidencePickCell({
 }: {
   state: ConfidenceLiveCellState;
   abbr: string | null;
-  points: number | null;
+  points: string | number | null;
 }) {
   if (state === "hidden" || !abbr) {
     return <span className="text-white/15 text-xs font-mono">—</span>;
@@ -282,7 +285,7 @@ export function CrazyEightsLiveBoard({
       }))
       .sort((x, y) => y.periodPoints - x.periodPoints);
     return ranked.map((r, i) => ({ ...r, rank: i + 1 }));
-  }, [gridData?.players, gamesById]);
+  }, [gridData?.players, gamesById, poolType]);
 
   const liveCount = displayGames.filter((g) => g.status === "in_progress").length;
   const me = rows.find((r) => r.userId === currentUserId);
@@ -383,7 +386,7 @@ export function CrazyEightsLiveBoard({
         </div>
         {me && (
           <p className="w-full text-[10px] text-white/40 leading-snug">
-            #{me.rank} · {me.periodPoints} pts this period
+            #{me.rank} · {formatCrazyEightsPointsValue(me.periodPoints, poolType ?? "crazy_8s")} pts this period
           </p>
         )}
       </div>
@@ -496,9 +499,9 @@ export function CrazyEightsLiveBoard({
                         ? crazyEightsLiveCellDisplayPoints(poolType, pick, state)
                         : confPts;
                     const points =
-                      rawPts != null && poolType === "fast_break_multiplier"
-                        ? Math.round(rawPts * 100) / 100
-                        : rawPts;
+                      rawPts != null
+                        ? formatCrazyEightsPointsValue(rawPts, poolType ?? "crazy_8s")
+                        : null;
                     return (
                       <td key={game.id} className="py-1.5 px-0.5 text-center align-middle">
                         <ConfidencePickCell state={state} abbr={abbr} points={points} />
@@ -513,7 +516,7 @@ export function CrazyEightsLiveBoard({
                     )}
                   >
                     <span className="font-mono text-sm font-bold tabular-nums text-white/90">
-                      {row.periodPoints}
+                      {formatCrazyEightsPointsValue(row.periodPoints, poolType ?? "crazy_8s")}
                     </span>
                   </td>
                 </tr>
