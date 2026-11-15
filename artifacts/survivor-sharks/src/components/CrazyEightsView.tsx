@@ -981,7 +981,9 @@ export function CrazyEightsView({
   }, [isMultiplier, slateData?.linesReadyCount, games]);
 
   const hasFullMultiplierCard = isMultiplier && existingPicks.length >= multiplierCardCap;
-  const showLockedOnlyView = hasPicks && (!isMultiplier || hasFullMultiplierCard);
+  /** Show submitted picks when the card is full or there is nothing left to add (e.g. weekend underway). */
+  const showLockedOnlyView =
+    hasPicks && (!isMultiplier || hasFullMultiplierCard || MAX_PICKS === 0);
 
   const earliestSelectedStart = useMemo(() => {
     const selected = games.filter((g) => selectedIds.includes(g.id));
@@ -1344,7 +1346,25 @@ export function CrazyEightsView({
     await queryClient.invalidateQueries({ queryKey: ["crazy-eights-grid", poolId] });
   }
 
-  if (MAX_PICKS === 0 && !(isMultiplier && hasPicks && !hasFullMultiplierCard)) {
+  if (showLockedOnlyView) {
+    return (
+      <LockedPicksView
+        picks={existingPicks}
+        sport={sport}
+        poolType={poolType}
+        tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
+        tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
+        tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
+        tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
+        tiebreakerPoints={myPicksData?.tiebreakerPoints ?? null}
+        tiebreakerThrees={myPicksData?.tiebreakerThrees ?? null}
+        onUpdateNhlTiebreaker={handleUpdateNhlTiebreaker}
+        onUpdateNbaTiebreaker={handleUpdateNbaTiebreaker}
+      />
+    );
+  }
+
+  if (MAX_PICKS === 0) {
     const waitingLines = isMultiplier && games.length > 0;
     return (
       <div className="space-y-6">
@@ -1361,24 +1381,6 @@ export function CrazyEightsView({
           </p>
         </div>
       </div>
-    );
-  }
-
-  if (showLockedOnlyView) {
-    return (
-      <LockedPicksView
-        picks={existingPicks}
-        sport={sport}
-        poolType={poolType}
-        tiebreakerRuns={myPicksData?.tiebreakerRuns ?? null}
-        tiebreakerStrikeouts={myPicksData?.tiebreakerStrikeouts ?? null}
-        tiebreakerShotsOnGoal={myPicksData?.tiebreakerShotsOnGoal ?? null}
-        tiebreakerPenaltyMinutes={myPicksData?.tiebreakerPenaltyMinutes ?? null}
-        tiebreakerPoints={myPicksData?.tiebreakerPoints ?? null}
-        tiebreakerThrees={myPicksData?.tiebreakerThrees ?? null}
-        onUpdateNhlTiebreaker={handleUpdateNhlTiebreaker}
-        onUpdateNbaTiebreaker={handleUpdateNbaTiebreaker}
-      />
     );
   }
 
