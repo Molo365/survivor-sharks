@@ -92,6 +92,7 @@ import {
   reconcilePrematureCalendarSurvivorWeeks,
   shouldDeferCalendarSurvivorSoloWinnerClose,
 } from "./calendar-survivor-platform-promotion";
+import { orderedUnsettledSurvivorWeeksFromPicks } from "./survivor-week-settlement";
 import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
@@ -190,17 +191,20 @@ async function isLatestFinalizedSurvivorWeekVoided(poolId: number): Promise<bool
   return result?.isVoided === true;
 }
 
-async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect): Promise<boolean> {
+async function isLiveSurvivorSlateComplete(
+  pool: typeof poolsTable.$inferSelect,
+  week: number = pool.currentWeek,
+): Promise<boolean> {
   const anchor = pool.sport === "nhl"
     ? pool.createdAt
     : pool.sport === "nba" ? pool.createdAt : null;
   if (pool.sport === "nfl") {
     const expectedSeason = pool.season ?? new Date().getFullYear();
-    const games = await fetchNflGamesByWeek(pool.currentWeek, expectedSeason, 2);
+    const games = await fetchNflGamesByWeek(week, expectedSeason, 2);
     return isCompleteNflSurvivorSlate(games, {
       expectedSeason,
       expectedSeasonType: 2,
-      expectedWeek: pool.currentWeek,
+      expectedWeek: week,
     });
   }
   if (pool.sport === "nhl" || pool.sport === "nba") {
@@ -208,7 +212,7 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
     if (pool.sport === "nhl" && pool.isPreseason) {
       const slate = await fetchNhlGamesByWeekWithStatus(
         anchor!,
-        pool.currentWeek,
+        week,
         expectedSeasonType,
         pool.initialPeriodStart,
       );
@@ -218,12 +222,12 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
     const games = pool.sport === "nhl"
       ? nhlSurvivorSlateForSettlement(await fetchNhlGamesByWeek(
           anchor!,
-          pool.currentWeek,
+          week,
           expectedSeasonType,
           pool.initialPeriodStart,
         ))
       : nbaSurvivorSlateForSettlement(
-          await fetchNbaSurvivorGamesByWeek(anchor!, pool.currentWeek),
+          await fetchNbaSurvivorGamesByWeek(anchor!, week),
         );
     return isCompleteRegularSeasonSlate(games, expectedSeasonType);
   }
@@ -232,7 +236,7 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
   // A Super League week is defined by the actual submitted pick dates, rather
   // than a calendar anchor. Do not settle until Tuesday after its Fri–Mon slate.
   const picks = await db.select({ pickDate: picksTable.pickDate }).from(picksTable).where(and(
-    eq(picksTable.poolId, pool.id), eq(picksTable.week, pool.currentWeek),
+    eq(picksTable.poolId, pool.id), eq(picksTable.week, week),
   ));
   const todayEt = getTodayEtDate();
   const bounds = resolveSuperLeagueSettlementBounds(picks.map(p => p.pickDate));
@@ -249,13 +253,56 @@ async function isLiveSurvivorSlateComplete(pool: typeof poolsTable.$inferSelect)
     games.every(game => game.isCompleted || game.isPostponed);
 }
 
-async function settleLiveSurvivorWeek(pool: typeof poolsTable.$inferSelect): Promise<{
+async function findUnsettledSurvivorWeeksReadyToSettle(
+  pool: typeof poolsTable.$inferSelect,
+): Promise<number[]> {
+  const [pickWeeks, finalizedRows, pendingRows] = await Promise.all([
+    db.select({ week: picksTable.week }).from(picksTable).where(eq(picksTable.poolId, pool.id)),
+    db.select({ week: weekResultsTable.week }).from(weekResultsTable).where(eq(weekResultsTable.poolId, pool.id)),
+    db.select({ week: picksTable.week }).from(picksTable).where(and(
+      eq(picksTable.poolId, pool.id),
+      eq(picksTable.result, "pending"),
+    )),
+  ]);
+  const pendingWeeks = new Set(pendingRows.map(row => row.week));
+  const candidateWeeks = orderedUnsettledSurvivorWeeksFromPicks(
+    pickWeeks.map(row => row.week),
+    finalizedRows.map(row => row.week),
+  );
+  const ready: number[] = [];
+  for (const week of candidateWeeks) {
+    if (pendingWeeks.has(week)) continue;
+    if (await isLiveSurvivorSlateComplete(pool, week)) ready.push(week);
+  }
+  return ready;
+}
+
+async function settleAllReadyLiveSurvivorWeeks(pool: typeof poolsTable.$inferSelect): Promise<{
+  finalizedCount: number; playersEliminated: number;
+}> {
+  const weeks = await findUnsettledSurvivorWeeksReadyToSettle(pool);
+  let finalizedCount = 0;
+  let playersEliminated = 0;
+  for (const week of weeks) {
+    const settled = await settleLiveSurvivorWeek(pool, week);
+    if (settled.finalized) finalizedCount++;
+    playersEliminated += settled.playersEliminated;
+  }
+  return { finalizedCount, playersEliminated };
+}
+
+async function settleLiveSurvivorWeek(
+  pool: typeof poolsTable.$inferSelect,
+  settlementWeek: number = pool.currentWeek,
+): Promise<{
   finalized: boolean; playersEliminated: number;
 }> {
-  const week = pool.currentWeek;
+  const week = settlementWeek;
   const [alreadyFinalized] = await db.select({ id: weekResultsTable.id }).from(weekResultsTable)
     .where(and(eq(weekResultsTable.poolId, pool.id), eq(weekResultsTable.week, week))).limit(1);
-  if (alreadyFinalized || !(await isLiveSurvivorSlateComplete(pool))) return { finalized: false, playersEliminated: 0 };
+  if (alreadyFinalized || !(await isLiveSurvivorSlateComplete(pool, week))) {
+    return { finalized: false, playersEliminated: 0 };
+  }
 
   return db.transaction(async (tx) => {
     // The unique row is the commit marker: no entry mutation occurs until this
@@ -920,9 +967,9 @@ export async function processCompletedGames(): Promise<{
   ));
   for (const pool of settlementPools) {
     if (pool.sport === "nfl" && pool.isPreseason) continue;
-    const settled = await settleLiveSurvivorWeek(pool);
+    const settled = await settleAllReadyLiveSurvivorWeeks(pool);
     playersEliminated += settled.playersEliminated;
-    weeksFinalized += settled.finalized ? 1 : 0;
+    weeksFinalized += settled.finalizedCount;
   }
 
   // ── PASS 2: Idempotency — fix alive entries that have exceeded their loss cap ──
