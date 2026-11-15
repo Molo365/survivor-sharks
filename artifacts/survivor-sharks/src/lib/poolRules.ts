@@ -2,7 +2,10 @@ import {
   NFL_OFFICE_SUNDAY_REVEAL_SENTENCE,
   nflOfficePoolLockAndVisibilityRules,
 } from "./nflOfficePoolCopy";
-import { PLATFORM_TUESDAY_OPENS_SENTENCE } from "./platformWeekCopy";
+import {
+  NHL_SURVIVOR_TERMINAL_WINNER_SENTENCE,
+  PLATFORM_TUESDAY_OPENS_SENTENCE,
+} from "./platformWeekCopy";
 import {
   nhlWeekendPickemLockAndVisibilityRules,
   NHL_WEEKEND_REVEAL_SENTENCE,
@@ -173,6 +176,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: isNhlHitTheIce
             ? [
                 "Submit all your picks together before the first game you picked starts, or before the pool locks — whichever comes first.",
+                PLATFORM_TUESDAY_OPENS_SENTENCE,
                 NHL_WEEKEND_SATURDAY_LOCK_SENTENCE,
                 "Once you submit, your picks are locked in. A second submission is refused.",
               ]
@@ -201,11 +205,18 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         },
         {
           heading: "Every weekend",
-          items: [
-            "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
-            "Your tiebreaker guesses reset each weekend.",
-            "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
-          ],
+          items: isNhlHitTheIce
+            ? [
+                "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
+                "Between weekends, the platform Tuesday schedule above applies — no picks for the next slate until Tuesday 6:00 AM ET.",
+                "Your tiebreaker guesses reset each weekend.",
+                "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
+              ]
+            : [
+                "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
+                "Your tiebreaker guesses reset each weekend.",
+                "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
+              ],
         },
         {
           heading: "Prizes",
@@ -282,6 +293,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "Each correct pick is worth one point.",
             "The player with the most correct picks over the weekend finishes first.",
             "A postponed game is marked postponed and does not add a correct point.",
+            "Recurring pools use the Tuesday schedule above before the next weekend's picks open.",
             "A non-recurring pool closes automatically once the weekend's games are graded, and prizes are assigned.",
           ],
         },
@@ -368,7 +380,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "The week settles after all of Saturday's games finish. The next week's pick sheet opens on the platform Tuesday schedule above.",
             "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
             "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
-            "When only one player remains after a week's games are final, the pool crowns that player the winner on the following calendar day (ET)—e.g. Sunday after a Saturday NHL slate—so everyone can see the final grid before the pool closes.",
+            NHL_SURVIVOR_TERMINAL_WINNER_SENTENCE,
           ],
         },
         {
