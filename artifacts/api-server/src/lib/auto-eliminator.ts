@@ -186,18 +186,101 @@ async function shouldSkipSurvivorAutoCloseForVoidWeek(
   pool: typeof poolsTable.$inferSelect,
 ): Promise<boolean> {
   const unsettledReady = await findUnsettledSurvivorWeeksReadyToSettle(pool);
-  const [currentWeekResult] = await db
-    .select({ isVoided: weekResultsTable.isVoided })
-    .from(weekResultsTable)
-    .where(and(
-      eq(weekResultsTable.poolId, pool.id),
-      eq(weekResultsTable.week, pool.currentWeek),
-    ))
-    .limit(1);
+  const [currentWeekResult, aliveCount] = await Promise.all([
+    db
+      .select({ isVoided: weekResultsTable.isVoided })
+      .from(weekResultsTable)
+      .where(and(
+        eq(weekResultsTable.poolId, pool.id),
+        eq(weekResultsTable.week, pool.currentWeek),
+      ))
+      .limit(1),
+    db
+      .select({ n: count() })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive"))),
+  ]);
   return shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
     currentWeekVoided: currentWeekResult?.isVoided === true,
     hasUnsettledCompleteWeek: unsettledReady.length > 0,
+    aliveCount: Number(aliveCount?.n ?? 0),
   });
+}
+
+/**
+ * When a pick is already graded loss, the player's game is final — do not wait
+ * for every other game on the weekend slate before applying strike elimination.
+ */
+async function reconcileSurvivorEliminationsFromGradedLossPicks(): Promise<number> {
+  let playersEliminated = 0;
+  const rows = await db
+    .select({
+      poolId: entriesTable.poolId,
+      entryId: entriesTable.id,
+      userId: entriesTable.userId,
+      strikeCount: entriesTable.strikeCount,
+      week: picksTable.week,
+      sport: poolsTable.sport,
+      poolType: poolsTable.poolType,
+    })
+    .from(entriesTable)
+    .innerJoin(poolsTable, eq(entriesTable.poolId, poolsTable.id))
+    .innerJoin(
+      picksTable,
+      and(eq(picksTable.entryId, entriesTable.id), eq(picksTable.poolId, entriesTable.poolId)),
+    )
+    .where(and(
+      eq(entriesTable.status, "alive"),
+      eq(poolsTable.poolType, "season"),
+      eq(poolsTable.isActive, true),
+      eq(poolsTable.sandboxMode, false),
+      inArray(poolsTable.sport, ["nfl", "nhl", "nba", "superleague"]),
+      eq(picksTable.result, "loss"),
+    ));
+
+  for (const row of rows) {
+    const maxStrikes = row.sport === "nfl" ? 0 : 2;
+    const effect = survivorStateEffect({
+      result: "loss",
+      strikeCount: row.strikeCount,
+      maxStrikes,
+    });
+    const [weekResult] = await db
+      .select({ isVoided: weekResultsTable.isVoided, id: weekResultsTable.id })
+      .from(weekResultsTable)
+      .where(and(
+        eq(weekResultsTable.poolId, row.poolId),
+        eq(weekResultsTable.week, row.week),
+      ))
+      .limit(1);
+    if (weekResult?.isVoided === true) continue;
+    if (effect === "strike" && weekResult == null && row.strikeCount < maxStrikes) {
+      await db.update(entriesTable)
+        .set({ strikeCount: row.strikeCount + 1, streak: 0 })
+        .where(and(eq(entriesTable.id, row.entryId), eq(entriesTable.status, "alive")));
+      continue;
+    }
+    if (effect !== "eliminate") continue;
+
+    const updated = await db
+      .update(entriesTable)
+      .set({ status: "eliminated", eliminatedWeek: row.week, streak: 0 })
+      .where(and(eq(entriesTable.id, row.entryId), eq(entriesTable.status, "alive")))
+      .returning({ id: entriesTable.id });
+    if (updated.length > 0) {
+      playersEliminated++;
+      logger.info(
+        {
+          poolId: row.poolId,
+          userId: row.userId,
+          week: row.week,
+          strikeCount: row.strikeCount,
+        },
+        "Eliminated survivor from graded loss using entry strikeCount",
+      );
+    }
+  }
+  return playersEliminated;
 }
 
 async function correctEntryStateOnUnsettledCompleteSurvivorWeeks(
@@ -1203,6 +1286,7 @@ export async function processCompletedGames(): Promise<{
   );
   playersEliminated += unsettledCorrection.playersEliminated;
   weeksFinalized += unsettledCorrection.weeksFinalized;
+  playersEliminated += await reconcileSurvivorEliminationsFromGradedLossPicks();
 
   // ── NFL Survivor auto-close: declare winner when exactly 1 alive entry remains ──
   // Preseason pools are excluded: they span multiple weeks and must be closed

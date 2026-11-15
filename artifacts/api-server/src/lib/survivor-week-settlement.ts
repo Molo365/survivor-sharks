@@ -200,7 +200,10 @@ export function orderedUnsettledSurvivorWeeksFromPicks(
 export function shouldDeferSurvivorWinnerCloseForVoidDisplayWeek(options: {
   currentWeekVoided: boolean;
   hasUnsettledCompleteWeek: boolean;
+  /** Unsettled slates block auto-close only while the competition is still multi-player. */
+  aliveCount: number;
 }): boolean {
-  if (options.hasUnsettledCompleteWeek) return true;
-  return options.currentWeekVoided;
+  if (options.currentWeekVoided) return true;
+  if (options.aliveCount > 1 && options.hasUnsettledCompleteWeek) return true;
+  return false;
 }

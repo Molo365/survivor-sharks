@@ -359,6 +359,7 @@ test("shouldDeferSurvivorWinnerClose when unsettled complete week remains", () =
     shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
       currentWeekVoided: false,
       hasUnsettledCompleteWeek: true,
+      aliveCount: 2,
     }),
     true,
   );
@@ -369,6 +370,18 @@ test("shouldDeferSurvivorWinnerClose ignores historical void when display week i
     shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
       currentWeekVoided: false,
       hasUnsettledCompleteWeek: false,
+      aliveCount: 1,
+    }),
+    false,
+  );
+});
+
+test("allows solo winner close even if a slate is still technically unsettled", () => {
+  assert.equal(
+    shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
+      currentWeekVoided: false,
+      hasUnsettledCompleteWeek: true,
+      aliveCount: 1,
     }),
     false,
   );
