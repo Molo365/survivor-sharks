@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 interface CrazyEightsPeriodResultsProps {
   results: CrazyEightsPeriodResult[];
+  sport?: string;
 }
 
 function authedFetch<T>(url: string): Promise<T> {
@@ -79,14 +80,20 @@ function ResultLines({ result }: { result: CrazyEightsPeriodResult }) {
   );
 }
 
-export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsProps) {
+export function CrazyEightsPeriodResults({ results, sport }: CrazyEightsPeriodResultsProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const banner = getBannerModel(results);
+  const banner = getBannerModel(results, { sport });
+  const isNba = sport === "nba";
+  const historyResults = results.filter((result) => {
+    const hasWinners = paidPeriodResultGroups(result.groups).length > 0;
+    return hasWinners || result.reason !== "no picks";
+  });
 
-  if (!banner) return null;
+  if (!banner && historyResults.length === 0) return null;
 
   return (
     <div className="space-y-2">
+      {banner && (
       <div className="flex items-start gap-3 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3">
         <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
         <div className="min-w-0 flex-1">
@@ -110,7 +117,9 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
           )}
         </div>
       </div>
+      )}
 
+      {historyResults.length > 0 && (
       <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
         <CollapsibleTrigger
           className={cn(
@@ -119,17 +128,17 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
             "transition-colors hover:bg-yellow-500/5 hover:text-yellow-300",
           )}
         >
-          <span>Past weekends ({results.length})</span>
+          <span>{isNba ? "Past periods" : "Past weekends"} ({historyResults.length})</span>
           <span aria-hidden="true" className={cn("text-base transition-transform", historyOpen && "rotate-180")}>
             ▾
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="space-y-3 px-4 pt-3">
-            {results.map((result) => (
+            {historyResults.map((result) => (
               <div key={`${result.week}-${result.resolvedAt}`} className="border-l border-yellow-500/20 pl-3">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-yellow-500/70">
-                  Weekend {result.week}
+                  {result.periodLabel ?? (isNba ? `Week ${result.week}` : `Weekend ${result.week}`)}
                 </p>
                 <ResultLines result={result} />
               </div>
@@ -137,6 +146,7 @@ export function CrazyEightsPeriodResults({ results }: CrazyEightsPeriodResultsPr
           </div>
         </CollapsibleContent>
       </Collapsible>
+      )}
     </div>
   );
 }

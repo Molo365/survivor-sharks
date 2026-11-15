@@ -19,6 +19,7 @@ import {
 } from "../lib/crazy-eights-multiplier-submit";
 import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
 import {
+  crazyEightsPeriodDisplayLabel,
   listCrazyEightsPeriods,
   resolveCrazyEightsPeriod,
   type CrazyEightsPeriodPool,
@@ -55,7 +56,7 @@ router.get("/period-results", requireAuth, async (req, res) => {
   const poolId = parseInt(String(req.params.poolId));
   const userId = req.user!.id;
 
-  const [pool] = await db.select({ id: poolsTable.id }).from(poolsTable)
+  const [pool] = await db.select().from(poolsTable)
     .where(eq(poolsTable.id, poolId))
     .limit(1);
   if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
@@ -84,8 +85,10 @@ router.get("/period-results", requireAuth, async (req, res) => {
     user.displayName ?? user.username,
   ]));
 
+  const periodPool = toCrazyEightsPeriodPool(pool);
   res.json(results.map((result) => ({
     week: result.week,
+    periodLabel: crazyEightsPeriodDisplayLabel(periodPool, result.week),
     resolvedAt: result.resolvedAt,
     reason: result.reason,
     groups: result.groups.map((group) => ({

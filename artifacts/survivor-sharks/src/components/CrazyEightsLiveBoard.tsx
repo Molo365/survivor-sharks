@@ -13,6 +13,7 @@ import { computeCrazyEightsLivePeriodPoints } from "@/lib/crazyEightsLivePoints"
 import {
   crazyEightsLiveCellDisplayPoints,
   formatCrazyEightsPointsValue,
+  isFastBreakMultiplierPoolType,
 } from "@/lib/crazyEightsScoring";
 import { formatSecondsAgo } from "@/lib/nflPickEmLivePickCell";
 
@@ -72,6 +73,7 @@ const ACCENT: Record<
 interface GridResponse {
   date: string;
   dateLabel: string;
+  poolType?: string;
   games: GameSummary[];
   players: GridPlayerRow[];
 }
@@ -259,6 +261,9 @@ export function CrazyEightsLiveBoard({
     if (date === "" && gridData?.date) setDate(gridData.date);
   }, [usePeriodSelector, date, gridData?.date]);
 
+  const effectivePoolType = poolType ?? gridData?.poolType ?? "crazy_8s";
+  const isMultiplier = isFastBreakMultiplierPoolType(effectivePoolType);
+
   const gamesById = useMemo(() => {
     return new Map((gridData?.games ?? []).map((g) => [g.id, g]));
   }, [gridData?.games]);
@@ -281,11 +286,11 @@ export function CrazyEightsLiveBoard({
         userId: p.userId,
         name: p.displayName || p.username,
         picks: p.picks,
-        periodPoints: computeCrazyEightsLivePeriodPoints(p.picks, gamesById, poolType ?? "crazy_8s"),
+        periodPoints: computeCrazyEightsLivePeriodPoints(p.picks, gamesById, effectivePoolType),
       }))
       .sort((x, y) => y.periodPoints - x.periodPoints);
     return ranked.map((r, i) => ({ ...r, rank: i + 1 }));
-  }, [gridData?.players, gamesById, poolType]);
+  }, [gridData?.players, gamesById, effectivePoolType]);
 
   const liveCount = displayGames.filter((g) => g.status === "in_progress").length;
   const me = rows.find((r) => r.userId === currentUserId);
@@ -386,7 +391,7 @@ export function CrazyEightsLiveBoard({
         </div>
         {me && (
           <p className="w-full text-[10px] text-white/40 leading-snug">
-            #{me.rank} · {formatCrazyEightsPointsValue(me.periodPoints, poolType ?? "crazy_8s")} pts this period
+            #{me.rank} · {formatCrazyEightsPointsValue(me.periodPoints, effectivePoolType, { hasMultiplierOdds: isMultiplier })} pts this period
           </p>
         )}
       </div>
@@ -495,12 +500,16 @@ export function CrazyEightsLiveBoard({
                       game,
                     );
                     const rawPts =
-                      pick && poolType
-                        ? crazyEightsLiveCellDisplayPoints(poolType, pick, state)
+                      pick
+                        ? crazyEightsLiveCellDisplayPoints(effectivePoolType, pick, state)
                         : confPts;
                     const points =
                       rawPts != null
-                        ? formatCrazyEightsPointsValue(rawPts, poolType ?? "crazy_8s")
+                        ? formatCrazyEightsPointsValue(rawPts, effectivePoolType, {
+                          hasMultiplierOdds:
+                            isMultiplier
+                            || (pick?.lockedDecimalOdds != null && Number.isFinite(pick.lockedDecimalOdds)),
+                        })
                         : null;
                     return (
                       <td key={game.id} className="py-1.5 px-0.5 text-center align-middle">
@@ -516,7 +525,7 @@ export function CrazyEightsLiveBoard({
                     )}
                   >
                     <span className="font-mono text-sm font-bold tabular-nums text-white/90">
-                      {formatCrazyEightsPointsValue(row.periodPoints, poolType ?? "crazy_8s")}
+                      {formatCrazyEightsPointsValue(row.periodPoints, effectivePoolType, { hasMultiplierOdds: isMultiplier })}
                     </span>
                   </td>
                 </tr>

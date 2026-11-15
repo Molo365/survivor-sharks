@@ -91,6 +91,18 @@ export async function listCrazyEightsPeriods(
   return { periods, defaultKey };
 }
 
+/** User-facing label for a settled weekend period (NBA uses Fri–Sun dates, not "Weekend N"). */
+export function crazyEightsPeriodDisplayLabel(
+  pool: CrazyEightsPeriodPool,
+  weekNumber: number,
+): string {
+  if (pool.sport === "nba") {
+    return nbaWeekBounds(pool, weekNumber).weekLabel;
+  }
+  const bounds = getNhlWeekBounds(pool.createdAt, weekNumber, pool.initialPeriodStart);
+  return bounds.weekLabel ?? `Weekend ${weekNumber}`;
+}
+
 export function resolveCrazyEightsPeriod(
   pool: CrazyEightsPeriodPool,
   periodStart: string | undefined,
