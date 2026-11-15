@@ -3,7 +3,9 @@ import {
   nflOfficePoolLockAndVisibilityRules,
 } from "./nflOfficePoolCopy";
 import {
+  NBA_SURVIVOR_TERMINAL_WINNER_SENTENCE,
   NHL_SURVIVOR_TERMINAL_WINNER_SENTENCE,
+  NBA_WEEKEND_PICKS_OPEN_SENTENCE,
   PLATFORM_TUESDAY_OPENS_SENTENCE,
 } from "./platformWeekCopy";
 import {
@@ -120,6 +122,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "You can only pick games that already have an ESPN money line. The decimal odds for your side lock in when you submit.",
             "Submit all picks together before the first picked game starts, or before the pool locks — whichever comes first.",
+            NBA_WEEKEND_PICKS_OPEN_SENTENCE,
+            PLATFORM_TUESDAY_OPENS_SENTENCE,
             NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
             "Once you submit, picks are locked. A second submission is refused.",
           ],
@@ -144,6 +148,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           heading: "Every weekend",
           items: [
             "This pool repeats every weekend. Each weekend is scored on its own.",
+            "Between weekends, the platform Tuesday schedule above applies — no picks for the next slate until Tuesday 6:00 AM ET.",
             "Tiebreaker guesses reset each weekend.",
             "The commissioner can stop the pool with End Recurring Pool after the current weekend finishes.",
           ],
@@ -182,6 +187,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
               ]
             : [
                 "Submit all your picks together before the first game you picked starts, or before the pool locks — whichever comes first.",
+                PLATFORM_TUESDAY_OPENS_SENTENCE,
                 NBA_WEEKEND_SATURDAY_LOCK_SENTENCE,
                 "Once you submit, your picks are locked in. A second submission is refused.",
               ],
@@ -214,6 +220,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
               ]
             : [
                 "This pool repeats every weekend. Each weekend is scored on its own, and its winners appear on the pool page.",
+                "Between weekends, the platform Tuesday schedule above applies — no picks for the next slate until Tuesday 6:00 AM ET.",
                 "Your tiebreaker guesses reset each weekend.",
                 "The commissioner can stop the pool with End Recurring Pool. The current weekend finishes, then the pool closes.",
               ],
@@ -251,6 +258,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "Each correct cover earns one point.",
             "The player with the most correct covers finishes first.",
             "A postponed game is marked postponed and does not add a point.",
+            "Recurring pools use the Tuesday schedule above before the next weekend's picks open.",
           ],
         },
         {
@@ -327,7 +335,8 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Picks and deadlines",
           items: [
-            "You can change your pick until that team's game starts. Then the pick locks.",
+            "Submit or change your pick until that team's game starts.",
+            PLATFORM_TUESDAY_OPENS_SENTENCE,
             "A missed pick counts as a loss for that week.",
             "You have three lives. A loss costs one life; your third loss eliminates you.",
             "A postponed pick is a push and does not cost a life.",
@@ -337,10 +346,10 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
         {
           heading: "Scoring or elimination",
           items: [
-            "The week settles after all Friday–Sunday games finish, then the pool moves to the next week.",
+            "The week settles after all Friday–Sunday games finish. The next week's pick sheet opens on the platform Tuesday schedule above.",
             "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
             "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
-            "When one player remains, that player wins the pool.",
+            NBA_SURVIVOR_TERMINAL_WINNER_SENTENCE,
           ],
         },
         {
