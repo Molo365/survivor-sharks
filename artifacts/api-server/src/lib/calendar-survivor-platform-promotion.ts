@@ -1,11 +1,12 @@
-import { db, picksTable, poolsTable, weekResultsTable } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { db, entriesTable, picksTable, poolsTable, weekResultsTable } from "@workspace/db";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { isPlatformPromotionAllowedAfterPeriodEnd } from "./platform-period";
 import {
   calendarSurvivorNextPeriodOpensAt,
   calendarSurvivorPeriodLastDayEt,
   isCalendarSurvivorSeasonPool,
+  isCalendarSurvivorSoloWinnerDeclarationAllowed,
   shouldReconcilePrematureCalendarSurvivorWeek,
   type CalendarSurvivorPeriodPool,
 } from "./calendar-survivor-period";
@@ -65,6 +66,24 @@ export async function calendarSurvivorPlatformPromotionDeferred(
 }
 
 /** NHL / NBA survivor: block emails until the next pick sheet opens (Tue 6 AM ET). */
+/** True while a solo survivor waits until the day after the clinching slate. */
+export async function shouldDeferCalendarSurvivorSoloWinnerClose(
+  pool: CalendarSurvivorPlatformPool,
+  now = new Date(),
+): Promise<boolean> {
+  if (!isCalendarSurvivorSeasonPool(pool)) return false;
+  const [latest] = await db
+    .select({ week: weekResultsTable.week })
+    .from(weekResultsTable)
+    .where(eq(weekResultsTable.poolId, pool.id))
+    .orderBy(desc(weekResultsTable.week))
+    .limit(1);
+  if (!latest) return false;
+  const periodLastDay = await resolveCalendarSurvivorPeriodLastDayEt(pool, latest.week);
+  if (!periodLastDay) return false;
+  return !isCalendarSurvivorSoloWinnerDeclarationAllowed(periodLastDay, now);
+}
+
 export async function calendarSurvivorPickRemindersUnblocked(
   pool: typeof poolsTable.$inferSelect,
   now: Date,
@@ -174,6 +193,11 @@ export async function advanceReadyCalendarSurvivorPeriods(now = new Date()): Pro
   let advanced = 0;
   for (const pool of pools) {
     const settledWeek = pool.currentWeek;
+    const [aliveCount] = await db
+      .select({ n: count() })
+      .from(entriesTable)
+      .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive")));
+    if (Number(aliveCount?.n ?? 0) <= 1) continue;
     const [finalized] = await db
       .select({ id: weekResultsTable.id })
       .from(weekResultsTable)

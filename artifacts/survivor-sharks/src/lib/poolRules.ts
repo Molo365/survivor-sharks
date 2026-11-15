@@ -368,7 +368,7 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
             "The week settles after all of Saturday's games finish. The next week's pick sheet opens on the platform Tuesday schedule above.",
             "If everyone still alive loses in a non-final week, the week is voided and nobody loses a life.",
             "On the final pickable period, all remaining players become co-winners if everyone still alive loses.",
-            "When one player remains, that player wins the pool.",
+            "When only one player remains after a week's games are final, the pool crowns that player the winner on the following calendar day (ET)—e.g. Sunday after a Saturday NHL slate—so everyone can see the final grid before the pool closes.",
           ],
         },
         {
