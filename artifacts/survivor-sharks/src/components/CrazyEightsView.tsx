@@ -1231,7 +1231,7 @@ export function CrazyEightsView({
 
   const weekendRecap = (
     <>
-      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} />}
+      {isWeekendSport && <CrazyEightsPeriodResults results={periodResults} sport={sport} />}
       {(!isWeekendSport || !hasRecordedPeriodResults) &&
         yesterdayWinner?.hasResults &&
         yesterdayWinner.winners.length > 0 && (

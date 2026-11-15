@@ -11,6 +11,7 @@ export interface PeriodResultGroup {
 
 export interface CrazyEightsPeriodResult {
   week: number;
+  periodLabel?: string;
   resolvedAt: string;
   reason: string;
   groups: PeriodResultGroup[];
@@ -35,17 +36,24 @@ export function paidPeriodResultGroups(groups: PeriodResultGroup[]): PeriodResul
 
 export function getBannerModel(
   results: CrazyEightsPeriodResult[],
+  options?: { sport?: string },
 ): PeriodResultsBannerModel | null {
   const newest = results[0];
   if (!newest) return null;
 
   const paidGroups = paidPeriodResultGroups(newest.groups);
+  const noPicks =
+    paidGroups.length === 0
+    && (newest.groups.length === 0 || newest.reason === "no picks");
+  if (noPicks) return null;
+
+  const defaultLabel = options?.sport === "nba"
+    ? (newest.periodLabel ?? `Week ${newest.week}`)
+    : (newest.periodLabel ?? `Weekend ${newest.week}`);
 
   return {
-    label: `Weekend ${newest.week}`,
-    noPicks:
-      paidGroups.length === 0
-      && (newest.groups.length === 0 || newest.reason === "no picks"),
+    label: defaultLabel,
+    noPicks: false,
     places: [...paidGroups]
       .sort((a, b) => a.position - b.position)
       .map((group) => ({

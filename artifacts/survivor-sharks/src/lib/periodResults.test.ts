@@ -97,8 +97,8 @@ test("joins co-winners and marks the shared prize as each", () => {
 });
 
 test("marks an empty or no-picks result as no picks", () => {
-  assert.equal(getBannerModel([result({ reason: "no picks", groups: [] })])?.noPicks, true);
-  assert.equal(getBannerModel([result({ reason: "outcome", groups: [] })])?.noPicks, true);
+  assert.equal(getBannerModel([result({ reason: "no picks", groups: [] })]), null);
+  assert.equal(getBannerModel([result({ reason: "outcome", groups: [] })])?.noPicks, false);
 });
 
 test("formats place lines with ordinal positions and currency", () => {
