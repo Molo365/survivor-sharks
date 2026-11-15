@@ -6,6 +6,7 @@ import {
   calendarSurvivorNextPeriodOpensAt,
   calendarSurvivorPeriodLastDayEt,
   isCalendarSurvivorSeasonPool,
+  shouldReconcilePrematureCalendarSurvivorWeek,
   type CalendarSurvivorPeriodPool,
 } from "./calendar-survivor-period";
 import { resolveSuperLeagueSettlementBounds } from "./survivor-week-settlement";
@@ -81,6 +82,82 @@ export async function calendarSurvivorPickRemindersUnblocked(
     },
     now,
   ));
+}
+
+/**
+ * Corrects pools the legacy scheduler advanced before Tue 6 AM ET (no picks on the
+ * jumped week yet).
+ */
+export async function reconcilePrematureCalendarSurvivorWeeks(now = new Date()): Promise<number> {
+  const pools = await db.select().from(poolsTable).where(and(
+    eq(poolsTable.poolType, "season"),
+    eq(poolsTable.isActive, true),
+    eq(poolsTable.sandboxMode, false),
+    inArray(poolsTable.sport, ["nhl", "nba", "superleague"]),
+  ));
+  let reconciled = 0;
+  for (const pool of pools) {
+    const currentWeek = pool.currentWeek;
+    if (currentWeek <= 1) continue;
+    const previousWeek = currentWeek - 1;
+    const platformPool: CalendarSurvivorPlatformPool = {
+      id: pool.id,
+      sport: pool.sport,
+      poolType: pool.poolType,
+      currentWeek,
+      createdAt: pool.createdAt,
+      initialPeriodStart: pool.initialPeriodStart,
+      sandboxMode: pool.sandboxMode,
+    };
+    const [prevFinalized, curFinalized, curPick] = await Promise.all([
+      db.select({ id: weekResultsTable.id }).from(weekResultsTable).where(and(
+        eq(weekResultsTable.poolId, pool.id),
+        eq(weekResultsTable.week, previousWeek),
+      )).limit(1),
+      db.select({ id: weekResultsTable.id }).from(weekResultsTable).where(and(
+        eq(weekResultsTable.poolId, pool.id),
+        eq(weekResultsTable.week, currentWeek),
+      )).limit(1),
+      db.select({ id: picksTable.id }).from(picksTable).where(and(
+        eq(picksTable.poolId, pool.id),
+        eq(picksTable.week, currentWeek),
+      )).limit(1),
+    ]);
+    const periodLastDay = await resolveCalendarSurvivorPeriodLastDayEt(platformPool, previousWeek);
+    if (!periodLastDay) continue;
+    if (!shouldReconcilePrematureCalendarSurvivorWeek({
+      currentWeek,
+      previousWeekFinalized: prevFinalized.length > 0,
+      currentWeekFinalized: curFinalized.length > 0,
+      currentWeekHasAnyPicks: curPick.length > 0,
+      promotionAllowedForPreviousPeriod: isPlatformPromotionAllowedAfterPeriodEnd(periodLastDay, now),
+    })) continue;
+    const updated = await db
+      .update(poolsTable)
+      .set({ currentWeek: previousWeek })
+      .where(and(
+        eq(poolsTable.id, pool.id),
+        eq(poolsTable.currentWeek, currentWeek),
+        eq(poolsTable.sport, pool.sport),
+        eq(poolsTable.poolType, "season"),
+        eq(poolsTable.isActive, true),
+        eq(poolsTable.sandboxMode, false),
+      ))
+      .returning({ currentWeek: poolsTable.currentWeek });
+    if (updated.length > 0) {
+      reconciled++;
+      logger.info(
+        {
+          poolId: pool.id,
+          sport: pool.sport,
+          rolledBackFrom: currentWeek,
+          currentWeek: updated[0].currentWeek,
+        },
+        "Calendar Survivor: rolled back premature week advance (awaiting Tuesday 6:00 AM ET)",
+      );
+    }
+  }
+  return reconciled;
 }
 
 /**

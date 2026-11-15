@@ -87,7 +87,10 @@ import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
 import { isPlatformPromotionAllowedAfterPeriodEnd, periodLastDayEtFromGameStartIsos } from "./platform-period";
-import { advanceReadyCalendarSurvivorPeriods } from "./calendar-survivor-platform-promotion";
+import {
+  advanceReadyCalendarSurvivorPeriods,
+  reconcilePrematureCalendarSurvivorWeeks,
+} from "./calendar-survivor-platform-promotion";
 import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
@@ -1619,8 +1622,8 @@ export async function processCompletedGames(): Promise<{
     );
   }
 
-  // Advance NHL / NBA / Super League survivor weeks only after all closure checks
-  // and only once Tue 6 AM ET has passed (see calendar-survivor-platform-promotion).
+  // Calendar survivor week promotion (Tue 6 AM ET); reconcile legacy early advances first.
+  await reconcilePrematureCalendarSurvivorWeeks();
   await advanceReadyCalendarSurvivorPeriods();
 
   return { picksGraded, playersEliminated, weeksFinalized };

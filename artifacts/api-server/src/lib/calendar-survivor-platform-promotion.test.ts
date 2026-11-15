@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { calendarSurvivorNextPeriodOpensAt } from "./calendar-survivor-period";
+import {
+  calendarSurvivorNextPeriodOpensAt,
+  shouldReconcilePrematureCalendarSurvivorWeek,
+} from "./calendar-survivor-period";
 import { getTuesdaySixAmOpensAfterPeriodEnd } from "./platform-period";
 
 describe("calendar survivor platform promotion", () => {
@@ -12,6 +15,29 @@ describe("calendar survivor platform promotion", () => {
     assert.equal(
       new Date(opensAt).getTime(),
       getTuesdaySixAmOpensAfterPeriodEnd(saturdayEt).getTime(),
+    );
+  });
+
+  it("reconciles when week N+1 opened early on Monday", () => {
+    assert.equal(
+      shouldReconcilePrematureCalendarSurvivorWeek({
+        currentWeek: 5,
+        previousWeekFinalized: true,
+        currentWeekFinalized: false,
+        currentWeekHasAnyPicks: false,
+        promotionAllowedForPreviousPeriod: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldReconcilePrematureCalendarSurvivorWeek({
+        currentWeek: 5,
+        previousWeekFinalized: true,
+        currentWeekFinalized: false,
+        currentWeekHasAnyPicks: true,
+        promotionAllowedForPreviousPeriod: false,
+      }),
+      false,
     );
   });
 
