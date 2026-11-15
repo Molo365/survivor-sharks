@@ -125,9 +125,10 @@ export default function PoolHome() {
       staleTime: 60_000,
     },
   });
-  const nflNextPeriodOpensAt = isNflOfficeSchedulePool
-    ? (survivorSchedule as { nextPeriodOpensAt?: string | null } | undefined)?.nextPeriodOpensAt
-    : null;
+  const survivorNextPeriodOpensAt =
+    isNflOfficeSchedulePool || isSurvivorSeasonPool
+      ? (survivorSchedule as { nextPeriodOpensAt?: string | null } | undefined)?.nextPeriodOpensAt
+      : null;
   const isNhlRecurringWeeklyPickEm = Boolean(
     isPickEm &&
     pool?.sport === "nhl" &&
@@ -468,7 +469,7 @@ export default function PoolHome() {
                           ? survivorSchedule.weekLabel
                           : `Wk ${pool.currentWeek}`}
                       </span>
-                      {nflNextPeriodOpensAt && (
+                      {survivorNextPeriodOpensAt && (
                         <span className="text-[10px] font-normal text-muted-foreground leading-tight">
                           Week {pool.currentWeek + 1} picks open{" "}
                           {new Intl.DateTimeFormat("en-US", {
@@ -478,7 +479,7 @@ export default function PoolHome() {
                             day: "numeric",
                             hour: "numeric",
                             minute: "2-digit",
-                          }).format(new Date(nflNextPeriodOpensAt))}{" "}
+                          }).format(new Date(survivorNextPeriodOpensAt))}{" "}
                           ET
                         </span>
                       )}
