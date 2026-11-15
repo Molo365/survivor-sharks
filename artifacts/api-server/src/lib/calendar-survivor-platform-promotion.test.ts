@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   calendarSurvivorNextPeriodOpensAt,
+  isCalendarSurvivorSoloWinnerDeclarationAllowed,
   shouldReconcilePrematureCalendarSurvivorWeek,
 } from "./calendar-survivor-period";
 import { getTuesdaySixAmOpensAfterPeriodEnd } from "./platform-period";
@@ -38,6 +39,18 @@ describe("calendar survivor platform promotion", () => {
         promotionAllowedForPreviousPeriod: false,
       }),
       false,
+    );
+  });
+
+  it("allows solo winner crown on the day after the NHL Saturday slate", () => {
+    const saturday = "2026-11-14";
+    assert.equal(
+      isCalendarSurvivorSoloWinnerDeclarationAllowed(saturday, new Date("2026-11-14T23:59:00-05:00")),
+      false,
+    );
+    assert.equal(
+      isCalendarSurvivorSoloWinnerDeclarationAllowed(saturday, new Date("2026-11-15T08:00:00-05:00")),
+      true,
     );
   });
 

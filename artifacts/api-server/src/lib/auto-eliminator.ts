@@ -90,6 +90,7 @@ import { isPlatformPromotionAllowedAfterPeriodEnd, periodLastDayEtFromGameStartI
 import {
   advanceReadyCalendarSurvivorPeriods,
   reconcilePrematureCalendarSurvivorWeeks,
+  shouldDeferCalendarSurvivorSoloWinnerClose,
 } from "./calendar-survivor-platform-promotion";
 import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
@@ -1221,6 +1222,22 @@ export async function processCompletedGames(): Promise<{
     // 0 = void edge case (leave for commissioner); >1 = still playing
     if (aliveEntries.length !== 1) continue;
 
+    if (await shouldDeferCalendarSurvivorSoloWinnerClose({
+      id: pool.id,
+      sport: pool.sport,
+      poolType: pool.poolType,
+      currentWeek: pool.currentWeek,
+      createdAt: pool.createdAt,
+      initialPeriodStart: pool.initialPeriodStart,
+      sandboxMode: pool.sandboxMode,
+    })) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "NHL Survivor auto-close deferred until day after clinching slate (calendar ET)",
+      );
+      continue;
+    }
+
     const winner = aliveEntries[0];
 
     const allEntries = await db
@@ -1331,6 +1348,22 @@ export async function processCompletedGames(): Promise<{
 
     // 0 = void edge case (leave for commissioner); >1 = still playing
     if (aliveEntries.length !== 1) continue;
+
+    if (await shouldDeferCalendarSurvivorSoloWinnerClose({
+      id: pool.id,
+      sport: pool.sport,
+      poolType: pool.poolType,
+      currentWeek: pool.currentWeek,
+      createdAt: pool.createdAt,
+      initialPeriodStart: pool.initialPeriodStart,
+      sandboxMode: pool.sandboxMode,
+    })) {
+      logger.info(
+        { poolId: pool.id, week: pool.currentWeek },
+        "NBA Survivor auto-close deferred until day after clinching slate (calendar ET)",
+      );
+      continue;
+    }
 
     const winner = aliveEntries[0];
 

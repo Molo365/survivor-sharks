@@ -1,4 +1,4 @@
-import { getNbaWeekendBounds } from "./espn";
+import { formatCalendarDateEt, getNbaWeekendBounds } from "./espn";
 import {
   getTuesdaySixAmOpensAfterPeriodEnd,
   isPlatformPromotionAllowedAfterPeriodEnd,
@@ -54,6 +54,17 @@ export function calendarSurvivorNextPeriodOpensAt(
 ): string | null {
   if (isPlatformPromotionAllowedAfterPeriodEnd(periodLastDayEt, now)) return null;
   return getTuesdaySixAmOpensAfterPeriodEnd(periodLastDayEt).toISOString();
+}
+
+/**
+ * Crown a solo NHL/NBA survivor the calendar day after their slate ends
+ * (e.g. Sunday ET after Saturday NHL games), not on game night.
+ */
+export function isCalendarSurvivorSoloWinnerDeclarationAllowed(
+  periodLastDayEt: string,
+  now = new Date(),
+): boolean {
+  return formatCalendarDateEt(now) > periodLastDayEt;
 }
 
 /**
