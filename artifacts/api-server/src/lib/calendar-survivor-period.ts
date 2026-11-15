@@ -55,3 +55,21 @@ export function calendarSurvivorNextPeriodOpensAt(
   if (isPlatformPromotionAllowedAfterPeriodEnd(periodLastDayEt, now)) return null;
   return getTuesdaySixAmOpensAfterPeriodEnd(periodLastDayEt).toISOString();
 }
+
+/**
+ * When the old auto-advance jumped to N+1 before Tue 6 AM ET, roll back to N so
+ * Sun–Mon still show the settled week (only when nobody has submitted for N+1).
+ */
+export function shouldReconcilePrematureCalendarSurvivorWeek(options: {
+  currentWeek: number;
+  previousWeekFinalized: boolean;
+  currentWeekFinalized: boolean;
+  currentWeekHasAnyPicks: boolean;
+  promotionAllowedForPreviousPeriod: boolean;
+}): boolean {
+  if (options.currentWeek <= 1) return false;
+  if (!options.previousWeekFinalized) return false;
+  if (options.currentWeekFinalized) return false;
+  if (options.currentWeekHasAnyPicks) return false;
+  return !options.promotionAllowedForPreviousPeriod;
+}
