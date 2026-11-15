@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { poolsTable, sandboxGameScoresTable } from "@workspace/db";
+import {
+  calendarSurvivorNextPeriodOpensAt,
+  calendarSurvivorPlatformPromotionDeferred,
+  isCalendarSurvivorSeasonPool,
+  resolveCalendarSurvivorPeriodLastDayEt,
+} from "../lib/calendar-survivor-platform-promotion";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../middlewares/auth";
 import {
@@ -31,6 +37,26 @@ import { nflOfficePoolWeekSubmissionLocked } from "../lib/nfl-slate-reveal";
 import { nflPlatformNextPeriodOpensAt } from "../lib/nfl-platform-promotion";
 
 const router = Router({ mergeParams: true });
+
+async function calendarSurvivorScheduleNextPeriodOpensAt(
+  pool: typeof poolsTable.$inferSelect,
+  now = new Date(),
+): Promise<string | null> {
+  if (!isCalendarSurvivorSeasonPool(pool)) return null;
+  const platformPool = {
+    id: pool.id,
+    sport: pool.sport,
+    poolType: pool.poolType,
+    currentWeek: pool.currentWeek,
+    createdAt: pool.createdAt,
+    initialPeriodStart: pool.initialPeriodStart,
+    sandboxMode: pool.sandboxMode,
+  };
+  if (!(await calendarSurvivorPlatformPromotionDeferred(platformPool, now))) return null;
+  const periodLastDay = await resolveCalendarSurvivorPeriodLastDayEt(platformPool, pool.currentWeek);
+  if (!periodLastDay) return null;
+  return calendarSurvivorNextPeriodOpensAt(periodLastDay, now);
+}
 
 function formatTeam(t: EspnGame["homeTeam"], sport: string) {
   return {
@@ -425,6 +451,10 @@ router.get("/", requireAuth, async (req, res) => {
       ? Date.now() >= poolLockAt.getTime()
       : Date.now() >= bounds.weekEnd.getTime();
 
+    const nextPeriodOpensAt = pool.poolType === "season"
+      ? await calendarSurvivorScheduleNextPeriodOpensAt(pool)
+      : null;
+
     res.json({
       weekLabel,
       weekStart: bounds.weekStart.toISOString(),
@@ -432,6 +462,7 @@ router.get("/", requireAuth, async (req, res) => {
       deadline: deadlineIso,
       deadlinePassed,
       currentWeek: week,
+      ...(nextPeriodOpensAt ? { nextPeriodOpensAt } : {}),
       days,
     });
     return;
@@ -546,6 +577,10 @@ router.get("/", requireAuth, async (req, res) => {
       ? nbaSurvivorWeekLabel(pool.createdAt, week, pool.sandboxMode)
       : bounds.weekLabel;
 
+    const nextPeriodOpensAt = isSurvivorSeason
+      ? await calendarSurvivorScheduleNextPeriodOpensAt(pool)
+      : null;
+
     res.json({
       weekLabel,
       weekStart: bounds.weekStart.toISOString(),
@@ -553,6 +588,7 @@ router.get("/", requireAuth, async (req, res) => {
       deadline: bounds.weekEnd.toISOString(),
       deadlinePassed: Date.now() >= bounds.weekEnd.getTime(),
       currentWeek: week,
+      ...(nextPeriodOpensAt ? { nextPeriodOpensAt } : {}),
       days,
     });
     return;

@@ -22,6 +22,7 @@ import {
   nbaWeekendPickRemindersUnblocked,
   resolveNbaAtsReminderDeadline,
 } from "./nba-weekend-pick-reminders";
+import { calendarSurvivorPickRemindersUnblocked } from "./calendar-survivor-platform-promotion";
 import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
 import { isNhlWeekendOfficePool } from "./nhl-slate-reveal";
 import { reminderStageBeforeFirstTip } from "./pick-reminder-windows";
@@ -488,6 +489,7 @@ async function runPickRemindersLocked(options: { now?: Date; sender?: typeof sen
       const resolutions = await poolReminderResolutions(pool, now, options.resolver);
       if (resolutions.length === 0) continue;
       if (!(await nbaWeekendPickRemindersUnblocked(pool, now))) continue;
+      if (!(await calendarSurvivorPickRemindersUnblocked(pool, now))) continue;
       for (const resolved of resolutions) {
         for (const user of await incompleteUsers(pool, resolved.context)) {
           try {

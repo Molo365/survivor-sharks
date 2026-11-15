@@ -87,6 +87,7 @@ import { resolveSequentialTiebreaker } from "./tiebreaker";
 import { resolveNflWeeklyTiebreakerActuals } from "./nfl-weekly-tiebreaker-resolution";
 import { advanceRecurringNbaAtsPools } from "./nba-ats-rollover";
 import { isPlatformPromotionAllowedAfterPeriodEnd, periodLastDayEtFromGameStartIsos } from "./platform-period";
+import { advanceReadyCalendarSurvivorPeriods } from "./calendar-survivor-platform-promotion";
 import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
@@ -117,7 +118,6 @@ import {
   isSuperLeagueTerminalPeriod,
   resolveSuperLeagueSettlementBounds,
   isFinalCalendarSurvivorPeriod,
-  shouldAdvanceLiveSurvivorPeriod,
   survivorStateEffect,
 } from "./survivor-week-settlement";
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
@@ -914,30 +914,11 @@ export async function processCompletedGames(): Promise<{
     eq(poolsTable.sandboxMode, false),
     inArray(poolsTable.sport, ["nfl", "nhl", "nba", "superleague"]),
   ));
-  const finalizedNonNflSurvivorPeriods: Array<{
-    poolId: number;
-    sport: "nhl" | "nba" | "superleague";
-    week: number;
-  }> = [];
   for (const pool of settlementPools) {
     if (pool.sport === "nfl" && pool.isPreseason) continue;
     const settled = await settleLiveSurvivorWeek(pool);
     playersEliminated += settled.playersEliminated;
     weeksFinalized += settled.finalized ? 1 : 0;
-    if (
-      (pool.sport === "nhl" || pool.sport === "nba" || pool.sport === "superleague") &&
-      shouldAdvanceLiveSurvivorPeriod({
-        sport: pool.sport,
-        finalized: settled.finalized,
-        poolActive: pool.isActive,
-      })
-    ) {
-      finalizedNonNflSurvivorPeriods.push({
-        poolId: pool.id,
-        sport: pool.sport,
-        week: pool.currentWeek,
-      });
-    }
   }
 
   // ── PASS 2: Idempotency — fix alive entries that have exceeded their loss cap ──
@@ -1638,33 +1619,9 @@ export async function processCompletedGames(): Promise<{
     );
   }
 
-  // Advance non-NFL Survivor periods only after all same-cycle closure checks.
-  // This preserves the void marker as the latest period during closure and
-  // avoids advancing a pool that was just closed as a winner/co-winner result.
-  for (const period of finalizedNonNflSurvivorPeriods) {
-    const updated = await db.update(poolsTable)
-      .set({ currentWeek: period.week + 1 })
-      .where(and(
-        eq(poolsTable.id, period.poolId),
-        eq(poolsTable.currentWeek, period.week),
-        eq(poolsTable.sport, period.sport),
-        eq(poolsTable.poolType, "season"),
-        eq(poolsTable.isActive, true),
-        eq(poolsTable.sandboxMode, false),
-      ))
-      .returning({ currentWeek: poolsTable.currentWeek });
-    if (updated.length > 0) {
-      logger.info(
-        {
-          poolId: period.poolId,
-          sport: period.sport,
-          previousWeek: period.week,
-          nextWeek: updated[0].currentWeek,
-        },
-        "Live Survivor settled period advanced",
-      );
-    }
-  }
+  // Advance NHL / NBA / Super League survivor weeks only after all closure checks
+  // and only once Tue 6 AM ET has passed (see calendar-survivor-platform-promotion).
+  await advanceReadyCalendarSurvivorPeriods();
 
   return { picksGraded, playersEliminated, weeksFinalized };
 }
