@@ -92,7 +92,6 @@ import {
   reconcilePrematureCalendarSurvivorWeeks,
   shouldDeferCalendarSurvivorSoloWinnerClose,
 } from "./calendar-survivor-platform-promotion";
-import { orderedUnsettledSurvivorWeeksFromPicks } from "./survivor-week-settlement";
 import { nflPlatformPromotionDeferred } from "./nfl-platform-promotion";
 import { gradeLiveNbaAtsPickEmPools } from "./nba-ats-auto-grade";
 import { computeNbaAtsWeeklyLeaderGroups } from "./nba-ats-weekly-groups";
@@ -124,6 +123,7 @@ import {
   resolveSuperLeagueSettlementBounds,
   isFinalCalendarSurvivorPeriod,
   survivorStateEffect,
+  orderedUnsettledSurvivorWeeksFromPicks,
 } from "./survivor-week-settlement";
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
 import { nhlSurvivorSlateForSettlement } from "./nhl-survivor-slate";
