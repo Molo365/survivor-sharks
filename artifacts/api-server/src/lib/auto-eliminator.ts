@@ -124,6 +124,7 @@ import {
   isFinalCalendarSurvivorPeriod,
   survivorStateEffect,
   orderedUnsettledSurvivorWeeksFromPicks,
+  shouldDeferSurvivorWinnerCloseForVoidDisplayWeek,
 } from "./survivor-week-settlement";
 import { calculateSeasonSurvivorCoWinnerPrize } from "./season-survivor-closure";
 import { nhlSurvivorSlateForSettlement } from "./nhl-survivor-slate";
@@ -181,14 +182,83 @@ async function hasSingleSurvivorClosureEvidence(
   return gradedPick != null || finalizedPeriod != null;
 }
 
-async function isLatestFinalizedSurvivorWeekVoided(poolId: number): Promise<boolean> {
-  const [result] = await db
+async function shouldSkipSurvivorAutoCloseForVoidWeek(
+  pool: typeof poolsTable.$inferSelect,
+): Promise<boolean> {
+  const unsettledReady = await findUnsettledSurvivorWeeksReadyToSettle(pool);
+  const [currentWeekResult] = await db
     .select({ isVoided: weekResultsTable.isVoided })
     .from(weekResultsTable)
-    .where(eq(weekResultsTable.poolId, poolId))
-    .orderBy(desc(weekResultsTable.week))
+    .where(and(
+      eq(weekResultsTable.poolId, pool.id),
+      eq(weekResultsTable.week, pool.currentWeek),
+    ))
     .limit(1);
-  return result?.isVoided === true;
+  return shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
+    currentWeekVoided: currentWeekResult?.isVoided === true,
+    hasUnsettledCompleteWeek: unsettledReady.length > 0,
+  });
+}
+
+async function correctEntryStateOnUnsettledCompleteSurvivorWeeks(
+  pools: typeof poolsTable.$inferSelect[],
+): Promise<{ playersEliminated: number; weeksFinalized: number }> {
+  let playersEliminated = 0;
+  let weeksFinalized = 0;
+  for (const pool of pools) {
+    if (pool.sport === "nfl" && pool.isPreseason) continue;
+    const weeks = await findUnsettledSurvivorWeeksReadyToSettle(pool);
+    for (const week of weeks) {
+      const maxStrikes = pool.sport === "nfl" ? 0 : 2;
+      const [weekPicks, alive] = await Promise.all([
+        db.select({
+          entryId: picksTable.entryId,
+          result: picksTable.result,
+        })
+          .from(picksTable)
+          .where(and(eq(picksTable.poolId, pool.id), eq(picksTable.week, week))),
+        db.select({ id: entriesTable.id, strikeCount: entriesTable.strikeCount })
+          .from(entriesTable)
+          .where(and(eq(entriesTable.poolId, pool.id), eq(entriesTable.status, "alive"))),
+      ]);
+      const outcome = aggregateSurvivorOutcomes(
+        alive.map(entry => entry.id),
+        weekPicks.map(pick => ({
+          entryId: pick.entryId,
+          result: pick.result as "win" | "loss" | "push" | "pending",
+        })),
+      );
+      if (!outcome.allAliveAtStartLost) {
+        for (const entry of alive) {
+          const pick = weekPicks.find(p => p.entryId === entry.id);
+          const result = !pick
+            ? "forfeit" as const
+            : pick.result as "win" | "loss" | "push" | "pending";
+          if (result === "pending") continue;
+          const effect = survivorStateEffect({
+            result: result === "push" ? "push" : result === "win" ? "win" : result === "loss" ? "loss" : "forfeit",
+            strikeCount: entry.strikeCount,
+            maxStrikes,
+          });
+          if (effect === "strike") {
+            await db.update(entriesTable)
+              .set({ strikeCount: entry.strikeCount + 1, streak: 0 })
+              .where(eq(entriesTable.id, entry.id));
+          } else if (effect === "eliminate") {
+            const updated = await db.update(entriesTable)
+              .set({ status: "eliminated", eliminatedWeek: week, streak: 0 })
+              .where(and(eq(entriesTable.id, entry.id), eq(entriesTable.status, "alive")))
+              .returning({ id: entriesTable.id });
+            if (updated.length > 0) playersEliminated++;
+          }
+        }
+      }
+      const settled = await settleLiveSurvivorWeek(pool, week);
+      if (settled.finalized) weeksFinalized++;
+      playersEliminated += settled.playersEliminated;
+    }
+  }
+  return { playersEliminated, weeksFinalized };
 }
 
 async function isLiveSurvivorSlateComplete(
@@ -1122,6 +1192,18 @@ export async function processCompletedGames(): Promise<{
     }
   }
 
+  const survivorSettlementPools = await db.select().from(poolsTable).where(and(
+    eq(poolsTable.poolType, "season"),
+    eq(poolsTable.isActive, true),
+    eq(poolsTable.sandboxMode, false),
+    inArray(poolsTable.sport, ["nfl", "nhl", "nba", "superleague"]),
+  ));
+  const unsettledCorrection = await correctEntryStateOnUnsettledCompleteSurvivorWeeks(
+    survivorSettlementPools,
+  );
+  playersEliminated += unsettledCorrection.playersEliminated;
+  weeksFinalized += unsettledCorrection.weeksFinalized;
+
   // ── NFL Survivor auto-close: declare winner when exactly 1 alive entry remains ──
   // Preseason pools are excluded: they span multiple weeks and must be closed
   // manually by a commissioner. Auto-close on alive count alone is unsafe for
@@ -1138,10 +1220,10 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nflSurvivorPools) {
-    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
+    if (await shouldSkipSurvivorAutoCloseForVoidWeek(pool)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
-        "NFL Survivor auto-close skipped: current week is voided",
+        "NFL Survivor auto-close skipped: void display week or unsettled complete slate",
       );
       continue;
     }
@@ -1254,10 +1336,10 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nhlSurvivorPools) {
-    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
+    if (await shouldSkipSurvivorAutoCloseForVoidWeek(pool)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
-        "NHL Survivor auto-close skipped: current week is voided",
+        "NHL Survivor auto-close skipped: void display week or unsettled complete slate",
       );
       continue;
     }
@@ -1381,10 +1463,10 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of nbaSurvivorPools) {
-    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
+    if (await shouldSkipSurvivorAutoCloseForVoidWeek(pool)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
-        "NBA Survivor auto-close skipped: current week is voided",
+        "NBA Survivor auto-close skipped: void display week or unsettled complete slate",
       );
       continue;
     }
@@ -1512,10 +1594,10 @@ export async function processCompletedGames(): Promise<{
     ));
 
   for (const pool of eslSurvivorPools) {
-    if (await isLatestFinalizedSurvivorWeekVoided(pool.id)) {
+    if (await shouldSkipSurvivorAutoCloseForVoidWeek(pool)) {
       logger.info(
         { poolId: pool.id, week: pool.currentWeek },
-        "ESL Survivor auto-close skipped: current week is voided",
+        "ESL Survivor auto-close skipped: void display week or unsettled complete slate",
       );
       continue;
     }

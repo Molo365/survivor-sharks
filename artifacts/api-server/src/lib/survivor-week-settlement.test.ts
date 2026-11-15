@@ -12,6 +12,7 @@ import {
   shouldAdvanceLiveSurvivorPeriod,
   survivorStateEffect,
   orderedUnsettledSurvivorWeeksFromPicks,
+  shouldDeferSurvivorWinnerCloseForVoidDisplayWeek,
 } from "./survivor-week-settlement";
 import { calcPrize } from "./prizeCalc";
 import { fetchNhlGamesByWeekWithStatus } from "./espn";
@@ -350,5 +351,25 @@ test("orderedUnsettledSurvivorWeeksFromPicks returns empty when every pick week 
   assert.deepEqual(
     orderedUnsettledSurvivorWeeksFromPicks([3, 4], new Set([3, 4])),
     [],
+  );
+});
+
+test("shouldDeferSurvivorWinnerClose when unsettled complete week remains", () => {
+  assert.equal(
+    shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
+      currentWeekVoided: false,
+      hasUnsettledCompleteWeek: true,
+    }),
+    true,
+  );
+});
+
+test("shouldDeferSurvivorWinnerClose ignores historical void when display week is clean", () => {
+  assert.equal(
+    shouldDeferSurvivorWinnerCloseForVoidDisplayWeek({
+      currentWeekVoided: false,
+      hasUnsettledCompleteWeek: false,
+    }),
+    false,
   );
 });
