@@ -4,6 +4,10 @@ import { entriesTable, poolsTable, picksTable, usersTable, weekResultsTable } fr
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getMlbWeekBounds, fetchNflGamesByWeek } from "../lib/espn";
+import {
+  countSurvivorGradedLossesExcludingVoidWeeks,
+  survivorStrikeCountForDisplay,
+} from "../lib/survivor-display-strikes";
 
 const router = Router({ mergeParams: true });
 
@@ -60,6 +64,14 @@ router.get("/", requireAuth, async (req, res) => {
     .filter(r => r.isVoided)
     .map(r => r.week)
     .sort((a, b) => a - b);
+  const voidedWeekSet = new Set(voidedWeeks);
+
+  const maxLives =
+    (pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season"
+      ? 3
+      : pool.doubleElimination
+        ? 2
+        : 1;
 
   // MLB: compute deadline info for this week
   let deadlinePassed = false;
@@ -107,7 +119,13 @@ router.get("/", requireAuth, async (req, res) => {
         lastPickTeam: weekPick?.teamName ?? null,
         lastPickResult: weekPick?.result ?? null,
         streak: historicalStreak,
-        strikeCount: member.strikeCount,
+        strikeCount: survivorStrikeCountForDisplay(
+          member.strikeCount ?? 0,
+          countSurvivorGradedLossesExcludingVoidWeeks(memberPicks, voidedWeekSet, {
+            maxWeek: historicalWeek,
+          }),
+          maxLives,
+        ),
         hasWonThisWeek: weekPick?.result === "win",
         prizeWon: null,
         sovTotal: null,
@@ -220,7 +238,11 @@ router.get("/", requireAuth, async (req, res) => {
       lastPickTeam: showCurrentWeekPick ? (currentWeekPick?.teamName ?? null) : null,
       lastPickResult: currentWeekPick?.result ?? null,
       streak: member.streak,
-      strikeCount: member.strikeCount,
+      strikeCount: survivorStrikeCountForDisplay(
+        member.strikeCount ?? 0,
+        countSurvivorGradedLossesExcludingVoidWeeks(userPicks, voidedWeekSet),
+        maxLives,
+      ),
       hasWonThisWeek,
       sovTotal: member.sovTotal ?? null,
       sovBreakdown,
@@ -353,13 +375,6 @@ router.get("/", requireAuth, async (req, res) => {
       entry.prizeWon = coWinnerPrizeEach;
     }
   }
-
-  const maxLives =
-    (pool.sport === "nhl" || pool.sport === "nba") && pool.poolType === "season"
-      ? 3
-      : pool.doubleElimination
-        ? 2
-        : 1;
 
   res.json({
     poolId,

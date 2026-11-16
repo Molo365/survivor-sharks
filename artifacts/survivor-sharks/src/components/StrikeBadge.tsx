@@ -8,7 +8,7 @@ type StrikeBadgeProps = {
   size?: "sm" | "md";
 };
 
-/** Warning strikes for 3-life / double-elim pools (not the fatal elimination). */
+/** Graded losses in multi-life survivor pools (matches grid loss cells). */
 export function StrikeBadge({
   strikeCount,
   maxLives,
@@ -17,11 +17,13 @@ export function StrikeBadge({
 }: StrikeBadgeProps) {
   if (maxLives <= 1 || strikeCount <= 0) return null;
 
-  const label = strikeCount === 1 ? "Strike" : `${strikeCount} Strikes`;
+  const label = strikeCount === 1 ? "1 Strike" : `${strikeCount} Strikes`;
   const title =
-    strikeCount >= maxLives - 1
-      ? "Final warning — one more loss eliminates this player"
-      : `Warning strike ${strikeCount} of ${maxLives - 1}`;
+    strikeCount >= maxLives
+      ? `${maxLives} losses — no lives remaining`
+      : strikeCount >= maxLives - 1
+        ? "Final warning — one more loss eliminates this player"
+        : `${strikeCount} of ${maxLives} losses`;
 
   return (
     <span
