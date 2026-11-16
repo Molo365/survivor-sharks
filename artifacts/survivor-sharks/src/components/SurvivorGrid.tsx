@@ -4,6 +4,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Skull } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StrikeBadge } from "@/components/StrikeBadge";
+import {
+  countSurvivorGradedLossesExcludingVoidWeeks,
+  survivorStrikeCountForDisplay,
+} from "@/lib/survivorStrikeDisplay";
 
 const SPORT_PDF_LABEL: Record<string, string> = {
   nfl: "NFL",
@@ -26,22 +30,31 @@ export function SurvivorGrid({
   if (isLoading) return <Skeleton className="h-[400px] w-full" />;
   if (!grid || !grid.weeks) return <div className="text-center p-8 text-muted-foreground">No grid data available yet.</div>;
 
-  const sortedWeeks = [...grid.weeks].sort((a, b) => a - b);
-  const maxLives = grid.maxLives ?? 1;
-  const weekHeader = (w: number) => grid.weekLabels?.[String(w)] ?? `Wk ${w}`;
+  const gridData = grid;
+  const sortedWeeks = [...gridData.weeks].sort((a, b) => a - b);
+  const maxLives = gridData.maxLives ?? 1;
+  const voidedWeeks = gridData.voidedWeeks ?? [];
+  const weekHeader = (w: number) => gridData.weekLabels?.[String(w)] ?? `Wk ${w}`;
+
+  function displayStrikesForMember(userId: number, stored: number) {
+    const lossCount = countSurvivorGradedLossesExcludingVoidWeeks(gridData.picks, voidedWeeks, {
+      userId,
+    });
+    return survivorStrikeCountForDisplay(stored, lossCount, maxLives);
+  }
 
   function handleDownloadPdf() {
     if (!grid) return;
     const columns = ["Player", "Status", ...sortedWeeks.map(weekHeader)];
-    const rows = grid.members.map(member => {
-      const strikes = member.strikeCount ?? 0;
+    const rows = gridData.members.map(member => {
+      const strikes = displayStrikesForMember(member.userId, member.strikeCount ?? 0);
       const statusLabel = member.status === "eliminated"
         ? `Out W${member.eliminatedWeek ?? "?"}`
         : strikes > 0
           ? `${strikes} strike${strikes === 1 ? "" : "s"}`
           : "Alive";
-      const weekCells = grid.weeks.map(w => {
-        const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
+      const weekCells = gridData.weeks.map(w => {
+        const pick = gridData.picks.find(p => p.userId === member.userId && p.week === w);
         if (!pick) return "—";
         if (!pick.teamName && !pick.teamLogoUrl) return "—";
         const suffix = pick.result === "win" ? " W" : pick.result === "loss" ? " L" : "";
@@ -62,7 +75,7 @@ export function SurvivorGrid({
       filename: `${poolName.replace(/\s+/g, "_")}_survivor_grid.pdf`,
       poolName,
       sport: `${sportLabel} · Survivor`,
-      subtitle: `${grid.members.length} players · ${grid.weeks.length} week${grid.weeks.length !== 1 ? "s" : ""}`,
+      subtitle: `${gridData.members.length} players · ${gridData.weeks.length} week${gridData.weeks.length !== 1 ? "s" : ""}`,
       columns,
       rows,
       footer: "Survivor Grid",
@@ -75,7 +88,7 @@ export function SurvivorGrid({
       <div className="flex justify-end mb-3 px-4 pt-4">
         <button
           onClick={handleDownloadPdf}
-          disabled={!grid}
+          disabled={!gridData}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
         >
           ⬇ Download PDF
@@ -94,7 +107,7 @@ export function SurvivorGrid({
             </tr>
           </thead>
           <tbody>
-            {grid.members.map((member, index) => (
+            {gridData.members.map((member, index) => (
               <tr key={member.userId} className={`border-b border-border/20 ${member.status === 'eliminated' ? 'bg-destructive/5' : index % 2 === 0 ? 'bg-card/50' : 'bg-transparent'} hover:bg-muted/20 transition-colors`}>
                 <td className={`p-4 font-medium flex items-center gap-3 sticky left-0 z-10 border-r border-border/50 ${member.status === 'eliminated' ? 'bg-[#150a0a]' : 'bg-card'}`}>
                   {member.status === 'eliminated' && <Skull className="w-4 h-4 text-destructive flex-shrink-0" />}
@@ -102,13 +115,13 @@ export function SurvivorGrid({
                     {member.displayName || member.username}
                   </span>
                   <StrikeBadge
-                    strikeCount={member.strikeCount ?? 0}
+                    strikeCount={displayStrikesForMember(member.userId, member.strikeCount ?? 0)}
                     maxLives={maxLives}
                     size="sm"
                   />
                 </td>
                 {sortedWeeks.map(w => {
-                  const pick = grid.picks.find(p => p.userId === member.userId && p.week === w);
+                  const pick = gridData.picks.find(p => p.userId === member.userId && p.week === w);
                   return (
                     <td key={w} className="p-2 text-center border-l border-border/10">
                       {pick ? (

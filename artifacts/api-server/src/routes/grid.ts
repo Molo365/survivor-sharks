@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { picksTable, entriesTable, poolsTable, usersTable } from "@workspace/db";
+import { picksTable, entriesTable, poolsTable, usersTable, weekResultsTable } from "@workspace/db";
+import {
+  countSurvivorGradedLossesExcludingVoidWeeks,
+  survivorStrikeCountForDisplay,
+} from "../lib/survivor-display-strikes";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { buildSurvivorGridTeamKickoffMap, survivorGridKickoffKey } from "../lib/survivor-grid-kickoff";
@@ -41,7 +45,27 @@ router.get("/", requireAuth, async (req, res) => {
     .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
     .where(eq(entriesTable.poolId, poolId));
 
-  const allPicks = await db.select().from(picksTable).where(eq(picksTable.poolId, poolId));
+  const [allPicks, weekResultRows] = await Promise.all([
+    db.select().from(picksTable).where(eq(picksTable.poolId, poolId)),
+    db
+      .select({ week: weekResultsTable.week, isVoided: weekResultsTable.isVoided })
+      .from(weekResultsTable)
+      .where(eq(weekResultsTable.poolId, poolId)),
+  ]);
+
+  const voidedWeeks = new Set(
+    weekResultRows.filter((r) => r.isVoided).map((r) => r.week),
+  );
+
+  const picksByUserId = new Map<number, typeof allPicks>();
+  for (const pick of allPicks) {
+    let userPicks = picksByUserId.get(pick.userId);
+    if (!userPicks) {
+      userPicks = [];
+      picksByUserId.set(pick.userId, userPicks);
+    }
+    userPicks.push(pick);
+  }
 
   const weekSet = new Set(allPicks.map(p => p.week));
   const weeks: number[] = weekSet.size > 0
@@ -117,7 +141,17 @@ router.get("/", requireAuth, async (req, res) => {
     maxLives,
     weeks,
     ...(Object.keys(weekLabels).length > 0 ? { weekLabels } : {}),
-    members: members.map(m => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
+    voidedWeeks: [...voidedWeeks].sort((a, b) => a - b),
+    members: members.map((m) => {
+      const userPicks = picksByUserId.get(m.userId) ?? [];
+      const gradedLosses = countSurvivorGradedLossesExcludingVoidWeeks(userPicks, voidedWeeks);
+      const strikeCount = survivorStrikeCountForDisplay(
+        m.strikeCount ?? 0,
+        gradedLosses,
+        maxLives,
+      );
+      return { ...m, strikeCount, joinedAt: m.joinedAt.toISOString() };
+    }),
     picks: picksWithUsername.map(({ pick, username }) => {
       // Own picks are always visible.
       // Other players' picks reveal at kickoff (picks are locked by then, so

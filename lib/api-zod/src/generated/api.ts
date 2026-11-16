@@ -492,7 +492,7 @@ export const GetPoolResponse = zod.object({
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string(),
-  "strikeCount": zod.number().optional().describe('Warning strikes used while still alive (NHL\/NBA 3-life, MLB double-elim)')
+  "strikeCount": zod.number().optional().describe('Graded losses toward elimination on non-void weeks (multi-life pools)')
 })),
   "createdAt": zod.string().optional(),
   "endedAt": zod.string().nullish().describe('Timestamp when the pool ended (isActive flipped to false); null if still active'),
@@ -871,6 +871,7 @@ export const GetSurvivorGridResponse = zod.object({
   "maxLives": zod.number().optional().describe('Lives in this pool (1 single elim, 2 double elim, 3 NHL\/NBA season survivor)'),
   "weeks": zod.array(zod.number()),
   "weekLabels": zod.record(zod.string(), zod.string()).optional().describe('Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22)'),
+  "voidedWeeks": zod.array(zod.number()).optional().describe('Weeks voided for all players; losses in these weeks are not counted on strike badges'),
   "members": zod.array(zod.object({
   "userId": zod.number(),
   "username": zod.string(),
@@ -879,7 +880,7 @@ export const GetSurvivorGridResponse = zod.object({
   "status": zod.enum(['alive', 'eliminated']),
   "eliminatedWeek": zod.number().nullish(),
   "joinedAt": zod.string(),
-  "strikeCount": zod.number().optional().describe('Warning strikes used while still alive (NHL\/NBA 3-life, MLB double-elim)')
+  "strikeCount": zod.number().optional().describe('Graded losses toward elimination on non-void weeks (multi-life pools)')
 })),
   "picks": zod.array(zod.object({
   "id": zod.number(),
@@ -931,7 +932,7 @@ export const GetLeaderboardResponse = zod.object({
   "lastPickTeam": zod.string().nullish(),
   "lastPickResult": zod.string().nullish(),
   "streak": zod.number().optional().describe('Consecutive weeks survived'),
-  "strikeCount": zod.number().optional().describe('MLB double-elim: number of mulligan strikes used (0 or 1)'),
+  "strikeCount": zod.number().optional().describe('Graded losses on non-void weeks in multi-life pools (1–3 for NHL\/NBA 3-life; 0–1 for MLB double-elim)'),
   "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week'),
   "prizeWon": zod.number().nullish().describe('Dollar amount this player would win at their current rank')
 })),
@@ -946,7 +947,7 @@ export const GetLeaderboardResponse = zod.object({
   "lastPickTeam": zod.string().nullish(),
   "lastPickResult": zod.string().nullish(),
   "streak": zod.number().optional().describe('Consecutive weeks survived'),
-  "strikeCount": zod.number().optional().describe('MLB double-elim: number of mulligan strikes used (0 or 1)'),
+  "strikeCount": zod.number().optional().describe('Graded losses on non-void weeks in multi-life pools (1–3 for NHL\/NBA 3-life; 0–1 for MLB double-elim)'),
   "hasWonThisWeek": zod.boolean().optional().describe('MLB: true if team already won at least one game this week'),
   "prizeWon": zod.number().nullish().describe('Dollar amount this player would win at their current rank')
 }))

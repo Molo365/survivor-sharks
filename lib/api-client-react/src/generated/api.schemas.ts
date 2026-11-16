@@ -594,7 +594,7 @@ export interface PoolMember {
   /** @nullable */
   eliminatedWeek?: number | null;
   joinedAt: string;
-  /** Warning strikes used while still alive (NHL/NBA 3-life, MLB double-elim) */
+  /** Graded losses toward elimination on non-void weeks (multi-life pools) */
   strikeCount?: number;
 }
 
@@ -791,6 +791,8 @@ export interface SurvivorGrid {
   weeks: number[];
   /** Optional map of week number → display label (NHL survivor: Saturday ET; NBA survivor: Monday week start, e.g. Oct 22) */
   weekLabels?: SurvivorGridWeekLabels;
+  /** Weeks voided for all players; losses in these weeks are not counted on strike badges */
+  voidedWeeks?: number[];
   members: PoolMember[];
   picks: Pick[];
 }
@@ -819,7 +821,7 @@ export interface LeaderboardEntry {
   lastPickResult?: string | null;
   /** Consecutive weeks survived */
   streak?: number;
-  /** MLB double-elim: number of mulligan strikes used (0 or 1) */
+  /** Graded losses on non-void weeks in multi-life pools (1–3 for NHL/NBA 3-life; 0–1 for MLB double-elim) */
   strikeCount?: number;
   /** MLB: true if team already won at least one game this week */
   hasWonThisWeek?: boolean;
