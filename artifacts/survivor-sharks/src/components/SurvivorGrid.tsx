@@ -5,7 +5,22 @@ import { Skull } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StrikeBadge } from "@/components/StrikeBadge";
 
-export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; poolName?: string }) {
+const SPORT_PDF_LABEL: Record<string, string> = {
+  nfl: "NFL",
+  nhl: "NHL",
+  nba: "NBA",
+  mlb: "MLB",
+};
+
+export function SurvivorGrid({
+  poolId,
+  poolName = "Pool",
+  sport = "nfl",
+}: {
+  poolId: number;
+  poolName?: string;
+  sport?: string;
+}) {
   const { data: grid, isLoading } = useGetSurvivorGrid(poolId, { query: { enabled: !!poolId, queryKey: getGetSurvivorGridQueryKey(poolId) } });
 
   if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -42,14 +57,16 @@ export function SurvivorGrid({ poolId, poolName = "Pool" }: { poolId: number; po
         isCurrentUser: false,
       };
     });
+    const sportLabel = SPORT_PDF_LABEL[sport] ?? sport.toUpperCase();
     downloadGridPdf({
       filename: `${poolName.replace(/\s+/g, "_")}_survivor_grid.pdf`,
       poolName,
-      sport: "NFL · Survivor",
+      sport: `${sportLabel} · Survivor`,
       subtitle: `${grid.members.length} players · ${grid.weeks.length} week${grid.weeks.length !== 1 ? "s" : ""}`,
       columns,
       rows,
       footer: "Survivor Grid",
+      useResultOnlyWinLossColors: true,
     });
   }
 

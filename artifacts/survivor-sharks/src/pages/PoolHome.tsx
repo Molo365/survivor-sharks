@@ -782,7 +782,7 @@ export default function PoolHome() {
                 </TabsContent>
                 <TabsContent value="grid" className="m-0 focus-visible:outline-none">
                   {isNflSurvivor && <PickVisibilityNotice kind="survivor" />}
-                  <SurvivorGrid poolId={pool.id} poolName={pool.name} />
+                  <SurvivorGrid poolId={pool.id} poolName={pool.name} sport={pool.sport} />
                 </TabsContent>
                 {isCommissioner && (
                   <TabsContent value="commissioner" className="m-0 focus-visible:outline-none">

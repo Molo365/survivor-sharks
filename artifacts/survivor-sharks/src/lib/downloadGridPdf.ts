@@ -16,6 +16,26 @@ export interface GridPdfOptions {
     leftTone: "good" | "bad" | "neutral";
     rightTone: "good" | "bad" | "neutral";
   } | null;
+  /** When true, use only green (W) / red (L) fills — no MLB team-tint backgrounds (needed for NHL/NFL survivor). */
+  useResultOnlyWinLossColors?: boolean;
+}
+
+const WIN_CELL_FILL: [number, number, number] = [220, 252, 231];
+const WIN_CELL_TEXT: [number, number, number] = [21, 128, 61];
+const LOSS_CELL_FILL: [number, number, number] = [254, 226, 226];
+const LOSS_CELL_TEXT: [number, number, number] = [185, 28, 28];
+
+function applyWinLossCellStyle(
+  styles: Record<string, unknown>,
+  result: string | undefined,
+): void {
+  if (result === "W") {
+    styles.fillColor = WIN_CELL_FILL;
+    styles.textColor = WIN_CELL_TEXT;
+  } else if (result === "L") {
+    styles.fillColor = LOSS_CELL_FILL;
+    styles.textColor = LOSS_CELL_TEXT;
+  }
 }
 
 const MLB_TEAM_COLORS: Record<string, string> = {
@@ -60,6 +80,7 @@ export function downloadGridPdf({
   footer,
   cellColorFn,
   cellChipsFn,
+  useResultOnlyWinLossColors = false,
 }: GridPdfOptions): void {
   const doc = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -160,22 +181,19 @@ export function downloadGridPdf({
       const abbrev = parts[0];
       const result = parts[1];
 
-      const hex = abbrev ? MLB_TEAM_COLORS[abbrev] : undefined;
       const styles = data.cell.styles as unknown as Record<string, unknown>;
 
-      if (hex) {
-        // MLB: team-colour background + green/red text per result
-        styles.fillColor = blendWithWhite(hex, 0.2);
-        if (result === "W") styles.textColor = [0, 120, 60];
-        else if (result === "L") styles.textColor = [180, 30, 30];
+      if (useResultOnlyWinLossColors) {
+        applyWinLossCellStyle(styles, result);
       } else {
-        // NFL / other sports: solid green or red background per result
-        if (result === "W") {
-          styles.fillColor = [220, 252, 231]; // ~green-100
-          styles.textColor = [21, 128, 61];   // ~green-700
-        } else if (result === "L") {
-          styles.fillColor = [254, 226, 226]; // ~red-100
-          styles.textColor = [185, 28, 28];   // ~red-700
+        const hex = abbrev ? MLB_TEAM_COLORS[abbrev] : undefined;
+        if (hex) {
+          // MLB: team-colour background + green/red text per result
+          styles.fillColor = blendWithWhite(hex, 0.2);
+          if (result === "W") styles.textColor = [0, 120, 60];
+          else if (result === "L") styles.textColor = [180, 30, 30];
+        } else {
+          applyWinLossCellStyle(styles, result);
         }
       }
 
