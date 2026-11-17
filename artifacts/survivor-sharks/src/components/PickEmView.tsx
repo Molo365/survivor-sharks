@@ -534,8 +534,8 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, nhlMobileTriCo
           </span>
         )}
 
-        {/* Pick indicator */}
-        {isPicked && (
+        {/* Graded-result indicator only — pending picks rely on the blue border */}
+        {isPicked && (isCorrect || isWrong || isPickPostponed || isPush) && (
           <div className="flex items-center gap-1 mt-0.5">
             {isCorrect ? (
               <span className="text-green-400 flex items-center">
@@ -549,13 +549,9 @@ function GameCard({ game, pickedTeamId, onPick, isTiebreakerGame, nhlMobileTriCo
               <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">
                 PPD
               </span>
-            ) : isPush ? (
+            ) : (
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
                 TIE
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 flex items-center gap-0.5">
-                <Check className="w-3 h-3" /> Picked
               </span>
             )}
           </div>
