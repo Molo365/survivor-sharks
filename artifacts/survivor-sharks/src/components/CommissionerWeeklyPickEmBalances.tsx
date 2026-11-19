@@ -91,6 +91,31 @@ function playerOutstandingNet(p: {
   return entryStillDue - p.totalWon;
 }
 
+type SettlementAction = {
+  userId: number;
+  name: string;
+  amount: number;
+  direction: "collect" | "pay";
+};
+
+function buildSettlementActions(players: BalanceSheet["players"]): SettlementAction[] {
+  const actions: SettlementAction[] = [];
+  for (const p of players) {
+    const outstanding = playerOutstandingNet(p);
+    if (outstanding === 0) continue;
+    const name = p.displayName || p.username;
+    if (outstanding > 0) {
+      actions.push({ userId: p.userId, name, amount: outstanding, direction: "collect" });
+    } else {
+      actions.push({ userId: p.userId, name, amount: Math.abs(outstanding), direction: "pay" });
+    }
+  }
+  return actions.sort((a, b) => {
+    if (a.direction !== b.direction) return a.direction === "collect" ? -1 : 1;
+    return b.amount - a.amount;
+  });
+}
+
 function playerEntryStillDue(p: {
   entryPaid: boolean;
   entryFeeOwed: number;
@@ -337,6 +362,33 @@ export function CommissionerWeeklyPickEmBalances({
     patchLedger({ periodPaid: { periodKey, paid: !paid } });
   }
 
+  const sheetPlayers = data?.players ?? [];
+  const sheetPeriods = data?.periods ?? [];
+
+  const settlementActions = useMemo(
+    () => buildSettlementActions(sheetPlayers),
+    [sheetPlayers],
+  );
+
+  const winnersByPeriodKey = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const p of sheetPlayers) {
+      for (const w of p.periodWins) {
+        const line = `${p.displayName || p.username} ${fmt(w.amount)}`;
+        const list = map.get(w.periodKey);
+        if (list) list.push(line);
+        else map.set(w.periodKey, [line]);
+      }
+    }
+    return map;
+  }, [sheetPlayers]);
+
+  const unpaidPeriods = useMemo(
+    () => sheetPeriods.filter((p) => !p.periodPaid),
+    [sheetPeriods],
+  );
+  const unpaidPayoutTotal = unpaidPeriods.reduce((s, p) => s + p.totalOwed, 0);
+
   if (isLoading) {
     return (
       <div className="rounded-xl border border-border/40 bg-card/60 p-6 space-y-3">
@@ -400,7 +452,10 @@ export function CommissionerWeeklyPickEmBalances({
       : null;
 
   const collapsedSummary = [
-    `${paidCount}/${players.length} entry paid`,
+    settlementActions.length > 0
+      ? `${settlementActions.length} settlement${settlementActions.length === 1 ? "" : "s"} open`
+      : `${paidCount}/${players.length} entry paid`,
+    unpaidPeriods.length > 0 ? `${unpaidPeriods.length} weekly payout${unpaidPeriods.length === 1 ? "" : "s"} unmarked` : null,
     entryCollected > 0 ? `${fmt(entryCollected)} collected` : null,
     `Net ${fmt(summary.netToCommissioner)}`,
   ]
@@ -464,6 +519,42 @@ export function CommissionerWeeklyPickEmBalances({
           </div>
         </div>
 
+        {settlementActions.length > 0 ? (
+          <div className="rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary/80">
+              Settlement now (net vs each player)
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              After entry taps above: positive = they still owe you; negative = you owe them (winnings minus
+              counted entry).
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {settlementActions.map((action) => (
+                <li key={`${action.userId}-${action.direction}`} className="flex items-baseline gap-2 flex-wrap">
+                  <span
+                    className={
+                      action.direction === "collect"
+                        ? "text-amber-400 font-medium"
+                        : "text-emerald-400 font-medium"
+                    }
+                  >
+                    {action.direction === "collect" ? "Collect" : "Pay"}
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">{fmt(action.amount)}</span>
+                  <span className="text-muted-foreground">
+                    {action.direction === "collect" ? "from" : "to"} {action.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground rounded-lg border border-border/30 bg-muted/20 px-4 py-3">
+            All players are square on entry vs winnings — use completed weeks below to track weekly prize payouts
+            you&apos;ve handed out.
+          </p>
+        )}
+
         {periods.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -478,25 +569,40 @@ export function CommissionerWeeklyPickEmBalances({
                     : "Completed weeks"
                 : "Completed periods"}
             </p>
+            {unpaidPeriods.length > 0 && (
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                {unpaidPeriods.length} period{unpaidPeriods.length === 1 ? "" : "s"} not marked paid out (
+                <span className="tabular-nums text-foreground/80">{fmt(unpaidPayoutTotal)}</span> total) — your
+                checklist only; does not change player Outstanding.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              {periods.map((p) => (
-                <Button
-                  key={p.periodKey}
-                  type="button"
-                  size="sm"
-                  variant={p.periodPaid ? "secondary" : "outline"}
-                  disabled={ledgerPending}
-                  className={`h-auto py-1.5 px-2.5 text-left flex-col items-start gap-0.5 ${
-                    p.periodPaid ? "text-emerald-400" : ""
-                  }`}
-                  onClick={() => togglePeriodPaid(p.periodKey, p.periodPaid)}
-                >
-                  <span className="text-xs font-semibold">{p.label}</span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {fmt(p.totalOwed)} · {p.periodPaid ? "paid out" : "mark paid"}
-                  </span>
-                </Button>
-              ))}
+              {periods.map((p) => {
+                const winnerLines = winnersByPeriodKey.get(p.periodKey) ?? [];
+                return (
+                  <Button
+                    key={p.periodKey}
+                    type="button"
+                    size="sm"
+                    variant={p.periodPaid ? "secondary" : "outline"}
+                    disabled={ledgerPending}
+                    className={`h-auto py-1.5 px-2.5 text-left flex-col items-start gap-0.5 max-w-[11rem] ${
+                      p.periodPaid ? "text-emerald-400" : unpaidPeriods.some((u) => u.periodKey === p.periodKey) ? "border-amber-500/35" : ""
+                    }`}
+                    onClick={() => togglePeriodPaid(p.periodKey, p.periodPaid)}
+                  >
+                    <span className="text-xs font-semibold">{p.label}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {fmt(p.totalOwed)} · {p.periodPaid ? "paid out" : "mark paid"}
+                    </span>
+                    {winnerLines.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground/80 leading-snug text-left whitespace-normal">
+                        {winnerLines.join(" · ")}
+                      </span>
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -526,7 +632,12 @@ export function CommissionerWeeklyPickEmBalances({
             {showSeasonOwed && (
               <TableHead className="text-xs uppercase tracking-wider text-right">Season</TableHead>
             )}
-            <TableHead className="text-xs uppercase tracking-wider text-right">Outstanding</TableHead>
+            <TableHead className="text-xs uppercase tracking-wider text-right">
+              <span className="block">Outstanding</span>
+              <span className="font-normal normal-case tracking-normal text-muted-foreground/70 text-[10px]">
+                entry due − won
+              </span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
