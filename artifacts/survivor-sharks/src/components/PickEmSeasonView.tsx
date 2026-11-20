@@ -1647,6 +1647,15 @@ export function PickEmSeasonView({
     ? slate?.games.find((g) => g.id === slate.weeklyTiebreaker?.targetGameId) ?? slate?.games.at(-1) ?? null
     : null;
 
+  function seasonOpenPickableGames(
+    games: NonNullable<typeof slate>["games"],
+    atsMode: boolean,
+  ) {
+    return games.filter(
+      (g) => !g.deadlinePassed && (!atsMode || g.spread != null),
+    );
+  }
+
   function doFinalSubmit(
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     py?: number,
@@ -1667,9 +1676,15 @@ export function PickEmSeasonView({
       },
       {
         onSuccess: (r) => {
+          const ats = slate?.pickemScoringMode === "ats";
+          const open = slate ? seasonOpenPickableGames(slate.games, !!ats) : [];
+          const stillMissing = open.filter((g) => !localPicks.has(g.id)).length;
           toast({
-            title: "Picks saved!",
-            description: `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved.`,
+            title: stillMissing > 0 ? "Picks saved (incomplete)" : "Picks saved!",
+            description:
+              stillMissing > 0
+                ? `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved. ${stillMissing} open game${stillMissing !== 1 ? "s" : ""} still need a winner — each locks at kickoff.`
+                : `${r.saved} pick${r.saved !== 1 ? "s" : ""} saved.`,
           });
           void invalidatePoolQueries(queryClient, poolId);
         },
@@ -1685,6 +1700,10 @@ export function PickEmSeasonView({
 
   function handleSubmit(force = false) {
     if (!slate) return;
+
+    const atsMode = slate.pickemScoringMode === "ats";
+    const openPickable = seasonOpenPickableGames(slate.games, atsMode);
+    const missingOpenGames = openPickable.filter((g) => !localPicks.has(g.id));
 
     const picks = Array.from(localPicks.entries()).flatMap(
       ([gameId, teamId]) => {
@@ -1710,7 +1729,7 @@ export function PickEmSeasonView({
       return;
     }
 
-    if (!force && picks.length < openGames.length) {
+    if (!force && missingOpenGames.length > 0) {
       setShowIncompleteWarning(true);
       return;
     }
@@ -2038,6 +2057,19 @@ export function PickEmSeasonView({
                     description: "Enter a whole-number guess for combined passing yards (0 or higher).",
                   });
                   return;
+                }
+                if (weeklyTiebreakerGame && !weeklyTiebreakerGame.deadlinePassed) {
+                  const tbPickable =
+                    slate?.pickemScoringMode !== "ats"
+                    || (weeklyTiebreakerGame.spread != null && weeklyTiebreakerGame.favoriteTeamId != null);
+                  if (tbPickable && !localPicks.has(weeklyTiebreakerGame.id)) {
+                    toast({
+                      variant: "destructive",
+                      title: "Pick the tiebreaker game first",
+                      description: `Choose a winner for ${weeklyTiebreakerGame.awayTeam.abbreviation} @ ${weeklyTiebreakerGame.homeTeam.abbreviation} — the weekly bonus uses that game, but you still need a side like every other matchup.`,
+                    });
+                    return;
+                  }
                 }
                 setWeeklyTiebreakerGuess(String(guess));
                 setShowWeeklyTbModal(false);
@@ -2379,17 +2411,23 @@ export function PickEmSeasonView({
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Incomplete picks</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          You&apos;ve picked{" "}
-                          <strong>
-                            {openGames.length - pendingPickCount} of{" "}
-                            {openGames.length}
-                          </strong>{" "}
-                          games this week. That&apos;s totally fine — each game
-                          stays open for picking until it kicks off, so you can
-                          come back and finish the rest anytime. Just don&apos;t
-                          forget: any game left unpicked by kickoff will count
-                          as 0.
+                        <AlertDialogDescription className="space-y-2">
+                          <span className="block">
+                            You&apos;ve picked{" "}
+                            <strong>
+                              {openGames.length - pendingPickCount} of{" "}
+                              {openGames.length}
+                            </strong>{" "}
+                            open games this week. Each matchup stays open until kickoff; you can come back and finish anytime.
+                            Unpicked games at kickoff count as 0.
+                          </span>
+                          {weeklyBonusEnabled && weeklyTiebreakerGame && (
+                            <span className="block">
+                              The weekly bonus still needs a <strong>winner pick</strong> on{" "}
+                              {weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation}{" "}
+                              <em>and</em> your combined passing-yards guess — you&apos;ll enter yards on the next step once picks are complete.
+                            </span>
+                          )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
