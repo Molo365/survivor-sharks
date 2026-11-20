@@ -2559,6 +2559,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [weekResultsInitialWeek, setWeekResultsInitialWeek] = useState<number | undefined>(
     undefined,
   );
+  const [partialSubmitOpen, setPartialSubmitOpen] = useState(false);
+  const [partialSubmitMissingCount, setPartialSubmitMissingCount] = useState(0);
 
   // Auto-open the Final Results modal when the page is loaded with ?results=true
   // (e.g. by clicking the "Last winner" line on the dashboard PoolCard).
@@ -3160,7 +3162,29 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     });
   }
 
+  function showPickEmSavedToast(saved: number, missingOpenGames: number) {
+    toast({
+      title: missingOpenGames > 0 ? "Picks saved (incomplete)" : "Picks saved!",
+      description:
+        missingOpenGames > 0
+          ? `${saved} pick${saved !== 1 ? "s" : ""} saved. ${missingOpenGames} open game${missingOpenGames !== 1 ? "s" : ""} still need a pick — each locks 5 minutes before kickoff. You can return and finish before then.`
+          : `${saved} pick${saved !== 1 ? "s" : ""} saved. All open games are covered.`,
+    });
+  }
+
   function handleSubmit() {
+    const confirmPartial =
+      pendingPickCount > 0
+      && (isMlsWeekly || (!isNhlWeekly && !isNbaAts));
+    if (confirmPartial) {
+      setPartialSubmitMissingCount(pendingPickCount);
+      setPartialSubmitOpen(true);
+      return;
+    }
+    runPickEmSubmit();
+  }
+
+  function runPickEmSubmit() {
     // NHL weekly combined view: delegate to the multi-day submit path.
     if (isNhlWeekly) {
       void handleNhlWeeklySubmit();
@@ -3213,7 +3237,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       return;
     }
 
-    doFinalSubmit(picks);
+    doFinalSubmit(picks, undefined, undefined, pendingPickCount);
   }
 
   // NHL weekly combined submit: builds per-day pick lists and calls POST /picks
@@ -3299,7 +3323,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         return;
       }
     }
-    toast({ title: "Picks saved!", description: `${totalSaved} pick${totalSaved !== 1 ? "s" : ""} saved.` });
+    showPickEmSavedToast(totalSaved, pendingPickCount);
     void invalidatePoolQueries(queryClient, poolId);
   }
 
@@ -3324,7 +3348,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     }
     try {
       const result = await submitPicks.mutateAsync({ poolId, data: { picks } });
-      toast({ title: "Picks saved!", description: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved.` });
+      showPickEmSavedToast(result.saved, pendingPickCount);
       void invalidatePoolQueries(queryClient, poolId);
     } catch {
       toast({ variant: "destructive", title: "Failed to save picks", description: "Please try again." });
@@ -3486,6 +3510,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     picks: Array<{ gameId: string; pickedTeamId: string; pickedTeamName: string }>,
     tiebreakerRuns?: number,
     tiebreakerShotsOnGoal?: number,
+    missingOpenGames = 0,
   ) {
     // For NHL weekly: tiebreaker is for Sunday picks; pendingDateRef holds the
     // Sunday date set by handleNhlWeeklySubmit before opening the dialog.
@@ -3505,10 +3530,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       },
       {
         onSuccess: (result) => {
-          toast({
-            title: "Picks saved!",
-            description: `${result.saved} pick${result.saved !== 1 ? "s" : ""} saved.`,
-          });
+          showPickEmSavedToast(result.saved, missingOpenGames);
           void invalidatePoolQueries(queryClient, poolId);
         },
         onError: () => {
@@ -3581,10 +3603,13 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
     ? mlsWeeklyAllGames.filter((g) => !!g.userPickOption).length
     : (slate?.games.filter((g) => is3way ? !!g.userPickOption : !!g.userPickTeamId).length ?? 0);
 
-  const lockTimeFormatted = useMemo(() => {
+  const nextPickLockEtLabel = useMemo(() => {
     const games = isNhlWeekly ? nhlWeeklyAllGames : isMlsWeekly ? mlsWeeklyAllGames : (slate?.games ?? []);
-    if (!games.length) return null;
-    const firstMs = Math.min(...games.map((g) => new Date(g.startTime).getTime()));
+    const stillOpen = games.filter((g) => !g.deadlinePassed);
+    if (!stillOpen.length) return null;
+    const withUnpicked = stillOpen.filter((g) => !localPicks.has(g.id));
+    const focus = withUnpicked.length > 0 ? withUnpicked : stillOpen;
+    const firstMs = Math.min(...focus.map((g) => new Date(g.startTime).getTime()));
     const lockMs = firstMs - 5 * 60 * 1000;
     return new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
@@ -3594,7 +3619,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
       timeZoneName: "short",
     }).format(new Date(lockMs));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNhlWeekly, nhlWeeklyAllGames, isMlsWeekly, mlsWeeklyAllGames, slate]);
+  }, [isNhlWeekly, nhlWeeklyAllGames, isMlsWeekly, mlsWeeklyAllGames, slate, localPicks]);
 
   // NHL weekly combined loading/empty — both day slates must resolve before rendering.
   const nhlWeeklyLoading = isNhlWeekly && (!scheduleData || (!!satDate && satLoading) || (!!sunDate && sunLoading));
@@ -3938,6 +3963,44 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={partialSubmitOpen} onOpenChange={setPartialSubmitOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {partialSubmitMissingCount} game{partialSubmitMissingCount !== 1 ? "s" : ""} still without a pick
+          </AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <span>
+              {sport === "superleague"
+                ? "Super League"
+                : sport === "championsleague"
+                  ? "Champions League"
+                  : sport === "mls"
+                    ? "MLS"
+                    : "This pool"}{" "}
+              expects a pick on every match in the period (Home Win, Draw, or Away Win where applicable).
+              You can save what you have now and finish later.
+            </span>
+            <span className="block">
+              Each match locks <strong>5 minutes before kickoff</strong>. Email reminders will keep nudging you until
+              every open match in the slate has a saved pick.
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Go back</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setPartialSubmitOpen(false);
+              runPickEmSubmit();
+            }}
+          >
+            Save picks anyway
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <SoccerLineupSheet
       open={lineupGame !== null}
@@ -4409,7 +4472,24 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                     {mlsWeeklyAllGames.length} game{mlsWeeklyAllGames.length !== 1 ? "s" : ""}
                     {" · "}
                     {localPicks.size} pick{localPicks.size !== 1 ? "s" : ""} selected
+                    {pendingPickCount > 0 && (
+                      <span className="text-yellow-400/90">
+                        {" · "}
+                        {pendingPickCount} still need a pick
+                      </span>
+                    )}
                   </p>
+                  {sport === "superleague" && nextPickLockEtLabel && (
+                    <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                      Each match locks 5 min before kickoff
+                      {pendingPickCount > 0 && (
+                        <>
+                          {" "}
+                          · next unpicked locks around <span className="text-foreground/90">{nextPickLockEtLabel}</span>
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {mlsWeeklyAllGames.some((g) => g.status === "in_progress") ? (
