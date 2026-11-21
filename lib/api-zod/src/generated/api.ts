@@ -963,7 +963,7 @@ export const GetPoolPickStatusParams = zod.object({
 
 export const GetPoolPickStatusResponseItem = zod.object({
   "userId": zod.number(),
-  "pickStatus": zod.enum(['submitted', 'pending', 'not_required']),
+  "pickStatus": zod.enum(['submitted', 'pending', 'incomplete', 'not_required']),
   "submittedCount": zod.number(),
   "requiredCount": zod.number()
 })

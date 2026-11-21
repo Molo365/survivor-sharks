@@ -9,6 +9,11 @@ import {
   formatCrazyEightsWeekendPointsLabel,
 } from "@/lib/crazyEightsScoring";
 import { ChevronLeft, ChevronRight, AlertCircle, Users } from "lucide-react";
+import {
+  getGetPoolPickStatusQueryKey,
+  useGetPoolPickStatus,
+} from "@workspace/api-client-react";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -208,6 +213,17 @@ export function CrazyEightsGrid({
   const isNba = sport === "nba";
   const isWeekend = isNhl || isNba;
 
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!poolId && !!user,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map(
+    (pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]),
+  );
+
   const [date, setDate] = useState(() => {
     if (initialDate) return initialDate;
     if (!isWeekend) return getTodayEt();
@@ -340,7 +356,11 @@ export function CrazyEightsGrid({
                   >
                     <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm border-r border-border/40 px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-sm truncate max-w-[90px]">
+                        <span className="font-semibold text-sm truncate max-w-[90px] flex items-center gap-1.5 min-w-0">
+                          <PickStatusIndicator
+                            status={pickStatusByUserId.get(player.userId)}
+                            className="shrink-0"
+                          />
                           {player.displayName ?? player.username}
                         </span>
                         <span className="text-[9px] text-purple-300 font-bold shrink-0 font-mono whitespace-nowrap">

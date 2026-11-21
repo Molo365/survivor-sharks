@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Trophy, Users, CheckCircle2, XCircle } from "lucide-react";
 import { TiebreakerActualsCard } from "@/components/TiebreakerActualsCard";
 import {
+  getGetPoolPickStatusQueryKey,
+  useGetPoolPickStatus,
+} from "@workspace/api-client-react";
+import { PickStatusIndicator } from "@/components/PickStatusIndicator";
+import {
   TiebreakerStandingsColumnGuess,
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
@@ -325,6 +330,17 @@ export function CrazyEightsLeaderboard({
   const isNba = sport === "nba";
   const isWeekend = isNhl || isNba;
 
+  const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
+    query: {
+      enabled: !!poolId && !!user,
+      queryKey: getGetPoolPickStatusQueryKey(poolId),
+      refetchInterval: 30_000,
+    },
+  });
+  const pickStatusByUserId = new Map(
+    (pickStatuses ?? []).map((status) => [status.userId, status.pickStatus]),
+  );
+
   // ── State (all hooks before any conditional return) ────────────────────────
 
   const [nhlDate, setNhlDate] = useState(() => {
@@ -567,6 +583,10 @@ export function CrazyEightsLeaderboard({
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
+                              <PickStatusIndicator
+                                status={pickStatusByUserId.get(player.userId)}
+                                className="shrink-0"
+                              />
                               <span className={cn("font-semibold text-sm sm:text-base truncate", isMe ? "text-purple-300" : "text-foreground")}>
                                 {player.displayName ?? player.username}
                               </span>
@@ -614,6 +634,22 @@ export function CrazyEightsLeaderboard({
           </div>
         )}
 
+        {ranked.length > 0 && (
+          <p className="text-[11px] text-muted-foreground/50 text-center flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-400" aria-hidden />
+              Submitted
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-sky-400" aria-hidden />
+              Incomplete
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-red-400" aria-hidden />
+              No picks
+            </span>
+          </p>
+        )}
         {ranked.length > 0 && (
           <p className="text-[11px] text-muted-foreground/40 text-center">
             {poolType === "fast_break_multiplier"
@@ -765,6 +801,9 @@ export function CrazyEightsLeaderboard({
                           )}
                         >
                           <div className="flex items-center gap-2">
+                            <PickStatusIndicator
+                              status={pickStatusByUserId.get(player.userId)}
+                            />
                             <span
                               className={cn(
                                 "font-bebas text-base w-5 shrink-0 text-center",
