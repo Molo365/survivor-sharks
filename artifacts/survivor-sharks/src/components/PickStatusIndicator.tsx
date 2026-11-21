@@ -3,12 +3,14 @@ import { cn } from "@/lib/utils";
 
 const statusCopy: Record<PoolPickStatus["pickStatus"], string> = {
   submitted: "Picks submitted",
-  pending: "Unpicked games still open",
+  incomplete: "Partial picks — card not complete",
+  pending: "No picks yet",
   not_required: "No pick required",
 };
 
 const statusColor: Record<PoolPickStatus["pickStatus"], string> = {
   submitted: "bg-green-400",
+  incomplete: "bg-sky-400",
   pending: "bg-red-400",
   not_required: "bg-muted-foreground/40",
 };

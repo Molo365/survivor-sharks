@@ -33,10 +33,12 @@ import {
   replayRowToPickEmShape,
 } from "../lib/nfl2025Schedule";
 import { fetchWcGamesForDate, getWcPhase, wcGameToEspnGame } from "../lib/wc";
+import { isCrazyEightsFamilyPoolType } from "../lib/fast-break-pool";
+import { buildCrazyEightsPoolPickStatuses } from "../lib/crazy-eights-pick-status";
 
 const router = Router({ mergeParams: true });
 
-export type PickStatus = "submitted" | "pending" | "not_required";
+export type PickStatus = "submitted" | "pending" | "incomplete" | "not_required";
 
 type Member = {
   userId: number;
@@ -332,9 +334,12 @@ export function buildStatuses(
     }
 
     const submittedCount = submittedByUser.get(member.userId) ?? 0;
+    let pickStatus: PickStatus = "pending";
+    if (submittedCount >= requiredCount) pickStatus = "submitted";
+    else if (submittedCount > 0) pickStatus = "incomplete";
     return {
       userId: member.userId,
-      pickStatus: submittedCount >= requiredCount ? "submitted" : "pending",
+      pickStatus,
       submittedCount,
       requiredCount,
     };
@@ -416,6 +421,11 @@ router.get("/", requireAuth, async (req, res) => {
       members.filter((member) => member.status === "eliminated").map((member) => member.userId),
     );
     res.json(buildStatuses(members, 1, submittedByUser, eliminatedUsers));
+    return;
+  }
+
+  if (isCrazyEightsFamilyPoolType(pool.poolType as string)) {
+    res.json(await buildCrazyEightsPoolPickStatuses(pool));
     return;
   }
 

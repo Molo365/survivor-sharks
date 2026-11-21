@@ -3915,7 +3915,7 @@ components:
           type: integer
         pickStatus:
           type: string
-          enum: [submitted, pending, not_required]
+          enum: [submitted, pending, incomplete, not_required]
         submittedCount:
           type: integer
         requiredCount:

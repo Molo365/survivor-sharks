@@ -856,6 +856,7 @@ export type PoolPickStatusPickStatus = typeof PoolPickStatusPickStatus[keyof typ
 export const PoolPickStatusPickStatus = {
   submitted: 'submitted',
   pending: 'pending',
+  incomplete: 'incomplete',
   not_required: 'not_required',
 } as const;
 
