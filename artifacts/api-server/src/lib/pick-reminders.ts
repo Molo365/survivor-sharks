@@ -1,6 +1,7 @@
 import { db, entriesTable, pickemPicksTable, pickRemindersTable, picksTable, pool as pgPool, poolsTable, usersTable, nflDivisionPredictorPicksTable, nhlDivisionPredictorPicksTable, groupStagePredictorPicksTable, wcBracketPicksTable, mlbBracketPicksTable } from "@workspace/db";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
-import { getDailyPickDeadline, getMlbWeekBounds, getTodayEtDate, fetchGamesForDate, fetchNbaGamesByWeek, fetchNflGamesByWeek, fetchNhlGamesByWeek, NBA_SANDBOX_ANCHOR, NHL_SANDBOX_ANCHOR, type EspnGame } from "./espn";
+import { getDailyPickDeadline, getMlbWeekBounds, getTodayEtDate, fetchGamesForDate, fetchNbaGamesByWeek, fetchNflGamesByWeek, fetchNhlGamesByWeek, getNhlWeekBounds, NBA_SANDBOX_ANCHOR, NHL_SANDBOX_ANCHOR, type EspnGame } from "./espn";
+import { isNhlWeekendOfficePool, nhlSaturdaySevenPmLockInstant } from "./nhl-slate-reveal";
 import { sendPickReminderEmail } from "./mailer";
 import { countSubmittedPickemGames, resolveNflGameIds, resolveNflSelectableGames, resolvePickemPeriod, type PickemPeriod } from "../routes/pick-status";
 import { logger } from "./logger";
@@ -24,7 +25,6 @@ import {
 } from "./nba-weekend-pick-reminders";
 import { calendarSurvivorPickRemindersUnblocked } from "./calendar-survivor-platform-promotion";
 import { isNbaWeekendOfficePool } from "./nba-slate-reveal";
-import { isNhlWeekendOfficePool } from "./nhl-slate-reveal";
 import { reminderStageBeforeFirstTip } from "./pick-reminder-windows";
 import {
   isDivisionPredictorPool,
@@ -100,6 +100,8 @@ export type ReminderEligibilityContext = {
   nflWeekOpenReminder?: boolean;
   nflFirstGameId?: string;
   nflSundayOfficeLock?: boolean;
+  /** Live NHL weekly pick'em: reminders anchor to Saturday 7 PM ET lock, not later puck drops. */
+  nhlWeekendSaturdayLock?: Date;
 };
 
 function usesWeekendFirstKickoffReminderStage(pool: typeof poolsTable.$inferSelect): boolean {
@@ -290,6 +292,11 @@ function effectiveReminderTiming(
   user: IncompleteReminderUser,
   now: Date,
 ): { deadline: Date; periodKey: string } | null {
+  if (resolved.context.nhlWeekendSaturdayLock) {
+    const lockAt = resolved.context.nhlWeekendSaturdayLock;
+    if (now.getTime() >= lockAt.getTime()) return null;
+    return { deadline: lockAt, periodKey: resolved.periodKey };
+  }
   if (resolved.context.nflSundayOfficeLock || resolved.context.nflWeekOpenReminder) {
     return { deadline: resolved.deadline, periodKey: resolved.periodKey };
   }
@@ -415,7 +422,38 @@ export async function resolveReminderDeadline(pool: typeof poolsTable.$inferSele
     games: period.games,
     dailyDeadline: period.kind === "date" ? getDailyPickDeadline(period.games) : undefined,
   });
-  return timing && {
+  if (!timing) return null;
+
+  const liveNhlWeeklyPickem =
+    !pool.sandboxMode
+    && pool.sport === "nhl"
+    && pool.poolType === "pickem"
+    && pool.pickFrequency === "weekly"
+    && isNhlWeekendOfficePool(pool);
+  if (liveNhlWeeklyPickem) {
+    const bounds = getNhlWeekBounds(
+      pool.createdAt instanceof Date ? pool.createdAt : new Date(pool.createdAt),
+      pool.currentWeek,
+      pool.initialPeriodStart,
+    );
+    const saturdayEt = bounds.days[0] ?? null;
+    const lockAt = nhlSaturdaySevenPmLockInstant(
+      period.games.map((game) => game.date),
+      saturdayEt,
+    );
+    if (lockAt) {
+      return {
+        deadline: lockAt,
+        periodKey: timing.periodKey,
+        context: {
+          period,
+          nhlWeekendSaturdayLock: lockAt,
+        },
+      };
+    }
+  }
+
+  return {
     ...timing,
     context: {
       period,
