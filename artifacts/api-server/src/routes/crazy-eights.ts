@@ -15,6 +15,7 @@ import { getMlbWeeklyInitialPeriodStart, isMlbWeeklyPreStart } from "../lib/mlb-
 import { decideCrazyEightsSubmission } from "../lib/crazy-eights-submission";
 import {
   MULTIPLIER_MAX_PICKS,
+  multiplierMaxConfidenceValue,
   validateMultiplierChunkSubmit,
 } from "../lib/crazy-eights-multiplier-submit";
 import { isRecurringNhlOrNbaCrazyEights } from "../lib/crazy-eights-recurring-policy";
@@ -1367,9 +1368,23 @@ router.post("/picks", requireAuth, async (req, res) => {
           .filter((v): v is number => typeof v === "number" && Number.isFinite(v)),
       );
 
+      const openPickable = games.filter((g) => {
+        if (existingGameIds.has(g.id)) return false;
+        const startMs = new Date(g.date).getTime();
+        if (!isSandbox && (g.status === "in_progress" || g.status === "final" || nowMs >= startMs)) {
+          return false;
+        }
+        return moneylines?.has(g.id);
+      });
+      const maxConfidenceValue = multiplierMaxConfidenceValue(
+        existingRows.length,
+        openPickable.length,
+      );
+
       const chunkErr = validateMultiplierChunkSubmit({
         existingGameIds,
         existingConfidence,
+        maxConfidenceValue,
         newPicks: picks.map((p) => ({
           gameId: p.gameId,
           confidencePoints: p.confidencePoints,
@@ -1450,9 +1465,23 @@ router.post("/picks", requireAuth, async (req, res) => {
               .map((r) => r.confidencePoints)
               .filter((v): v is number => typeof v === "number" && Number.isFinite(v)),
           );
+          const txOpenPickable = games.filter((g) => {
+            if (txGameIds.has(g.id)) return false;
+            const startMs = new Date(g.date).getTime();
+            if (!isSandbox && (g.status === "in_progress" || g.status === "final" || nowMs >= startMs)) {
+              return false;
+            }
+            return moneylines?.has(g.id);
+          });
+          const txMaxConfidence = multiplierMaxConfidenceValue(
+            existingPicks.length,
+            txOpenPickable.length,
+          );
+
           const txChunkErr = validateMultiplierChunkSubmit({
             existingGameIds: txGameIds,
             existingConfidence: txConfidence,
+            maxConfidenceValue: txMaxConfidence,
             newPicks: picks.map((p) => ({
               gameId: p.gameId,
               confidencePoints: p.confidencePoints,

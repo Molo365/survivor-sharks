@@ -1,11 +1,21 @@
 export const MULTIPLIER_MAX_PICKS = 8;
 
+/** Max confidence label for the weekend — forfeits high values when games already started. */
+export function multiplierMaxConfidenceValue(
+  existingPickCount: number,
+  openPickableCount: number,
+): number {
+  return Math.min(MULTIPLIER_MAX_PICKS, existingPickCount + openPickableCount);
+}
+
 export function validateMultiplierChunkSubmit(opts: {
   existingGameIds: ReadonlySet<string>;
   existingConfidence: ReadonlySet<number>;
   newPicks: Array<{ gameId: string; confidencePoints: number }>;
+  maxConfidenceValue?: number;
 }): string | null {
   const { existingGameIds, existingConfidence, newPicks } = opts;
+  const confidenceCap = opts.maxConfidenceValue ?? MULTIPLIER_MAX_PICKS;
   if (existingGameIds.size >= MULTIPLIER_MAX_PICKS) {
     return "You already have 8 locked picks for this weekend.";
   }
@@ -21,8 +31,10 @@ export function validateMultiplierChunkSubmit(opts: {
     if (existingGameIds.has(pick.gameId)) {
       return "One or more games were already submitted and are locked.";
     }
-    if (pick.confidencePoints < 1 || pick.confidencePoints > MULTIPLIER_MAX_PICKS) {
-      return `Confidence points must be between 1 and ${MULTIPLIER_MAX_PICKS}.`;
+    if (pick.confidencePoints < 1 || pick.confidencePoints > confidenceCap) {
+      return confidenceCap < MULTIPLIER_MAX_PICKS
+        ? `Confidence points must be between 1 and ${confidenceCap} — only ${confidenceCap} game${confidenceCap === 1 ? "" : "s"} remain this weekend.`
+        : `Confidence points must be between 1 and ${MULTIPLIER_MAX_PICKS}.`;
     }
     if (existingConfidence.has(pick.confidencePoints)) {
       return `Confidence ${pick.confidencePoints} is already used on a locked pick.`;

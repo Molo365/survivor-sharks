@@ -1009,7 +1009,21 @@ export function CrazyEightsView({
     return s;
   }, [existingPicks, confidence]);
 
-  const confidenceButtonCount = isMultiplier ? multiplierCardCap : MAX_PICKS;
+  const openPickableGameCount = useMemo(() => {
+    return games.filter((g) => {
+      if (lockedGameIds.has(g.id)) return false;
+      if (isGameStarted(g, sandboxMode)) return false;
+      if (isMultiplier && g.hasMoneyline === false) return false;
+      return true;
+    }).length;
+  }, [games, lockedGameIds, sandboxMode, isMultiplier]);
+
+  const maxConfidenceValue = useMemo(() => {
+    if (!isMultiplier) return MAX_PICKS;
+    return Math.min(multiplierCardCap, existingPicks.length + openPickableGameCount);
+  }, [isMultiplier, multiplierCardCap, existingPicks.length, openPickableGameCount, MAX_PICKS]);
+
+  const confidenceButtonCount = isMultiplier ? maxConfidenceValue : MAX_PICKS;
   const minPicksToSubmit = isMultiplier ? 1 : MAX_PICKS;
 
   const tiebreakerMatchup = useMemo((): TiebreakerMatchupGame | null => {
@@ -1154,7 +1168,7 @@ export function CrazyEightsView({
       toast({
         title: "Assign confidence points",
         description: isMultiplier
-          ? `Each game in this batch needs a unique value from 1–${multiplierCardCap} (skip numbers already locked).`
+          ? `Each game in this batch needs a unique value from 1–${maxConfidenceValue} (skip numbers already locked).`
           : `Each selected game needs a point value 1–${MAX_PICKS}.`,
         variant: "destructive",
       });
