@@ -519,7 +519,7 @@ export function CrazyEightsLeaderboard({
         ) : (
           <div className="rounded-xl border border-border/40 overflow-hidden">
             {(() => {
-              const showTb = !!nhlData?.tiebreakerColumnHeader;
+              const showTb = poolType !== "fast_break_multiplier" && !!nhlData?.tiebreakerColumnHeader;
               const tbSport = isNba ? "nba" : "nhl";
               const tbActual = isNba
                 ? nhlData?.tiebreakerActualPoints

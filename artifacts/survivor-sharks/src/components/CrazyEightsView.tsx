@@ -476,7 +476,7 @@ function LockedPicksView({
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const nhlNeedsTiebreaker = isNhl && tiebreakerShotsOnGoal === null;
-  const nbaNeedsTiebreaker = isNba && (tiebreakerPoints ?? null) === null;
+  const nbaNeedsTiebreaker = isNba && !isMultiplier && (tiebreakerPoints ?? null) === null;
 
   return (
     <div className="space-y-6">
@@ -516,6 +516,7 @@ function LockedPicksView({
         </div>
       </div>
 
+      {!isMultiplier && (
       <div className="rounded-lg border border-border/40 bg-card/50 p-4">
         <p className="text-[10px] md:text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-3">
           Tiebreaker Answers
@@ -621,6 +622,7 @@ function LockedPicksView({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -1162,7 +1164,7 @@ export function CrazyEightsView({
     }
     const needsTiebreaker =
       isMultiplier
-        ? myPicksData?.tiebreakerPoints == null
+        ? false
         : !isWeekly || isLastDayOfWeek || isWeekendSport;
     if (needsTiebreaker) {
       setShowTiebreaker(true);
@@ -1177,12 +1179,12 @@ export function CrazyEightsView({
         toast({ title: "Tiebreaker required", description: "Enter combined shots on goal.", variant: "destructive" });
         return;
       }
-    } else if (isNba) {
+    } else if (isNba && !isMultiplier) {
       if (!tbPoints) {
         toast({ title: "Tiebreaker required", description: "Enter combined points.", variant: "destructive" });
         return;
       }
-    } else {
+    } else if (!isMultiplier) {
       if (!tbRuns) {
         toast({ title: "Tiebreaker required", description: "Enter combined runs scored.", variant: "destructive" });
         return;
@@ -1192,7 +1194,9 @@ export function CrazyEightsView({
     const body = isNhl
       ? { picks, tiebreakerShotsOnGoal: parseInt(tbShots, 10) }
       : isNba
-        ? { picks, tiebreakerPoints: parseInt(tbPoints, 10) }
+        ? isMultiplier
+          ? { picks }
+          : { picks, tiebreakerPoints: parseInt(tbPoints, 10) }
         : { picks, tiebreakerRuns: parseInt(tbRuns, 10) };
     await postPicks(body);
   }
@@ -1461,7 +1465,7 @@ export function CrazyEightsView({
         ) : isMultiplier ? (
           <p>
             Submit lined games anytime before tip-off — each submit locks permanently. Opponents see picks as they lock.
-            Score confidence × locked decimal odds on winners.
+            Score confidence × locked decimal odds on winners. Highest total wins; an exact tie splits the prize.
           </p>
         ) : isNba ? (
           <p>
@@ -1543,8 +1547,8 @@ export function CrazyEightsView({
                   : "Submit Picks"}
       </Button>
 
-      {/* Tiebreaker dialog */}
-      <Dialog open={showTiebreaker} onOpenChange={setShowTiebreaker}>
+      {/* Tiebreaker dialog — not used for Fast Break Multiplier */}
+      <Dialog open={!isMultiplier && showTiebreaker} onOpenChange={setShowTiebreaker}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <TiebreakerGuessDialogTitle />

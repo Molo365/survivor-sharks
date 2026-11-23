@@ -760,27 +760,32 @@ router.get("/grid", requireAuth, async (req, res) => {
     const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     const dateLabel = `${fmt.format(friDt)} – ${fmt.format(sunDt)}`;
 
-    const memberTiebreakers = await db
-      .select({
-        userId: entriesTable.userId,
-        tiebreakerPoints: entriesTable.tiebreakerPoints,
-      })
-      .from(entriesTable)
-      .where(eq(entriesTable.poolId, poolId));
-    const tbByUser = new Map(memberTiebreakers.map((row) => [row.userId, row]));
     const lastGame = games.at(-1) ?? null;
     let tiebreakerActualPoints: number | null = null;
     let tiebreakerColumnHeader: string | undefined;
-    if (lastGame) {
-      if (lastGame.isCompleted) {
-        const stats = await fetchNbaTiebreakerStats(lastGame.id);
-        tiebreakerActualPoints = stats.totalPoints;
+    const tbByUser = new Map<number, { tiebreakerPoints: number | null }>();
+    if (!isMultiplier) {
+      const memberTiebreakers = await db
+        .select({
+          userId: entriesTable.userId,
+          tiebreakerPoints: entriesTable.tiebreakerPoints,
+        })
+        .from(entriesTable)
+        .where(eq(entriesTable.poolId, poolId));
+      for (const row of memberTiebreakers) {
+        tbByUser.set(row.userId, row);
       }
-      tiebreakerColumnHeader = formatNbaPointsTiebreakerColumnHeader(
-        lastGame.awayTeam.abbreviation,
-        lastGame.homeTeam.abbreviation,
-        tiebreakerActualPoints,
-      );
+      if (lastGame) {
+        if (lastGame.isCompleted) {
+          const stats = await fetchNbaTiebreakerStats(lastGame.id);
+          tiebreakerActualPoints = stats.totalPoints;
+        }
+        tiebreakerColumnHeader = formatNbaPointsTiebreakerColumnHeader(
+          lastGame.awayTeam.abbreviation,
+          lastGame.homeTeam.abbreviation,
+          tiebreakerActualPoints,
+        );
+      }
     }
 
     res.json({
@@ -788,9 +793,9 @@ router.get("/grid", requireAuth, async (req, res) => {
       dateLabel,
       viewingPastPeriod,
       poolType: pool.poolType,
-      tiebreakerColumnHeader,
-      tiebreakerActualPoints,
-      tiebreakerMatchup: lastGame ? toTiebreakerMatchupPayload(lastGame) : undefined,
+      tiebreakerColumnHeader: isMultiplier ? undefined : tiebreakerColumnHeader,
+      tiebreakerActualPoints: isMultiplier ? undefined : tiebreakerActualPoints,
+      tiebreakerMatchup: !isMultiplier && lastGame ? toTiebreakerMatchupPayload(lastGame) : undefined,
       games: games.map(g => ({
         id: g.id,
         awayTeam: { id: g.awayTeam.id, abbreviation: g.awayTeam.abbreviation, name: g.awayTeam.displayName, logoUrl: g.awayTeam.logo ?? null },
@@ -801,8 +806,8 @@ router.get("/grid", requireAuth, async (req, res) => {
         homeScore: g.homeScore ?? null,
       })),
       players: Array.from(userMap.values()).map(u => {
-        const ptsGuess = tbByUser.get(u.userId)?.tiebreakerPoints ?? null;
-        const tbRevealed = nbaWeekendPoolTiebreakerGuessRevealed({
+        const ptsGuess = isMultiplier ? null : (tbByUser.get(u.userId)?.tiebreakerPoints ?? null);
+        const tbRevealed = !isMultiplier && nbaWeekendPoolTiebreakerGuessRevealed({
           pool: { sport: "nba", poolType: pool.poolType as string, sandboxMode: pool.sandboxMode, isActive: pool.isActive },
           requesterUserId: userId,
           rowUserId: u.userId,
@@ -1401,17 +1406,6 @@ router.post("/picks", requireAuth, async (req, res) => {
         }
       }
 
-      if (
-        !isSandbox
-        && (entry as { tiebreakerPoints?: number | null }).tiebreakerPoints == null
-        && typeof tiebreakerPoints !== "number"
-      ) {
-        res.status(400).json({
-          error: "Fast Break Multiplier requires a tiebreaker guess (combined points for the last game of the weekend).",
-        });
-        return;
-      }
-
       let pickConfirmation: ReturnType<typeof makePickConfirmation> | null = null;
       let submission: { alreadySubmitted: boolean; saved: number; totalPicks: number; error?: string };
       try {
@@ -1500,16 +1494,6 @@ router.post("/picks", requireAuth, async (req, res) => {
             }
             saved++;
           }
-
-          await tx
-            .update(entriesTable)
-            .set({
-              tiebreakerPoints: typeof tiebreakerPoints === "number"
-                ? tiebreakerPoints
-                : (entry as { tiebreakerPoints?: number | null }).tiebreakerPoints,
-              tiebreakerThrees: null,
-            } as Record<string, unknown>)
-            .where(eq(entriesTable.id, entry.id));
 
           const totalPicks = existingPicks.length + saved;
 
@@ -1905,7 +1889,7 @@ router.patch("/tiebreaker", requireAuth, async (req, res) => {
     !pool
     || !isCrazyEightsFamilyPoolType(pool.poolType as string)
     || (pool.sport !== "nhl" && pool.sport !== "nba")
-    || (pool.poolType === "fast_break_multiplier" && pool.sport !== "nba")
+    || isFastBreakMultiplierPool(pool)
   ) {
     res.status(404).json({ error: "Pool not found or not a weekend Crazy 8's pool" });
     return;
@@ -2477,6 +2461,11 @@ router.get("/tiebreaker-summary", requireAuth, async (req, res) => {
     if (group.length > 1) tiedUserIds.push(...group);
   }
   if (tiedUserIds.length === 0) { res.json({ hadTiebreaker: false }); return; }
+
+  if (isFastBreakMultiplierPool(pool)) {
+    res.json({ hadTiebreaker: false });
+    return;
+  }
 
   // 4. Re-fetch period games to identify the last completed tiebreaker game
   //    (same "last completed game" logic as resolveCrazyEightsPeriod)

@@ -169,7 +169,7 @@ const POOL_TYPES = [
     icon: Dice5,
     tagline: "Confidence × Odds",
     description:
-      "Same as Fast Break: pick 8 NBA weekend games, rank confidence 1–8. Correct picks score confidence × locked decimal moneyline (ESPN). Highest total wins.",
+      "Same as Fast Break: pick 8 NBA weekend games, rank confidence 1–8. Correct picks score confidence × locked decimal moneyline (ESPN). Highest total wins; exact ties split the prize.",
     badge: "× Odds",
     badgeClass: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/35",
     cardClass: "border-fuchsia-500/60 bg-[linear-gradient(145deg,rgba(217,70,239,0.08)_0%,transparent_100%)]",
@@ -1208,7 +1208,7 @@ export default function CreatePool() {
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nhl
       ? "Pick up to 8 games from the weekend NHL slate. Assign confidence points by confidence level."
       : selectedType === "fast_break_multiplier" && selectedSport === PoolInputSport.nba
-      ? "Pick 8 games with posted ESPN moneylines. Rank confidence 1–8. Score = confidence × decimal odds on each correct pick."
+      ? "Pick 8 games with posted ESPN moneylines. Rank confidence 1–8. Score = confidence × decimal odds on each correct pick. Exact ties split the prize."
       : selectedType === "crazy_8s" && selectedSport === PoolInputSport.nba
       ? "Pick up to 8 games from the weekend NBA slate (Fri–Sun). Assign confidence points by confidence level."
       : selectedType === "crazy_8s"
