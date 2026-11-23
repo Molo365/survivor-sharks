@@ -31,6 +31,7 @@ import {
   recordCrazyEightsPeriodAndAdvance,
 } from "./crazy-eights-recurring-settlement";
 import { crazyEightsCorrectPickPoints } from "./crazy-eights-scoring";
+import { isFastBreakMultiplierPool } from "./fast-break-pool";
 import { applyChampionsLeagueClosure } from "./champions-league-closure";
 import {
   fetchGames,
@@ -5914,6 +5915,14 @@ export async function resolveCrazyEightsPeriod(
   if (!anyTied) {
     if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
     await declareCrazyEightsWinners(pool, scoreGroups, "outright winner");
+    return;
+  }
+
+  if (isFastBreakMultiplierPool(pool)) {
+    if (recurringCrazyEightsPromotionDeferred(pool, periodDates)) return;
+    const topGroup = scoreGroups[0] ?? [];
+    const reason = topGroup.length > 1 ? "split-pot: exact multiplier total tie" : "outright winner";
+    await declareCrazyEightsWinners(pool, scoreGroups, reason);
     return;
   }
 

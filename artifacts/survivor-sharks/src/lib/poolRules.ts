@@ -137,11 +137,10 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           ],
         },
         {
-          heading: "Tiebreakers",
+          heading: "Ties",
           items: [
-            "Enter combined total points for the last game of the weekend when you submit.",
-            "If players tie on points, the closest guess wins. Equally close splits the prize.",
-            NBA_WEEKEND_REVEAL_SENTENCE,
+            "If two or more players finish with the exact same multiplier total, they split that weekend's prize evenly.",
+            "There is no tiebreaker guess for the last game — multiplier totals rarely tie.",
           ],
         },
         {
@@ -149,7 +148,6 @@ export function getPoolRules(pool: PoolRulesPool | null | undefined): PoolRules 
           items: [
             "This pool repeats every weekend. Each weekend is scored on its own.",
             "Between weekends, the platform Tuesday schedule above applies — no picks for the next slate until Tuesday 6:00 AM ET.",
-            "Tiebreaker guesses reset each weekend.",
             "The commissioner can stop the pool with End Recurring Pool after the current weekend finishes.",
           ],
         },
