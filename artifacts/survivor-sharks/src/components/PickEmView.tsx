@@ -1268,6 +1268,8 @@ interface WeeklyLeaderboardProps {
   currentUserId: number | null;
   weekStart: string;
   weekEnd: string;
+  weekNumber: number;
+  enableWeekPickModal?: boolean;
   isNbaAts?: boolean;
   isSuperLeague?: boolean;
   showTiebreakerColumn?: boolean;
@@ -1284,6 +1286,8 @@ function WeeklyLeaderboard({
   currentUserId,
   weekStart,
   weekEnd,
+  weekNumber,
+  enableWeekPickModal,
   isNbaAts,
   isSuperLeague,
   showTiebreakerColumn,
@@ -1296,6 +1300,10 @@ function WeeklyLeaderboard({
   const todayEt = getTodayEt();
   const days = generateWeeklyLeaderboardDays(weekStart, weekEnd, { isNbaAts, isSuperLeague });
   const [openCell, setOpenCell] = useState<{ userId: number; date: string } | null>(null);
+  const [weekPickDetail, setWeekPickDetail] = useState<{
+    userId: number;
+    playerLabel: string;
+  } | null>(null);
   const { data: pickStatuses } = useGetPoolPickStatus(poolId, {
     query: {
       enabled: !!poolId,
@@ -1319,6 +1327,32 @@ function WeeklyLeaderboard({
   const tbActual = tiebreakerSport === "nba" ? tiebreakerActualPoints : tiebreakerActualShotsOnGoal;
   const tbGuess = (entry: PickEmLeaderboardEntry) =>
     tiebreakerSport === "nba" ? entry.tiebreakerPointsGuess : entry.tiebreakerShotsOnGoalGuess;
+
+  function renderWeekTotal(entry: PickEmLeaderboardEntry, pct: number | null) {
+    const inner = (
+      <>
+        <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
+        <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
+        {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+      </>
+    );
+    if (enableWeekPickModal && entry.picked > 0) {
+      return (
+        <button
+          type="button"
+          className="text-right rounded-md px-1 py-0.5 hover:bg-muted/40 transition-colors cursor-pointer underline decoration-transparent hover:decoration-yellow-500/30 underline-offset-2"
+          title={`View ${entry.displayName || entry.username}'s week picks`}
+          onClick={() => setWeekPickDetail({
+            userId: entry.userId,
+            playerLabel: entry.displayName || entry.username,
+          })}
+        >
+          {inner}
+        </button>
+      );
+    }
+    return <div className="text-right pr-1">{inner}</div>;
+  }
 
   function renderDayControl(
     entry: PickEmLeaderboardEntry,
@@ -1441,11 +1475,7 @@ function WeeklyLeaderboard({
                   {isMe && <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">you</span>}
                 </span>
                 <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right pr-1">
-                    <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
-                    <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
-                    {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
-                  </div>
+                  {renderWeekTotal(entry, pct)}
                   {tbCol && tiebreakerColumnHeader && (
                     <TiebreakerStandingsColumnGuess guess={tbGuess(entry)} className="min-w-[2.75rem]" />
                   )}
@@ -1550,9 +1580,7 @@ function WeeklyLeaderboard({
 
                       {/* Weekly total */}
                       <td className={cn("px-3 py-2.5 text-right pr-1", rowBg)}>
-                        <span className="font-bebas text-xl text-foreground">{entry.correct}</span>
-                        <span className="font-bebas text-sm text-muted-foreground/40">/{entry.picked}</span>
-                        {pct !== null && <div className="text-[10px] text-muted-foreground/50 leading-none">{pct}%</div>}
+                        {renderWeekTotal(entry, pct)}
                       </td>
 
                       {tbCol && (
@@ -1577,6 +1605,18 @@ function WeeklyLeaderboard({
           </table>
         </div>
       </div>
+
+      {weekPickDetail && (
+        <PickEmWeeklyPickDetailDialog
+          poolId={poolId}
+          week={weekNumber}
+          userId={weekPickDetail.userId}
+          playerLabel={weekPickDetail.playerLabel}
+          open={weekPickDetail !== null}
+          onOpenChange={(open) => { if (!open) setWeekPickDetail(null); }}
+          isNbaAts={isNbaAts}
+        />
+      )}
     </div>
   );
 }
@@ -5294,6 +5334,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 currentUserId={user?.id ?? null}
                 weekStart={leaderboard.weekStart}
                 weekEnd={leaderboard.weekEnd}
+                weekNumber={poolDetail?.currentWeek ?? 1}
+                enableWeekPickModal={enableWeeklyWinnerPickDetail}
                 isNbaAts={isNbaAts}
                 isSuperLeague={sport === "superleague"}
                 showTiebreakerColumn={(isNhl && isWeekly) || isNbaAts}
