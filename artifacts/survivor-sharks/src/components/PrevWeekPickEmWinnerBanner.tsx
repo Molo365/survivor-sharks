@@ -45,12 +45,15 @@ export function PrevWeekPickEmWinnerBanner({
   weekEnd,
   periodLabel,
   onViewResults,
+  onViewWinnerPicks,
 }: {
   groups: PrevWeekWinnerGroup[];
   weekStart: string;
   weekEnd: string;
   periodLabel?: string | null;
   onViewResults: () => void;
+  /** When exactly one winner, tap score opens their pick breakdown (NFL Confidence weekly parity). */
+  onViewWinnerPicks?: (opts: { userId: number; playerLabel: string }) => void;
 }) {
   if (groups.length === 0) return null;
 
@@ -72,6 +75,9 @@ export function PrevWeekPickEmWinnerBanner({
   const primary = groups[0];
   const scoreLabel = singleGroup ? `${primary.correct}/${primary.picked}` : null;
   const prize = prizeSummary(groups);
+  const soleWinner =
+    singleGroup && primary.entries.length === 1 ? primary.entries[0] : null;
+  const scoreOpensPickDetail = soleWinner != null && onViewWinnerPicks != null;
   const subtitleParts = [
     singleGroup ? `${primary.correct}/${primary.picked} correct` : null,
     prize,
@@ -96,16 +102,27 @@ export function PrevWeekPickEmWinnerBanner({
       </div>
       <button
         type="button"
-        onClick={onViewResults}
+        onClick={() => {
+          if (scoreOpensPickDetail && soleWinner) {
+            onViewWinnerPicks({
+              userId: soleWinner.userId,
+              playerLabel: soleWinner.displayName || soleWinner.username,
+            });
+          } else {
+            onViewResults();
+          }
+        }}
         className="text-right shrink-0 rounded-lg px-2 py-1 -mr-1 hover:bg-yellow-500/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/40"
-        aria-label="View full results for last period"
+        aria-label={scoreOpensPickDetail ? "View this player's picks" : "View full results for last period"}
       >
         {scoreLabel ? (
           <>
             <p className="font-bebas text-2xl text-yellow-400 leading-none underline decoration-yellow-500/40 underline-offset-4">
               {scoreLabel}
             </p>
-            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">correct · tap</p>
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+              {scoreOpensPickDetail ? "picks · tap" : "results · tap"}
+            </p>
           </>
         ) : (
           <p className="text-xs font-medium text-yellow-400/90 leading-snug max-w-[5.5rem]">

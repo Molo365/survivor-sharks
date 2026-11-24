@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import React, { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "react";
 import { CancelPoolButton } from "@/components/CancelPoolButton";
 import {
   useGetPickEmDailyPicks,
@@ -89,6 +89,7 @@ import {
   PrevWeekPickEmWinnerBanner,
   type PrevWeekWinnerGroup,
 } from "@/components/PrevWeekPickEmWinnerBanner";
+import { PickEmWeeklyPickDetailDialog } from "@/components/PickEmWeeklyPickDetailDialog";
 
 type PickEmPeriodListItem = {
   key: string;
@@ -2559,6 +2560,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const [weekResultsInitialWeek, setWeekResultsInitialWeek] = useState<number | undefined>(
     undefined,
   );
+  const [prevWeekPickDetail, setPrevWeekPickDetail] = useState<{
+    userId: number;
+    playerLabel: string;
+    week: number;
+  } | null>(null);
   const [partialSubmitOpen, setPartialSubmitOpen] = useState(false);
   const [partialSubmitMissingCount, setPartialSubmitMissingCount] = useState(0);
 
@@ -2626,6 +2632,16 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   }, [pickEmPeriods, prevWeekResults]);
   const showPrevWeekWinnerBanner =
     effectivePrevWeekWinnerGroups.length > 0 && prevWeekBannerDates != null;
+  const enableWeeklyWinnerPickDetail = isWeekly && !isMlsWeekly;
+  const prevWeekNumberForPicks =
+    (prevWeekResults as { weekNumber?: number } | undefined)?.weekNumber
+    ?? Math.max(1, (poolDetail?.currentWeek ?? 1) - 1);
+  const openPrevWeekWinnerPicks = useCallback(
+    (opts: { userId: number; playerLabel: string }) => {
+      setPrevWeekPickDetail({ ...opts, week: prevWeekNumberForPicks });
+    },
+    [prevWeekNumberForPicks],
+  );
 
   const [localPicks, setLocalPicks] = useState<Map<string, string>>(new Map());
   const [nbaAtsWaitingOpen, setNbaAtsWaitingOpen] = useState(false);
@@ -3676,6 +3692,17 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
         hidePrizeColumn={sport === "championsleague"}
       />
     )}
+    {prevWeekPickDetail && (
+      <PickEmWeeklyPickDetailDialog
+        poolId={poolId}
+        week={prevWeekPickDetail.week}
+        userId={prevWeekPickDetail.userId}
+        playerLabel={prevWeekPickDetail.playerLabel}
+        open={prevWeekPickDetail !== null}
+        onOpenChange={(open) => { if (!open) setPrevWeekPickDetail(null); }}
+        isNbaAts={isNbaAts}
+      />
+    )}
     {/* MLB Tiebreaker Dialog */}
     <Dialog open={showTiebreaker} onOpenChange={(open) => { if (!open) setShowTiebreaker(false); }}>
       <DialogContent className="sm:max-w-md">
@@ -4125,6 +4152,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekStart={prevWeekBannerDates.weekStart}
                   weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
               <div className="text-center py-16 text-muted-foreground">
@@ -4157,6 +4185,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekStart={prevWeekBannerDates.weekStart}
                   weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
 
@@ -4352,6 +4381,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekEnd={prevWeekBannerDates.weekEnd}
                   periodLabel={prevPeriodLabel}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
               <div className="text-center py-16 text-muted-foreground">
@@ -4450,6 +4480,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekEnd={prevWeekBannerDates.weekEnd}
                   periodLabel={prevPeriodLabel}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
 
@@ -4595,6 +4626,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekStart={prevWeekBannerDates.weekStart}
                   weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
 
@@ -4981,6 +5013,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                   weekStart={prevWeekBannerDates.weekStart}
                   weekEnd={prevWeekBannerDates.weekEnd}
                   onViewResults={() => setWeekResultsOpen(true)}
+                  onViewWinnerPicks={enableWeeklyWinnerPickDetail ? openPrevWeekWinnerPicks : undefined}
                 />
               )}
 
