@@ -1879,7 +1879,10 @@ function resolvePickemWeekBoundsForWeekNumber(
   }
   if (sport === "mlb") {
     const b = getMlbWeekBounds(pool.createdAt, weekNumber);
-    return { weekStart: b.weekStart, weekEnd: b.weekEnd };
+    const start = b.days[0];
+    const end = b.days[b.days.length - 1];
+    if (!start || !end) return null;
+    return { weekStart: start, weekEnd: end };
   }
   if (sport === "nba" && isAts) {
     const b = getNbaAtsSlateBoundsForPool(pool, weekNumber);
