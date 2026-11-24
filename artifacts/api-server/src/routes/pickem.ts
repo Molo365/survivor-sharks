@@ -26,6 +26,7 @@ import {
   fetchNbaGamesByWeek,
   fetchNflGamesByWeek,
   getNhlWeekBounds,
+  getMlbWeekBounds,
   NHL_SANDBOX_ANCHOR,
   getNbaWeekBounds,
   getNbaWeekendBounds,
@@ -1855,6 +1856,156 @@ router.get("/daily-picks", requireAuth, async (req, res) => {
   });
 
   res.json(details);
+});
+
+function resolvePickemWeekBoundsForWeekNumber(
+  pool: typeof poolsTable.$inferSelect,
+  weekNumber: number,
+): { weekStart: string; weekEnd: string } | null {
+  const sport = pool.sport as string;
+  const isAts = (pool.poolType as string) === "nba_ats";
+  if (pool.pickFrequency !== "weekly") return null;
+  if (sport === "nhl") {
+    const anchor = pool.sandboxMode ? NHL_SANDBOX_ANCHOR : pool.createdAt;
+    const b = getNhlWeekBounds(
+      anchor,
+      weekNumber,
+      pool.sandboxMode ? undefined : pool.initialPeriodStart,
+    );
+    const start = b.days[0];
+    const end = b.days[b.days.length - 1];
+    if (!start || !end) return null;
+    return { weekStart: start, weekEnd: end };
+  }
+  if (sport === "mlb") {
+    const b = getMlbWeekBounds(pool.createdAt, weekNumber);
+    return { weekStart: b.weekStart, weekEnd: b.weekEnd };
+  }
+  if (sport === "nba" && isAts) {
+    const b = getNbaAtsSlateBoundsForPool(pool, weekNumber);
+    const start = b.days[0];
+    const end = b.days[b.days.length - 1];
+    if (!start || !end) return null;
+    return { weekStart: start, weekEnd: end };
+  }
+  return null;
+}
+
+// GET /api/pools/:poolId/pickem/week-picks?week=N&userId=N
+router.get("/week-picks", requireAuth, async (req, res) => {
+  const poolId = parseInt(String(req.params.poolId));
+  const requestingUserId = req.user!.id;
+  const weekNumber = parseInt(String(req.query.week ?? "0"), 10);
+  const targetUserId = parseInt(String(req.query.userId ?? "0"), 10);
+
+  if (!Number.isFinite(weekNumber) || weekNumber < 1) {
+    res.status(400).json({ error: "week must be a positive integer" });
+    return;
+  }
+  if (!targetUserId) {
+    res.status(400).json({ error: "userId is required" });
+    return;
+  }
+
+  const [pool] = await db.select().from(poolsTable).where(eq(poolsTable.id, poolId)).limit(1);
+  if (!pool) { res.status(404).json({ error: "Pool not found" }); return; }
+
+  const [entry] = await db
+    .select({ id: entriesTable.id })
+    .from(entriesTable)
+    .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, requestingUserId)))
+    .limit(1);
+  if (!entry) { res.status(403).json({ error: "Not a member of this pool" }); return; }
+
+  const weekBounds = resolvePickemWeekBoundsForWeekNumber(pool, weekNumber);
+  if (!weekBounds) {
+    res.status(400).json({ error: "Week picks drill-down is not available for this pool type" });
+    return;
+  }
+
+  const sport = pool.sport as string;
+  const isAts = (pool.poolType as string) === "nba_ats";
+
+  const picks = await db
+    .select()
+    .from(pickemPicksTable)
+    .where(
+      and(
+        eq(pickemPicksTable.poolId, poolId),
+        eq(pickemPicksTable.userId, targetUserId),
+        gte(pickemPicksTable.gameDate, weekBounds.weekStart),
+        lte(pickemPicksTable.gameDate, weekBounds.weekEnd),
+      ),
+    );
+
+  const uniqueDates = [...new Set(picks.map((p) => p.gameDate))].sort();
+  const gameArrays = await Promise.all(
+    uniqueDates.map((d) => fetchGamesForDate(sport, d.replace(/-/g, ""))),
+  );
+  const games = gameArrays.flat();
+  const gameMap = new Map(games.map((g) => [g.id, g]));
+  const slateGameStartIsos = games.map((g) => g.date);
+
+  const spreadMap = new Map<string, { spread: number; favoriteTeamId: string }>();
+  if (isAts && picks.length > 0) {
+    const gameIds = picks.map((p) => p.gameId);
+    const spreadRows = await db
+      .select()
+      .from(pickemGameSpreadsTable)
+      .where(and(eq(pickemGameSpreadsTable.poolId, poolId), inArray(pickemGameSpreadsTable.gameId, gameIds)));
+    for (const row of spreadRows) {
+      spreadMap.set(row.gameId, { spread: row.spread, favoriteTeamId: row.favoriteTeamId });
+    }
+  }
+
+  const WC_OPTIONS_BE = ["home_win", "draw", "away_win"] as const;
+  const details = picks
+    .map((pick) => {
+      const game = gameMap.get(pick.gameId);
+      const revealed = isPickRevealed({
+        isOwnPick: targetUserId === requestingUserId,
+        sandboxMode: pool.sandboxMode ?? false,
+        result: pick.result,
+        startTime: game?.date,
+        pool,
+        slateGameStartIsos,
+      });
+      const is3wayOption = revealed && pick.pickedTeamId != null
+        && (WC_OPTIONS_BE as readonly string[]).includes(pick.pickedTeamId);
+      const pickedIsHome = revealed && game
+        ? (is3wayOption ? pick.pickedTeamId === "home_win" : pick.pickedTeamId === game.homeTeam.id)
+        : false;
+      const spreadEntry = isAts ? (spreadMap.get(pick.gameId) ?? null) : null;
+      return {
+        gameId: pick.gameId,
+        pickedTeamId: revealed ? pick.pickedTeamId : null,
+        pickedTeamName: revealed ? pick.pickedTeamName : null,
+        pickedTeamLogoUrl: !revealed || !game ? null
+          : (is3wayOption && pick.pickedTeamId === "draw") ? null
+          : (pickedIsHome ? game.homeTeam.logo : game.awayTeam.logo) ?? null,
+        result: pick.result,
+        homeTeam: game
+          ? { id: game.homeTeam.id, abbreviation: game.homeTeam.abbreviation, name: game.homeTeam.displayName, logoUrl: game.homeTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        awayTeam: game
+          ? { id: game.awayTeam.id, abbreviation: game.awayTeam.abbreviation, name: game.awayTeam.displayName, logoUrl: game.awayTeam.logo ?? null }
+          : { id: "", abbreviation: "?", name: "Unknown", logoUrl: null },
+        homeScore: game?.homeScore ?? null,
+        awayScore: game?.awayScore ?? null,
+        startTime: game?.date ?? "",
+        status: game?.status ?? "unknown",
+        spread: spreadEntry?.spread ?? null,
+        favoriteTeamId: spreadEntry?.favoriteTeamId ?? null,
+      };
+    })
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  res.json({
+    week: weekNumber,
+    weekStart: weekBounds.weekStart,
+    weekEnd: weekBounds.weekEnd,
+    picks: details,
+  });
 });
 
 /** Compute the Mon–Sun week bounds (ET dates) for the week that contains today.
