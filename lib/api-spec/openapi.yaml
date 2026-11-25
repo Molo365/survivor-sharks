@@ -4795,6 +4795,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PickEmLeaderboardEntry"
+        tournamentEntries:
+          type: array
+          description: Champions League pick-em only — cumulative correct/picked across the full tournament (season prize standings).
+          items:
+            $ref: "#/components/schemas/PickEmLeaderboardEntry"
         tiebreakerActualRuns:
           type: ["integer", "null"]
           description: "Runs scored in the tiebreaker game (last game on the slate) once final (MLB pools only; null if not applicable or game not yet final)"

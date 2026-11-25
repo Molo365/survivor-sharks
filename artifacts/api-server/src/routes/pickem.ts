@@ -3233,7 +3233,9 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isNhl = sport === "nhl";
   const weeklySoccerLeaderboard = isChampionsLeague || isCalendarSoccerWeekly;
 
-  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl, poolEntriesNbaAts, poolMembersForLb] = await Promise.all([
+  const tournamentPicksWhere = eq(pickemPicksTable.poolId, poolId);
+
+  const [wcSchedule, espnGames, allPicks, aggregates, dailyAggregates, poolEntries, poolEntriesNhl, poolEntriesNbaAts, poolMembersForLb, clTournamentAggregates] = await Promise.all([
     isWc ? fetchWcSchedule() : Promise.resolve(null as null),
     isIntl ? fetchIntlGamesForDate(todayEspn)
     : isWc ? Promise.resolve([] as Awaited<ReturnType<typeof fetchGamesForDate>>)
@@ -3372,11 +3374,33 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
           .innerJoin(usersTable, eq(entriesTable.userId, usersTable.id))
           .where(eq(entriesTable.poolId, poolId))
       : Promise.resolve([]),
+    isChampionsLeague
+      ? db
+          .select({
+            userId: pickemPicksTable.userId,
+            username: usersTable.username,
+            displayName: usersTable.displayName,
+            correct: sql<string>`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct')`,
+            picked: sql<string>`COUNT(*)`,
+          })
+          .from(pickemPicksTable)
+          .innerJoin(usersTable, eq(pickemPicksTable.userId, usersTable.id))
+          .where(tournamentPicksWhere)
+          .groupBy(pickemPicksTable.userId, usersTable.username, usersTable.displayName)
+          .orderBy(
+            sql`COUNT(*) FILTER (WHERE ${pickemPicksTable.result} = 'correct') DESC`,
+            sql`COUNT(*) DESC`,
+          )
+      : Promise.resolve(null),
   ]);
 
   const leaderboardAggregates = weeklySoccerLeaderboard
     ? mergeWeeklySoccerLeaderboardAggregates(aggregates, poolMembersForLb)
     : aggregates;
+
+  const tournamentLeaderboardAggregates = isChampionsLeague && clTournamentAggregates
+    ? mergeWeeklySoccerLeaderboardAggregates(clTournamentAggregates, poolMembersForLb)
+    : null;
 
   if (!isWc) {
     espnGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -3653,6 +3677,24 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     };
   });
 
+  let tournamentRank = 1;
+  const tournamentEntries = tournamentLeaderboardAggregates?.map((row, i) => {
+    if (i > 0 && Number(row.correct) === Number(tournamentLeaderboardAggregates[i - 1]!.correct)) {
+      // tied on correct — keep rank
+    } else {
+      tournamentRank = i + 1;
+    }
+    return {
+      rank: tournamentRank,
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName ?? null,
+      correct: Number(row.correct),
+      picked: Number(row.picked),
+      picks: [],
+    };
+  });
+
   // Build game list — WC and Champions League use their full active period; other
   // sports use today's ESPN games (or their existing weekly/sandbox branch).
   const wcRange = isWc ? WC_PHASES[wcPhase] : null;
@@ -3716,6 +3758,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     phase,
     games: formattedGames,
     entries,
+    ...(tournamentEntries ? { tournamentEntries } : {}),
     totalGames,
     completedGames,
     tiebreakerActualRuns: isMlb ? tiebreakerActualRuns : undefined,
