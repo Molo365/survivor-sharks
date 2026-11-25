@@ -1736,9 +1736,23 @@ export function PickEmSeasonView({
 
     pendingPicksRef.current = picks;
 
+    const existingWeeklyGuess = (() => {
+      const parsed = parseWeeklyBonusGuess(weeklyTiebreakerGuess);
+      if (parsed != null) return parsed;
+      if (slate.weeklyTiebreaker?.guess != null) return slate.weeklyTiebreaker.guess;
+      return null;
+    })();
+    const submittingTbWinner =
+      weeklyTiebreakerGame != null
+      && picks.some((p) => p.gameId === weeklyTiebreakerGame.id);
+
     if (weeklyBonusEnabled && weeklyTiebreakerGame) {
-      setWeeklyTbModalGuess(weeklyTiebreakerGuess);
-      setShowWeeklyTbModal(true);
+      if (submittingTbWinner && existingWeeklyGuess == null) {
+        setWeeklyTbModalGuess(weeklyTiebreakerGuess);
+        setShowWeeklyTbModal(true);
+        return;
+      }
+      doFinalSubmit(picks, undefined, undefined, existingWeeklyGuess ?? undefined);
       return;
     }
 
@@ -2369,8 +2383,8 @@ export function PickEmSeasonView({
                       <Trophy className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
                       <p className="text-xs text-yellow-300/85 leading-relaxed">
                         The <span className="font-semibold text-yellow-300">last game</span> on the slate is the weekly bonus tiebreaker.
-                        When you tap <span className="font-semibold text-yellow-300">Submit Picks</span>, you&apos;ll enter combined passing yards for{" "}
-                        {weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation} before picks are saved.
+                        Pick winners anytime before kickoff. When you submit a pick on{" "}
+                        {weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation} (last game this week), you&apos;ll also enter combined passing yards for the weekly bonus.
                       </p>
                     </div>
                   )}
@@ -2423,9 +2437,7 @@ export function PickEmSeasonView({
                           </span>
                           {weeklyBonusEnabled && weeklyTiebreakerGame && (
                             <span className="block">
-                              The weekly bonus still needs a <strong>winner pick</strong> on{" "}
-                              {weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation}{" "}
-                              <em>and</em> your combined passing-yards guess — you&apos;ll enter yards on the next step once picks are complete.
+                              The weekly bonus ({weeklyTiebreakerGame.awayTeam.abbreviation} @ {weeklyTiebreakerGame.homeTeam.abbreviation}) needs a winner pick and passing-yards guess later — not required to save today&apos;s picks.
                             </span>
                           )}
                         </AlertDialogDescription>

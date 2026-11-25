@@ -168,6 +168,91 @@ async function saveWeeklyTiebreaker(
     });
 }
 
+function parseWeeklyTiebreakerGuessInput(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0) return null;
+  return raw;
+}
+
+/** Weekly bonus yards are optional on partial saves; required when picking the tiebreaker game without a prior guess. */
+async function validateWeeklyTiebreakerOnPickSave(opts: {
+  poolId: number;
+  userId: number;
+  numWeek: number;
+  picks: Array<{ gameId: string }>;
+  weeklyTiebreakerGuess: unknown;
+  weeklyTiebreakerGame: NflScheduledGame;
+  pool: typeof poolsTable.$inferSelect;
+  slateGameStartIsos: string[];
+}): Promise<
+  { ok: true; guessToPersist: number | null }
+  | { ok: false; status: number; error: string }
+> {
+  const {
+    poolId,
+    userId,
+    numWeek,
+    picks,
+    weeklyTiebreakerGuess,
+    weeklyTiebreakerGame,
+    pool,
+    slateGameStartIsos,
+  } = opts;
+
+  const guessInBody = parseWeeklyTiebreakerGuessInput(weeklyTiebreakerGuess);
+  const pickingTbGame = picks.some((p) => p.gameId === weeklyTiebreakerGame.id);
+
+  if (pickingTbGame && guessInBody === null) {
+    const [existingTb] = await db
+      .select({ guess: nflWeeklyTiebreakersTable.guess })
+      .from(nflWeeklyTiebreakersTable)
+      .where(and(
+        eq(nflWeeklyTiebreakersTable.poolId, poolId),
+        eq(nflWeeklyTiebreakersTable.userId, userId),
+        eq(nflWeeklyTiebreakersTable.week, numWeek),
+      ))
+      .limit(1);
+    if (existingTb?.guess == null) {
+      return {
+        ok: false,
+        status: 400,
+        error: "weeklyTiebreakerGuess is required when saving a pick on the weekly tiebreaker game",
+      };
+    }
+  }
+
+  if (guessInBody !== null) {
+    if (
+      isGameLocked(
+        new Date(weeklyTiebreakerGame.startTime!).toISOString(),
+        pool,
+        slateGameStartIsos,
+      )
+    ) {
+      return { ok: false, status: 400, error: "The weekly tiebreaker is locked because its target game has started" };
+    }
+    if (!pickingTbGame) {
+      const [existingPick] = await db
+        .select({ id: pickemPicksTable.id })
+        .from(pickemPicksTable)
+        .where(and(
+          eq(pickemPicksTable.poolId, poolId),
+          eq(pickemPicksTable.userId, userId),
+          eq(pickemPicksTable.gameId, weeklyTiebreakerGame.id),
+        ))
+        .limit(1);
+      if (!existingPick) {
+        return {
+          ok: false,
+          status: 400,
+          error: "Choose a winner for the weekly tiebreaker game before saving a passing-yards guess",
+        };
+      }
+    }
+  }
+
+  return { ok: true, guessToPersist: guessInBody };
+}
+
 async function persistNflPickEmSeasonConfirmation(
   tx: PickConfirmationTransaction,
   pool: typeof poolsTable.$inferSelect,
@@ -525,27 +610,29 @@ router.post("/picks", requireAuth, async (req, res) => {
     ? await resolveWeeklyTiebreakerGame(pool, numWeek)
     : null;
 
+  let weeklyGuessToPersist: number | null = null;
   if (pool.weeklyBonusEnabled) {
-    if (typeof weeklyTiebreakerGuess !== "number" || !Number.isInteger(weeklyTiebreakerGuess) || weeklyTiebreakerGuess < 0) {
-      res.status(400).json({ error: "weeklyTiebreakerGuess is required and must be a non-negative integer" });
-      return;
-    }
     if (!weeklyTiebreakerGame) {
       res.status(400).json({ error: "The weekly tiebreaker game is not available yet" });
       return;
     }
     const precheckGames = await fetchNflGamesByWeek(numWeek, pool.season, pool.isPreseason ? 1 : 2);
     const precheckSlate = precheckGames.map((g) => g.date);
-    if (
-      isGameLocked(
-        new Date(weeklyTiebreakerGame.startTime!).toISOString(),
-        pool,
-        precheckSlate,
-      )
-    ) {
-      res.status(400).json({ error: "The weekly tiebreaker is locked because its target game has started" });
+    const weeklyTbValidation = await validateWeeklyTiebreakerOnPickSave({
+      poolId,
+      userId,
+      numWeek,
+      picks,
+      weeklyTiebreakerGuess,
+      weeklyTiebreakerGame,
+      pool,
+      slateGameStartIsos: precheckSlate,
+    });
+    if (!weeklyTbValidation.ok) {
+      res.status(weeklyTbValidation.status).json({ error: weeklyTbValidation.error });
       return;
     }
+    weeklyGuessToPersist = weeklyTbValidation.guessToPersist;
   }
 
   // ── Sandbox path — skip lock validation ────────────────────────────────────
@@ -621,13 +708,13 @@ router.post("/picks", requireAuth, async (req, res) => {
           set: { pickedTeamId: resolvedTeamId, pickedTeamName, result: "pending" },
         });
       }
-      if (pool.weeklyBonusEnabled) {
+      if (pool.weeklyBonusEnabled && weeklyGuessToPersist != null) {
         await saveWeeklyTiebreaker(
           tx,
           poolId,
           userId,
           numWeek,
-          weeklyTiebreakerGuess!,
+          weeklyGuessToPersist,
           weeklyTiebreakerGame!.id,
         );
       }
@@ -681,13 +768,13 @@ router.post("/picks", requireAuth, async (req, res) => {
         .set({ tiebreakerPassingYards: Math.round(tiebreakerPassingYards), tiebreakerRushingYards: Math.round(tiebreakerRushingYards) } as any)
         .where(eq(entriesTable.id, entry.id));
     }
-    if (pool.weeklyBonusEnabled) {
+    if (pool.weeklyBonusEnabled && weeklyGuessToPersist != null) {
       await saveWeeklyTiebreaker(
         tx,
         poolId,
         userId,
         numWeek,
-        weeklyTiebreakerGuess!,
+        weeklyGuessToPersist,
         weeklyTiebreakerGame!.id,
       );
     }
@@ -817,13 +904,13 @@ router.post("/picks", requireAuth, async (req, res) => {
       .where(and(eq(entriesTable.poolId, poolId), eq(entriesTable.userId, userId)));
   }
 
-  if (pool.weeklyBonusEnabled) {
+  if (pool.weeklyBonusEnabled && weeklyGuessToPersist != null) {
     await saveWeeklyTiebreaker(
       tx,
       poolId,
       userId,
       numWeek,
-      weeklyTiebreakerGuess!,
+      weeklyGuessToPersist,
       weeklyTiebreakerGame!.id,
     );
   }
