@@ -1260,6 +1260,98 @@ function DailyPickPanel({ poolId, userId, date, isNbaAts }: { poolId: number; us
   );
 }
 
+// ── Compact standings list (tournament / daily) ───────────────────────────────
+
+function PickEmCompactStandings({
+  title,
+  subtitle,
+  entries,
+  currentUserId,
+}: {
+  title: string;
+  subtitle?: string;
+  entries: PickEmLeaderboardEntry[];
+  currentUserId: number | null;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-bebas text-2xl tracking-wide text-foreground">{title}</h3>
+          {subtitle ? (
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed max-w-xl">{subtitle}</p>
+          ) : null}
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">
+          {entries.length} player{entries.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="rounded-xl border border-border/40 overflow-hidden">
+        {entries.map((entry, idx) => {
+          const isMe = entry.userId === currentUserId;
+          const denominator = entry.picked;
+          const pct =
+            denominator > 0
+              ? Math.round((entry.correct / denominator) * 100)
+              : null;
+          return (
+            <div
+              key={entry.userId}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3.5 border-b border-border/20 last:border-0",
+                isMe ? "bg-primary/5" : idx % 2 === 0 ? "bg-transparent" : "bg-muted/[0.03]",
+              )}
+            >
+              <span
+                className={cn(
+                  "font-bebas text-xl w-7 shrink-0 text-center",
+                  entry.rank === 1
+                    ? "text-yellow-400"
+                    : entry.rank === 2
+                      ? "text-zinc-300"
+                      : entry.rank === 3
+                        ? "text-amber-600"
+                        : "text-muted-foreground/40",
+                )}
+              >
+                {entry.rank}
+              </span>
+              <span
+                className={cn(
+                  "flex-1 font-medium truncate",
+                  isMe ? "text-primary" : "text-foreground",
+                )}
+              >
+                {entry.displayName || entry.username}
+                {isMe && (
+                  <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-primary/50">
+                    you
+                  </span>
+                )}
+              </span>
+              <div className="hidden sm:flex items-center gap-2 shrink-0">
+                <div className="w-28 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500/60 rounded-full transition-all"
+                    style={{ width: `${pct ?? 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-bebas text-2xl text-green-400">{entry.correct}</span>
+                <span className="font-bebas text-xl text-muted-foreground/40">/{denominator}</span>
+                {pct !== null && (
+                  <span className="ml-2 text-xs font-mono text-muted-foreground/60">{pct}%</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Weekly leaderboard ────────────────────────────────────────────────────────
 
 interface WeeklyLeaderboardProps {
@@ -2561,9 +2653,11 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
           ? "Weekend"
           : "Week";
   const [selectedPeriodStart, setSelectedPeriodStart] = useState<string | null>(null);
+  const [championsLbScope, setChampionsLbScope] = useState<"matchday" | "tournament">("matchday");
 
   useEffect(() => {
     setSelectedPeriodStart(null);
+    setChampionsLbScope("matchday");
   }, [poolId]);
 
   const { data: pickEmPeriods, isLoading: pickEmPeriodsLoading } = useQuery({
@@ -2769,6 +2863,18 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const lbLoading = isWeeklyPeriodHistory ? lbLoadingPeriod : lbLoadingDefault;
   const lbDataUpdatedAt = isWeeklyPeriodHistory ? lbUpdatedPeriod : lbUpdatedDefault;
   const lbFetching = isWeeklyPeriodHistory ? lbFetchingPeriod : lbFetchingDefault;
+
+  type PickEmLeaderboardWithTournament = PickEmLeaderboard & {
+    tournamentEntries?: PickEmLeaderboardEntry[];
+  };
+  const championsTournamentEntries =
+    sport === "championsleague"
+      ? (leaderboard as PickEmLeaderboardWithTournament | undefined)?.tournamentEntries
+      : undefined;
+  const leaderboardEntriesForDisplay =
+    sport === "championsleague" && championsLbScope === "tournament"
+      ? (championsTournamentEntries ?? [])
+      : (leaderboard?.entries ?? []);
 
   const submitPicks = useSubmitPickEmPicks();
 
@@ -5318,16 +5424,55 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 <Skeleton key={i} className="h-14 w-full rounded-lg" />
               ))}
             </div>
-          ) : !leaderboard || leaderboard.entries.length === 0 ? (
+          ) : !leaderboard || leaderboardEntriesForDisplay.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p className="font-bebas text-2xl tracking-wide">
-                {isWeekly ? "No picks yet this week" : is3way ? "No picks yet" : "No picks yet today"}
+                {sport === "championsleague" && championsLbScope === "tournament"
+                  ? "No tournament picks yet"
+                  : isWeekly
+                    ? "No picks yet this week"
+                    : is3way
+                      ? "No picks yet"
+                      : "No picks yet today"}
               </p>
               <p className="text-sm mt-1">Make picks to appear on the leaderboard.</p>
             </div>
           ) : (isWeekly || isMlsWeekly) && leaderboard.weekStart && leaderboard.weekEnd ? (
             <div className="space-y-4">
+              {sport === "championsleague" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mr-1">
+                    Leaderboard
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={championsLbScope === "matchday" ? "default" : "outline"}
+                    className="font-bebas text-sm tracking-wider h-8"
+                    onClick={() => setChampionsLbScope("matchday")}
+                  >
+                    This matchday
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={championsLbScope === "tournament" ? "default" : "outline"}
+                    className="font-bebas text-sm tracking-wider h-8"
+                    onClick={() => setChampionsLbScope("tournament")}
+                  >
+                    Tournament
+                  </Button>
+                </div>
+              )}
+              {sport === "championsleague" && championsLbScope === "tournament" ? (
+                <PickEmCompactStandings
+                  title="Tournament standings"
+                  subtitle="Total correct picks across the whole Champions League season — this order decides the season prize after the Final."
+                  entries={leaderboardEntriesForDisplay}
+                  currentUserId={user?.id ?? null}
+                />
+              ) : (
               <WeeklyLeaderboard
                 poolId={poolId}
                 entries={leaderboard.entries}
@@ -5345,6 +5490,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                 tiebreakerActualPoints={(leaderboard as { tiebreakerActualPoints?: number }).tiebreakerActualPoints ?? null}
                 tiebreakerMatchup={(leaderboard as { tiebreakerMatchup?: TiebreakerMatchupGame }).tiebreakerMatchup ?? null}
               />
+              )}
               {isMlb && leaderboard.entries.some((e) => e.tiebreakerRunsGuess != null) && (
                 <PickEmTiebreakerCard
                   sport="mlb"
