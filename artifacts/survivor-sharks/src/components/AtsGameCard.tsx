@@ -16,6 +16,8 @@ import React from "react";
 import type { PickEmGame } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { Lock, Check, X } from "lucide-react";
+import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/NbaMatchupStatsTrigger";
+import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
 
 interface AtsGameCardProps {
   game: PickEmGame;
@@ -35,6 +37,7 @@ export function AtsGameCard({ game, pickedTeamId, onPick, selectionBlocked }: At
   const pickLocked = isLocked || !hasLine || (selectionBlocked === true && pickedTeamId == null);
   const isFinal = game.status === "final";
   const isInProgress = game.status === "in_progress";
+  const isPostponed = game.status === "postponed";
   const liveDetail = game.liveDetail ?? null;
   const showScore = isLocked && game.awayScore != null && game.homeScore != null;
 
@@ -262,6 +265,13 @@ export function AtsGameCard({ game, pickedTeamId, onPick, selectionBlocked }: At
                 }) + " ET"}
               </span>
             </>
+          )}
+          {!isPostponed && (
+            <NbaMatchupStatsTrigger
+              className="mt-0.5"
+              season={nbaSeasonYearFromDate()}
+              game={nbaMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
           )}
         </div>
 

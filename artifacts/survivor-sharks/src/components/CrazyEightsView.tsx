@@ -34,6 +34,8 @@ import {
 } from "@/components/TiebreakerGuessDialogUi";
 import { crazyEightsCorrectPickPoints, formatDecimalOdds } from "@/lib/crazyEightsScoring";
 import { pickEmNhlMobileTeamCode } from "@/lib/pickEmTeamLabel";
+import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/NbaMatchupStatsTrigger";
+import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
 
 function NhlMobileTeamName({ team, className }: { team: SlateTeam; className?: string }) {
   return (
@@ -410,6 +412,13 @@ function LockedPickRow({
                   </span>
                 </div>
               </>
+            )}
+            {sport === "nba" && !isPostponed && (
+              <NbaMatchupStatsTrigger
+                className="mt-0.5"
+                season={nbaSeasonYearFromDate()}
+                game={nbaMatchupGameFromTeams(pick.gameId, pick.awayTeam, pick.homeTeam)}
+              />
             )}
           </div>
           {teamSide(pick.homeTeam, "home", pick.homeScore)}
@@ -807,6 +816,13 @@ function GameCard({
             </div>
           ) : (
             <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />
+          )}
+          {isNba && !isPostponed && (
+            <NbaMatchupStatsTrigger
+              className="mt-0.5"
+              season={nbaSeasonYearFromDate()}
+              game={nbaMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
           )}
         </div>
 
