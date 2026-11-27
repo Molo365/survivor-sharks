@@ -3040,6 +3040,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   const isIntl = sport === "intl";
   const isChampionsLeague = sport === "championsleague";
   const isCalendarSoccerWeekly = (sport === "mls" || sport === "superleague") && pool.pickFrequency === "weekly";
+  /** Ended Fri–Mon MLS / Super League pools: leaderboard is pool-wide totals, not the empty current weekend. */
+  const endedCalendarSoccerFinalStandings = isCalendarSoccerWeekly && !pool.isActive;
   const isNhlPickemWeeklyLb = sport === "nhl" && pool.pickFrequency === "weekly" && pool.poolType === "pickem";
   const isWeekly = pool.pickFrequency === "weekly" && !isWc && !isIntl && !isChampionsLeague;
   const isAts = (pool.poolType as string) === "nba_ats";
@@ -3176,6 +3178,8 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
         eq(pickemPicksTable.poolId, poolId),
         inArray(pickemPicksTable.gameDate, championsLeagueDates.length > 0 ? championsLeagueDates : [""]),
       )
+    : endedCalendarSoccerFinalStandings
+    ? eq(pickemPicksTable.poolId, poolId)
     : isNhlPickemWeeklyLb && nhlLeaderboardWeek !== null
     ? and(
         eq(pickemPicksTable.poolId, poolId),
@@ -3194,6 +3198,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
   if (
     sport === "superleague"
     && isCalendarSoccerWeekly
+    && !endedCalendarSoccerFinalStandings
     && pool.isRecurring
     && (pool.currentWeek ?? 1) > 1
     && weekBounds
@@ -3753,6 +3758,7 @@ router.get("/leaderboard", requireAuth, async (req, res) => {
     poolId,
     week: pool.currentWeek,
     isWeekly: isWeekly || undefined,
+    standingsScope: endedCalendarSoccerFinalStandings ? "pool_cumulative" : undefined,
     weekStart: championsLeagueDates[0] ?? effectiveLbWeekBounds?.weekStart ?? weekBounds?.weekStart ?? null,
     weekEnd: championsLeagueDates.at(-1) ?? effectiveLbWeekBounds?.weekEnd ?? weekBounds?.weekEnd ?? null,
     phase,
