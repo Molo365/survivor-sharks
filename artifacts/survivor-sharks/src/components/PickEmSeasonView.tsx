@@ -205,8 +205,8 @@ function NflGameCard({
           "hover:bg-green-500/25 hover:border-green-500/60 transition-colors leading-none whitespace-nowrap",
           className,
         )}
-        title="Head-to-head stats"
-        aria-label="Open head-to-head stats"
+        title="Season team stats"
+        aria-label="Open season team stats"
       >
         Stats
       </button>
