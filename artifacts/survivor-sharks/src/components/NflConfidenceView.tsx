@@ -177,17 +177,11 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
             </span>
           )}
 
-          {isPicked && (isCorrect || isWrong) && (
+          {isPicked && isWrong && (
             <div className="flex items-center gap-1 mt-0.5">
-              {isCorrect ? (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-0.5">
-                  <Check className="w-3 h-3" /> Correct
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80 flex items-center gap-0.5">
-                  <X className="w-3 h-3" /> Wrong
-                </span>
-              )}
+              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/80 flex items-center gap-0.5">
+                <X className="w-3 h-3" /> Wrong
+              </span>
             </div>
           )}
         </div>
