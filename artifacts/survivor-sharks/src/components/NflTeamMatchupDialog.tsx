@@ -6,8 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Swords } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 export type NflMatchupDialogGame = {
   id: string;
@@ -46,67 +45,102 @@ type MatchupPayload = {
   };
 };
 
-function statBar(
-  left: number | null,
-  right: number | null,
-  leftColor: string,
-  rightColor: string,
-) {
-  if (left == null && right == null) return null;
-  const l = left ?? 0;
-  const r = right ?? 0;
-  const total = l + r || 1;
-  const leftPct = Math.round((l / total) * 100);
-  const rightPct = 100 - leftPct;
-  return (
-    <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted/40">
-      <div className={cn("h-full transition-all", leftColor)} style={{ width: `${leftPct}%` }} />
-      <div className={cn("h-full transition-all", rightColor)} style={{ width: `${rightPct}%` }} />
-    </div>
-  );
-}
-
 function fmt(n: number | null): string {
   if (n == null) return "—";
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function MatchupRow({
-  label,
-  awayOff,
-  homeDef,
-  homeOff,
-  awayDef,
-}: {
-  label: string;
-  awayOff: number | null;
-  homeDef: number | null;
-  homeOff: number | null;
-  awayDef: number | null;
-}) {
+function StatLine({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="space-y-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 text-center">
-        {label}
-      </p>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-xs sm:text-sm tabular-nums">
-          <span className="font-semibold text-sky-400 w-10 text-left">{fmt(awayOff)}</span>
-          <span className="text-[10px] text-muted-foreground/60 flex-1 text-center">Off / Def</span>
-          <span className="font-semibold text-rose-400 w-10 text-right">{fmt(homeDef)}</span>
+    <div className="flex items-baseline justify-between gap-2 py-0.5">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-foreground">{fmt(value)}</span>
+    </div>
+  );
+}
+
+function TeamStatsColumn({
+  side,
+  roleLabel,
+}: {
+  side: MatchupSide;
+  roleLabel: "Away" | "Home";
+}) {
+  const logo = side.logo;
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/40 p-3 space-y-3 min-w-0">
+      <div className="space-y-1.5 border-b border-border/35 pb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+          {roleLabel}
+        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          {logo ? (
+            <img src={logo} alt="" className="w-9 h-9 object-contain shrink-0" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-muted/40 shrink-0" />
+          )}
+          <div className="min-w-0">
+            <p className="font-bebas text-xl leading-none tracking-wide">{side.abbreviation}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{side.displayName}</p>
+          </div>
         </div>
-        {statBar(awayOff, homeDef, "bg-sky-500/80", "bg-rose-500/80")}
+        <p className="text-[11px] text-muted-foreground/90 tabular-nums">
+          Record: {side.records.overall ?? "—"}
+          <span className="text-muted-foreground/45"> (H {side.records.home ?? "—"} · A {side.records.away ?? "—"})</span>
+        </p>
       </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-xs sm:text-sm tabular-nums">
-          <span className="font-semibold text-rose-400 w-10 text-left">{fmt(homeOff)}</span>
-          <span className="text-[10px] text-muted-foreground/60 flex-1 text-center">Off / Def</span>
-          <span className="font-semibold text-sky-400 w-10 text-right">{fmt(awayDef)}</span>
-        </div>
-        {statBar(homeOff, awayDef, "bg-rose-500/80", "bg-sky-500/80")}
+
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80 mb-1">
+          With the ball (offense)
+        </p>
+        <p className="text-[9px] text-muted-foreground/65 mb-1.5 leading-snug">
+          Season average per game — what this team does.
+        </p>
+        <StatLine label="Pass yards" value={side.offense.passYpg} />
+        <StatLine label="Rush yards" value={side.offense.rushYpg} />
+        <StatLine label="Total yards" value={side.offense.totalYpg} />
+        <StatLine label="Points" value={side.offense.ppg} />
+      </div>
+
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80 mb-1">
+          Without the ball (defense)
+        </p>
+        <p className="text-[9px] text-muted-foreground/65 mb-1.5 leading-snug">
+          What opponents average against them per game.
+        </p>
+        <StatLine label="Pass yards allowed" value={side.defense.passYpg} />
+        <StatLine label="Rush yards allowed" value={side.defense.rushYpg} />
+        <StatLine label="Total yards allowed" value={side.defense.totalYpg} />
+        <StatLine label="Points allowed" value={side.defense.ppg} />
       </div>
     </div>
   );
+}
+
+function matchupSnapshot(
+  away: MatchupSide,
+  home: MatchupSide,
+): string[] {
+  const lines: string[] = [];
+  const add = (
+    offAbbr: string,
+    offStat: number | null,
+    unit: string,
+    defAbbr: string,
+    defStat: number | null,
+  ) => {
+    if (offStat == null || defStat == null) return;
+    lines.push(
+      `${offAbbr} ${unit} ~${fmt(offStat)} per game · ${defAbbr} allows ~${fmt(defStat)} to opponents.`,
+    );
+  };
+  add(away.abbreviation, away.offense.passYpg, "passes for", home.abbreviation, home.defense.passYpg);
+  add(home.abbreviation, home.offense.passYpg, "passes for", away.abbreviation, away.defense.passYpg);
+  add(away.abbreviation, away.offense.rushYpg, "rushes for", home.abbreviation, home.defense.rushYpg);
+  add(home.abbreviation, home.offense.rushYpg, "rushes for", away.abbreviation, away.defense.rushYpg);
+  return lines.slice(0, 4);
 }
 
 export function NflTeamMatchupDialog({
@@ -173,22 +207,23 @@ export function NflTeamMatchupDialog({
   const title =
     game != null
       ? `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
-      : "Team matchup";
+      : "Team stats";
+
+  const snapshots = data ? matchupSnapshot(data.away, data.home) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-lg gap-0 p-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/40 space-y-1">
-          <DialogTitle className="font-bebas text-2xl tracking-wide flex items-center gap-2">
-            <Swords className="w-5 h-5 text-primary/80" />
+          <DialogTitle className="font-bebas text-2xl tracking-wide">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Season averages — offense vs opposing defense (yards from ESPN).
+          <DialogDescription className="text-xs leading-relaxed">
+            Season averages from ESPN. Each team is shown separately — offense is what they produce, defense is what they allow.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="px-4 sm:px-5 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -208,68 +243,23 @@ export function NflTeamMatchupDialog({
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                {[data.away, data.home].map((side, i) => (
-                  <div
-                    key={side.teamId}
-                    className={cn(
-                      "rounded-lg border px-3 py-2.5 space-y-1",
-                      i === 0 ? "border-sky-500/30 bg-sky-500/5" : "border-rose-500/30 bg-rose-500/5",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {side.logo ? (
-                        <img src={side.logo} alt="" className="w-7 h-7 object-contain" />
-                      ) : null}
-                      <span className="font-bebas text-lg leading-none">{side.abbreviation}</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground leading-tight truncate">
-                      {side.displayName}
-                    </p>
-                    <p className="text-[11px] tabular-nums">
-                      <span className="text-muted-foreground/70">Ovl </span>
-                      {side.records.overall ?? "—"}
-                      <span className="text-muted-foreground/50 mx-1">·</span>
-                      <span className="text-muted-foreground/70">H </span>
-                      {side.records.home ?? "—"}
-                      <span className="text-muted-foreground/50 mx-1">·</span>
-                      <span className="text-muted-foreground/70">A </span>
-                      {side.records.away ?? "—"}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <TeamStatsColumn side={data.away} roleLabel="Away" />
+                <TeamStatsColumn side={data.home} roleLabel="Home" />
               </div>
 
-              <div className="space-y-5 pt-1">
-                <MatchupRow
-                  label="Pass yards / game"
-                  awayOff={data.away.offense.passYpg}
-                  homeDef={data.home.defense.passYpg}
-                  homeOff={data.home.offense.passYpg}
-                  awayDef={data.away.defense.passYpg}
-                />
-                <MatchupRow
-                  label="Rush yards / game"
-                  awayOff={data.away.offense.rushYpg}
-                  homeDef={data.home.defense.rushYpg}
-                  homeOff={data.home.offense.rushYpg}
-                  awayDef={data.away.defense.rushYpg}
-                />
-                <MatchupRow
-                  label="Total yards / game"
-                  awayOff={data.away.offense.totalYpg}
-                  homeDef={data.home.defense.totalYpg}
-                  homeOff={data.home.offense.totalYpg}
-                  awayDef={data.away.defense.totalYpg}
-                />
-                <MatchupRow
-                  label="Points / game"
-                  awayOff={data.away.offense.ppg}
-                  homeDef={data.home.defense.ppg}
-                  homeOff={data.home.offense.ppg}
-                  awayDef={data.away.defense.ppg}
-                />
-              </div>
+              {snapshots.length > 0 && (
+                <div className="rounded-lg border border-border/35 bg-muted/10 px-3 py-2.5 space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                    Quick read
+                  </p>
+                  <ul className="text-[11px] text-muted-foreground/90 leading-relaxed space-y-1 list-none">
+                    {snapshots.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           )}
         </div>
