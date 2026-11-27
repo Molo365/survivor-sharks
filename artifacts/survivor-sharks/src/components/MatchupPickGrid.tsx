@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { CollapsibleHowToHint } from "@/components/CollapsibleHowToHint";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
 import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
+import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/NbaMatchupStatsTrigger";
+import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -365,9 +367,28 @@ function MatchupCard({
   const isOutdoor = sport === "nfl" || sport === "mlb";
   const hasWeather = isOutdoor && game.weather && game.weather.displayValue && game.weather.displayValue !== "none";
   const nflSeason = sport === "nfl" ? new Date().getFullYear() : undefined;
+  const nbaSeason = sport === "nba" ? nbaSeasonYearFromDate() : undefined;
   const nflMatchupDialogGame =
     sport === "nfl"
       ? nflMatchupGameFromTeams(
+          game.id,
+          {
+            id: game.awayTeam.id,
+            abbreviation: game.awayTeam.abbreviation,
+            name: game.awayTeam.name,
+            logoUrl: game.awayTeam.logoUrl ?? null,
+          },
+          {
+            id: game.homeTeam.id,
+            abbreviation: game.homeTeam.abbreviation,
+            name: game.homeTeam.name,
+            logoUrl: game.homeTeam.logoUrl ?? null,
+          },
+        )
+      : null;
+  const nbaMatchupDialogGame =
+    sport === "nba"
+      ? nbaMatchupGameFromTeams(
           game.id,
           {
             id: game.awayTeam.id,
@@ -511,6 +532,13 @@ function MatchupCard({
                 className="mt-0.5"
                 season={nflSeason}
                 game={nflMatchupDialogGame}
+              />
+            )}
+            {nbaMatchupDialogGame && (
+              <NbaMatchupStatsTrigger
+                className="mt-0.5"
+                season={nbaSeason}
+                game={nbaMatchupDialogGame}
               />
             )}
           </div>
@@ -686,6 +714,13 @@ function MatchupCard({
                 className="mt-1"
                 season={nflSeason}
                 game={nflMatchupDialogGame}
+              />
+            )}
+            {nbaMatchupDialogGame && (
+              <NbaMatchupStatsTrigger
+                className="mt-1"
+                season={nbaSeason}
+                game={nbaMatchupDialogGame}
               />
             )}
           </div>
