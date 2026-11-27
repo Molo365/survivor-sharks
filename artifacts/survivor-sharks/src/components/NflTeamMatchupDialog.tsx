@@ -50,97 +50,54 @@ function fmt(n: number | null): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function StatLine({ label, value }: { label: string; value: number | null }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 py-0.5">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold tabular-nums text-foreground">{fmt(value)}</span>
-    </div>
-  );
-}
-
-function TeamStatsColumn({
-  side,
-  roleLabel,
+function H2hRow({
+  label,
+  awayValue,
+  homeValue,
+  awayDisplay,
+  homeDisplay,
 }: {
-  side: MatchupSide;
-  roleLabel: "Away" | "Home";
+  label: string;
+  awayValue: number | string | null;
+  homeValue: number | string | null;
+  awayDisplay?: string;
+  homeDisplay?: string;
 }) {
-  const logo = side.logo;
+  const left = awayDisplay ?? (typeof awayValue === "number" ? fmt(awayValue) : awayValue);
+  const right = homeDisplay ?? (typeof homeValue === "number" ? fmt(homeValue) : homeValue);
   return (
-    <div className="rounded-lg border border-border/50 bg-card/40 p-3 space-y-3 min-w-0">
-      <div className="space-y-1.5 border-b border-border/35 pb-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-          {roleLabel}
-        </p>
-        <div className="flex items-center gap-2 min-w-0">
-          {logo ? (
-            <img src={logo} alt="" className="w-9 h-9 object-contain shrink-0" />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-muted/40 shrink-0" />
-          )}
-          <div className="min-w-0">
-            <p className="font-bebas text-xl leading-none tracking-wide">{side.abbreviation}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{side.displayName}</p>
-          </div>
-        </div>
-        <p className="text-[11px] text-muted-foreground/90 tabular-nums">
-          Record: {side.records.overall ?? "—"}
-          <span className="text-muted-foreground/45"> (H {side.records.home ?? "—"} · A {side.records.away ?? "—"})</span>
-        </p>
-      </div>
-
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80 mb-1">
-          With the ball (offense)
-        </p>
-        <p className="text-[9px] text-muted-foreground/65 mb-1.5 leading-snug">
-          Season average per game — what this team does.
-        </p>
-        <StatLine label="Pass yards" value={side.offense.passYpg} />
-        <StatLine label="Rush yards" value={side.offense.rushYpg} />
-        <StatLine label="Total yards" value={side.offense.totalYpg} />
-        <StatLine label="Points" value={side.offense.ppg} />
-      </div>
-
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/80 mb-1">
-          Without the ball (defense)
-        </p>
-        <p className="text-[9px] text-muted-foreground/65 mb-1.5 leading-snug">
-          What opponents average against them per game.
-        </p>
-        <StatLine label="Pass yards allowed" value={side.defense.passYpg} />
-        <StatLine label="Rush yards allowed" value={side.defense.rushYpg} />
-        <StatLine label="Total yards allowed" value={side.defense.totalYpg} />
-        <StatLine label="Points allowed" value={side.defense.ppg} />
-      </div>
+    <div className="grid grid-cols-[1fr_3.25rem_3.25rem] gap-2 items-baseline py-1 border-b border-border/20 last:border-0">
+      <span className="text-[11px] text-muted-foreground leading-snug">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-right">{left ?? "—"}</span>
+      <span className="text-sm font-semibold tabular-nums text-right">{right ?? "—"}</span>
     </div>
   );
 }
 
-function matchupSnapshot(
-  away: MatchupSide,
-  home: MatchupSide,
-): string[] {
-  const lines: string[] = [];
-  const add = (
-    offAbbr: string,
-    offStat: number | null,
-    unit: string,
-    defAbbr: string,
-    defStat: number | null,
-  ) => {
-    if (offStat == null || defStat == null) return;
-    lines.push(
-      `${offAbbr} ${unit} ~${fmt(offStat)} per game · ${defAbbr} allows ~${fmt(defStat)} to opponents.`,
-    );
-  };
-  add(away.abbreviation, away.offense.passYpg, "passes for", home.abbreviation, home.defense.passYpg);
-  add(home.abbreviation, home.offense.passYpg, "passes for", away.abbreviation, away.defense.passYpg);
-  add(away.abbreviation, away.offense.rushYpg, "rushes for", home.abbreviation, home.defense.rushYpg);
-  add(home.abbreviation, home.offense.rushYpg, "rushes for", away.abbreviation, away.defense.rushYpg);
-  return lines.slice(0, 4);
+function H2hSection({
+  title,
+  subtitle,
+  away,
+  home,
+  rows,
+}: {
+  title: string;
+  subtitle: string;
+  away: MatchupSide;
+  home: MatchupSide;
+  rows: Array<{ label: string; away: number | null; home: number | null }>;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="pb-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/85">{title}</p>
+        <p className="text-[9px] text-muted-foreground/60 leading-snug">{subtitle}</p>
+      </div>
+      {rows.map((r) => (
+        <H2hRow key={r.label} label={r.label} awayValue={r.away} homeValue={r.home} />
+      ))}
+    </div>
+  );
 }
 
 export function NflTeamMatchupDialog({
@@ -204,26 +161,25 @@ export function NflTeamMatchupDialog({
     };
   }, [open, game, season]);
 
-  const title =
+  const matchupTitle =
     game != null
-      ? `${game.awayTeam.abbreviation} @ ${game.homeTeam.abbreviation}`
-      : "Team stats";
-
-  const snapshots = data ? matchupSnapshot(data.away, data.home) : [];
+      ? `${game.awayTeam.abbreviation} vs ${game.homeTeam.abbreviation}`
+      : "Head-to-head";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-md gap-0 p-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/40 space-y-1">
           <DialogTitle className="font-bebas text-2xl tracking-wide">
-            {title}
+            Head-to-head · {matchupTitle}
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Season averages from ESPN. Each team is shown separately — offense is what they produce, defense is what they allow.
+            Same stat, both teams, side by side — season average per game (ESPN). Not past games
+            between these two teams.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-4 sm:px-5 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
+        <div className="px-5 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -243,23 +199,71 @@ export function NflTeamMatchupDialog({
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <TeamStatsColumn side={data.away} roleLabel="Away" />
-                <TeamStatsColumn side={data.home} roleLabel="Home" />
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div className="flex flex-col items-center gap-1 min-w-0 flex-1">
+                  {(data.away.logo ?? game?.awayTeam.logoUrl) ? (
+                    <img
+                      src={data.away.logo ?? game?.awayTeam.logoUrl ?? ""}
+                      alt=""
+                      className="w-10 h-10 object-contain"
+                    />
+                  ) : null}
+                  <p className="font-bebas text-lg leading-none">{data.away.abbreviation}</p>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60">Away</p>
+                </div>
+                <span className="text-[10px] font-bebas text-muted-foreground/40 shrink-0">VS</span>
+                <div className="flex flex-col items-center gap-1 min-w-0 flex-1">
+                  {(data.home.logo ?? game?.homeTeam.logoUrl) ? (
+                    <img
+                      src={data.home.logo ?? game?.homeTeam.logoUrl ?? ""}
+                      alt=""
+                      className="w-10 h-10 object-contain"
+                    />
+                  ) : null}
+                  <p className="font-bebas text-lg leading-none">{data.home.abbreviation}</p>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60">Home</p>
+                </div>
               </div>
 
-              {snapshots.length > 0 && (
-                <div className="rounded-lg border border-border/35 bg-muted/10 px-3 py-2.5 space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
-                    Quick read
-                  </p>
-                  <ul className="text-[11px] text-muted-foreground/90 leading-relaxed space-y-1 list-none">
-                    {snapshots.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
+              <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-4">
+                <div className="grid grid-cols-[1fr_3.25rem_3.25rem] gap-2 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55 border-b border-border/30 pb-2">
+                  <span />
+                  <span className="text-right">{data.away.abbreviation}</span>
+                  <span className="text-right">{data.home.abbreviation}</span>
                 </div>
-              )}
+
+                <H2hRow
+                  label="Record (overall)"
+                  awayValue={data.away.records.overall}
+                  homeValue={data.home.records.overall}
+                />
+
+                <H2hSection
+                  title="Offense"
+                  subtitle="What each team averages when they have the ball."
+                  away={data.away}
+                  home={data.home}
+                  rows={[
+                    { label: "Pass yards / game", away: data.away.offense.passYpg, home: data.home.offense.passYpg },
+                    { label: "Rush yards / game", away: data.away.offense.rushYpg, home: data.home.offense.rushYpg },
+                    { label: "Total yards / game", away: data.away.offense.totalYpg, home: data.home.offense.totalYpg },
+                    { label: "Points / game", away: data.away.offense.ppg, home: data.home.offense.ppg },
+                  ]}
+                />
+
+                <H2hSection
+                  title="Defense"
+                  subtitle="What opponents average against each team."
+                  away={data.away}
+                  home={data.home}
+                  rows={[
+                    { label: "Pass yards allowed / game", away: data.away.defense.passYpg, home: data.home.defense.passYpg },
+                    { label: "Rush yards allowed / game", away: data.away.defense.rushYpg, home: data.home.defense.rushYpg },
+                    { label: "Total yards allowed / game", away: data.away.defense.totalYpg, home: data.home.defense.totalYpg },
+                    { label: "Points allowed / game", away: data.away.defense.ppg, home: data.home.defense.ppg },
+                  ]}
+                />
+              </div>
             </>
           )}
         </div>
