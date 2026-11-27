@@ -87,7 +87,9 @@ import {
   ChevronRight,
   Clapperboard,
   Play,
+  Swords,
 } from "lucide-react";
+import { NflTeamMatchupDialog } from "@/components/NflTeamMatchupDialog";
 import {
   Select,
   SelectContent,
@@ -149,13 +151,16 @@ function NflGameCard({
   onPick,
   forceReadOnly = false,
   isAtsMode = false,
+  nflSeason,
 }: {
   game: NflPickEmSeasonGame;
   pickedTeamId: string | null;
   onPick: (gameId: string, teamId: string) => void;
   forceReadOnly?: boolean;
   isAtsMode?: boolean;
+  nflSeason?: number;
 }) {
+  const [matchupOpen, setMatchupOpen] = useState(false);
   const lineUnavailable = isAtsMode && (game.spread == null || game.favoriteTeamId == null);
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
@@ -427,7 +432,27 @@ function NflGameCard({
                   {formatGameTimeEt(game.startTime)}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setMatchupOpen(true)}
+                className="mt-1 flex items-center justify-center gap-0.5 rounded-md border border-border/50 bg-muted/20 p-1 text-primary/80 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                title="Team matchup stats"
+                aria-label="Open team matchup stats"
+              >
+                <Swords className="w-3 h-3" />
+              </button>
             </>
+          )}
+          {(isLive || isFinal) && (
+            <button
+              type="button"
+              onClick={() => setMatchupOpen(true)}
+              className="mt-0.5 flex items-center justify-center rounded-md border border-border/40 bg-muted/15 p-1 text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
+              title="Team matchup stats"
+              aria-label="Open team matchup stats"
+            >
+              <Swords className="w-3 h-3" />
+            </button>
           )}
         </div>
 
@@ -439,6 +464,31 @@ function NflGameCard({
           result={homeResult}
         />
       </div>
+
+      <NflTeamMatchupDialog
+        open={matchupOpen}
+        onOpenChange={setMatchupOpen}
+        season={nflSeason}
+        game={
+          matchupOpen
+            ? {
+                id: game.id,
+                awayTeam: {
+                  id: game.awayTeam.id,
+                  abbreviation: game.awayTeam.abbreviation,
+                  name: game.awayTeam.name,
+                  logoUrl: game.awayTeam.logoUrl,
+                },
+                homeTeam: {
+                  id: game.homeTeam.id,
+                  abbreviation: game.homeTeam.abbreviation,
+                  name: game.homeTeam.name,
+                  logoUrl: game.homeTeam.logoUrl,
+                },
+              }
+            : null
+        }
+      />
     </div>
   );
 }
@@ -2375,6 +2425,7 @@ export function PickEmSeasonView({
                       onPick={isActive && !weekIsLocked ? togglePick : () => {}}
                       forceReadOnly={weekIsLocked}
                       isAtsMode={isAtsMode}
+                      nflSeason={new Date().getFullYear()}
                     />
                   ))}
 
