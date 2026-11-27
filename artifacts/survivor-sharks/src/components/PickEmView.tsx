@@ -96,6 +96,10 @@ import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/Nb
 import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
 import { NhlMatchupStatsTrigger, nhlMatchupGameFromTeams } from "@/components/NhlMatchupStatsTrigger";
 import { nhlSeasonYearFromDate } from "@/lib/nhlSeasonYear";
+import {
+  SoccerFormTrigger,
+  soccerFormGameFromPickEm,
+} from "@/components/SoccerFormTrigger";
 
 type PickEmPeriodListItem = {
   key: string;
@@ -243,11 +247,14 @@ function WcGameCard({
   pickedOption,
   onPick,
   showHomeAwayLabels = false,
+  soccerFormSport,
 }: {
   game: PickEmGame;
   pickedOption: WcPickOption | null;
   onPick: (opt: WcPickOption) => void;
   showHomeAwayLabels?: boolean;
+  /** When set (e.g. championsleague), show blue Form button on the matchup. */
+  soccerFormSport?: string;
 }) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
@@ -311,6 +318,13 @@ function WcGameCard({
               <Clock className="w-2.5 h-2.5 text-primary/50 shrink-0" />
               <span className="text-[9px] text-muted-foreground/60 font-medium whitespace-nowrap">{formatTime(game.startTime)}</span>
             </div>
+          )}
+          {soccerFormSport && !isPostponed && (
+            <SoccerFormTrigger
+              className="mt-0.5"
+              sport={soccerFormSport}
+              game={soccerFormGameFromPickEm(game)}
+            />
           )}
         </div>
 
@@ -4708,6 +4722,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                         pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
                         onPick={(opt) => { if (!viewingPastPeriod) togglePick(game.id, opt); }}
                         showHomeAwayLabels={showSoccerHomeAwayLabels}
+                        soccerFormSport={sport === "championsleague" ? "championsleague" : undefined}
                       />
                     </Fragment>
                   ))}
@@ -5339,6 +5354,7 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             pickedOption={(localPicks.get(game.id) ?? game.userPickOption ?? null) as WcPickOption | null}
                             onPick={(opt) => togglePick(game.id, opt)}
                             showHomeAwayLabels={showSoccerHomeAwayLabels}
+                            soccerFormSport={sport === "championsleague" ? "championsleague" : undefined}
                           />
                         ) : (
                           <GameCard

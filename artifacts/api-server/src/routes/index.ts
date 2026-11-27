@@ -40,6 +40,7 @@ import sportPoolStatusRouter from "./sport-pool-status";
 import nflMatchupRouter from "./nfl-matchup";
 import nbaMatchupRouter from "./nba-matchup";
 import nhlMatchupRouter from "./nhl-matchup";
+import soccerFormRouter from "./soccer-form";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 
@@ -111,6 +112,7 @@ router.get("/nhl/ndp-lock", requireAuth, async (req, res) => {
 router.use("/nfl/matchup", nflMatchupRouter);
 router.use("/nba/matchup", nbaMatchupRouter);
 router.use("/nhl/matchup", nhlMatchupRouter);
+router.use("/soccer", soccerFormRouter);
 
 router.get("/nfl/current-week", requireAuth, async (_req, res) => {
   try {

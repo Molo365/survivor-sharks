@@ -68,14 +68,16 @@ function FormDots({ form, side }: { form?: string[]; side: "away" | "home" }) {
       {form.map((result, i) => (
         <span
           key={i}
-          title={result === "W" ? "Win" : result === "L" ? "Loss" : "Tie"}
+          title={result === "W" ? "Win" : result === "L" ? "Loss" : result === "D" ? "Draw" : "Tie"}
           className={cn(
             "w-2.5 h-2.5 rounded-full border",
             result === "W"
               ? "bg-green-500/80 border-green-400/50"
               : result === "L"
                 ? "bg-red-500/50 border-red-400/40"
-                : "bg-muted-foreground/20 border-muted-foreground/20"
+                : result === "D"
+                  ? "bg-blue-500/70 border-blue-400/45"
+                  : "bg-muted-foreground/20 border-muted-foreground/20"
           )}
         />
       ))}
