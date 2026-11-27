@@ -31,6 +31,7 @@ import { Lock, Zap, AlertCircle, Trophy, Check, X, Clock, Copy, ShieldCheck, Set
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NflConfidenceWeeklyGrid } from "@/components/NflConfidenceWeeklyGrid";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 import {
   resolveNflConfidenceWeeklyWinnerDisplay,
   type NflConfidenceWeeklyWinnerLeaderboard,
@@ -200,7 +201,7 @@ function authedFetch<T>(url: string): Promise<T> {
 
 // ── Locked picks view ─────────────────────────────────────────────────────────
 
-function LockedPickRow({ pick }: { pick: SubmittedPick }) {
+function LockedPickRow({ pick, nflSeason }: { pick: SubmittedPick; nflSeason?: number }) {
   const isFinal = pick.status === "final" || pick.result === "correct" || pick.result === "incorrect";
   const isLive = !isFinal && pick.status === "in_progress";
   const isPostponed = !isFinal && pick.status === "postponed";
@@ -317,6 +318,13 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
                 </div>
               </>
             )}
+            {!isPostponed && (
+              <NflMatchupStatsTrigger
+                className="mt-0.5"
+                season={nflSeason}
+                game={nflMatchupGameFromTeams(pick.gameId, pick.awayTeam, pick.homeTeam)}
+              />
+            )}
           </div>
           {teamSide(pick.homeTeam, "home", pick.homeScore)}
         </div>
@@ -328,9 +336,11 @@ function LockedPickRow({ pick }: { pick: SubmittedPick }) {
 function LockedPicksView({
   picks,
   tiebreakerPassingYards,
+  nflSeason,
 }: {
   picks: SubmittedPick[];
   tiebreakerPassingYards: number | null;
+  nflSeason?: number;
 }) {
   const sorted = [...picks].sort((a, b) => (b.confidencePoints ?? 0) - (a.confidencePoints ?? 0));
 
@@ -363,7 +373,7 @@ function LockedPicksView({
         </p>
         <div className="space-y-2">
           {sorted.map((pick) => (
-            <LockedPickRow key={pick.gameId} pick={pick} />
+            <LockedPickRow key={pick.gameId} pick={pick} nflSeason={nflSeason} />
           ))}
         </div>
       </div>
@@ -395,6 +405,7 @@ function GameCard({
   isTiebreakerGame,
   onTeamClick,
   onAssignConfidence,
+  nflSeason,
 }: {
   game: PickEmGame;
   isSelected: boolean;
@@ -407,6 +418,7 @@ function GameCard({
   isTiebreakerGame: boolean;
   onTeamClick: (teamId: string) => void;
   onAssignConfidence: (pts: number) => void;
+  nflSeason?: number;
 }) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
@@ -538,6 +550,13 @@ function GameCard({
             </div>
           ) : (
             <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />
+          )}
+          {!isPostponed && !isSuspended && (
+            <NflMatchupStatsTrigger
+              className="mt-0.5"
+              season={nflSeason}
+              game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
           )}
         </div>
 
@@ -1035,6 +1054,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
   const weekWinner = isWeekFullyGraded && leaderboardPlayers.length > 0 ? leaderboardPlayers[0] : null;
 
   const games: PickEmGame[] = slate?.games ?? [];
+  const nflStatsSeason = new Date().getFullYear();
   const isSandbox = slate?.sandboxMode ?? false;
   const slateGameStartIsos = games.map((game) => game.startTime);
   const officePool = { sport: "nfl", poolType: "nfl_confidence_weekly", sandboxMode: isSandbox };
@@ -1169,7 +1189,8 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
       <div className="space-y-4">
         <LockedPicksView
           picks={myPicksData!.picks}
-        tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
+          tiebreakerPassingYards={myPicksData?.tiebreakerPassingYards ?? null}
+          nflSeason={nflStatsSeason}
         />
       </div>
     );
@@ -1275,6 +1296,7 @@ export function NflConfidenceWeeklyView({ poolId, currentWeek }: NflConfidenceWe
             isTiebreakerGame={game.id === tiebreakerGameId}
             onTeamClick={(teamId) => handleTeamClick(game.id, teamId)}
             onAssignConfidence={(pts) => assignConfidence(game.id, pts)}
+            nflSeason={nflStatsSeason}
           />
         ))}
       </div>
