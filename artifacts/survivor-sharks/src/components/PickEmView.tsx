@@ -92,6 +92,8 @@ import {
 import { PickEmWeeklyPickDetailDialog } from "@/components/PickEmWeeklyPickDetailDialog";
 import { WeeklyPickEmPoolClosedPanel } from "@/components/WeeklyPickEmPoolClosedPanel";
 import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
+import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/NbaMatchupStatsTrigger";
+import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
 
 type PickEmPeriodListItem = {
   key: string;
@@ -386,6 +388,8 @@ interface GameCardProps {
   nhlMobileTriCode?: boolean;
   showNflMatchupStats?: boolean;
   nflSeason?: number;
+  showNbaMatchupStats?: boolean;
+  nbaSeason?: number;
 }
 
 function GameCard({
@@ -396,6 +400,8 @@ function GameCard({
   nhlMobileTriCode,
   showNflMatchupStats = false,
   nflSeason,
+  showNbaMatchupStats = false,
+  nbaSeason,
 }: GameCardProps) {
   const isFinal = game.status === "final" || (game.status?.toUpperCase().includes("FINAL") ?? false);
   const isLive = !isFinal && (game.status === "in_progress" || game.status?.toUpperCase() === "STATUS_IN_PROGRESS");
@@ -602,6 +608,13 @@ function GameCard({
               className="mt-0.5"
               season={nflSeason}
               game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
+          )}
+          {showNbaMatchupStats && !isPostponed && (
+            <NbaMatchupStatsTrigger
+              className="mt-0.5"
+              season={nbaSeason}
+              game={nbaMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
             />
           )}
         </div>
@@ -2657,6 +2670,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
   const isNhlWeekly = isNhl && isWeekly;
   const isNflPickEm = sport === "nfl";
   const nflStatsSeason = isNflPickEm ? new Date().getFullYear() : undefined;
+  const isNbaPickEm = sport === "nba";
+  const nbaStatsSeason = isNbaPickEm ? nbaSeasonYearFromDate() : undefined;
   const showSoccerHomeAwayLabels = sport === "mls" || sport === "superleague" || sport === "championsleague";
   // The existing combined weekly slate UI is also used for a UEFA competition
   // period: dates come from ESPN phase/matchday metadata, not a calendar week.
@@ -5317,6 +5332,8 @@ export function PickEmView({ poolId, poolName, poolDescription, commissionerId, 
                             nhlMobileTriCode={sport === "nhl"}
                             showNflMatchupStats={isNflPickEm}
                             nflSeason={nflStatsSeason}
+                            showNbaMatchupStats={isNbaPickEm}
+                            nbaSeason={nbaStatsSeason}
                           />
                         )}
                         {sport === "superleague" && slug && (
