@@ -15,6 +15,7 @@ import { Check, X, Lock, Clock, ShieldAlert, Wind, Thermometer, Calendar, Trophy
 import { cn } from "@/lib/utils";
 import { CollapsibleHowToHint } from "@/components/CollapsibleHowToHint";
 import { invalidatePoolQueries } from "@/lib/queryUtils";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 
 type Sport = "nfl" | "mlb" | "nba" | "nhl" | "fifa";
 
@@ -363,6 +364,25 @@ function MatchupCard({
   const overUnder = game.odds?.overUnder;
   const isOutdoor = sport === "nfl" || sport === "mlb";
   const hasWeather = isOutdoor && game.weather && game.weather.displayValue && game.weather.displayValue !== "none";
+  const nflSeason = sport === "nfl" ? new Date().getFullYear() : undefined;
+  const nflMatchupDialogGame =
+    sport === "nfl"
+      ? nflMatchupGameFromTeams(
+          game.id,
+          {
+            id: game.awayTeam.id,
+            abbreviation: game.awayTeam.abbreviation,
+            name: game.awayTeam.name,
+            logoUrl: game.awayTeam.logoUrl ?? null,
+          },
+          {
+            id: game.homeTeam.id,
+            abbreviation: game.homeTeam.abbreviation,
+            name: game.homeTeam.name,
+            logoUrl: game.homeTeam.logoUrl ?? null,
+          },
+        )
+      : null;
 
   const cardClass = cn(
     "rounded-xl overflow-hidden transition-all",
@@ -485,6 +505,13 @@ function MatchupCard({
               </>
             ) : (
               <span className="font-bebas text-sm text-muted-foreground/30 leading-none">vs</span>
+            )}
+            {nflMatchupDialogGame && (
+              <NflMatchupStatsTrigger
+                className="mt-0.5"
+                season={nflSeason}
+                game={nflMatchupDialogGame}
+              />
             )}
           </div>
 
@@ -653,6 +680,13 @@ function MatchupCard({
                   </div>
                 )}
               </>
+            )}
+            {nflMatchupDialogGame && (
+              <NflMatchupStatsTrigger
+                className="mt-1"
+                season={nflSeason}
+                game={nflMatchupDialogGame}
+              />
             )}
           </div>
 

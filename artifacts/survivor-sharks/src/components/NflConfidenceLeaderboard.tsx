@@ -8,6 +8,7 @@ import {
   PoolLeaderboardGrid,
   type WeekCellDescriptor,
 } from "@/components/PoolLeaderboardGrid";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -153,19 +154,23 @@ function PickCard({ game, pick }: { game: GridGame; pick: GridPick }) {
         </p>
       </div>
 
-      {/* Result chip */}
-      <span
-        className={cn(
-          "shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded border leading-none",
-          isCorrect
-            ? "text-green-400 bg-green-500/10 border-green-500/25"
-            : isIncorrect
-              ? "text-destructive/80 bg-destructive/10 border-destructive/25"
-              : "text-muted-foreground/40 bg-muted/10 border-border/30",
-        )}
-      >
-        {isCorrect ? "W" : isIncorrect ? "L" : isPending ? "–" : "–"}
-      </span>
+      <div className="shrink-0 flex flex-col items-end gap-1">
+        <NflMatchupStatsTrigger
+          game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+        />
+        <span
+          className={cn(
+            "text-[11px] font-bold px-1.5 py-0.5 rounded border leading-none",
+            isCorrect
+              ? "text-green-400 bg-green-500/10 border-green-500/25"
+              : isIncorrect
+                ? "text-destructive/80 bg-destructive/10 border-destructive/25"
+                : "text-muted-foreground/40 bg-muted/10 border-border/30",
+          )}
+        >
+          {isCorrect ? "W" : isIncorrect ? "L" : isPending ? "–" : "–"}
+        </span>
+      </div>
     </div>
   );
 }
