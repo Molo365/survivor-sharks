@@ -37,6 +37,7 @@ import { getMaintenanceState } from "../lib/maintenance";
 import feedbackRouter from "./feedback";
 import broadcastRouter from "./broadcast";
 import sportPoolStatusRouter from "./sport-pool-status";
+import nflMatchupRouter from "./nfl-matchup";
 import { getNdpLockState } from "../lib/ndp-lock";
 import { getNhlNdpLockState } from "../lib/nhl-ndp-lock";
 
@@ -105,6 +106,8 @@ router.get("/nhl/ndp-lock", requireAuth, async (req, res) => {
 });
 
 // GET /api/nfl/current-week — returns the current real NFL week from ESPN
+router.use("/nfl/matchup", nflMatchupRouter);
+
 router.get("/nfl/current-week", requireAuth, async (_req, res) => {
   try {
     const espnRes = await fetch(
