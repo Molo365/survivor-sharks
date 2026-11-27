@@ -88,7 +88,7 @@ import {
   Clapperboard,
   Play,
 } from "lucide-react";
-import { NflTeamMatchupDialog } from "@/components/NflTeamMatchupDialog";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 import {
   Select,
   SelectContent,
@@ -159,7 +159,6 @@ function NflGameCard({
   isAtsMode?: boolean;
   nflSeason?: number;
 }) {
-  const [matchupOpen, setMatchupOpen] = useState(false);
   const lineUnavailable = isAtsMode && (game.spread == null || game.favoriteTeamId == null);
   const isFinal = game.status === "final";
   const isLive = game.status === "in_progress";
@@ -192,25 +191,6 @@ function NflGameCard({
     if (isPicked)
       return "border-primary bg-primary/10 ring-2 ring-primary/40";
     return "border-border/40 bg-card/60 hover:border-border";
-  }
-
-  function MatchupStatsButton({ className }: { className?: string }) {
-    return (
-      <button
-        type="button"
-        onClick={() => setMatchupOpen(true)}
-        className={cn(
-          "rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider",
-          "border border-green-500/45 bg-green-500/15 text-green-400",
-          "hover:bg-green-500/25 hover:border-green-500/60 transition-colors leading-none whitespace-nowrap",
-          className,
-        )}
-        title="Season team stats"
-        aria-label="Open season team stats"
-      >
-        Stats
-      </button>
-    );
   }
 
   function PickBadge({ result }: { result: string | null }) {
@@ -450,10 +430,15 @@ function NflGameCard({
                   {formatGameTimeEt(game.startTime)}
                 </span>
               </div>
-              <MatchupStatsButton className="mt-1" />
             </>
           )}
-          {(isLive || isFinal) && <MatchupStatsButton className="mt-0.5" />}
+          {!isPPD && !lineUnavailable && (
+            <NflMatchupStatsTrigger
+              className="mt-0.5"
+              season={nflSeason}
+              game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
+          )}
         </div>
 
         <TeamBtn
@@ -465,30 +450,6 @@ function NflGameCard({
         />
       </div>
 
-      <NflTeamMatchupDialog
-        open={matchupOpen}
-        onOpenChange={setMatchupOpen}
-        season={nflSeason}
-        game={
-          matchupOpen
-            ? {
-                id: game.id,
-                awayTeam: {
-                  id: game.awayTeam.id,
-                  abbreviation: game.awayTeam.abbreviation,
-                  name: game.awayTeam.name,
-                  logoUrl: game.awayTeam.logoUrl,
-                },
-                homeTeam: {
-                  id: game.homeTeam.id,
-                  abbreviation: game.homeTeam.abbreviation,
-                  name: game.homeTeam.name,
-                  logoUrl: game.homeTeam.logoUrl,
-                },
-              }
-            : null
-        }
-      />
     </div>
   );
 }
