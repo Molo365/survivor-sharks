@@ -18,6 +18,7 @@ import type {
   NflPickEmSeasonPlayerPick,
 } from "@workspace/api-client-react";
 import { nflAtsSpreadLabelForTeam } from "@/lib/nflAtsSpreadLabel";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 
 // ── PickEm player shape (must satisfy LeaderboardPlayer) ─────────────────────
 
@@ -118,18 +119,25 @@ function PickCard({
         )}
       </div>
 
-      <span
-        className={cn(
-          "shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded border leading-none",
-          isCorrect
-            ? "text-green-400 bg-green-500/10 border-green-500/25"
-            : isIncorrect
-              ? "text-destructive/80 bg-destructive/10 border-destructive/25"
-              : "text-muted-foreground/40 bg-muted/10 border-border/30",
+      <div className="shrink-0 flex flex-col items-end gap-1">
+        {game && (
+          <NflMatchupStatsTrigger
+            game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+          />
         )}
-      >
-        {isCorrect ? "✓" : isIncorrect ? "✗" : "–"}
-      </span>
+        <span
+          className={cn(
+            "text-[11px] font-bold px-1.5 py-0.5 rounded border leading-none",
+            isCorrect
+              ? "text-green-400 bg-green-500/10 border-green-500/25"
+              : isIncorrect
+                ? "text-destructive/80 bg-destructive/10 border-destructive/25"
+                : "text-muted-foreground/40 bg-muted/10 border-border/30",
+          )}
+        >
+          {isCorrect ? "✓" : isIncorrect ? "✗" : "–"}
+        </span>
+      </div>
     </div>
   );
 }

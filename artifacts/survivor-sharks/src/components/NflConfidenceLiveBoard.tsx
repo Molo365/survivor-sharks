@@ -21,6 +21,7 @@ import {
   TiebreakerStandingsColumnGuess,
   TiebreakerStandingsColumnHeader,
 } from "@/components/TiebreakerStandingsColumn";
+import { NflMatchupStatsTrigger, nflMatchupGameFromTeams } from "@/components/NflMatchupStatsTrigger";
 
 const GAME_COL_MIN = 56;
 const STICKY_PLAYER_W = 112;
@@ -73,7 +74,7 @@ function ConfidencePickCell({
   );
 }
 
-function GameHeader({ game }: { game: GameSummary }) {
+function GameHeader({ game, season }: { game: GameSummary; season?: number }) {
   const live = game.status === "in_progress";
   const final = game.status === "final";
   const score =
@@ -112,6 +113,11 @@ function GameHeader({ game }: { game: GameSummary }) {
       >
         {formatConfidenceGameStatusLabel(game)}
       </span>
+      <NflMatchupStatsTrigger
+        className="mt-0.5 scale-[0.92] origin-center"
+        season={season}
+        game={nflMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+      />
     </div>
   );
 }
@@ -393,7 +399,7 @@ export function NflConfidenceLiveBoard({
               </th>
               {games.map((game) => (
                 <th key={game.id} className="align-bottom font-normal">
-                  <GameHeader game={game} />
+                  <GameHeader game={game} season={currentYear} />
                 </th>
               ))}
               {showWeeklyTbCol && weeklyTbColumnHeader && (
