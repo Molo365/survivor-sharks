@@ -87,7 +87,6 @@ import {
   ChevronRight,
   Clapperboard,
   Play,
-  Swords,
 } from "lucide-react";
 import { NflTeamMatchupDialog } from "@/components/NflTeamMatchupDialog";
 import {
@@ -193,6 +192,25 @@ function NflGameCard({
     if (isPicked)
       return "border-primary bg-primary/10 ring-2 ring-primary/40";
     return "border-border/40 bg-card/60 hover:border-border";
+  }
+
+  function MatchupStatsButton({ className }: { className?: string }) {
+    return (
+      <button
+        type="button"
+        onClick={() => setMatchupOpen(true)}
+        className={cn(
+          "rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider",
+          "border border-green-500/45 bg-green-500/15 text-green-400",
+          "hover:bg-green-500/25 hover:border-green-500/60 transition-colors leading-none whitespace-nowrap",
+          className,
+        )}
+        title="Head-to-head stats"
+        aria-label="Open head-to-head stats"
+      >
+        Stats
+      </button>
+    );
   }
 
   function PickBadge({ result }: { result: string | null }) {
@@ -432,28 +450,10 @@ function NflGameCard({
                   {formatGameTimeEt(game.startTime)}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setMatchupOpen(true)}
-                className="mt-1 flex items-center justify-center gap-0.5 rounded-md border border-border/50 bg-muted/20 p-1 text-primary/80 hover:bg-primary/10 hover:border-primary/30 transition-colors"
-                title="Team matchup stats"
-                aria-label="Open team matchup stats"
-              >
-                <Swords className="w-3 h-3" />
-              </button>
+              <MatchupStatsButton className="mt-1" />
             </>
           )}
-          {(isLive || isFinal) && (
-            <button
-              type="button"
-              onClick={() => setMatchupOpen(true)}
-              className="mt-0.5 flex items-center justify-center rounded-md border border-border/40 bg-muted/15 p-1 text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
-              title="Team matchup stats"
-              aria-label="Open team matchup stats"
-            >
-              <Swords className="w-3 h-3" />
-            </button>
-          )}
+          {(isLive || isFinal) && <MatchupStatsButton className="mt-0.5" />}
         </div>
 
         <TeamBtn
