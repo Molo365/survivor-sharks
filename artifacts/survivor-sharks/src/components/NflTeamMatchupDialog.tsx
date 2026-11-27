@@ -46,6 +46,11 @@ type MatchupPayload = {
   };
 };
 
+const AWAY_TEXT = "text-sky-400";
+const HOME_TEXT = "text-rose-400";
+const AWAY_BAR = "bg-sky-500/80";
+const HOME_BAR = "bg-rose-500/80";
+
 function statBar(
   left: number | null,
   right: number | null,
@@ -71,40 +76,98 @@ function fmt(n: number | null): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function MatchupRow({
-  label,
-  awayOff,
-  homeDef,
-  homeOff,
-  awayDef,
+/** One matchup line: offense YPG (left) vs opposing defense yards allowed (right). */
+function MatchupCompareLine({
+  offenseAbbr,
+  offenseValue,
+  offenseTextClass,
+  offenseBarClass,
+  defenseAbbr,
+  defenseValue,
+  defenseTextClass,
+  defenseBarClass,
 }: {
-  label: string;
-  awayOff: number | null;
-  homeDef: number | null;
-  homeOff: number | null;
-  awayDef: number | null;
+  offenseAbbr: string;
+  offenseValue: number | null;
+  offenseTextClass: string;
+  offenseBarClass: string;
+  defenseAbbr: string;
+  defenseValue: number | null;
+  defenseTextClass: string;
+  defenseBarClass: string;
 }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-1.5 rounded-md border border-border/25 bg-muted/10 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-1 text-[10px] leading-tight">
+        <span className={cn("font-semibold truncate", offenseTextClass)}>
+          <span className="font-bebas text-xs">{offenseAbbr}</span>
+          <span className="text-muted-foreground/80 font-normal"> offense</span>
+        </span>
+        <span className="text-[9px] text-muted-foreground/50 shrink-0 px-1">vs</span>
+        <span className={cn("font-semibold truncate text-right", defenseTextClass)}>
+          <span className="font-bebas text-xs">{defenseAbbr}</span>
+          <span className="text-muted-foreground/80 font-normal"> defense</span>
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm tabular-nums font-semibold">
+        <span className={cn("w-14 text-left", offenseTextClass)}>{fmt(offenseValue)}</span>
+        <span className="text-[9px] text-muted-foreground/45 font-normal flex-1 text-center">
+          yds / g
+        </span>
+        <span className={cn("w-14 text-right", defenseTextClass)}>{fmt(defenseValue)}</span>
+      </div>
+      {statBar(offenseValue, defenseValue, offenseBarClass, defenseBarClass)}
+    </div>
+  );
+}
+
+function MatchupStatBlock({
+  title,
+  unitLabel,
+  awayAbbr,
+  homeAbbr,
+  awayOffense,
+  homeDefense,
+  homeOffense,
+  awayDefense,
+}: {
+  title: string;
+  unitLabel: string;
+  awayAbbr: string;
+  homeAbbr: string;
+  awayOffense: number | null;
+  homeDefense: number | null;
+  homeOffense: number | null;
+  awayDefense: number | null;
+}) {
+  return (
+    <div className="space-y-2">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 text-center">
-        {label}
+        {title}
       </p>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-xs sm:text-sm tabular-nums">
-          <span className="font-semibold text-sky-400 w-10 text-left">{fmt(awayOff)}</span>
-          <span className="text-[10px] text-muted-foreground/60 flex-1 text-center">Off / Def</span>
-          <span className="font-semibold text-rose-400 w-10 text-right">{fmt(homeDef)}</span>
-        </div>
-        {statBar(awayOff, homeDef, "bg-sky-500/80", "bg-rose-500/80")}
-      </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-xs sm:text-sm tabular-nums">
-          <span className="font-semibold text-rose-400 w-10 text-left">{fmt(homeOff)}</span>
-          <span className="text-[10px] text-muted-foreground/60 flex-1 text-center">Off / Def</span>
-          <span className="font-semibold text-sky-400 w-10 text-right">{fmt(awayDef)}</span>
-        </div>
-        {statBar(homeOff, awayDef, "bg-rose-500/80", "bg-sky-500/80")}
-      </div>
+      <MatchupCompareLine
+        offenseAbbr={awayAbbr}
+        offenseValue={awayOffense}
+        offenseTextClass={AWAY_TEXT}
+        offenseBarClass={AWAY_BAR}
+        defenseAbbr={homeAbbr}
+        defenseValue={homeDefense}
+        defenseTextClass={HOME_TEXT}
+        defenseBarClass={HOME_BAR}
+      />
+      <MatchupCompareLine
+        offenseAbbr={homeAbbr}
+        offenseValue={homeOffense}
+        offenseTextClass={HOME_TEXT}
+        offenseBarClass={HOME_BAR}
+        defenseAbbr={awayAbbr}
+        defenseValue={awayDefense}
+        defenseTextClass={AWAY_TEXT}
+        defenseBarClass={AWAY_BAR}
+      />
+      <p className="text-[9px] text-center text-muted-foreground/45 -mt-0.5">
+        {unitLabel}
+      </p>
     </div>
   );
 }
@@ -183,8 +246,9 @@ export function NflTeamMatchupDialog({
             <Swords className="w-5 h-5 text-primary/80" />
             {title}
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Season averages — offense vs opposing defense (yards from ESPN).
+          <DialogDescription className="text-xs leading-relaxed">
+            Season averages from ESPN. Each category has two comparisons: away offense vs home
+            defense, then home offense vs away defense.
           </DialogDescription>
         </DialogHeader>
 
@@ -222,6 +286,9 @@ export function NflTeamMatchupDialog({
                         <img src={side.logo} alt="" className="w-7 h-7 object-contain" />
                       ) : null}
                       <span className="font-bebas text-lg leading-none">{side.abbreviation}</span>
+                      <span className="text-[9px] uppercase text-muted-foreground/60">
+                        {i === 0 ? "away" : "home"}
+                      </span>
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-tight truncate">
                       {side.displayName}
@@ -240,34 +307,60 @@ export function NflTeamMatchupDialog({
                 ))}
               </div>
 
+              <div className="rounded-md border border-border/30 bg-muted/15 px-3 py-2 text-[10px] text-muted-foreground/75 leading-relaxed space-y-0.5">
+                <p>
+                  <span className={AWAY_TEXT}>{data.away.abbreviation}</span> = away ·{" "}
+                  <span className={HOME_TEXT}>{data.home.abbreviation}</span> = home
+                </p>
+                <p>
+                  Each block has <strong className="font-semibold text-foreground/70">two rows</strong>:{" "}
+                  that team&apos;s <strong className="font-semibold text-foreground/70">offense</strong> (left
+                  number) vs the opponent&apos;s{" "}
+                  <strong className="font-semibold text-foreground/70">defense</strong> (right — yards they
+                  allow per game).
+                </p>
+              </div>
+
               <div className="space-y-5 pt-1">
-                <MatchupRow
-                  label="Pass yards / game"
-                  awayOff={data.away.offense.passYpg}
-                  homeDef={data.home.defense.passYpg}
-                  homeOff={data.home.offense.passYpg}
-                  awayDef={data.away.defense.passYpg}
+                <MatchupStatBlock
+                  title="Pass yards / game"
+                  unitLabel="Season passing yards per game"
+                  awayAbbr={data.away.abbreviation}
+                  homeAbbr={data.home.abbreviation}
+                  awayOffense={data.away.offense.passYpg}
+                  homeDefense={data.home.defense.passYpg}
+                  homeOffense={data.home.offense.passYpg}
+                  awayDefense={data.away.defense.passYpg}
                 />
-                <MatchupRow
-                  label="Rush yards / game"
-                  awayOff={data.away.offense.rushYpg}
-                  homeDef={data.home.defense.rushYpg}
-                  homeOff={data.home.offense.rushYpg}
-                  awayDef={data.away.defense.rushYpg}
+                <MatchupStatBlock
+                  title="Rush yards / game"
+                  unitLabel="Season rushing yards per game"
+                  awayAbbr={data.away.abbreviation}
+                  homeAbbr={data.home.abbreviation}
+                  awayOffense={data.away.offense.rushYpg}
+                  homeDefense={data.home.defense.rushYpg}
+                  homeOffense={data.home.offense.rushYpg}
+                  awayDefense={data.away.defense.rushYpg}
                 />
-                <MatchupRow
-                  label="Total yards / game"
-                  awayOff={data.away.offense.totalYpg}
-                  homeDef={data.home.defense.totalYpg}
-                  homeOff={data.home.offense.totalYpg}
-                  awayDef={data.away.defense.totalYpg}
+                <MatchupStatBlock
+                  title="Total yards / game"
+                  unitLabel="Season total yards per game"
+                  awayAbbr={data.away.abbreviation}
+                  homeAbbr={data.home.abbreviation}
+                  awayOffense={data.away.offense.totalYpg}
+                  homeDefense={data.home.defense.totalYpg}
+                  homeOffense={data.home.offense.totalYpg}
+                  awayDefense={data.away.defense.totalYpg}
                 />
-                <MatchupRow
-                  label="Points / game"
-                  awayOff={data.away.offense.ppg}
-                  homeDef={data.home.defense.ppg}
-                  homeOff={data.home.offense.ppg}
-                  awayDef={data.away.defense.ppg}
+                <MatchupStatBlock
+                  title="Points / game"
+                  unitLabel="Season points scored vs points allowed per game"
+                  awayAbbr={data.away.abbreviation}
+                  homeAbbr={data.home.abbreviation}
+                  awayOffense={data.away.offense.ppg}
+                  homeDefense={data.home.defense.ppg}
+                  homeOffense={data.home.offense.ppg}
+                  awayDefense={data.away.defense.ppg}
                 />
               </div>
             </>
