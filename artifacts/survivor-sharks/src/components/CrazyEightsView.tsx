@@ -36,6 +36,8 @@ import { crazyEightsCorrectPickPoints, formatDecimalOdds } from "@/lib/crazyEigh
 import { pickEmNhlMobileTeamCode } from "@/lib/pickEmTeamLabel";
 import { NbaMatchupStatsTrigger, nbaMatchupGameFromTeams } from "@/components/NbaMatchupStatsTrigger";
 import { nbaSeasonYearFromDate } from "@/lib/nbaSeasonYear";
+import { NhlMatchupStatsTrigger, nhlMatchupGameFromTeams } from "@/components/NhlMatchupStatsTrigger";
+import { nhlSeasonYearFromDate } from "@/lib/nhlSeasonYear";
 
 function NhlMobileTeamName({ team, className }: { team: SlateTeam; className?: string }) {
   return (
@@ -418,6 +420,13 @@ function LockedPickRow({
                 className="mt-0.5"
                 season={nbaSeasonYearFromDate()}
                 game={nbaMatchupGameFromTeams(pick.gameId, pick.awayTeam, pick.homeTeam)}
+              />
+            )}
+            {sport === "nhl" && !isPostponed && (
+              <NhlMatchupStatsTrigger
+                className="mt-0.5"
+                season={nhlSeasonYearFromDate()}
+                game={nhlMatchupGameFromTeams(pick.gameId, pick.awayTeam, pick.homeTeam)}
               />
             )}
           </div>
@@ -822,6 +831,13 @@ function GameCard({
               className="mt-0.5"
               season={nbaSeasonYearFromDate()}
               game={nbaMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
+            />
+          )}
+          {isNhl && !isPostponed && (
+            <NhlMatchupStatsTrigger
+              className="mt-0.5"
+              season={nhlSeasonYearFromDate()}
+              game={nhlMatchupGameFromTeams(game.id, game.awayTeam, game.homeTeam)}
             />
           )}
         </div>
