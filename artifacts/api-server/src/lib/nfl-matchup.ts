@@ -1,7 +1,9 @@
 import { parseEspnNflSpread } from "./nfl-pickem-ats-spread-parse";
 
 const ESPN_NFL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
+const ESPN_NFL_CORE = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl";
 const ESPN_NFL_SUMMARY = `${ESPN_NFL}/summary`;
+const LEADER_CATEGORIES = ["passingLeader", "rushingLeader", "receivingLeader"] as const;
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 type CacheEntry<T> = { at: number; data: T };
@@ -38,14 +40,23 @@ export interface NflMatchupTeamRecords {
   away: string | null;
 }
 
+export interface NflMatchupTeamLeader {
+  category: string;
+  playerName: string;
+  summary: string;
+}
+
 export interface NflMatchupTeamSide {
   teamId: string;
   abbreviation: string;
   displayName: string;
   logo: string | null;
+  primaryColor: string | null;
+  alternateColor: string | null;
   records: NflMatchupTeamRecords;
   offense: NflMatchupTeamOffense;
   defense: NflMatchupTeamDefense;
+  leaders: NflMatchupTeamLeader[];
 }
 
 export interface NflMatchupSpread {
@@ -89,10 +100,19 @@ function recordSummary(items: Array<{ type?: string; summary?: string }>, type: 
   return row?.summary?.trim() || null;
 }
 
+function normalizeEspnHex(hex: unknown): string | null {
+  if (hex == null) return null;
+  const raw = String(hex).replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+  return `#${raw}`;
+}
+
 function parseTeamProfile(data: unknown): {
   abbreviation: string;
   displayName: string;
   logo: string | null;
+  primaryColor: string | null;
+  alternateColor: string | null;
   records: NflMatchupTeamRecords;
   defensePpg: number | null;
 } {
@@ -118,6 +138,8 @@ function parseTeamProfile(data: unknown): {
     abbreviation: String(team.abbreviation ?? ""),
     displayName: String(team.displayName ?? team.name ?? ""),
     logo: logos[0]?.href ?? null,
+    primaryColor: normalizeEspnHex(team.color),
+    alternateColor: normalizeEspnHex(team.alternateColor),
     records: {
       overall: recordSummary(items, "total"),
       home: recordSummary(items, "home"),
@@ -226,18 +248,74 @@ async function fetchDefenseYpg(teamId: string, season: number, seasontype: numbe
   });
 }
 
+async function fetchAthleteDisplayName(refUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(refUrl, { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { displayName?: string; fullName?: string };
+    return data.displayName ?? data.fullName ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchTeamLeaders(
+  teamId: string,
+  season: number,
+  seasontype: number,
+): Promise<NflMatchupTeamLeader[]> {
+  return cached(`nfl-team-leaders:${season}:${seasontype}:${teamId}`, async () => {
+    const url =
+      `${ESPN_NFL_CORE}/seasons/${season}/types/${seasontype}/teams/${teamId}/leaders?lang=en&region=us`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) return [];
+      const data = (await res.json()) as {
+        categories?: Array<{
+          name?: string;
+          displayName?: string;
+          leaders?: Array<{
+            displayValue?: string;
+            athlete?: { $ref?: string };
+          }>;
+        }>;
+      };
+      const want = new Set<string>(LEADER_CATEGORIES);
+      const picked =
+        data.categories?.filter((c) => c.name && want.has(c.name)) ?? [];
+
+      const leaders = await Promise.all(
+        picked.map(async (cat) => {
+          const top = cat.leaders?.[0];
+          const ref = top?.athlete?.$ref;
+          const playerName = ref ? (await fetchAthleteDisplayName(ref)) : null;
+          return {
+            category: cat.displayName ?? cat.name ?? "Leader",
+            playerName: playerName ?? "—",
+            summary: String(top?.displayValue ?? "").trim() || "—",
+          } satisfies NflMatchupTeamLeader;
+        }),
+      );
+      return leaders;
+    } catch {
+      return [];
+    }
+  });
+}
+
 async function loadTeamSide(
   teamId: string,
   season: number,
   seasontype: number,
 ): Promise<NflMatchupTeamSide> {
   return cached(`nfl-matchup-side:${season}:${seasontype}:${teamId}`, async () => {
-    const [profileRes, statsRes, defenseYards] = await Promise.all([
+    const [profileRes, statsRes, defenseYards, leaders] = await Promise.all([
       fetch(`${ESPN_NFL}/teams/${teamId}`, { signal: AbortSignal.timeout(10_000) }),
       fetch(`${ESPN_NFL}/teams/${teamId}/statistics?season=${season}&seasontype=${seasontype}`, {
         signal: AbortSignal.timeout(10_000),
       }),
       fetchDefenseYpg(teamId, season, seasontype),
+      fetchTeamLeaders(teamId, season, seasontype),
     ]);
 
     if (!profileRes.ok) {
@@ -257,12 +335,15 @@ async function loadTeamSide(
       abbreviation: profile.abbreviation,
       displayName: profile.displayName,
       logo: profile.logo,
+      primaryColor: profile.primaryColor,
+      alternateColor: profile.alternateColor,
       records: profile.records,
       offense,
       defense: {
         ...defenseYards,
         ppg: profile.defensePpg,
       },
+      leaders,
     };
   });
 }
